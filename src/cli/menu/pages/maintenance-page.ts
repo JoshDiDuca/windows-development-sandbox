@@ -1,6 +1,6 @@
 // Section 7: keeping things in shape. Updates (the program and your saved settings), Data & storage (the data folder,
-// what is stored, clean-up), Health (doctor, repair and this PC's setup together), the logs, and the less common
-// commands. Each is a category on the left and loads when you open it.
+// what is stored, clean-up), Health (doctor, repair and this PC's setup together), the logs, the web UI's server, and
+// the less common commands. Each is a category on the left and loads when you open it.
 import { dataPage, showData, type DataShow } from '../../../app/features/data/index.js';
 import type { Action } from '../../../app/kernel/index.js';
 import { readQuery } from '../../../app/registry.js';
@@ -8,6 +8,7 @@ import { errMsg } from '../../../core/util/index.js';
 import { healthPage, lastHealth, type HealthLast } from '../../../app/features/health/index.js';
 import { CRASH, listLogs, logsPage, type LogFiles } from '../../../app/features/logs/index.js';
 import { updatesPage, updatesStatus, type UpdatesStatus } from '../../../app/features/updates/updates.def.js';
+import { webPage, webStatus, type WebStatus } from '../../../app/features/web/index.js';
 import type { Context } from '../../commands/context.js';
 import { commandSpec, type CommandSpec } from '../../manifest.js';
 import {
@@ -36,6 +37,8 @@ export interface MaintenanceModel {
   readonly health: { readonly last: HealthLast | null };
   /** The program's updates and saved settings (the status), and a newer version a check found (latest). */
   readonly updates: { readonly status: UpdatesStatus; readonly latest: string | null };
+  /** The web UI's server (the web feature's status): running or not, and its address. */
+  readonly web: WebStatus;
   /** The commands listed under "More commands". */
   readonly more: readonly { name: string; summary: string }[];
 }
@@ -57,12 +60,20 @@ const CATEGORIES = [
     description: 'Checks this PC and your settings, repairs problems, and sets up Windows Sandbox.',
   },
   { id: 'logs', label: 'Logs', description: "The sandbox's own logs." },
+  {
+    id: 'web',
+    label: 'Web UI',
+    description: 'The web UI server on this PC: start it, open it in your browser, stop it.',
+  },
   { id: 'more', label: 'More commands', description: 'Less common commands.' },
 ];
 
 const MORE_COMMANDS = ['sync', 'audit', 'config', 'generate', 'exec', 'agent-commands'];
 
 const NO_LOGS: LogFiles = { folder: '', files: [], crash: false };
+
+/** Until the status is read: the server counts as not running. */
+const NO_WEB: WebStatus = { running: false, port: null, address: null };
 
 /** Plain names for the commands under More commands. */
 const MORE_LABELS: Readonly<Record<string, string>> = {
@@ -122,6 +133,11 @@ function logsMenu(files: LogFiles): MenuView {
   return menuView({ ...logsPage(files), empty: undefined }, { category: 'logs', refresh: false });
 }
 
+/** The Web UI view (src/app/features/web) as the menu's rows, keys and Enter labels, for the Web UI category. */
+function webMenu(m: MaintenanceModel): MenuView {
+  return menuView(webPage(m.web), { category: 'web', prefix: 'web:', refresh: false });
+}
+
 /** The list for the maintenance tab. Pure. */
 export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   // The logs rows have no section heading of their own: the category is their heading.
@@ -129,6 +145,7 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   // The checks take seconds (programs are run), so they only run when you ask: the page shows the saved results.
   const health = healthMenu(m);
   const updates = updatesMenu(m);
+  const web = webMenu(m);
   const more: ListItem<string>[] = m.more.map((c) => ({
     value: 'more:' + c.name,
     label: MORE_LABELS[c.name] ?? Text.humanize(c.name),
@@ -138,7 +155,7 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   return {
     path: [],
     categories: CATEGORIES,
-    items: [...updates.items, ...dataItems(m), ...health.items, ...logs, ...more],
+    items: [...updates.items, ...dataItems(m), ...health.items, ...logs, ...web.items, ...more],
     empty: 'Nothing here yet.',
     actions: maintenanceActions(m),
     enterLabel: (category, id) =>
@@ -146,7 +163,10 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
         ? health.enterLabel(category, id)
         : category === 'updates'
           ? updates.enterLabel(category, id)
-          : (category === 'data' ? dataMenuView(m.data)?.enterLabel(category, id) : undefined) || enterLabel(id ?? ''),
+          : category === 'web'
+            ? web.enterLabel(category, id)
+            : (category === 'data' ? dataMenuView(m.data)?.enterLabel(category, id) : undefined) ||
+              enterLabel(id ?? ''),
   };
 }
 
@@ -175,6 +195,8 @@ function maintenanceActions(m: MaintenanceModel): (category: string | undefined)
         return healthMenu(m).actions;
       case 'updates':
         return updatesMenu(m).actions;
+      case 'web':
+        return webMenu(m).actions;
       default:
         return [];
     }
@@ -187,6 +209,7 @@ export class MaintenancePage extends ListPage<string> {
   private logs: LogFiles = NO_LOGS;
   private last: HealthLast | null = null;
   private updates: UpdatesStatus = NO_UPDATES;
+  private web: WebStatus = NO_WEB;
   private readonly operations: MenuOperations;
   /** The newer version the last check found (null: none, or not looked yet). */
   private latest: string | null = null;
@@ -206,6 +229,7 @@ export class MaintenancePage extends ListPage<string> {
       logs: this.logs,
       health: { last: this.last },
       updates: { status: this.updates, latest: this.latest },
+      web: this.web,
       more: MORE_COMMANDS.flatMap((name) => {
         const spec = commandSpec(name);
         return spec ? [{ name, summary: spec.summary }] : [];
@@ -221,6 +245,12 @@ export class MaintenancePage extends ListPage<string> {
     }
     this.last = (await readQuery(lastHealth, this.ctx)).last;
     this.updates = await readQuery(updatesStatus, this.ctx);
+    try {
+      this.web = await readQuery(webStatus, this.ctx);
+    } catch {
+      // Not on this PC (a sandbox cannot start the web UI): the category shows it as not running.
+      this.web = NO_WEB;
+    }
   }
 
   protected options(): ListOptions<string> {
@@ -254,6 +284,13 @@ export class MaintenancePage extends ListPage<string> {
       // Only the open category's rows and keys: a key of one category must not fire in another.
       if (this.category === 'health') {
         const chosen = healthMenu(this.model()).resolve(result);
+        if (chosen?.kind === 'action')
+          return await this.operations.perform(chosen.action, [this.label], (text) => this.busy(text));
+        return {};
+      }
+      // The Web UI's keys (s, o, x) only in its category; the operation reports and the page reloads its facts.
+      if (this.category === 'web') {
+        const chosen = webMenu(this.model()).resolve(result);
         if (chosen?.kind === 'action')
           return await this.operations.perform(chosen.action, [this.label], (text) => this.busy(text));
         return {};

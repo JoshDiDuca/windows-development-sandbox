@@ -28,7 +28,9 @@ browser (React app, xterm.js)  ──HTTP + WebSocket──>  sandbox web (Node,
   ships in the package. Its dependencies are dev dependencies: only the built files ship.
 - **Server:** `src/host/web/` (the HTTP server, the WebSocket bridge, auth) with `node:http` and the `ws` package (small,
   no dependencies of its own, bundled). Started by `sandbox web` (start / stop / status / open), runs in the background
-  like the sync watcher, and keeps running when no sandbox does (the page says so).
+  like the sync watcher, and keeps running when no sandbox does (the page says so). The same four actions are in the
+  menu: Maintenance > Web UI (start, open, stop; its keys are s, o and x). They are CLI and menu only: the web page is
+  the web UI itself, so it does not offer to start or stop its own server.
 - **The browser never gets a session's attach token.** The server holds it, connects to the session's ptyhost (only to
   sandbox addresses, `isSandboxAddress`, as `attach` does) and passes frames both ways: OUTPUT to the browser; INPUT,
   RESIZE and PING from it. Several browsers may watch one session, as several `attach` terminals can.

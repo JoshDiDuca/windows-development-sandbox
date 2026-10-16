@@ -40,6 +40,7 @@ import {
   settingsView,
 } from './settings/settings.def.js';
 import { migrateSettings, runUpdate, updatesStatus, updatesView } from './updates/updates.def.js';
+import { openWeb, startWeb, stopWeb, webStatus, webView } from './web/web.def.js';
 
 export type { AgentRow, AgentsList } from './agents/agents.def.js';
 export type { AccountRow, AccountsList, AgentAccounts } from './accounts/accounts.def.js';
@@ -86,6 +87,9 @@ export const OPERATIONS = [
   pruneStorage,
   runUpdate,
   migrateSettings,
+  startWeb,
+  openWeb,
+  stopWeb,
 ] as const;
 export const QUERIES = [
   sandboxStatus,
@@ -102,6 +106,7 @@ export const QUERIES = [
   listLogs,
   tailLog,
   updatesStatus,
+  webStatus,
 ] as const;
 export const VIEWS = [
   sandboxView,
@@ -115,6 +120,7 @@ export const VIEWS = [
   dataView,
   logsView,
   updatesView,
+  webView,
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];

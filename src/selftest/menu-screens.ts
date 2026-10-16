@@ -332,6 +332,7 @@ export function renderScreens(dir: string): string {
       },
       latest: '1.5.0',
     },
+    web: { running: true, port: 47800, address: 'http://127.0.0.1:47800/' },
     more: [
       { name: 'sync', summary: 'sync history now' },
       { name: 'audit', summary: 'show what the sandbox did' },

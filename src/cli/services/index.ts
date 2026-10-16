@@ -19,7 +19,7 @@ export {
   type UpdateStatus,
   type UpdateTaskPort,
 } from './update-service.js';
-export { NORD_STEPS, VpnService, type VpnReport } from './vpn-service.js';
+export { VpnService, type VpnReport } from './vpn-service.js';
 export { LogsService, type LogFile } from './logs-service.js';
 export { WebService, webSession } from './web-service.js';
 export { HealthService, type SetupReport } from './health-service.js';

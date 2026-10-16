@@ -4,6 +4,7 @@
 import { sandboxView } from '../../app/features/sandbox/index.js';
 import { sessionsView } from '../../app/features/sessions/index.js';
 import { settingsView } from '../../app/features/settings/index.js';
+import { vpnView } from '../../app/features/vpn/index.js';
 import type { AnyView } from '../../app/kernel/index.js';
 import type { SECTION_LABELS } from './shell.js';
 
@@ -16,4 +17,6 @@ export const MENU_VIEWS: readonly MenuViewPlace[] = [
   { view: sessionsView, section: 'Sessions' },
   { view: sandboxView, section: 'Sandbox' },
   { view: settingsView, section: 'Settings' },
+  // The Settings page draws the VPN row itself (its login is staged with the settings); the view lists its operations.
+  { view: vpnView, section: 'Settings' },
 ];

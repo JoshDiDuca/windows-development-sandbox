@@ -3,6 +3,7 @@
 import type { Config } from '../../core/types.js';
 import type { VpnProvider } from '../../core/schema/index.js';
 import { isSandboxRunning } from '../../host/sandbox/index.js';
+import type { SecretStore } from '../../host/secrets/index.js';
 import {
   hostPublicIp,
   readVpnLine,
@@ -25,19 +26,14 @@ export interface VpnReport {
   readonly running: VpnLine | null;
 }
 
-/** The steps to get the NordVPN service credentials, in the words of Nord Account (shown before asking). */
-export const NORD_STEPS: readonly string[] = [
-  'Sign in at https://my.nordaccount.com with your usual NordVPN e-mail and password.',
-  'Open NordVPN, then "Set up NordVPN manually" (under Advanced settings).',
-  'Verify your e-mail if it asks, then copy the "Service credentials": a user name and a password.',
-  'These are NOT your account password. You can revoke them in the same place whenever you like.',
-];
-
 export class VpnService {
   private readonly login: VpnLogin;
 
-  constructor(private readonly ctx: Context) {
-    this.login = new VpnLogin(ctx.storageRoot);
+  constructor(
+    private readonly ctx: Context,
+    secrets?: SecretStore,
+  ) {
+    this.login = new VpnLogin(ctx.storageRoot, secrets);
   }
 
   private get config(): Config['vpn'] {
@@ -48,9 +44,10 @@ export class VpnService {
     return this.config.provider;
   }
 
-  async report(): Promise<VpnReport> {
+  /** Without `tunnel` the sandbox is not asked (no request to the network): `running` is then null. */
+  async report({ tunnel = true }: { tunnel?: boolean } = {}): Promise<VpnReport> {
     const c = this.config;
-    const running = isSandboxRunning();
+    const running = tunnel && isSandboxRunning();
     return {
       enabled: c.enabled,
       provider: c.provider,

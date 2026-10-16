@@ -16,8 +16,12 @@ import { browseFolderRun } from './features/files/index.js';
 import { hideWindowRun, sandboxStatusRun, showWindowRun, stopSandboxRun } from './features/sandbox/index.js';
 import { listSessionsRun, restartSessionsRun } from './features/sessions/index.js';
 import { getSettingRun, listSettingsRun, resetSettingRun, setSettingRun } from './features/settings/index.js';
+import { vpnLoginRun, vpnLogoutRun, vpnStatusRun } from './features/vpn/index.js';
 
 export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>[] = [
+  vpnStatusRun,
+  vpnLoginRun,
+  vpnLogoutRun,
   sandboxStatusRun,
   showWindowRun,
   hideWindowRun,

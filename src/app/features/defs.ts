@@ -6,15 +6,26 @@ import { browseFolder } from './files/files.def.js';
 import { hideWindow, sandboxStatus, sandboxView, showWindow, stopSandbox } from './sandbox/sandbox.def.js';
 import { listSessions, restartSessions, sessionsView } from './sessions/sessions.def.js';
 import { getSetting, listSettings, resetSetting, setSetting, settingsView } from './settings/settings.def.js';
+import { vpnLogin, vpnLogout, vpnStatus, vpnView } from './vpn/vpn.def.js';
 
 export type { FolderEntry, FolderListing } from './files/files.def.js';
 export type { SandboxStatus } from './sandbox/sandbox.def.js';
 export type { SessionRow, SessionsList } from './sessions/sessions.def.js';
 export type { SettingRow, SettingsList } from './settings/settings.def.js';
+export type { VpnStatus } from './vpn/vpn.def.js';
 
-export const OPERATIONS = [showWindow, hideWindow, stopSandbox, restartSessions, setSetting, resetSetting] as const;
-export const QUERIES = [sandboxStatus, listSessions, listSettings, getSetting, browseFolder] as const;
-export const VIEWS = [sandboxView, sessionsView, settingsView] as const;
+export const OPERATIONS = [
+  showWindow,
+  hideWindow,
+  stopSandbox,
+  restartSessions,
+  setSetting,
+  resetSetting,
+  vpnLogin,
+  vpnLogout,
+] as const;
+export const QUERIES = [sandboxStatus, listSessions, listSettings, getSetting, browseFolder, vpnStatus] as const;
+export const VIEWS = [sandboxView, sessionsView, settingsView, vpnView] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
 export type Query = (typeof QUERIES)[number];
@@ -58,6 +69,8 @@ export const NAV: readonly NavSection[] = [
   { label: 'Sandbox', view: 'sandbox' },
   { label: 'Apps', elsewhere: 'Choose apps in the menu (sandbox > Apps).' },
   { label: 'Settings', view: 'settings' },
+  // TODO: move under Settings (children) once NavSection.children exists (area 2, 02-projects.md).
+  { label: 'VPN', view: 'vpn' },
   { label: 'Accounts', elsewhere: 'Manage logins in the menu (sandbox > Accounts) or with sandbox account.' },
   { label: 'Maintenance', elsewhere: 'Doctor, repair, data and updates are in the menu (sandbox > Maintenance).' },
 ];

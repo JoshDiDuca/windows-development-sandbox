@@ -2,7 +2,14 @@
 // the settings rules for projects, and that the login never lands in session.json or the launch folder.
 import fs from 'node:fs';
 import path from 'node:path';
+import type { AppContext } from '../app/context.js';
+import { vpnLoginRowOf, vpnPage, VPN_WARNINGS, type VpnStatus } from '../app/features/vpn/index.js';
+import { fakeIO, pageActions } from '../app/kernel/index.js';
+import { runDefinition } from '../app/registry.js';
+import { pageLines } from '../cli/output/index.js';
+import { VpnService } from '../cli/services/index.js';
 import { DEFAULTS } from '../core/config/index.js';
+import { insideSandbox } from '../host/sandbox/platform.js';
 import { applyOverrides, loosenedRequests, NEVER_LOOSER, normalizeOverrides } from '../core/local-config/index.js';
 import { ConfigSchema, LocalOverridesSchema } from '../core/schema/index.js';
 import { SecretStore } from '../host/secrets/index.js';
@@ -655,5 +662,82 @@ export const vpnSuite: Suite = {
         vpnNotes(wgSettings.vpn).some((n) => n.includes('WireGuard private key') && n.includes('turn the tunnel off')),
       'the launch warns that the agent can read the key and turn the tunnel off',
     );
+
+    t.section('the VPN feature: status page, login and logout');
+    const sample: VpnStatus = {
+      enabled: true,
+      provider: 'nordvpn',
+      protocol: 'udp',
+      country: '',
+      killSwitch: true,
+      login: 'none',
+      loginSavedAt: null,
+      running: null,
+    };
+    const lines = pageLines(vpnPage(sample)).join('\n');
+    t.check(
+      lines.includes('Next: sandbox vpn login') &&
+        VPN_WARNINGS.every((w) => lines.includes(w)) &&
+        !lines.includes('Running now'),
+      'vpn status page: the facts, the next step on the command line only, the warnings',
+      lines,
+    );
+    t.equal(
+      pageActions(vpnPage({ ...sample, provider: 'wireguard-file' })).length,
+      0,
+      'vpn: wireguard needs no login and offers no login actions',
+    );
+    t.equal(
+      pageActions(vpnPage({ ...sample, login: 'saved', loginSavedAt: '2026-10-14T09:30:00.000Z' })).map((a) =>
+        a.kind === 'operation' ? a.op : a.kind,
+      ),
+      ['vpn.login', 'vpn.logout'],
+      'a saved login offers saving again and deleting',
+    );
+    t.equal(vpnLoginRowOf(sample).hint, 'not saved', 'the Settings row says not saved when no login is saved');
+
+    const featureStorage = t.dir('vpn-feature');
+    const featureCtx = {
+      storageRoot: featureStorage,
+      dataPath: t.at('vpn-feature', 'data'),
+      loaded: { config: { vpn: { ...DEFAULTS.vpn, provider: 'nordvpn' } } },
+    } as unknown as AppContext;
+    const read = (await runDefinition('vpn.status', featureCtx, { tunnel: false }, fakeIO().io)) as VpnStatus;
+    t.check(
+      read.login === 'none' && read.running === null,
+      'vpn status reads the saved login without the tunnel request',
+      JSON.stringify(read),
+    );
+    const { io: loginIO, seen: loginSeen } = fakeIO();
+    await t.throws(
+      () => runDefinition('vpn.login', featureCtx, { password: PASSWORD }, loginIO),
+      'does not work',
+      'the login is never accepted as an input',
+    );
+    t.check(loginSeen.questions.length === 0, 'a login passed on the command line asks nothing');
+
+    // The on-PC guard: only testable inside a sandbox (it refuses there) or on a PC where it passes (nothing to assert).
+    if (insideSandbox()) {
+      const { io, seen } = fakeIO();
+      await t.throws(
+        () => runDefinition('vpn.login', featureCtx, {}, io),
+        'inside the sandbox already',
+        'vpn login refuses inside the sandbox',
+      );
+      t.check(seen.questions.length === 0, 'and asks no question first');
+    }
+
+    const service = new VpnService(featureCtx, SecretStore.memory());
+    service.save({ username: USERNAME, password: PASSWORD });
+    const onDisk = fs.readFileSync(path.join(featureStorage, 'vpn', 'nordvpn.json'), 'utf8');
+    t.check(!onDisk.includes(PASSWORD) && !onDisk.includes(USERNAME), 'the saved file holds no login in clear');
+    const report = await service.report({ tunnel: false });
+    t.check(
+      report.login === 'saved' &&
+        !JSON.stringify(report).includes(PASSWORD) &&
+        !JSON.stringify(report).includes(USERNAME),
+      'a saved login shows as saved, and the status never holds it',
+    );
+    t.check(service.remove() && service.loginState() === 'none', 'deleting the login leaves none saved');
   },
 };

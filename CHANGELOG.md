@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- The menu no longer closes when an action fails: the problem is shown where you chose it (for example when an option
+  could not be read or saved), and you can go on.
+- More of the tool in the web UI: Maintenance > Updates, Data, Storage, Health, Logs and Engine, Settings export and
+  import, and the Web UI's own server in the menu. Each is written once for the command line, the menu and the browser.
+
 ## 1.11.0
 
 - **Web UI (beta), rebuilt.** A new look in dark and light; a sidebar with the sandbox's live state; a search over

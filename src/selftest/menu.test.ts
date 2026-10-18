@@ -453,6 +453,33 @@ export const menuSuite: Suite = {
       .body.map((l) => Text.strip(l))
       .find((l) => l.includes('›'));
     t.check(marked?.includes('Beta') === true, 'a section opens with the cursor on the entry it asks for');
+    class Broken extends ListPage<string> {
+      readonly label = 'Broken';
+      protected load(): Promise<void> {
+        return Promise.resolve();
+      }
+      protected options(): ListOptions<string> {
+        return { path: [], items: [{ value: 'a', label: 'Alpha' }] };
+      }
+      protected act(): Promise<Outcome<string>> {
+        return Promise.reject(new Error('the action broke'));
+      }
+    }
+    const broken = new Broken(new App());
+    await broken.open();
+    let survived = true;
+    try {
+      await broken.handle(press('return'));
+    } catch {
+      survived = false;
+    }
+    const brokenFrame = broken.render({ width: 100, height: 12 });
+    const brokenScreen = Text.strip([...brokenFrame.body, brokenFrame.notice ?? ''].join('\n'));
+    t.check(
+      survived && brokenScreen.includes('the action broke'),
+      'an action that fails shows its problem in the menu instead of closing it',
+      brokenScreen,
+    );
 
     t.section('proper inputs');
     const user2 = ConfigFile.user(t.at('inputs', 'config.json'));

@@ -169,26 +169,28 @@ export function Shell({ active, bare = false, children }: ShellProps) {
         </Group>
       </AppShell.Header>
       <AppShell.Navbar className="app-navbar" aria-label="Main">
-        <AppShell.Section p="md" pb="xs" visibleFrom="sm">
-          <Brand />
-        </AppShell.Section>
-        <AppShell.Section px="md" py="xs">
-          <SandboxStatusCard />
-        </AppShell.Section>
-        <AppShell.Section px="md" pb="xs" visibleFrom="sm">
-          <SearchButton />
-        </AppShell.Section>
-        <AppShell.Section grow component={ScrollArea} px="xs">
-          <Navigation active={active} onPick={close} />
-        </AppShell.Section>
-        <AppShell.Section p="sm" style={{ borderTop: '1px solid var(--app-border)' }}>
-          <Group justify="space-between">
-            <Text size="xs" c="dimmed" pl={6}>
-              Loopback only · signed in
-            </Text>
-            <ColorSchemeToggle />
-          </Group>
-        </AppShell.Section>
+        <Box className="app-navbar-sticky">
+          <AppShell.Section p="md" pb="xs" visibleFrom="sm">
+            <Brand />
+          </AppShell.Section>
+          <AppShell.Section px="md" py="xs">
+            <SandboxStatusCard />
+          </AppShell.Section>
+          <AppShell.Section px="md" pb="xs" visibleFrom="sm">
+            <SearchButton />
+          </AppShell.Section>
+          <AppShell.Section grow component={ScrollArea} px="xs">
+            <Navigation active={active} onPick={close} />
+          </AppShell.Section>
+          <AppShell.Section p="sm" style={{ borderTop: '1px solid var(--app-border)' }}>
+            <Group justify="space-between">
+              <Text size="xs" c="dimmed" pl={6}>
+                Loopback only · signed in
+              </Text>
+              <ColorSchemeToggle />
+            </Group>
+          </AppShell.Section>
+        </Box>
       </AppShell.Navbar>
       <AppShell.Main
         className="app-main"

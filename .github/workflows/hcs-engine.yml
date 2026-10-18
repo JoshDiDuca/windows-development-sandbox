@@ -1,7 +1,7 @@
 name: HCS engine (alpha)
 
-# Tests the alpha HCS engine on GitHub-hosted Windows runners. Run by hand (Actions > this workflow > Run workflow);
-# it never runs on push or pull request. `workflow_call` lets release.yml use it later (docs/development.md#hcs-engine-workflow).
+# Tests the alpha HCS engine on GitHub-hosted Windows runners: after each new version (release.yml calls it) and by hand
+# (Actions > this workflow > Run workflow). It never runs on push or pull request (docs/development.md#hcs-engine-workflow).
 # Hosted runners are Azure VMs: Hyper-V isolation needs nested virtualization, which they may not offer, so the job
 # reports which isolation really worked. No secrets are used.
 

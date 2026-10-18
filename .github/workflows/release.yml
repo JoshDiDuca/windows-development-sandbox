@@ -30,6 +30,8 @@ concurrency:
 jobs:
   release:
     runs-on: windows-latest
+    outputs:
+      released: ${{ steps.version.outputs.release }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,7 +64,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci   # also builds (prepare)
+      - run: npm ci
+        if: steps.version.outputs.release == 'true'
+      - run: npm run build
         if: steps.version.outputs.release == 'true'
       - name: Pack
         if: steps.version.outputs.release == 'true'
@@ -140,3 +144,15 @@ jobs:
           npm pkg set "name=@$scope/windows-development-sandbox" "publishConfig.registry=https://npm.pkg.github.com" "repository.url=https://github.com/${{ github.repository }}.git"
           "@${scope}:registry=https://npm.pkg.github.com`n//npm.pkg.github.com/:_authToken=`${NODE_AUTH_TOKEN}" | Set-Content .npmrc
           npm publish --ignore-scripts
+
+  # A new version is out: test it (CI on Node 22.0.0, and the HCS engine on hosted runners). These never hold up or
+  # undo the release; they show whether the version works outside a sandbox.
+  ci:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  hcs:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: ./.github/workflows/hcs-engine.yml

@@ -112,7 +112,12 @@ function QuestionForm({ question: q, said, done }: QuestionFormProps) {
           </Group>
         )}
         {q.kind === 'secret' && (
-          <PasswordInput value={text} onChange={(e) => setText(e.currentTarget.value)} data-autofocus />
+          <PasswordInput
+            value={text}
+            onChange={(e) => setText(e.currentTarget.value)}
+            autoComplete="new-password"
+            data-autofocus
+          />
         )}
         <Group justify="flex-end">
           <Button variant="default" onClick={() => done(declined(q))}>

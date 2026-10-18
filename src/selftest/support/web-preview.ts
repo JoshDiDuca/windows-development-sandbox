@@ -8,6 +8,7 @@ import path from 'node:path';
 import type { AppContext } from '../../app/context.js';
 import { listAgents } from '../../app/features/agents/index.js';
 import { sandboxStatus } from '../../app/features/sandbox/index.js';
+import { vpnStatus } from '../../app/features/vpn/index.js';
 import { listAccounts } from '../../app/features/accounts/index.js';
 import { engineStatus } from '../../app/features/engine/index.js';
 import { lastHealth } from '../../app/features/health/index.js';
@@ -542,11 +543,38 @@ function sampleLogTail(input: { readonly name?: string }): unknown {
 }
 
 /** The real features where they only touch the temp folder, sample data for the rest. */
-function previewRpc(ctx: AppContext, state: { running: boolean }): RpcHost {
+function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none' | 'saved' }): RpcHost {
   const sample = async (id: string, input: unknown, io: OperationIO): Promise<unknown> => {
     switch (id) {
       case 'sandbox.status':
         return sampleStatus(state.running);
+      case 'vpn.status':
+        return vpnStatus.output.parse({
+          enabled: true,
+          provider: 'nordvpn',
+          protocol: 'udp',
+          country: 'Netherlands',
+          killSwitch: true,
+          login: state.vpnLogin,
+          loginSavedAt: state.vpnLogin === 'saved' ? '2026-10-14T09:30:00.000Z' : null,
+          running: state.running
+            ? {
+                level: 'ok',
+                text: 'VPN up (nl1234.nordvpn.com), the sandbox appears as 185.1.2.3 (this PC: 81.4.5.6).',
+              }
+            : null,
+        });
+      case 'vpn.login':
+        // The preview asks the two questions like the real operation and keeps nothing of the answers.
+        io.log('NordVPN needs its service credentials, not your usual login. To get them:', 'muted');
+        if ((await io.secret({ title: 'Service user name' })) === undefined) cancelled();
+        if ((await io.secret({ title: 'Service password' })) === undefined) cancelled();
+        state.vpnLogin = 'saved';
+        return { message: 'Saved. Turn the VPN on with: sandbox config set vpn.enabled true' };
+      case 'vpn.logout':
+        if (!(await io.confirm({ title: 'Delete the saved VPN login?', yes: 'Delete', danger: true }))) cancelled();
+        state.vpnLogin = 'none';
+        return { deleted: true, message: 'The saved VPN login is deleted.' };
       case 'health.last':
         return sampleHealth();
       case 'health.check':
@@ -733,6 +761,9 @@ function previewRpc(ctx: AppContext, state: { running: boolean }): RpcHost {
     'sandbox.status': 'query',
     'sessions.list': 'query',
     'settings.list': 'query',
+    'vpn.status': 'query',
+    'vpn.login': 'operation',
+    'vpn.logout': 'operation',
     'sandbox.stop': 'operation',
     'sandbox.show': 'operation',
     'sandbox.hide': 'operation',
@@ -826,7 +857,7 @@ async function main(): Promise<void> {
     storageRoot: path.join(temp, 'storage'),
     dataPath,
   } as unknown as AppContext;
-  const state = { running: true };
+  const state: { running: boolean; vpnLogin: 'none' | 'saved' } = { running: true, vpnLogin: 'none' };
   const ptyPort = await startFakePty();
   const backend: WebBackend = {
     info: () =>

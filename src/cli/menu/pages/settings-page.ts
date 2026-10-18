@@ -17,6 +17,7 @@ import {
   type SettingsSource,
 } from '../../../app/features/settings/index.js';
 import { changeDataFolder } from '../../../app/features/storage/index.js';
+import { vpnLogin, vpnLoginRowOf, vpnLogout, vpnStatus, type VpnStatus } from '../../../app/features/vpn/index.js';
 import { action, valueText } from '../../../app/kernel/index.js';
 import { readQuery } from '../../../app/registry.js';
 import type { Config } from '../../../core/types.js';
@@ -27,12 +28,12 @@ import {
   Theme,
   type App,
   type Category,
+  type ListAction,
   type ListItem,
   type ListOptions,
   type ListResult,
 } from '../../tui/index.js';
 import { MenuOperations } from '../io-menu.js';
-import { VpnLoginFlow, vpnLoginRow, VPN_LOGIN } from '../vpn-login.js';
 import type { Draft } from '../settings/draft.js';
 import { ValueEditor } from '../settings/value-editor.js';
 import { SCOPES, scopeStatus, type Scope } from './scopes.js';
@@ -128,6 +129,11 @@ function current(file: ConfigFile, draft: Draft, key: string[], config: Config):
 /** The row in General that changes the data folder (your own settings only): the storage area's operation runs it. */
 export const DATA_FOLDER = '@data-folder';
 
+/** The row in Network that sets the VPN login (its operations are the VPN feature's). */
+export const VPN_LOGIN = '@vpn-login';
+
+const VPN_PATH = ['Settings', 'Network', 'VPN login'];
+
 /** The row's words: where the saved data is, and what Enter does. */
 function dataFolderRow(ctx: Context): { label: string; hint: string; description: string } {
   return {
@@ -144,6 +150,7 @@ export function settingsOptions(
   scope: Scope,
   draft: Draft,
   extra: readonly ListItem<string>[] = [],
+  extraActions: readonly ListAction<string>[] = [],
 ): ListOptions<string> {
   const file = files[scope];
   const config = files.user.userConfig();
@@ -167,6 +174,7 @@ export function settingsOptions(
     actions: [
       { key: 'r', label: file.isProject ? 'remove' : 'reset to default', applies: (id) => set.has(id) },
       { key: 'z', label: 'undo', applies: (id) => unsaved.has(id) },
+      ...extraActions,
     ],
     enterLabel: (_category, id) =>
       id === DATA_FOLDER || id === VPN_LOGIN
@@ -183,6 +191,17 @@ export class SettingsPage extends ListPage<string> {
   private scope: Scope = 'user';
   private readonly editor: ValueEditor;
   private readonly operations: MenuOperations;
+  /** The VPN status without asking the sandbox: the login row needs only the login's state. */
+  private vpn: VpnStatus = {
+    enabled: false,
+    provider: 'nordvpn',
+    protocol: 'udp',
+    country: '',
+    killSwitch: true,
+    login: 'none',
+    loginSavedAt: null,
+    running: null,
+  };
 
   constructor(
     app: App,
@@ -204,17 +223,23 @@ export class SettingsPage extends ListPage<string> {
     return this.files[this.scope];
   }
 
-  protected load(): Promise<void> {
-    return Promise.resolve();
+  protected async load(): Promise<void> {
+    this.vpn = await readQuery(vpnStatus, this.ctx, { tunnel: false });
   }
 
   protected options(): ListOptions<string> {
     const row = dataFolderRow(this.ctx);
-    return settingsOptions(this.files, this.scope, this.draft, [
-      { value: DATA_FOLDER, category: 'general', ...row },
-      { value: VPN_LOGIN, category: 'network', ...vpnLoginRow(this.ctx) },
-      ...shareSettingsRows().map((r) => ({ ...r, category: 'general' })),
-    ]);
+    return settingsOptions(
+      this.files,
+      this.scope,
+      this.draft,
+      [
+        { value: DATA_FOLDER, category: 'general', ...row },
+        { value: VPN_LOGIN, category: 'network', ...vpnLoginRowOf(this.vpn) },
+        ...shareSettingsRows().map((r) => ({ ...r, category: 'general' })),
+      ],
+      this.vpn.login !== 'none' ? [{ key: 'x', label: 'delete VPN login', applies: (id) => id === VPN_LOGIN }] : [],
+    );
   }
 
   /** Stages a value; your own file never keeps a line that only repeats the default. */
@@ -253,8 +278,10 @@ export class SettingsPage extends ListPage<string> {
       return this.operations.perform(act, ['Settings', exporting ? 'Export settings' : 'Import settings']);
     }
     if (result.value === VPN_LOGIN) {
+      if (result.kind === 'action' && result.key === 'x')
+        return this.operations.perform(action(vpnLogout, {}), VPN_PATH, (t) => this.busy(t));
       if (result.kind !== 'pick') return {};
-      return { reload: true, notice: await new VpnLoginFlow(this.app, this.ctx).run() };
+      return this.operations.perform(action(vpnLogin, {}), VPN_PATH, (t) => this.busy(t));
     }
     const setting = settingsOf(this.file).find((s) => s.key.join('.') === result.value);
     if (!setting) return {};

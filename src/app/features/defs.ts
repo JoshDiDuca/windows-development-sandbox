@@ -41,6 +41,7 @@ import {
 } from './projects/projects.def.js';
 import { listLogs, logsView, tailLog } from './logs/logs.def.js';
 import { listSessions, restartSessions, sessionsView } from './sessions/sessions.def.js';
+import { vpnLogin, vpnLogout, vpnStatus, vpnView } from './vpn/vpn.def.js';
 import {
   exportConfig,
   getSetting,
@@ -62,6 +63,7 @@ export type { ProjectRow, ProjectsList } from './projects/projects.def.js';
 export type { SandboxStatus } from './sandbox/sandbox.def.js';
 export type { SessionRow, SessionsList } from './sessions/sessions.def.js';
 export type { SettingRow, SettingsList } from './settings/settings.def.js';
+export type { VpnStatus } from './vpn/vpn.def.js';
 
 export const OPERATIONS = [
   showWindow,
@@ -106,6 +108,8 @@ export const OPERATIONS = [
   startWeb,
   openWeb,
   stopWeb,
+  vpnLogin,
+  vpnLogout,
 ] as const;
 export const QUERIES = [
   sandboxStatus,
@@ -127,6 +131,7 @@ export const QUERIES = [
   engineStatus,
   checkEngine,
   webStatus,
+  vpnStatus,
 ] as const;
 export const VIEWS = [
   sandboxView,
@@ -143,6 +148,7 @@ export const VIEWS = [
   updatesView,
   engineView,
   webView,
+  vpnView,
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
@@ -205,7 +211,13 @@ export const NAV: readonly NavSection[] = [
     ],
   },
   { label: 'Apps', view: 'apps' },
-  { label: 'Settings', view: 'settings' },
+  {
+    label: 'Settings',
+    children: [
+      { label: 'All settings', view: 'settings' },
+      { label: 'VPN', view: 'vpn' },
+    ],
+  },
   { label: 'Accounts', view: 'accounts' },
   {
     label: 'Maintenance',

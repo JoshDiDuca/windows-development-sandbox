@@ -13,6 +13,7 @@ import { MAX_CLIENT_MESSAGE_BYTES, MAX_COLS, MAX_ROWS, MIN_COLS, MIN_ROWS } from
 import { cookieHeader, csrfOk, hostAllowed, originAllowed, WebAuth } from './auth.js';
 import type { WebBackend } from './backend.js';
 import { TerminalBridge } from './bridge.js';
+import { LiveHub } from './live.js';
 import { RpcSession } from './rpc.js';
 import { StaticFiles } from './static-files.js';
 
@@ -76,6 +77,8 @@ export class WebServer {
   private readonly auth: WebAuth;
   private readonly files: StaticFiles;
   private readonly tracked = new Map<WebSocket, Tracked>();
+  /** One poll per live query for all browsers together. */
+  private readonly live: LiveHub | undefined;
   private actualPort = 0;
   private lastUsed = Date.now();
   private heartbeat: NodeJS.Timeout | undefined;
@@ -84,6 +87,7 @@ export class WebServer {
   constructor(private readonly options: WebServerOptions) {
     this.auth = new WebAuth(options.token);
     this.files = new StaticFiles(options.staticRoot);
+    this.live = options.rpc ? new LiveHub(options.rpc) : undefined;
     this.server = http.createServer((req, res) => void this.handle(req, res));
     this.server.on('upgrade', (req, socket, head) => {
       this.lastUsed = Date.now();
@@ -309,7 +313,7 @@ export class WebServer {
   private upgradeRpc(req: http.IncomingMessage, socket: Duplex, head: Buffer, rpc: RpcHost): void {
     this.sockets.handleUpgrade(req, socket, head, (ws) => {
       this.track(ws, 'rpc', MAX_RPC_SOCKETS);
-      new RpcSession(ws, rpc).start();
+      new RpcSession(ws, rpc, this.live).start();
     });
   }
 }

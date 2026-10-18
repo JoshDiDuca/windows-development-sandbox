@@ -13,6 +13,7 @@ import {
   cookieValue,
   csrfOk,
   hostAllowed,
+  LiveHub,
   originAllowed,
   sameSecret,
   StaticFiles,
@@ -270,6 +271,48 @@ export const webSuite: Suite = {
     t.excludes(shown, ATTACH_TOKEN, 'the attach token is not in what the browser gets');
     t.excludes(shown, '1234', 'nor the port');
     t.excludes(shown, '\x1b', 'text from the sandbox is made safe');
+
+    t.section('live queries are shared, slow down when calm, and stop when nobody watches');
+    {
+      let value = 1;
+      let reads = 0;
+      const host: RpcHost = {
+        kind: () => 'query',
+        liveMs: () => 40,
+        run: async () => {
+          reads++;
+          return { value };
+        },
+      };
+      const hub = new LiveHub(host);
+      const seenA: unknown[] = [];
+      const seenB: unknown[] = [];
+      const stopA = hub.watch('q', {}, (e) => seenA.push(e));
+      await t.waitFor(() => seenA.length === 1, 2000);
+      const readsBeforeB = reads;
+      const stopB = hub.watch('q', {}, (e) => seenB.push(e));
+      t.check(
+        reads === readsBeforeB && seenB.length === 1 && hub.size === 1,
+        'a second watcher of the same query gets the last answer at once, without another read',
+      );
+      const before = reads;
+      await new Promise((r) => setTimeout(r, 800));
+      const calmReads = reads - before;
+      t.check(
+        calmReads >= 3 && calmReads < 20,
+        'an unchanged answer is read less often than every interval (' + calmReads + ' reads in 20 intervals)',
+      );
+      t.check(seenA.length === 1, 'an unchanged answer is not sent again');
+      value = 2;
+      hub.poke();
+      await t.waitFor(() => seenA.length === 2 && seenB.length === 2, 2000);
+      t.check(true, 'after an operation (poke) every watcher gets the new answer at once');
+      stopA();
+      stopB();
+      const stopped = reads;
+      await new Promise((r) => setTimeout(r, 300));
+      t.check(hub.size === 0 && reads === stopped, 'with nobody watching, nothing is read');
+    }
 
     t.section('the server');
     const fake = new FakePtyHost();

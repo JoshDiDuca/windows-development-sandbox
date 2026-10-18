@@ -24,6 +24,13 @@ interface PendingCall {
   readonly reject: (error: Error) => void;
 }
 
+/** One subscription on the socket, followed by one or more components. */
+interface SharedSubscription {
+  readonly id: string;
+  readonly listeners: Set<{ data: (output: unknown) => void; error: (e: Error) => void }>;
+  last: { readonly output: unknown } | undefined;
+}
+
 interface Subscription {
   readonly query: string;
   readonly input: unknown;
@@ -42,6 +49,8 @@ export class RpcClient {
   private readonly queue: string[] = [];
   private readonly calls = new Map<string, PendingCall>();
   private readonly subscriptions = new Map<string, Subscription>();
+  /** The subscription each query and input has, with the components that follow it. */
+  private readonly shared = new Map<string, SharedSubscription>();
   private readonly listeners = new Set<(connected: boolean) => void>();
   private hidden = false;
   private releaseTimer: number | undefined;
@@ -167,14 +176,40 @@ export class RpcClient {
     });
   }
 
-  /** Follows a live query: `data` with every new result. Returns the way to stop. */
+  /**
+   * Follows a live query: `data` with every new result. Components that follow the same query and input share one
+   * subscription (a newcomer gets the last result at once). Returns the way to stop.
+   */
   subscribe(query: string, input: unknown, data: (output: unknown) => void, error: (e: Error) => void): () => void {
-    const id = 's' + this.next++;
-    this.subscriptions.set(id, { query, input, data, error });
-    if (!this.hidden) this.send({ t: 'subscribe', id, query, input });
+    const key = query + '\u0000' + JSON.stringify(input ?? null);
+    let shared = this.shared.get(key);
+    if (!shared) {
+      const s: SharedSubscription = { id: 's' + this.next++, listeners: new Set(), last: undefined };
+      shared = s;
+      this.shared.set(key, s);
+      this.subscriptions.set(s.id, {
+        query,
+        input,
+        data: (output) => {
+          s.last = { output };
+          for (const l of [...s.listeners]) l.data(output);
+        },
+        error: (e) => {
+          s.last = undefined;
+          for (const l of [...s.listeners]) l.error(e);
+        },
+      });
+      if (!this.hidden) this.send({ t: 'subscribe', id: s.id, query, input });
+    } else if (shared.last) data(shared.last.output);
+    const listener = { data, error };
+    const s = shared;
+    s.listeners.add(listener);
     return () => {
-      this.subscriptions.delete(id);
-      if (this.socket?.readyState === WebSocket.OPEN) this.send({ t: 'unsubscribe', id });
+      s.listeners.delete(listener);
+      if (s.listeners.size) return;
+      this.shared.delete(key);
+      this.subscriptions.delete(s.id);
+      if (this.socket?.readyState === WebSocket.OPEN) this.send({ t: 'unsubscribe', id: s.id });
     };
   }
 }

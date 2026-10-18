@@ -51,6 +51,42 @@ export function useTasklistCache(read: (() => string | undefined) | null): void 
   cache = read;
 }
 
+/**
+ * For a long-running server (the web UI): questions within `freshMs` of the last run share its list; an older one
+ * (up to `staleMs`) is still answered from it while a new list is fetched in the background, so no request waits for
+ * tasklist. Nothing runs while nobody asks. Returns the function that stops it.
+ */
+export function keepTasklistFresh(freshMs = 2000, staleMs = 15000): () => void {
+  let copy: string | undefined;
+  let at = 0;
+  let fetching = false;
+  const refresh = (): void => {
+    if (fetching) return;
+    fetching = true;
+    void runners
+      .async()
+      .then((list) => {
+        copy = list;
+        at = Date.now();
+      })
+      .finally(() => {
+        fetching = false;
+      });
+  };
+  useTasklistCache(() => {
+    const age = Date.now() - at;
+    if (copy !== undefined && age < freshMs) return copy;
+    if (copy !== undefined && age < staleMs) {
+      refresh();
+      return copy;
+    }
+    copy = runners.sync();
+    at = Date.now();
+    return copy;
+  });
+  return () => useTasklistCache(null);
+}
+
 /** The process list now: the cached copy when the menu keeps one, else a run of tasklist the caller waits for. */
 export function readTasklist(): string {
   return cache?.() ?? runners.sync();

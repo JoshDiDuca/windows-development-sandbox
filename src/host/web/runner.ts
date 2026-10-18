@@ -2,6 +2,7 @@
 // state file, and removes it again when the server stops.
 import type { RpcHost } from '../../app/kernel/index.js';
 import { fail } from '../../core/util/index.js';
+import { keepTasklistFresh } from '../sandbox/index.js';
 import type { WebBackend } from './backend.js';
 import { newToken } from './auth.js';
 import { WebServer } from './server.js';
@@ -59,9 +60,12 @@ export class WebRunner {
     });
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);
+    // Every browser's status reads share one process list instead of each running tasklist.
+    const stopTasklist = keepTasklistFresh();
     try {
       await stopped;
     } finally {
+      stopTasklist();
       this.store.clear();
       await server.stop();
     }

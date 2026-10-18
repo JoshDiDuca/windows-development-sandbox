@@ -6,7 +6,6 @@ import {
   ANSWER_SCHEMAS,
   ClientMessageSchema,
   MAX_OPEN_PER_SOCKET,
-  NO_QUESTIONS,
   ioFromAsker,
   toWireError,
   type Answer,
@@ -15,6 +14,7 @@ import {
   type RpcHost,
   type ServerMessage,
 } from '../../app/kernel/index.js';
+import { LiveHub } from './live.js';
 
 /** A call waiting for the browser's answer to its question. */
 interface Waiting {
@@ -22,11 +22,8 @@ interface Waiting {
   readonly resolve: (answer: Answer) => void;
 }
 
-interface Subscription {
-  timer: NodeJS.Timeout | undefined;
-  last: string | undefined;
-  busy: boolean;
-}
+/** A live query this socket watches: the hub's stop function. */
+type Subscription = () => void;
 
 /** What a question gets when the browser goes away before answering: no. */
 function declined(q: Question): Answer {
@@ -41,6 +38,8 @@ export class RpcSession {
   constructor(
     private readonly ws: WebSocket,
     private readonly host: RpcHost,
+    /** Shared by every socket of the server (one poll per query); a socket of its own by default. */
+    private readonly live: LiveHub = new LiveHub(host),
   ) {}
 
   start(): void {
@@ -123,7 +122,11 @@ export class RpcSession {
         (output) => this.send({ t: 'result', id, output }),
         (e: unknown) => this.send({ t: 'error', id, error: toWireError(e) }),
       )
-      .finally(() => this.calls.delete(id));
+      .finally(() => {
+        this.calls.delete(id);
+        // An operation may have changed what the live queries show: they read again now.
+        if (this.host.kind(op) === 'operation') this.live.poke();
+      });
   }
 
   private answer(id: string, value: unknown): void {
@@ -140,34 +143,17 @@ export class RpcSession {
       this.send({ t: 'error', id, error: { kind: 'invalid', message: 'There is no ' + query + ' here.' } });
       return;
     }
-    const sub: Subscription = { timer: undefined, last: undefined, busy: false };
-    this.subscriptions.set(id, sub);
-    const read = async (): Promise<void> => {
-      if (sub.busy) return;
-      sub.busy = true;
-      try {
-        const output = await this.host.run(query, input, NO_QUESTIONS);
-        const text = JSON.stringify(output);
-        if (text !== sub.last && this.subscriptions.get(id) === sub) {
-          sub.last = text;
-          this.send({ t: 'data', id, output });
-        }
-      } catch (e) {
-        sub.last = undefined;
-        this.send({ t: 'error', id, error: toWireError(e) });
-      } finally {
-        sub.busy = false;
-      }
-    };
-    void read();
-    const every = this.host.liveMs(query);
-    if (every) sub.timer = setInterval(() => void read(), every);
+    const stop: Subscription = this.live.watch(query, input, (event) => {
+      if (this.subscriptions.get(id) !== stop) return;
+      if ('output' in event) this.send({ t: 'data', id, output: event.output });
+      else this.send({ t: 'error', id, error: toWireError(event.error) });
+    });
+    this.subscriptions.set(id, stop);
   }
-
   private unsubscribe(id: string): void {
-    const sub = this.subscriptions.get(id);
-    if (sub?.timer) clearInterval(sub.timer);
+    const stop = this.subscriptions.get(id);
     this.subscriptions.delete(id);
+    stop?.();
   }
 
   /** The browser went away: subscriptions stop, and questions still open are answered no. */

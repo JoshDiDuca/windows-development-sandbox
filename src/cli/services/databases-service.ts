@@ -25,6 +25,10 @@ export function parseDatabaseList(stdout: string): DatabaseRow[] {
   });
 }
 
+/** How long an answer about the running databases' ports is reused (they change only when one starts or stops). */
+const PORTS_FRESH_MS = 20_000;
+const recentPorts = new Map<string, { at: number; ports: Set<number> | null }>();
+
 export class DatabasesService {
   constructor(private readonly ctx: Pick<Context, 'dataPath' | 'packageRoot'>) {}
 
@@ -67,7 +71,19 @@ export class DatabasesService {
   }
 
   /** Running databases by port, from `sbx-db list` (best effort: null when the sandbox does not answer). */
+  /**
+   * The ports of the databases running in the sandbox (null: it could not be asked). Asked inside the sandbox, so a
+   * live page reading it every few seconds shares one answer for PORTS_FRESH_MS.
+   */
   async runningPorts(cwd: string): Promise<Set<number> | null> {
+    const known = recentPorts.get(cwd);
+    if (known && Date.now() - known.at < PORTS_FRESH_MS) return known.ports;
+    const ports = await this.askPorts(cwd);
+    recentPorts.set(cwd, { at: Date.now(), ports });
+    return ports;
+  }
+
+  private async askPorts(cwd: string): Promise<Set<number> | null> {
     try {
       const r = await new SandboxChannel(this.ctx.dataPath).exec(['sbx-db', 'list'], cwd, 30);
       return new Set(

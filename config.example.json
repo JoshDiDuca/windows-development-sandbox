@@ -64,6 +64,9 @@
     "configFile": "",
     "killSwitch": true
   },
+  "github": {
+    "shareToken": false
+  },
   "provisioning": {
     "copyFromHost": true,
     "fallbackToInstall": true,

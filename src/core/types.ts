@@ -151,6 +151,8 @@ export interface GenerateOptions {
   bootWants?: { projects: BootWant[]; keepOff: string[] };
   /** The VPN for this launch (vpn.enabled); its profile goes in the launch folder, its login in the one-shot file. */
   vpn?: PreparedVpn;
+  /** The saved GitHub token (github.shareToken, host/github/deliver.ts): only ever written to the one-shot file. */
+  githubToken?: string;
   /** The data set's mappings from a storage provider (contained storage); else the data folder is one mapping. */
   dataMappings?: ResolvedMapping[];
 }

@@ -4,6 +4,7 @@
 // sandbox may change run\, never this folder. The agent in the sandbox can still read what it was given (its own
 // environment, its login): that is inherent. Every part is optional.
 import { z } from 'zod';
+import { GithubTokenSchema } from '../github/index.js';
 
 const Environment = z.record(z.string().max(256), z.string().max(65536));
 
@@ -27,6 +28,8 @@ export const SecretsFileSchema = z.strictObject({
     .min(1)
     .max(32 * 1024)
     .optional(),
+  /** The GitHub token you saved for sandboxes (github.shareToken), only with git access "full". */
+  githubToken: GithubTokenSchema.optional(),
 });
 
 export type SecretsFile = z.output<typeof SecretsFileSchema>;

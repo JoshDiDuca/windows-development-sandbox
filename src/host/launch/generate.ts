@@ -10,6 +10,7 @@ import { dirExists, ensureDir, fail, writeJson } from '../../core/util/index.js'
 import { engineFor, type EnginePlan, type SandboxEngine } from '../engines/index.js';
 import { capturePersonalization, stageClaudeProfile } from '../profile/index.js';
 import { clearSecrets, writeSecrets } from '../secrets/index.js';
+import { githubTokenAllowed } from '../github/index.js';
 import { folderAttachment } from '../storage/providers/index.js';
 import { assertTestWritable } from '../test-guard.js';
 import { writeLoadSettings } from '../life/watchdog.js';
@@ -122,6 +123,8 @@ export function generateSandbox(
     ...(claudeCredentials ? { claudeCredentials } : {}),
     ...(o.vpn?.credentials ? { vpn: o.vpn.credentials } : {}),
     ...(o.vpn?.wireguardConfig ? { wireguardConfig: o.vpn.wireguardConfig } : {}),
+    // Checked again on the config the sandbox boots with: never to a sandbox whose git access is not "full".
+    ...(o.githubToken && githubTokenAllowed(config) ? { githubToken: o.githubToken } : {}),
   });
   fs.writeFileSync(path.join(launchPath, 'env.cmd'), logonEnv(session.workspace), 'utf8');
   copyRuntime(o.packageRoot, launchPath);

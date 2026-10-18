@@ -245,7 +245,6 @@ export function agentSection(a: AgentAccounts): Section {
     id: a.name,
     title: a.name,
     summary: a.accounts.length ? plural(a.accounts.length, 'saved login') : 'no saved login yet',
-    description: 'Saved ' + a.name + ' logins.',
     cards: true,
     items: [...saveItems(a), ...a.accounts.map((r) => loginItem(a, r))],
   };

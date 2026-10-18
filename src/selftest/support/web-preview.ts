@@ -606,6 +606,8 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
         return { message: 'Done. Restart Windows to finish. (preview: nothing was changed)' };
       case 'engine.status':
         return sampleEngines();
+      case 'engine.leftovers':
+        return { available: true, message: 'No HCS systems of yours are running.', systems: [] };
       case 'logs.list':
         return sampleLogs();
       case 'logs.tail':
@@ -814,6 +816,7 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
     'logs.list': 'query',
     'logs.tail': 'query',
     'engine.status': 'query',
+    'engine.leftovers': 'query',
   };
   return {
     kind: (id) => kinds[id],

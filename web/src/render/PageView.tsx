@@ -187,7 +187,7 @@ function DetailLine({ line }: { readonly line: string }) {
     );
   return (
     <Group gap={8} wrap="wrap" align="flex-start" mt={2}>
-      <Text size="xs" c="dimmed" miw={110} style={{ flex: 'none' }}>
+      <Text size="xs" c="dimmed" miw={72} style={{ flex: 'none' }}>
         {kv.label}
       </Text>
       <Text
@@ -490,8 +490,9 @@ export function ItemList({
   return <>{out}</>;
 }
 
-function SectionHeader({ section }: { readonly section: Section }) {
-  const actions = (section.actions ?? []).filter(offered);
+/** The section's title, summary and actions; more are actions taken from its items (a card grid's "add" items). */
+function SectionHeader({ section, more = [] }: { readonly section: Section; readonly more?: readonly Action[] }) {
+  const actions = [...(section.actions ?? []).filter(offered), ...more];
   if (!section.title && !section.summary && !actions.length) return null;
   return (
     <Group justify="space-between" align="flex-end" gap="sm">
@@ -577,9 +578,16 @@ export function SectionBlock({ section }: { readonly section: Section }) {
   const text = section.text ?? [];
   if (!facts.length && !items.length && !actions.length && !section.summary && !text.length) return null;
   const table = section.columns && section.columnsOn !== 'cli';
+  // In a card grid, items that only do something ("Save this PC's login…") are buttons in the header, not cards.
+  const adds = section.cards ? items.filter(isAddItem) : [];
+  const shownItems = adds.length ? items.filter((i) => !adds.includes(i)) : items;
+  const addActions = adds.flatMap((i) => {
+    const a = primaryOf(i);
+    return a ? [a] : [];
+  });
   return (
     <Stack gap="sm">
-      <SectionHeader section={section} />
+      <SectionHeader section={section} more={addActions} />
       {section.description && (
         <Text size="sm" c="dimmed" mt={-4}>
           {section.description}
@@ -591,10 +599,10 @@ export function SectionBlock({ section }: { readonly section: Section }) {
         </Card>
       )}
       {text.length > 0 && <TextBlock lines={text} />}
-      {items.length > 0 &&
+      {shownItems.length > 0 &&
         (section.cards ? (
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-            {items.map((i) => (
+            {shownItems.map((i) => (
               <ItemCard key={i.id} item={i} />
             ))}
           </SimpleGrid>

@@ -33,6 +33,21 @@ html {
   background: var(--app-bg);
 }
 
+/* Compact controls: buttons and inputs of the default size are 32 px tall (Mantine's are 36). */
+.mantine-Button-root[data-size='sm'] {
+  --button-height: 32px;
+  --button-padding-x: 12px;
+}
+
+.mantine-Input-wrapper[data-size='sm'] .mantine-Input-input,
+.mantine-Input-input[data-size='sm'] {
+  --input-height: 32px;
+}
+
+.mantine-SegmentedControl-root[data-size='sm'] .mantine-SegmentedControl-label {
+  padding-block: 4px;
+}
+
 body {
   background: var(--app-bg);
   -webkit-font-smoothing: antialiased;

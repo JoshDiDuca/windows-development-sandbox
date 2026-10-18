@@ -99,7 +99,11 @@ export function TerminalPage({ id }: { readonly id: string }) {
   const [state, setState] = useState<ConnectionState>('connecting');
   const [detail, setDetail] = useState<string | undefined>();
   const [searching, setSearching] = useState(false);
-  const [fontSize, setFontSize] = useLocalStorage<number>({ key: 'terminal-font-size', defaultValue: 14 });
+  // A phone starts small enough for a useful number of columns; a size you chose is kept.
+  const [fontSize, setFontSize] = useLocalStorage<number>({
+    key: 'terminal-font-size',
+    defaultValue: window.matchMedia('(max-width: 36em)').matches ? 11 : 14,
+  });
   const terminal = useRef<TerminalHandle | null>(null);
   const detach = useRef<() => void>(() => undefined);
   const { toggle: toggleFullscreen, fullscreen } = useFullscreen();
@@ -144,9 +148,17 @@ export function TerminalPage({ id }: { readonly id: string }) {
             {detail ?? id}
           </Text>
         </Box>
-        <Badge color={shown.color} variant="dot" style={{ flex: 'none' }}>
+        <Badge color={shown.color} variant="dot" style={{ flex: 'none' }} visibleFrom="sm">
           {shown.text}
         </Badge>
+        <Tooltip label={shown.text}>
+          <Box hiddenFrom="sm" style={{ flex: 'none', display: 'flex' }} aria-label={shown.text}>
+            <span
+              className="status-dot"
+              style={{ ['--dot' as string]: 'var(--mantine-color-' + shown.color + '-6)' }}
+            />
+          </Box>
+        </Tooltip>
         <Group gap={2} ml="auto" wrap="nowrap">
           <Tooltip label="Find (Ctrl+Shift+F)">
             <ActionIcon size="lg" aria-label="Find" onClick={() => setSearching((s) => !s)}>

@@ -7,4 +7,5 @@ export { HarnessSchema } from './harness.js';
 export { describeIssues, jsonSchemas } from './json-schema.js';
 export { MappingSchema } from './sandbox.js';
 export { ToolchainsSchema } from './toolchains.js';
+export { GithubSchema } from './github.js';
 export { VpnSchema, VPN_PROVIDERS, type VpnProvider } from './vpn.js';

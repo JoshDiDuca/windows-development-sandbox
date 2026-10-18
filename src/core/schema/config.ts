@@ -24,6 +24,7 @@ import { ProjectsSchema } from './projects.js';
 import { ResumeSchema } from './resume.js';
 import { WebSchema } from './web.js';
 import { VpnSchema } from './vpn.js';
+import { GithubSchema } from './github.js';
 
 export const ConfigSchema = z
   .strictObject({
@@ -70,6 +71,7 @@ export const ConfigSchema = z
     }),
     network: NetworkSchema,
     vpn: VpnSchema,
+    github: GithubSchema,
     provisioning: ProvisioningSchema,
     downloads: DownloadsSchema,
     toolchains: ToolchainsSchema,

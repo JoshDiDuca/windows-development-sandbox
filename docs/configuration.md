@@ -186,6 +186,30 @@ A WireGuard config needs no saved login (the keys are in the file). The login is
 kept encrypted for your Windows user and handed to the sandbox only while it starts. A project's
 `.sandbox-config.json` can turn `killSwitch` on, never off, and can never choose a VPN, a server, a profile or a login.
 
+## GitHub token
+
+Off by default. Sandboxes never get your PC's GitHub login. If you want `gh` and https `git` to work in them without
+logging in each time, make a token only for sandboxes and save it:
+
+1. `sandbox github login` (or Settings > Security & privacy > Set GitHub token…, or Settings > GitHub in the web UI). It
+   prints the steps: at <https://github.com/settings/personal-access-tokens/new> make a **fine-grained** token, choose
+   only the repositories the agent should reach, give only the permissions it needs (for example Contents and Pull
+   requests read and write, Actions read) and set an expiry. Paste it when asked: it is typed hidden, kept encrypted
+   for your Windows user, and never printed. A classic token (`ghp_`) is accepted with a warning; an OAuth token
+   (`gho_`, from `gh auth token`) is refused, because it reaches everything your account can.
+2. `sandbox config set github.shareToken true`.
+
+| Setting | |
+| --- | --- |
+| `github.shareToken` | give each new sandbox the saved token (off by default). Only when its git access (`provisioning.git.access`) is `full`; otherwise the launch says why it was not sent |
+
+The token goes to the sandbox only in the one-shot secrets file, never in `session.json`, the launch folder or a log.
+Inside, `gh` logs in with it in a folder on the sandbox's own disk (gone when the sandbox closes, unlike a `gh auth
+login` made inside, which is kept in `C:\AgentData\state\gh`), and https git to github.com asks `gh` for it. **The
+agent in the sandbox can read the token** and use it for everything it allows. `sandbox github logout` deletes it from
+this PC; revoke it on GitHub too. A project's `.sandbox-config.json` cannot set anything under `github`. More:
+[security](security.md#github-cli).
+
 ## Agent environment variables
 
 `harnesses.<agent>.environment` holds variables for one agent, such as an API key. Their values are shown as `***` in

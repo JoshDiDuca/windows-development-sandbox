@@ -42,6 +42,7 @@ import {
 import { listLogs, logsView, tailLog } from './logs/logs.def.js';
 import { listSessions, restartSessions, sessionsView } from './sessions/sessions.def.js';
 import { vpnLogin, vpnLogout, vpnStatus, vpnView } from './vpn/vpn.def.js';
+import { githubLogin, githubLogout, githubStatus, githubView } from './github/github.def.js';
 import {
   exportConfig,
   getSetting,
@@ -64,6 +65,7 @@ export type { SandboxStatus } from './sandbox/sandbox.def.js';
 export type { SessionRow, SessionsList } from './sessions/sessions.def.js';
 export type { SettingRow, SettingsList } from './settings/settings.def.js';
 export type { VpnStatus } from './vpn/vpn.def.js';
+export type { GithubStatus } from './github/github.def.js';
 
 export const OPERATIONS = [
   cleanEngine,
@@ -111,6 +113,8 @@ export const OPERATIONS = [
   stopWeb,
   vpnLogin,
   vpnLogout,
+  githubLogin,
+  githubLogout,
 ] as const;
 export const QUERIES = [
   sandboxStatus,
@@ -134,6 +138,7 @@ export const QUERIES = [
   engineLeftovers,
   webStatus,
   vpnStatus,
+  githubStatus,
 ] as const;
 export const VIEWS = [
   sandboxView,
@@ -151,6 +156,7 @@ export const VIEWS = [
   engineView,
   webView,
   vpnView,
+  githubView,
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
@@ -218,6 +224,7 @@ export const NAV: readonly NavSection[] = [
     children: [
       { label: 'All settings', view: 'settings' },
       { label: 'VPN', view: 'vpn' },
+      { label: 'GitHub', view: 'github' },
     ],
   },
   { label: 'Accounts', view: 'accounts' },

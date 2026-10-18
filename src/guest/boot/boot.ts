@@ -18,6 +18,7 @@ import { applyNetworkPolicy, networkProblems, type LanState } from '../network/f
 import { writeManagedSettings } from '../setup/managed-policy.js';
 import { applyPersonalization } from '../setup/desktop.js';
 import { setupGitConfig } from '../setup/git-identity.js';
+import { loginGithub, prepareGithubFolder } from '../setup/github-token.js';
 import { ensurePtyHost } from '../sessions/pty-host.js';
 import { pruneToolLeftovers } from '../toolchains/leftovers.js';
 import { wanted } from '../toolchains/detect.js';
@@ -151,6 +152,7 @@ export class Boot {
     mkdirp(run.root);
     this.secrets = takeSecrets(session.launchId);
     applyBootEnvironment(this.secrets.harnessEnvironment);
+    prepareGithubFolder(this.secrets.githubToken);
     await this.networkAndSessionHost();
     await this.hooksAndDesktop();
     const { tools, env } = await this.developerTools();
@@ -238,6 +240,12 @@ export class Boot {
   private async gitIdentity(env: NodeJS.ProcessEnv): Promise<void> {
     step(5, 'Git identity');
     await soft('Git config', () => setupGitConfig(env));
+    // After the VPN (gh checks the token with GitHub) and the git config (setup-git adds to it).
+    const token = this.secrets.githubToken;
+    if (token) {
+      this.secrets = { ...this.secrets, githubToken: undefined };
+      await soft('GitHub token', () => loginGithub(token, env));
+    }
   }
 
   private async claude(tools: ToolchainResult): Promise<void> {

@@ -55,8 +55,8 @@ export const CATEGORIES: SettingsCategory[] = [
     id: 'security',
     label: 'Security & privacy',
     description:
-      'Git-ignored files kept out, secrets kept out of the sandbox, download checks, what is kept on this PC, and sharing your sandbox with other Windows users.',
-    keys: ['workspaceFilter', 'audit', 'secrets', 'downloads', 'storage', 'sharing'],
+      'Git-ignored files kept out, secrets kept out of the sandbox, a GitHub token for sandboxes (with its login set here), download checks, what is kept on this PC, and sharing your sandbox with other Windows users.',
+    keys: ['workspaceFilter', 'audit', 'secrets', 'github', 'downloads', 'storage', 'sharing'],
   },
   {
     id: 'projects',
@@ -83,6 +83,7 @@ const NAMES: Record<string, string> = {
   storage: 'Storage on this PC',
   network: 'Network',
   vpn: 'VPN',
+  github: 'GitHub',
   hooks: 'Hooks',
   personalization: 'Desktop look',
   projects: 'Projects',

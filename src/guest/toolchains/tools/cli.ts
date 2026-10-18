@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { GitAccess } from '../../../core/types.js';
-import { dryRun } from '../../runtime/paths.js';
+import { dryRun, localDir } from '../../runtime/paths.js';
 import { exists, mkdirp } from '../../runtime/fs.js';
 import { log, warn } from '../../runtime/log.js';
 import { stateDir } from '../../runtime/session.js';
@@ -19,9 +19,25 @@ export function ghConfigDir(): string {
   return path.join(stateDir, 'gh');
 }
 
+/**
+ * gh's folder for the token the host handed over (github.shareToken): on the sandbox's own disk, so it is gone with the
+ * sandbox and never reaches the persistent state other sandboxes and projects share. The boot creates it only when a
+ * token arrived; while it exists, every gh setup (later projects too) points GH_CONFIG_DIR at it.
+ */
+export function deliveredGhConfigDir(): string {
+  return path.join(localDir, 'gh-token');
+}
+
+/** gh.exe where the catalogue installs it. */
+export function ghExePath(): string {
+  const entry = (CLI_TOOLS as readonly CliTool[]).find((t) => t.name === 'gh');
+  const dir = tool('cli', 'gh');
+  return path.join(entry?.subdir ? path.join(dir, entry.subdir) : dir, entry?.exe ?? 'gh.exe');
+}
+
 const toolVars: Partial<Record<CliName, () => Record<string, string>>> = {
   gh: () => ({
-    GH_CONFIG_DIR: mkdirp(ghConfigDir()),
+    GH_CONFIG_DIR: exists(deliveredGhConfigDir()) ? deliveredGhConfigDir() : mkdirp(ghConfigDir()),
     GH_NO_UPDATE_NOTIFIER: '1',
     GH_NO_EXTENSION_UPDATE_NOTIFIER: '1',
   }),

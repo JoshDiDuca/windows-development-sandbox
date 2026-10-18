@@ -7,6 +7,19 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **A GitHub token for sandboxes (opt-in).** `sandbox github login` saves a token you made for sandboxes (best a
+  fine-grained one, limited to some repositories and permissions), typed hidden and kept encrypted; OAuth tokens from
+  `gh auth token` are refused. With `github.shareToken` on and git access `full`, each new sandbox gets it through the
+  one-shot secrets file only: `gh` logs in with it on stdin, in a folder that is wiped with the sandbox, and https git
+  uses it. The agent can read the token. Also in the menu (Settings > Security & privacy) and the web UI (Settings >
+  GitHub). See [configuration](docs/configuration.md#github-token).
+- Web UI: settings are easier to read (two-line descriptions with More, the config name in the info tooltip), the
+  Sandbox page has one State line and only the window action that applies, warnings show in a box, and the VPN page
+  turns the VPN on or off.
+- Playwright works in every sandbox: Edge for tests and the Playwright MCP server, and downloaded browsers are kept.
+
 ## 1.11.2
 
 - Ctrl+C meant as "copy" no longer stops the agent: in an attached terminal and the sandbox window a single Ctrl+C is

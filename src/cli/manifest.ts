@@ -533,6 +533,22 @@ const COMMAND_LIST = [
     examples: ['sandbox vpn login', 'sandbox vpn status'],
   },
   {
+    name: 'github',
+    summary: 'a GitHub token for sandboxes: save it (best a fine-grained one), see whether they get it',
+    group: 'Advanced',
+    args: [
+      {
+        name: 'action',
+        description: 'status, login or logout',
+        required: false,
+        choices: ['status', 'login', 'logout'],
+      },
+    ],
+    options: [],
+    json: true,
+    examples: ['sandbox github login', 'sandbox github status'],
+  },
+  {
     name: 'host-claude',
     summary: 'run Claude on this PC, NOT sandboxed, with its own profile (same as: sandbox host claude)',
     group: 'Agents',

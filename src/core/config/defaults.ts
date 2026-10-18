@@ -39,6 +39,7 @@ export const DEFAULTS: Config = {
   },
   network: { blockPrivateRanges: true, allowOnly: [], blockHosts: [], forwardPorts: [], dns: [], proxy: '' },
   vpn: { enabled: false, provider: 'nordvpn', protocol: 'udp', country: '', configFile: '', killSwitch: true },
+  github: { shareToken: false },
   provisioning: {
     copyFromHost: true,
     fallbackToInstall: true,

@@ -23,7 +23,7 @@ import { DEFAULTS } from '../core/config/index.js';
 import { sandboxPage, type SandboxStatus } from '../app/features/sandbox/index.js';
 import { sessionsPage, type SessionRow, type SessionsList } from '../app/features/sessions/index.js';
 import { APP_GROUPS, appsPage, listApps, type AppsList } from '../app/features/apps/index.js';
-import { settingsPage } from '../app/features/settings/index.js';
+import { keepShownSecrets, settingsPage } from '../app/features/settings/index.js';
 import { checkEngine, checkText, enginePage, type Leftovers } from '../app/features/engine/index.js';
 import { runUpdate, updatesPage, type UpdatesStatus } from '../app/features/updates/index.js';
 import { MenuOperations } from '../cli/menu/io-menu.js';
@@ -580,6 +580,13 @@ export const appSuite: Suite = {
         edit.fields?.[0]?.name === 'value' &&
         page.sections.some((s) => s.items?.some((i) => i.id === '@data-folder')),
       'the settings page: a section per category, each setting edited through its Field',
+    );
+
+    t.section('a secret shown as *** is never saved as ***');
+    t.equal(
+      keepShownSecrets({ API_KEY: 'sk-real', LOG: 'debug' }, { API_KEY: '***', LOG: 'info', NEW_KEY: '***' }),
+      { API_KEY: 'sk-real', LOG: 'info', NEW_KEY: '***' },
+      'a map edited in the web keeps the saved secret where *** came back, and takes the rest as typed',
     );
 
     t.section('settings export and import, run against a config file');

@@ -176,6 +176,78 @@ function ObjectListInput({ field, value, onChange, error }: FieldInputProps) {
   );
 }
 
+/** A map of names to values (environment variables): a row per entry, the value hidden when it is a secret. */
+function MapInput({ field, value, onChange, error }: FieldInputProps) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  const [rows, setRows] = useState<[string, string][]>(() => Object.entries(source).map(([k, v]) => [k, String(v)]));
+  const secret = field.element?.kind === 'secret';
+  const commit = (next: [string, string][]): void => {
+    setRows(next);
+    onChange(Object.fromEntries(next.filter(([k]) => k.trim() !== '').map(([k, v]) => [k.trim(), v])));
+  };
+  return (
+    <Stack gap="xs">
+      <div>
+        <Text size="sm" fw={500}>
+          {field.label}
+        </Text>
+        {field.help && (
+          <Text size="xs" c="dimmed">
+            {field.help}
+          </Text>
+        )}
+      </div>
+      {rows.map(([k, v], i) => (
+        <Group key={i} gap="xs" wrap="nowrap" align="center">
+          <TextInput
+            placeholder="NAME"
+            value={k}
+            style={{ flex: '0 0 38%' }}
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+            onChange={(e) => commit(rows.map((r, j) => (j === i ? [e.currentTarget.value, r[1]] : r)))}
+          />
+          {secret ? (
+            <PasswordInput
+              placeholder="value"
+              value={v}
+              style={{ flex: 1 }}
+              autoComplete="off"
+              onChange={(e) => commit(rows.map((r, j) => (j === i ? [r[0], e.currentTarget.value] : r)))}
+            />
+          ) : (
+            <TextInput
+              placeholder="value"
+              value={v}
+              style={{ flex: 1 }}
+              onChange={(e) => commit(rows.map((r, j) => (j === i ? [r[0], e.currentTarget.value] : r)))}
+            />
+          )}
+          <Tooltip label="Remove">
+            <ActionIcon color="red" aria-label="Remove" onClick={() => commit(rows.filter((_, j) => j !== i))}>
+              <IconTrash size={15} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      ))}
+      <Group>
+        <Button
+          size="xs"
+          variant="default"
+          leftSection={<IconPlus size={14} />}
+          onClick={() => setRows([...rows, ['', '']])}
+        >
+          Add
+        </Button>
+      </Group>
+      {error && (
+        <Text size="xs" c="red">
+          {error}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
 /** A value with no input of its own, typed as JSON. */
 function JsonFieldInput({ field, value, onChange, error }: FieldInputProps) {
   const [text, setText] = useState(value === undefined ? '' : JSON.stringify(value, null, 2));
@@ -290,6 +362,12 @@ export function FieldInput(props: FieldInputProps) {
     }
     case 'object':
       return field.fields?.length ? <ObjectFields {...props} /> : <JsonFieldInput {...props} />;
+    case 'map':
+      return field.element?.kind === 'text' || field.element?.kind === 'secret' ? (
+        <MapInput {...props} />
+      ) : (
+        <JsonFieldInput {...props} />
+      );
     default:
       return <JsonFieldInput {...props} />;
   }

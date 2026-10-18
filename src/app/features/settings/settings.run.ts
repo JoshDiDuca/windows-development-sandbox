@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import _ from 'lodash';
 import { loadConfig } from '../../../core/config/index.js';
-import { redactSecrets } from '../../../core/schema/index.js';
+import { REDACTED, redactSecrets } from '../../../core/schema/index.js';
 import type { Config } from '../../../core/types.js';
 import { fail, safeText, writeJson } from '../../../core/util/index.js';
 import { hereDir } from '../../../cli/commands/projects/here.js';
@@ -66,6 +66,20 @@ export const getSettingRun = implement(getSetting, (ctx, input) => {
 });
 
 /** The file of a scope, and the setting a key names in it. */
+/** incoming with every *** that stands where saved has a text replaced by that saved text. Pure. */
+export function keepShownSecrets(saved: unknown, incoming: unknown): unknown {
+  if (incoming === REDACTED) return typeof saved === 'string' ? saved : incoming;
+  if (Array.isArray(incoming))
+    return incoming.map((v, i) => keepShownSecrets(Array.isArray(saved) ? saved[i] : undefined, v));
+  if (incoming && typeof incoming === 'object') {
+    const from = saved && typeof saved === 'object' && !Array.isArray(saved) ? (saved as Record<string, unknown>) : {};
+    return Object.fromEntries(
+      Object.entries(incoming as Record<string, unknown>).map(([k, v]) => [k, keepShownSecrets(from[k], v)]),
+    );
+  }
+  return incoming;
+}
+
 function target(ctx: AppContext, scope: Scope, name: string): ReturnType<typeof findSetting> & { file: ConfigFile } {
   const file = settingsFiles(ctx)[scope];
   return { ...findSetting(file, name), file };
@@ -75,7 +89,9 @@ export const setSettingRun = implement(setSetting, (ctx, input) => {
   const { key, node, file } = target(ctx, input.scope, input.key);
   if (node.isSection)
     fail('"' + input.key + '" is a group of settings.', 'Set one of them, e.g. ' + node.leaves(key)[0]?.key.join('.'));
-  const value = valueFor(node, input.value);
+  // A value that comes back with *** where a secret was shown (the web edits a whole map of secrets) keeps what is
+  // saved there: *** is how secrets are shown, never a value to save.
+  const value = keepShownSecrets(file.valueInFile(key), valueFor(node, input.value));
   const problem = node.check(value);
   if (problem !== true) {
     const typed = typeof input.value === 'string' ? input.value : JSON.stringify(masked(key, input.value));

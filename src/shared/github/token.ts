@@ -87,7 +87,16 @@ export function ghLoginCommand(
 ): GhCommand {
   return {
     file: ghExe,
-    args: ['auth', 'login', '--hostname', 'github.com', '--git-protocol', 'https', '--insecure-storage', '--with-token'],
+    args: [
+      'auth',
+      'login',
+      '--hostname',
+      'github.com',
+      '--git-protocol',
+      'https',
+      '--insecure-storage',
+      '--with-token',
+    ],
     input: token + '\n',
     env: ghEnv(base, configDir),
   };

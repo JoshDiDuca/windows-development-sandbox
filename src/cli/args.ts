@@ -122,7 +122,7 @@ const HELP_ORDER = [
   ['Data', ['data', 'storage', 'clean', 'sync']],
   ['Web', ['web']],
   ['Health', ['setup', 'doctor', 'repair', 'logs', 'audit', 'update', 'migrate', 'config']],
-  ['Advanced', ['generate', 'agent-commands', 'vpn']],
+  ['Advanced', ['generate', 'agent-commands', 'vpn', 'github']],
 ] as const satisfies readonly (readonly [string, readonly string[]])[];
 
 /** The commands in the order --help lists them. */

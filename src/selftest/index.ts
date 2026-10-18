@@ -14,6 +14,7 @@ import type { Suite } from './support/suite.js';
 import { accountsSuite } from './accounts.test.js';
 import { credentialsSuite } from './credentials.test.js';
 import { vpnSuite } from './vpn.test.js';
+import { githubSuite } from './github.test.js';
 import { agentCommandsSuite } from './agent-commands.test.js';
 import { channelSuite } from './channel.test.js';
 import { heavyLoadSuite } from './heavy-load.test.js';
@@ -96,6 +97,7 @@ export const SUITES: Suite[] = [
   accountsSuite,
   credentialsSuite,
   vpnSuite,
+  githubSuite,
   workspaceViewSuite,
   auditSuite,
   // an untrusted sandbox: what the host refuses to do with what it finds

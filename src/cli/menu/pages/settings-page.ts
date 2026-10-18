@@ -18,6 +18,13 @@ import {
 } from '../../../app/features/settings/index.js';
 import { changeDataFolder } from '../../../app/features/storage/index.js';
 import { vpnLogin, vpnLoginRowOf, vpnLogout, vpnStatus, type VpnStatus } from '../../../app/features/vpn/index.js';
+import {
+  githubLogin,
+  githubLogout,
+  githubStatus,
+  githubTokenRowOf,
+  type GithubStatus,
+} from '../../../app/features/github/index.js';
 import { action, valueText } from '../../../app/kernel/index.js';
 import { readQuery } from '../../../app/registry.js';
 import type { Config } from '../../../core/types.js';
@@ -134,6 +141,11 @@ export const VPN_LOGIN = '@vpn-login';
 
 const VPN_PATH = ['Settings', 'Network', 'VPN login'];
 
+/** The row in Security that saves the GitHub token for sandboxes (its operations are the GitHub feature's). */
+export const GITHUB_TOKEN = '@github-token';
+
+const GITHUB_PATH = ['Settings', 'Security & privacy', 'GitHub token'];
+
 /** The row's words: where the saved data is, and what Enter does. */
 function dataFolderRow(ctx: Context): { label: string; hint: string; description: string } {
   return {
@@ -177,7 +189,7 @@ export function settingsOptions(
       ...extraActions,
     ],
     enterLabel: (_category, id) =>
-      id === DATA_FOLDER || id === VPN_LOGIN
+      id === DATA_FOLDER || id === VPN_LOGIN || id === GITHUB_TOKEN
         ? 'change'
         : id === EXPORT_SETTINGS || id === IMPORT_SETTINGS
           ? 'open'
@@ -202,6 +214,8 @@ export class SettingsPage extends ListPage<string> {
     loginSavedAt: null,
     running: null,
   };
+  /** Whether a GitHub token is saved (never the token): the token row needs only its state. */
+  private github: GithubStatus = { shareToken: false, gitAccess: 'full', token: 'none', kind: null, savedAt: null };
 
   constructor(
     app: App,
@@ -225,6 +239,7 @@ export class SettingsPage extends ListPage<string> {
 
   protected async load(): Promise<void> {
     this.vpn = await readQuery(vpnStatus, this.ctx, { tunnel: false });
+    this.github = await readQuery(githubStatus, this.ctx, {});
   }
 
   protected options(): ListOptions<string> {
@@ -236,9 +251,17 @@ export class SettingsPage extends ListPage<string> {
       [
         { value: DATA_FOLDER, category: 'general', ...row },
         { value: VPN_LOGIN, category: 'network', ...vpnLoginRowOf(this.vpn) },
+        { value: GITHUB_TOKEN, category: 'security', ...githubTokenRowOf(this.github) },
         ...shareSettingsRows().map((r) => ({ ...r, category: 'general' })),
       ],
-      this.vpn.login !== 'none' ? [{ key: 'x', label: 'delete VPN login', applies: (id) => id === VPN_LOGIN }] : [],
+      [
+        ...(this.vpn.login !== 'none'
+          ? [{ key: 'x', label: 'delete VPN login', applies: (id: string) => id === VPN_LOGIN }]
+          : []),
+        ...(this.github.token !== 'none'
+          ? [{ key: 'x', label: 'delete GitHub token', applies: (id: string) => id === GITHUB_TOKEN }]
+          : []),
+      ],
     );
   }
 
@@ -282,6 +305,12 @@ export class SettingsPage extends ListPage<string> {
         return this.operations.perform(action(vpnLogout, {}), VPN_PATH, (t) => this.busy(t));
       if (result.kind !== 'pick') return {};
       return this.operations.perform(action(vpnLogin, {}), VPN_PATH, (t) => this.busy(t));
+    }
+    if (result.value === GITHUB_TOKEN) {
+      if (result.kind === 'action' && result.key === 'x')
+        return this.operations.perform(action(githubLogout, {}), GITHUB_PATH, (t) => this.busy(t));
+      if (result.kind !== 'pick') return {};
+      return this.operations.perform(action(githubLogin, {}), GITHUB_PATH, (t) => this.busy(t));
     }
     const setting = settingsOf(this.file).find((s) => s.key.join('.') === result.value);
     if (!setting) return {};

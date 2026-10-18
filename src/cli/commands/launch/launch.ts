@@ -15,6 +15,7 @@ import { generateSandbox, GUEST, vgpuSource, vgpuWarning } from '../../../host/l
 import { findSecretFiles } from '../../../host/profile/index.js';
 import { RepoGuardStore } from '../../../host/guard/index.js';
 import { hostPublicIp, prepareVpn, readVpnLine, vpnNotes } from '../../../host/vpn/index.js';
+import { prepareGithubToken } from '../../../host/github/index.js';
 import {
   assertCanLaunch,
   isSandboxRunning,
@@ -220,6 +221,8 @@ class Launcher {
           sandboxRunning: isSandboxRunning(),
           base: run.workspaceHost,
         });
+    // github.shareToken: the saved token, read only for this launch's one-shot file (a note says when it is not).
+    const github = generateOnly ? null : prepareGithubToken(config, ctx.storageRoot);
     // This PC's commit (RAM plus paging file) bounds the sandbox's memory as much as free RAM does.
     const hostMemory = generateOnly ? null : readHostMemory(ctx.storageRoot);
     const generated: GeneratedSandbox = generateSandbox(
@@ -233,6 +236,7 @@ class Launcher {
         autoSession: extras.autoSession,
         bootWants: bootWants.wants,
         ...(vpn ? { vpn } : {}),
+        ...(github?.token ? { githubToken: github.token } : {}),
         ...(dataMappings ? { dataMappings } : {}),
       },
       engine,
@@ -247,6 +251,7 @@ class Launcher {
     if (risk && takePageFileHint(ctx.storageRoot)) console.log(c.yellow(risk.text));
     this.warnSecretFiles(run);
     for (const line of vpnNotes(config.vpn)) console.log(c.yellow(line));
+    for (const line of github?.notes ?? []) console.log(c.yellow(line));
     table(launchSummary(run, generated, prepared));
     if (generateOnly) return 0;
     // A restart or sandbox resume reopens sessions itself (they pass the projects they keep).

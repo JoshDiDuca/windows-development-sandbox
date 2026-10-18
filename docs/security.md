@@ -158,6 +158,24 @@ installer checks its release package the same way ([install](install.md#one-line
 `gh` is never given your PC's login (`GH_TOKEN`, `GITHUB_TOKEN` are stripped) and is only installed with git access
 `full`, because it can push and merge through the GitHub API. A login made inside is kept in `C:\AgentData\state\gh`.
 
+**A token for sandboxes (opt-in).** You can save a GitHub token made only for sandboxes (`sandbox github login`) and
+turn on `github.shareToken`. What is shared, and how:
+
+- Only that token, never your PC's `gh` login. Make it **fine-grained**: limited to the repositories the agent should
+  reach, with only the permissions it needs, and an expiry. A classic token reaches every repository you can, so it
+  gets a warning; OAuth tokens (`gho_`, what `gh auth token` prints) are refused.
+- On this PC it is kept encrypted with Windows DPAPI for your Windows user (`<storage>\github\token.json`), and never
+  printed or shown; `status` gives only whether one is saved, its kind and its date.
+- It is handed over only when `github.shareToken` is on **and** the sandbox's git access is `full` (with `readonly` or
+  `none` it would let the agent push past the git guard through the API). A repo's `.sandbox-config.json` cannot set
+  `github` at all. It travels only in the one-shot secrets file the sandbox reads and deletes at boot: never in
+  `session.json`, the launch folder, `run\`, logs or process arguments.
+- In the sandbox `gh auth login --with-token` reads it on stdin, into a gh folder on the sandbox's own disk (wiped with
+  the sandbox; not the persistent `C:\AgentData\state\gh` other sandboxes and projects share), and `gh auth setup-git`
+  makes https git use it.
+- **The agent can read it** (it can run `gh auth token`) and use it for everything the token allows, as long as the
+  token is valid. Revoke it on GitHub when you no longer need it; `sandbox github logout` deletes it from this PC.
+
 `ssh` comes with Git, but no keys are copied in and your LAN is blocked, so deploys stay on your PC.
 
 ## Agent commands (Beta)

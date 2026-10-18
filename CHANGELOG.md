@@ -7,6 +7,15 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **A GitHub token for sandboxes (opt-in).** `sandbox github login` saves a token you made for sandboxes (best a
+  fine-grained one, limited to some repositories and permissions), typed hidden and kept encrypted; OAuth tokens from
+  `gh auth token` are refused. With `github.shareToken` on and git access `full`, each new sandbox gets it through the
+  one-shot secrets file only: `gh` logs in with it on stdin, in a folder that is wiped with the sandbox, and https git
+  uses it. The agent can read the token. Also in the menu (Settings > Security & privacy) and the web UI (Settings >
+  GitHub). See [configuration](docs/configuration.md#github-token).
+
 ## 1.11.1
 
 - The menu no longer closes when an action fails: the problem is shown where you chose it (for example when an option

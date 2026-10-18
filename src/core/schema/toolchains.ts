@@ -159,7 +159,7 @@ export const ToolchainsSchema = z.strictObject({
   cli: z
     .strictObject({
       gh: EnabledSchema.describe(
-        'GitHub CLI (gh). Only with provisioning.git.access "full": gh can push and merge through the GitHub API, past a read-only git. Your PC\'s gh login is never copied; `gh auth login` inside persists (GH_CONFIG_DIR). "auto" = when the project has a .github folder.',
+        'GitHub CLI (gh). Only with provisioning.git.access "full": gh can push and merge through the GitHub API, past a read-only git. Your PC\'s gh login is never copied; `gh auth login` inside persists (GH_CONFIG_DIR), unless a token you saved for sandboxes is handed over (github.shareToken). "auto" = when the project has a .github folder.',
       ),
       zstd: EnabledSchema.describe('Zstandard (zstd). "auto" = off; set true to get it.'),
       openssl: EnabledSchema.describe(

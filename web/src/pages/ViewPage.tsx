@@ -1,7 +1,10 @@
 // A page that is a view: its queries read over RPC (live ones kept fresh), its Page built in the browser by the view's
 // own pure build() and drawn by PageView. A view with tabs (Settings: all projects / this project) gets them above it.
+// Views a navigation entry embeds (Settings: VPN, GitHub) are more categories of that entry's page; their own address
+// opens that page at their category.
 import { SegmentedControl } from '@mantine/core';
-import { viewById } from '../../../src/app/features/defs';
+import { useEffect, type ReactNode } from 'react';
+import { embeddingOf, NAV, navSections, viewById } from '../../../src/app/features/defs';
 import { viewInputs, type AnyView } from '../../../src/app/kernel/index';
 import { PageView } from '../render/PageView';
 import { ErrorState, PageSkeleton } from '../render/states';
@@ -29,7 +32,14 @@ function paramsOf(view: AnyView, given: Readonly<Record<string, string>>): Recor
   return { ...out, [tabs.param]: tabs.choices.some((c) => c.value === chosen) ? chosen : tabs.choices[0].value };
 }
 
-function LoadedView({ view, params }: { readonly view: AnyView; readonly params: Record<string, string> }) {
+interface LoadedViewProps {
+  readonly view: AnyView;
+  readonly params: Record<string, string>;
+  /** More categories for a page with categories: other views drawn in its place (CategoryPage extras). */
+  readonly extras?: readonly { readonly id: string; readonly label: string; readonly node: ReactNode }[];
+}
+
+function LoadedView({ view, params, extras }: LoadedViewProps) {
   const inputs = viewInputs(view, params as never) as Record<string, unknown>;
   const names = Object.keys(view.queries);
   // The same queries on every render of one view (the page is keyed by the view and its parameters).
@@ -50,12 +60,27 @@ function LoadedView({ view, params }: { readonly view: AnyView; readonly params:
       onChange={(value) => navigate(viewPath(view.id, { [tabs.param]: value }))}
     />
   ) : undefined;
-  return <PageView page={page} summary={view.summary} toolbar={toolbar} />;
+  return <PageView page={page} summary={view.summary} toolbar={toolbar} extras={extras} />;
+}
+
+/** A view drawn as a category of another page: its own Page, without tabs of its own. */
+function EmbeddedView({ id }: { readonly id: string }) {
+  const view = viewById(id);
+  if (!view) return null;
+  return <LoadedView view={view} params={paramsOf(view, {})} />;
 }
 
 export function ViewPage({ view: id, params }: ViewPageProps) {
+  const host = embeddingOf(NAV, id);
+  useEffect(() => {
+    // An embedded view's own address opens the page that shows it, at its category (#vpn).
+    if (host?.view) navigate(viewPath(host.view) + '#' + id);
+  }, [host, id]);
+  if (host?.view) return <PageSkeleton />;
   const view = viewById(id);
   if (!view) return <ErrorState message={'There is no page called ' + id + '.'} fix="Pick a page on the left." />;
   const p = paramsOf(view, params);
-  return <LoadedView key={id + JSON.stringify(p)} view={view} params={p} />;
+  const embeds = navSections(NAV).find((n) => n.view === id)?.embeds ?? [];
+  const extras = embeds.map((e) => ({ id: e.view, label: e.label, node: <EmbeddedView id={e.view} /> }));
+  return <LoadedView key={id + JSON.stringify(p)} view={view} params={p} extras={extras.length ? extras : undefined} />;
 }

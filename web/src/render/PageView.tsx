@@ -32,7 +32,7 @@ import {
   type Section,
 } from '../../../src/app/kernel/index';
 import { ActionButton, ActionIconButton, ActionMenu, offered, useAct } from './actions';
-import { CategoryPage } from './CategoryPage';
+import { CategoryPage, type CategoryExtra } from './CategoryPage';
 import { ItemIcon } from './icons';
 import { InlineField } from './InlineField';
 import { EmptyState } from './states';
@@ -626,10 +626,12 @@ interface PageViewProps {
   readonly summary?: string;
   /** Controls beside the page's actions (a view's tabs). */
   readonly toolbar?: ReactNode;
+  /** More categories for a page with categories (other views drawn in its place: Settings > VPN). */
+  readonly extras?: readonly CategoryExtra[];
 }
 
-export function PageView({ page, summary, toolbar }: PageViewProps) {
-  if (page.categories) return <CategoryPage page={page} summary={summary} toolbar={toolbar} />;
+export function PageView({ page, summary, toolbar, extras }: PageViewProps) {
+  if (page.categories) return <CategoryPage page={page} summary={summary} toolbar={toolbar} extras={extras} />;
   return <PlainPage page={page} summary={summary} toolbar={toolbar} />;
 }
 

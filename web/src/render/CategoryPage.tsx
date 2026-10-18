@@ -1,7 +1,21 @@
 // A page whose sections are categories of one long list (settings): the categories down the side with how many are
 // changed in each, one category at a time, a search over all of them, and each item as a row with its control in
-// place. #<section> opens a category and #item-<id> opens the one holding that item and points it out.
-import { Anchor, Badge, Box, Card, Group, NavLink, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+// place. #<section> opens a category and #item-<id> opens the one holding that item and points it out. xtras are
+// more categories drawn by other views (Settings > VPN, GitHub): listed after the page's own, opened with #<id>.
+import {
+  Anchor,
+  Badge,
+  Box,
+  Card,
+  Divider,
+  Group,
+  NavLink,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  Tooltip,
+} from '@mantine/core';
 import { IconFileSettings, IconInfoCircle, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Item, Page, Section } from '../../../src/app/kernel/index';
@@ -10,10 +24,18 @@ import { InlineField } from './InlineField';
 import { filtered, ItemList, PageHeader, SecondaryActions, tidy } from './PageView';
 import { EmptyState } from './states';
 
+/** A category that is another view, drawn in place of the list (Settings > VPN). */
+export interface CategoryExtra {
+  readonly id: string;
+  readonly label: string;
+  readonly node: ReactNode;
+}
+
 interface CategoryPageProps {
   readonly page: Page;
   readonly summary?: string;
   readonly toolbar?: ReactNode;
+  readonly extras?: readonly CategoryExtra[];
 }
 
 /** The DOM id of an item's row. */
@@ -139,7 +161,10 @@ function FileNotice({ text }: { readonly text: string }) {
 }
 
 /** The section and item an address names (#general, #item-sandbox_memoryMb). */
-function fromHash(sections: readonly Section[]): { section?: string; item?: string } {
+function fromHash(
+  sections: readonly Section[],
+  extras: readonly CategoryExtra[] = [],
+): { section?: string; item?: string } {
   const hash = decodeURIComponent(location.hash.slice(1));
   if (hash.startsWith('item-')) {
     for (const s of sections) {
@@ -147,18 +172,20 @@ function fromHash(sections: readonly Section[]): { section?: string; item?: stri
       if (item) return { section: s.id, item: item.id };
     }
   }
-  return { section: sections.find((s) => s.id === hash)?.id };
+  return { section: sections.find((s) => s.id === hash)?.id ?? extras.find((e) => e.id === hash)?.id };
 }
 
-export function CategoryPage({ page, summary, toolbar }: CategoryPageProps) {
+export function CategoryPage({ page, summary, toolbar, extras = [] }: CategoryPageProps) {
   const sections = useMemo(() => page.sections.filter((s) => s.items?.length), [page]);
-  const [current, setCurrent] = useState<string | undefined>(() => fromHash(sections).section ?? sections[0]?.id);
+  const [current, setCurrent] = useState<string | undefined>(
+    () => fromHash(sections, extras).section ?? sections[0]?.id,
+  );
   const [flash, setFlash] = useState<string | undefined>(() => fromHash(sections).item);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     const follow = (): void => {
-      const at = fromHash(sections);
+      const at = fromHash(sections, extras);
       if (at.section) setCurrent(at.section);
       if (at.item) {
         setSearch('');
@@ -167,7 +194,7 @@ export function CategoryPage({ page, summary, toolbar }: CategoryPageProps) {
     };
     window.addEventListener('hashchange', follow);
     return () => window.removeEventListener('hashchange', follow);
-  }, [sections]);
+  }, [sections, extras]);
 
   useEffect(() => {
     if (!flash) return undefined;
@@ -176,7 +203,8 @@ export function CategoryPage({ page, summary, toolbar }: CategoryPageProps) {
     return () => window.clearTimeout(timer);
   }, [flash, current]);
 
-  const section = sections.find((s) => s.id === current) ?? sections[0];
+  const extra = extras.find((e) => e.id === current);
+  const section = extra ? undefined : (sections.find((s) => s.id === current) ?? sections[0]);
   const results = search.trim() ? filtered({ ...page, sections }, search).sections : null;
   const choose = (id: string): void => {
     setSearch('');
@@ -219,21 +247,34 @@ export function CategoryPage({ page, summary, toolbar }: CategoryPageProps) {
                 />
               );
             })}
+            {extras.length > 0 && <Divider my={6} />}
+            {extras.map((e) => (
+              <NavLink
+                key={e.id}
+                label={e.label}
+                active={!results && e.id === extra?.id}
+                onClick={() => choose(e.id)}
+                style={{ borderRadius: 'var(--mantine-radius-md)' }}
+              />
+            ))}
           </Stack>
           <Box hiddenFrom="md">
             <Group gap={6}>
-              {sections.map((s) => (
-                <Badge
-                  key={s.id}
-                  size="lg"
-                  variant={s.id === section?.id && !results ? 'filled' : 'light'}
-                  color={s.id === section?.id && !results ? 'indigo' : 'gray'}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => choose(s.id)}
-                >
-                  {s.title}
-                </Badge>
-              ))}
+              {[...sections.map((s) => ({ id: s.id, label: s.title ?? s.id })), ...extras].map((c) => {
+                const on = !results && c.id === (extra?.id ?? section?.id);
+                return (
+                  <Badge
+                    key={c.id}
+                    size="lg"
+                    variant={on ? 'filled' : 'light'}
+                    color={on ? 'indigo' : 'gray'}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => choose(c.id)}
+                  >
+                    {c.label}
+                  </Badge>
+                );
+              })}
             </Group>
           </Box>
         </Stack>
@@ -253,6 +294,8 @@ export function CategoryPage({ page, summary, toolbar }: CategoryPageProps) {
             ) : (
               <EmptyState icon={IconSearch} title="Nothing found" text={'No setting matches "' + search + '".'} />
             )
+          ) : extra ? (
+            <Box key={extra.id}>{extra.node}</Box>
           ) : (
             section && (
               <Stack gap="sm">

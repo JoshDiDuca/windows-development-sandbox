@@ -196,6 +196,8 @@ export interface NavSection {
   readonly elsewhere?: string;
   /** Entries under this one (Sandbox: Status, Projects). */
   readonly children?: readonly NavSection[];
+  /** Views shown as more categories inside this entry's page (Settings: VPN, GitHub), not as entries of their own. */
+  readonly embeds?: readonly { readonly label: string; readonly view: ViewId }[];
 }
 
 /** Every entry of the navigation, children included, in order. */
@@ -205,7 +207,12 @@ export function navSections(nav: readonly NavSection[]): NavSection[] {
 
 /** Every view the web's navigation opens. */
 export function navViews(nav: readonly NavSection[]): ViewId[] {
-  return navSections(nav).flatMap((n) => (n.view ? [n.view] : []));
+  return navSections(nav).flatMap((n) => [...(n.view ? [n.view] : []), ...(n.embeds ?? []).map((e) => e.view)]);
+}
+
+/** The entry whose page shows this view as one of its categories (VPN: Settings), if any. */
+export function embeddingOf(nav: readonly NavSection[], view: string): NavSection | undefined {
+  return navSections(nav).find((n) => n.embeds?.some((e) => e.view === view));
 }
 
 export const NAV: readonly NavSection[] = [
@@ -221,8 +228,8 @@ export const NAV: readonly NavSection[] = [
   { label: 'Apps', view: 'apps' },
   {
     label: 'Settings',
-    children: [
-      { label: 'All settings', view: 'settings' },
+    view: 'settings',
+    embeds: [
       { label: 'VPN', view: 'vpn' },
       { label: 'GitHub', view: 'github' },
     ],

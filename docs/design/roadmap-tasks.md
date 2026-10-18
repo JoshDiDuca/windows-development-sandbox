@@ -1,8 +1,9 @@
 # Roadmap tasks (specs for contributors)
 
-The rest of the roadmap, as tasks a contributor can pick up one at a time. The web UI has its own spec
-([web-ui-tasks.md](web-ui-tasks.md) and [areas/](areas/)). Everything here follows CLAUDE.md (read all of it first:
-hard rules, coding standard, Gotchas) and [shared-core.md](shared-core.md) for anything a user can see or run.
+The open roadmap items ([roadmap.md](../roadmap.md)) as tasks a contributor can pick up one at a time. Everything here
+follows CLAUDE.md (read all of it first: hard rules, coding standard, Gotchas) and [shared-core.md](shared-core.md) for
+anything a user can see or run. Task numbers are kept from earlier versions of this list: R1 (`sandbox engine clean`)
+shipped in 1.11.1 and is no longer listed.
 
 ## How every task is done
 
@@ -19,24 +20,6 @@ hard rules, coding standard, Gotchas) and [shared-core.md](shared-core.md) for a
 5. Report: files, what you verified, what needs a real PC, any advisor decision, anything left undone.
 
 ## Tasks
-
-### R1. `sandbox engine clean` (HCS leftovers) — Sonnet
-
-Why: HCS compute systems are created with `ShouldTerminateOnLastHandleClosed: false`, so a crashed CLI can leave a
-utility VM running (memory, not data). Nothing lists or removes them.
-
-- A query `engine.leftovers` and an operation `engine.clean` in the engine feature (shared core; if area 11 of the web
-  UI has not moved `engine` into `src/app` yet, add them as the first definitions of a new `src/app/features/engine`
-  and keep the hand-written `sandbox engine` command for the rest).
-- `leftovers`: HcsHost `enumerate`, keep only systems whose `Owner` is `agent-sandbox` and whose id starts with
-  `agent-sandbox-` (HcsHost already refuses anything else), show id, state, how long it has run.
-- `clean`: lists them, asks once (`io.confirm`, `--yes`), terminates each through HcsHost `terminate` (which checks
-  the owner again with HCS itself), reports what it did. Never touches a system that is not ours; nothing when HCS is
-  not available (plain message, exit 0).
-- Doctor: a warn row "HCS systems left running" with the fix `sandbox engine clean`, only when `sandbox.engine` is
-  `hcs` or leftovers exist.
-- Tests: with the existing fake helper in `src/selftest/hcs.test.ts`: only owned systems listed, refused ids never
-  reach terminate, nothing to do when HCS is missing.
 
 ### R2. Contained storage without an admin prompt per launch — Sonnet, Opus review before merge
 

@@ -1,8 +1,9 @@
 # Sandbox engines and storage providers (design)
 
-Status: **1.9, opt-in: contained storage (beta), HCS engine (alpha)**. Phase 3 (HCS engine) is built but start is disabled (see Phases). Research behind it: [hcs-backend.md](hcs-backend.md). Windows Sandbox stays
-the default engine and keeps every feature it has; everything here is an extra you switch on, and one setting switches
-it off again.
+Status: **1.9, opt-in: contained storage (beta), HCS engine (alpha)**. Phase 3 (HCS engine) is built but start is disabled
+(see Phases). Windows Sandbox stays the default engine and keeps every feature it has; everything here is an extra you
+switch on, and one setting switches it off again. The first research notes for the HCS engine were removed when it was
+built; they are in git history (commit 2051ae1, `docs/design/hcs-backend.md`).
 
 ## Goals
 
@@ -49,12 +50,12 @@ launch (cli) ──> LaunchPlan (neutral, pure) ──> engine.plan() ──> en
   - `registry.ts`: `engineFor(config)` picks the engine; refuses `hcs` unless its check passes, with the reasons.
 - `src/host/storage/providers/` (barrel): `interface StorageProvider { id; check(); prepare(dataSet):
   Promise<PreparedStorage>; release(): Promise<void> }`; `PreparedStorage` is either folder mappings (Windows Sandbox)
-  or disk attachments (HCS). Providers: `folder` (today), `vhdx-mounted` (Windows Sandbox contained storage),
-  `vhdx-attached` (HCS).
+  or disk attachments (HCS). Providers: `folder` (today) and `vhdx-mounted` (Windows Sandbox contained storage). The id
+  `vhdx-attached` (HCS) is reserved in the type; no provider is built for it yet.
 - The data set splits in two when contained: `run\` (the host<->guest channel) always stays a host folder shared in,
   because the host must read it; `tools\`, `state\`, `logs\` go into the container image.
 - `native/csharp/HcsHost/` (C# 5, built on first use like HostTools, file details set): verbs `check`, `enumerate`,
-  `properties <id>`, `create <doc.json>`, `start <id>`, `terminate <id>`, `grant-vm-access <vhdx> <id>`,
+  `properties <id>`, `create <doc.json>`, `start <id>`, `terminate <id>`, `grant-vm-access <id> <vhdx>`,
   `create-vhdx <path> <maxGb>` (CreateVirtualDisk; never attaches to the host). JSON in and out through files; every
   handle closed in `finally`; failures as Win32Exception messages.
 - Contained storage for Windows Sandbox: `native/scripts/mount-contained.ps1` (fixed, run elevated with one UAC prompt
@@ -99,7 +100,8 @@ answer in a file; never attaches a disk). `sandbox engine check hcs` and the doc
 - `engineFor` (sync) never hands out HCS; `openEngine` runs the check and returns it only when the check passes.
 - Not built: the writable (scratch) layer and layer import, running the logon command in the container
   (`HcsCreateProcess`), the control channel over Hyper-V sockets, networking, formatting the blank agent VHDX inside the
-  utility VM, our own image importer, `sandbox engine clean`. Field names that came from the Microsoft schema reference
+  utility VM, our own image importer. `sandbox engine clean` (built in 1.11.1) removes the systems a crashed command left
+  running. Field names that came from the Microsoft schema reference
   are checked; hcsshim-derived details are marked [U] in `documents.ts`.
 
 **Go/no-go test before start() is enabled** (owner's PC, elevated or Hyper-V Administrators, Docker Desktop in Windows

@@ -1,7 +1,7 @@
 # Web UI standard
 
-How every page of the web UI looks and behaves, and how to check it. Read it with [shared-core.md](shared-core.md) and
-[web-ui-tasks.md](web-ui-tasks.md): those say where the code goes; this says what the result must look like.
+How every page of the web UI looks and behaves, and how to check it. Read it with [shared-core.md](shared-core.md): that
+says where the code goes; this says what the result must look like.
 
 ## The one rule
 
@@ -72,7 +72,7 @@ results as notifications, questions as modals (`io.confirm`, `choose`, `text`, `
 
 ## Review checklist (what the reviewer checks)
 
-- No file under `web/` mentions the area (unless the area spec asked for a new hint or Field kind).
+- No file under `web/` mentions the area (unless the page needed a new hint or Field kind, added for every page).
 - The view uses the hints above where they fit (cards for things to pick, facts for status, `inline` for values).
 - Every action works on the web (no command links left for the area's main actions).
 - Screenshots: light, dark, phone; nothing cut off, nothing scrolls sideways, empty state looks right.

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { errMsg, fail } from '../../../core/util/index.js';
 import { realHcsProbes, system32Dir, type HcsProbes } from './check.js';
 import { HCS_OWNER } from './documents.js';
-import { HcsHelper, builtHcsHostExe, isOurSystemId } from './helper.js';
+import { HcsHelper, builtHcsHostExe, isMySystemId } from './helper.js';
 
 export interface LeftoverSystem {
   readonly id: string;
@@ -79,7 +79,7 @@ function ownedSystems(helper: HcsHelper): LeftoverSystem[] {
   const parsed = SystemListSchema.safeParse(list);
   if (!parsed.success) return [];
   return parsed.data
-    .filter((s) => s.Owner === HCS_OWNER && isOurSystemId(s.Id))
+    .filter((s) => s.Owner === HCS_OWNER && isMySystemId(s.Id))
     .map((s) => ({
       id: s.Id,
       kind: s.SystemType ?? 'unknown',

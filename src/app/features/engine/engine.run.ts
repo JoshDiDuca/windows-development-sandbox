@@ -66,8 +66,8 @@ export const cleanEngineRun = implement(cleanEngine, async (ctx, _input, io) => 
     title: 'Stop ' + plural(look.systems.length, 'HCS system') + '?',
     lines: [
       ...look.systems.map((s) => s.id + '  (' + safeText(s.kind) + ', ' + safeText(s.state) + ')'),
-      'A sandbox that is running on purpose is listed too: stopping it ends its sessions, and anyone else on this PC who uses this tool loses theirs.',
-      'No file is deleted and no other program is touched.',
+      'A sandbox of yours that is running on purpose is listed too: stopping it ends its sessions.',
+      "No file is deleted, and other programs and other Windows users' sandboxes are not touched.",
     ],
     yes: 'Stop them',
     danger: true,

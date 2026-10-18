@@ -26,7 +26,13 @@ import {
 } from '../host/engines/index.js';
 import { parseWhoamiGroups } from '../host/engines/hcs/check.js';
 import { buildDocuments, cpuCount, layerGuid } from '../host/engines/hcs/documents.js';
-import { HcsHelper, HcsReplySchema, buildHcsHostTo, type HelperRunner } from '../host/engines/hcs/helper.js';
+import {
+  HcsHelper,
+  HcsReplySchema,
+  buildHcsHostTo,
+  userSystemPrefix,
+  type HelperRunner,
+} from '../host/engines/hcs/helper.js';
 import { chainIds, DockerImageStore, FolderImageStore, type ImageFiles } from '../host/engines/hcs/images.js';
 import { SYSTEM } from '../shared/system.js';
 import { fakeProbes, FAKE_IMAGE } from './support/hcs-probes.js';
@@ -511,20 +517,25 @@ export const hcsSuite: Suite = {
       exists: () => true,
     });
     for (const file of plan.files) t.write(file.path, file.text);
+    const mineId = userSystemPrefix() + '1';
     const running = await live.start(plan);
     t.equal(
       log,
       [
-        'grant-vm-access agent-sandbox-1 C:\\S\\images\\set.vhdx',
-        'grant-vm-access agent-sandbox-1 ' + path.join(launch.launchPath, 'hcs', 'scratch.vhdx'),
+        'grant-vm-access ' + mineId + ' C:\\S\\images\\set.vhdx',
+        'grant-vm-access ' + mineId + ' ' + path.join(launch.launchPath, 'hcs', 'scratch.vhdx'),
         'create <request>',
-        'start agent-sandbox-1',
+        'start ' + mineId,
         'create <request>',
-        'start agent-sandbox-1-c',
+        'start ' + mineId + '-c',
       ],
       'disks get access, the utility VM is created and started, then the container',
     );
-    t.check(running.id === 'agent-sandbox-1' && running.engine === 'hcs', 'start() reports the sandbox');
+    t.check(running.id === mineId && running.engine === 'hcs', 'start() reports the sandbox');
+    t.check(
+      mineId !== userSystemPrefix('someone-else', 'PC') + '1',
+      "the id carries this Windows user's tag (another user's sandbox of the same name gets another id)",
+    );
 
     t.section('the helper: private temp folder, checked answers');
     const tempRoot = t.dir('hcs-helper-checks');
@@ -621,15 +632,18 @@ export const hcsSuite: Suite = {
     t.check(row.fix === undefined, 'repair never fixes HCS prerequisites (they change Windows)');
 
     t.section('HCS systems left running: only ours are listed and stopped (fake helper)');
+    const mine = userSystemPrefix() + '1';
+    const theirs = userSystemPrefix('someone-else', 'PC') + '1';
     const systems = [
       {
-        Id: 'agent-sandbox-1',
+        Id: mine,
         SystemType: 'VirtualMachine',
         Owner: 'agent-sandbox',
         State: 'Running',
         CreateTimestamp: '2026-01-01T10:00:00Z',
       },
-      { Id: 'agent-sandbox-1-c', SystemType: 'Container', Owner: 'agent-sandbox', State: 'Running' },
+      { Id: mine + '-c', SystemType: 'Container', Owner: 'agent-sandbox', State: 'Running' },
+      { Id: theirs, SystemType: 'VirtualMachine', Owner: 'agent-sandbox', State: 'Running' },
       { Id: 'WindowsSandbox-9', SystemType: 'VirtualMachine', Owner: 'agent-sandbox', State: 'Running' },
       { Id: 'agent-sandbox-evil', SystemType: 'VirtualMachine', Owner: 'docker', State: 'Running' },
       { Id: 'docker-1', SystemType: 'Container', Owner: 'docker', State: 'Running' },
@@ -665,11 +679,11 @@ export const hcsSuite: Suite = {
       const look = lookForLeftovers('C:\\S');
       t.check(
         look.available &&
-          look.systems.map((s) => s.id).join() === 'agent-sandbox-1,agent-sandbox-1-c' &&
+          look.systems.map((s) => s.id).join() === mine + ',' + mine + '-c' &&
           look.systems[0].kind === 'VirtualMachine' &&
           look.systems[0].since === '2026-01-01T10:00:00Z' &&
           look.systems[1].since === null,
-        'only systems with our id prefix and our Owner are listed (not Windows Sandbox, Docker, or a foreign owner)',
+        "only systems with our Owner and this user's id prefix are listed (not another user's, Windows Sandbox, Docker, or a foreign owner)",
         JSON.stringify(look),
       );
       const query = await engineLeftoversRun.run(ctx, {}, fakeIO().io);
@@ -679,20 +693,14 @@ export const hcsSuite: Suite = {
       );
 
       calls.length = 0;
-      const outcome = stopLeftovers('C:\\S', [
-        'agent-sandbox-1',
-        'agent-sandbox-1-c',
-        'WindowsSandbox-9',
-        'docker-1',
-        '--evil',
-      ]);
+      const outcome = stopLeftovers('C:\\S', [mine, mine + '-c', theirs, 'WindowsSandbox-9', 'docker-1', '--evil']);
       t.equal(
         calls.filter((c) => c.startsWith('terminate')),
-        ['terminate agent-sandbox-1-c', 'terminate agent-sandbox-1'],
+        ['terminate ' + mine + '-c', 'terminate ' + mine],
         'only ours reach terminate, the container before its utility VM',
       );
       t.check(
-        outcome.filter((o) => o.stopped).length === 2 && outcome.filter((o) => !o.stopped).length === 3,
+        outcome.filter((o) => o.stopped).length === 2 && outcome.filter((o) => !o.stopped).length === 4,
         'ids that are not ours (or not running) are reported, never terminated',
       );
 
@@ -743,7 +751,7 @@ export const hcsSuite: Suite = {
       );
       const warn = await leftoverRow.run(rowEnv(f.baseConfig));
       t.check(
-        warn.status === 'warn' && warn.fix === 'sandbox engine clean' && /agent-sandbox-1/.test(warn.detail),
+        warn.status === 'warn' && warn.fix === 'sandbox engine clean' && warn.detail.includes(mine),
         'a warning with the fix "sandbox engine clean"',
       );
       present = [];

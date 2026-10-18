@@ -22,6 +22,27 @@ export function isOurSystemId(id: string): boolean {
   return SAFE_ID.test(id);
 }
 
+/**
+ * The start of the ids this Windows user's sandboxes get: the Owner is the same for everyone, so on a PC shared with
+ * other users this tag is what keeps one user from listing or stopping another's compute systems.
+ */
+export function userSystemPrefix(
+  user: string = os.userInfo().username,
+  domain: string = process.env.USERDOMAIN ?? '',
+): string {
+  const tag = crypto
+    .createHash('sha256')
+    .update((domain + '\\' + user).toLowerCase())
+    .digest('hex')
+    .slice(0, 8);
+  return 'agent-sandbox-' + tag + '-';
+}
+
+/** One of this tool's ids, given by this Windows user. */
+export function isMySystemId(id: string): boolean {
+  return isOurSystemId(id) && id.startsWith(userSystemPrefix());
+}
+
 export const HcsReplySchema = z.object({
   ok: z.boolean(),
   hresult: z.string().max(16),

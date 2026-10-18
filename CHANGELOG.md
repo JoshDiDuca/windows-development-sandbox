@@ -13,6 +13,11 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   could not be read or saved), and you can go on.
 - More of the tool in the web UI: Maintenance > Updates, Data, Storage, Health, Logs and Engine, Settings export and
   import, and the Web UI's own server in the menu. Each is written once for the command line, the menu and the browser.
+- VPN in the web UI, under Settings: its status, and saving or deleting the login (typed hidden, never shown).
+- **(Alpha)** `sandbox engine clean` stops HCS systems a crashed command left running, after naming them. Only your
+  own are touched: HCS sandboxes now carry a tag for the Windows user that started them.
+- A check for PowerShell variable mistakes (built-in names, letter-case clashes, settings leaking out of functions)
+  runs over every script in the self-test.
 
 ## 1.11.0
 

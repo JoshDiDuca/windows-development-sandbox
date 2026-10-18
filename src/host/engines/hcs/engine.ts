@@ -11,7 +11,7 @@ import type { SandboxEngine } from '../engine.js';
 import type { EngineCapabilities, EngineCheck, EnginePlan, LaunchPlan, RunningSandbox } from '../types.js';
 import { checkHcs, realHcsProbes, type HcsProbes } from './check.js';
 import { buildDocuments, HCS_OWNER, type HcsImage } from './documents.js';
-import { HcsHelper, hcsHostExe } from './helper.js';
+import { HcsHelper, hcsHostExe, isMySystemId, userSystemPrefix } from './helper.js';
 import { findImage } from './images.js';
 
 export const HCS_CAPABILITIES: EngineCapabilities = {
@@ -99,7 +99,7 @@ export class HcsEngine implements SandboxEngine {
     const docs = buildDocuments({
       launch,
       image: this.image,
-      id: 'agent-sandbox-' + slug,
+      id: userSystemPrefix() + slug,
       scratchVhdx,
       hostCpus: (this.deps.hostCpus ?? (() => os.cpus().length))(),
     });
@@ -165,10 +165,12 @@ export class HcsEngine implements SandboxEngine {
     }
   }
 
-  /** Ours: the compute systems the helper lists with our owner name. */
+  /** Ours: the compute systems the helper lists with our owner name and this Windows user's id prefix. */
   private ours(helper: HcsHelper): string[] {
     const parsed = SystemListSchema.safeParse(JSON.parse(helper.enumerate().json || '[]'));
-    return parsed.success ? parsed.data.filter((s) => s.Owner === HCS_OWNER).map((s) => s.Id) : [];
+    return parsed.success
+      ? parsed.data.filter((s) => s.Owner === HCS_OWNER && isMySystemId(s.Id)).map((s) => s.Id)
+      : [];
   }
 
   running(): Promise<boolean> {

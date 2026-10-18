@@ -7,6 +7,17 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.11.4
+
+- **Less work on your PC while a sandbox runs:** the background watcher reads this PC's memory from one long-running
+  helper instead of starting a program (and building a disk counter) every 10 seconds.
+- Web UI: Settings is one page again: VPN and GitHub are categories in it (old links open them there). Pages read more
+  clearly: no repeated lines, a coloured dot for status, "Fix:" and "Folder:" lines as labels and values, a compact
+  "add" card, session titles in full, the Data page as one table with its total, and the sidebar runs the full height.
+- gh: the sandbox says how to log in so the login lasts between sandboxes (`gh auth login --web --insecure-storage`),
+  and warns when an earlier login was kept in Windows Credential Manager, which each sandbox wipes.
+- Releases no longer run the HCS engine test (it runs by hand); its Docker step starts Docker when the runner has not.
+
 ## 1.11.3
 
 - **The memory governor no longer slows a sandbox that has memory to spare.** It paused compilers and pushed their

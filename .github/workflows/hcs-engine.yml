@@ -1,7 +1,6 @@
 name: HCS engine (alpha)
 
-# Tests the alpha HCS engine on GitHub-hosted Windows runners: after each new version (release.yml calls it) and by hand
-# (Actions > this workflow > Run workflow). It never runs on push or pull request (docs/development.md#hcs-engine-workflow).
+# Tests the alpha HCS engine on GitHub-hosted Windows runners, by hand (Actions > this workflow > Run workflow). It never runs on push or pull request (docs/development.md#hcs-engine-workflow).
 # Hosted runners are Azure VMs: Hyper-V isolation needs nested virtualization, which they may not offer, so the job
 # reports which isolation really worked. No secrets are used.
 
@@ -110,7 +109,16 @@ jobs:
         id: pull
         shell: pwsh
         run: |
-          docker pull $env:IMAGE 2>&1 | Tee-Object -FilePath "$env:LOGS\pull.txt"
+          # The Docker service is not always running yet on a fresh runner (seen on windows-2025: 'failed to connect to the
+          # docker API'): start it, wait until it answers, and try the pull a few times.
+          $svc = Get-Service docker -ErrorAction SilentlyContinue
+          if ($svc -and $svc.Status -ne 'Running') { Start-Service docker }
+          for ($i = 0; $i -lt 30; $i++) { docker version *> $null; if ($LASTEXITCODE -eq 0) { break }; Start-Sleep 2 }
+          for ($try = 1; $try -le 3; $try++) {
+            docker pull $env:IMAGE 2>&1 | Tee-Object -FilePath "$env:LOGS\pull.txt"
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep 10
+          }
           if ($LASTEXITCODE -ne 0) { exit 1 }
           docker image inspect $env:IMAGE --format '{{.Id}} {{.Os}} {{.OsVersion}}' 2>&1 | Tee-Object -FilePath "$env:LOGS\image.txt"
           exit 0

@@ -145,14 +145,10 @@ jobs:
           "@${scope}:registry=https://npm.pkg.github.com`n//npm.pkg.github.com/:_authToken=`${NODE_AUTH_TOKEN}" | Set-Content .npmrc
           npm publish --ignore-scripts
 
-  # A new version is out: test it (CI on Node 22.0.0, and the HCS engine on hosted runners). These never hold up or
-  # undo the release; they show whether the version works outside a sandbox.
+  # A new version is out: test it (CI on Node 22.0.0). This never holds up or undoes the release; it shows whether the
+  # version works outside a sandbox. The HCS engine test is run by hand (hcs-engine.yml).
   ci:
     needs: release
     if: needs.release.outputs.released == 'true'
     uses: ./.github/workflows/ci.yml
 
-  hcs:
-    needs: release
-    if: needs.release.outputs.released == 'true'
-    uses: ./.github/workflows/hcs-engine.yml

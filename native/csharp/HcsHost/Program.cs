@@ -1,6 +1,6 @@
 // HcsHost.exe <verb> [arguments] --out <response.json>
 // Verbs: check, enumerate, properties <id>, create <request.json>, start <id>, terminate <id>,
-//        grant-vm-access <vmId> <file>, create-vhdx <path> <maxGb>.
+//        grant-vm-access <vmId> <file>, create-vhdx <path> <maxGb>, share <request.json> (prototype).
 // The answer is one JSON file (see Json.Response); exit code 0 = ok, 1 = failed, 2 = wrong use. A create request is
 // {"id": "...", "document": "<the HCS document as a JSON string>"}. Never attaches a disk to this PC.
 using System;
@@ -109,6 +109,10 @@ namespace AgentSandbox.HcsHost
                 }
                 return FromReply(verb == "start" ? Hcs.Start(args[1]) : Hcs.Terminate(args[1]), null, out response);
             }
+            if (verb == "share" && args.Count == 2)
+            {
+                return Share(args[1], out response);
+            }
             if (verb == "grant-vm-access" && args.Count == 3)
             {
                 if (Refused(Guard.IdProblem(args[1]), out response) || Refused(Guard.DiskProblem(args[2]), out response))
@@ -168,6 +172,27 @@ namespace AgentSandbox.HcsHost
                 return ExitUsage;
             }
             return FromReply(Hcs.Create((string)id, (string)document), null, out response);
+        }
+
+        /// <summary>
+        /// PROTOTYPE (docs/design/hcs-live-folders.md): adds or removes a vSMB share on a running system of OURS (id
+        /// prefix and Owner, as for start/terminate). Windows Sandbox's own system is refused like any other.
+        /// </summary>
+        private static int Share(string requestFile, out string response)
+        {
+            string problem;
+            ShareRequest request = ShareRequest.Read(requestFile, out problem);
+            if (Refused(problem, out response))
+            {
+                return ExitUsage;
+            }
+            if (Refused(Guard.IdProblem(request.Id), out response) || Refused(Guard.OwnerProblem(request.Id), out response))
+            {
+                return ExitUsage;
+            }
+            Dictionary<string, string> values = new Dictionary<string, string>();
+            values["request"] = request.ToModifySettingRequest();
+            return FromReply(Hcs.Modify(request.Id, values["request"]), values, out response);
         }
 
         /// <summary>True (with the refusal as the response) when `problem` says why the request is not allowed.</summary>

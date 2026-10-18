@@ -100,6 +100,9 @@ namespace AgentSandbox.HcsHost
             [DllImport("computecore.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
             public static extern int HcsGetComputeSystemProperties(IntPtr computeSystem, IntPtr operation, string propertyQuery);
 
+            [DllImport("computecore.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+            public static extern int HcsModifyComputeSystem(IntPtr computeSystem, IntPtr operation, string configuration, IntPtr identity);
+
             [DllImport("computecore.dll", ExactSpelling = true)]
             public static extern void HcsCloseComputeSystem(IntPtr computeSystem);
 
@@ -243,6 +246,12 @@ namespace AgentSandbox.HcsHost
         public static HcsReply Properties(string id, string queryJson)
         {
             return WithSystem(id, QueryMs, delegate(IntPtr system, IntPtr op) { return NativeMethods.HcsGetComputeSystemProperties(system, op, queryJson); });
+        }
+
+        /// <summary>Applies one ModifySettingRequest to a running system (HcsModifyComputeSystem, no identity token).</summary>
+        public static HcsReply Modify(string id, string modifySettingRequest)
+        {
+            return WithSystem(id, ChangeMs, delegate(IntPtr system, IntPtr op) { return NativeMethods.HcsModifyComputeSystem(system, op, modifySettingRequest, IntPtr.Zero); });
         }
 
         /// <summary>Lets the virtual machine `vmId` open the file (its disk). The file must exist.</summary>

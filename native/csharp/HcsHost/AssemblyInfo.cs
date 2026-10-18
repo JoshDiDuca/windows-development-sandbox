@@ -12,3 +12,5 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyFileVersion("1.11.7.0")]
 [assembly: AssemblyInformationalVersion("1.11.7")]
 [assembly: ComVisible(false)]
+// computecore.dll and computestorage.dll are not KnownDLLs: load them from System32 only, never from the exe's folder.
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

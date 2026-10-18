@@ -854,6 +854,43 @@ export const hcsSuite: Suite = {
             refused(['grant-vm-access', 'agent-sandbox-1', 'relative.vhdx']),
           'grant-vm-access refuses anything but an existing .vhdx at a full path',
         );
+        // share (prototype, docs/design/hcs-live-folders.md): refused before HCS is asked, so no Hyper-V is needed.
+        const folder = t.dir('hcs-share-folder');
+        const share = (over: Record<string, unknown>): Record<string, unknown> => ({
+          id: 'agent-sandbox-1',
+          action: 'add',
+          name: 'agentsbx-0123abcd',
+          path: folder,
+          ...over,
+        });
+        let link = '';
+        try {
+          link = path.join(tempRoot, 'share-link');
+          fs.symlinkSync(folder, link, 'junction');
+        } catch {
+          link = ''; // a folder that refuses links (a mapped folder): that case is skipped
+        }
+        t.check(
+          refused(['share'], share({ id: '0b9a3c2e-1f00-4a4c-9d1e-6a7b8c9d0e1f' })) &&
+            refused(['share'], share({ id: 'WindowsSandbox' })) &&
+            refused(['share'], share({ name: '3ad483dec1a233132da4197c9790dcda06668793230cd6d9e94b1882e0f7f29c' })) &&
+            refused(['share'], share({ name: 'agentsbx-XYZ' })) &&
+            refused(['share'], share({ action: 'update' })) &&
+            refused(['share'], share({ path: 'relative\\folder' })) &&
+            refused(['share'], share({ path: 'C:\\' })) &&
+            refused(['share'], share({ path: path.join(tempRoot, 'missing-folder') })) &&
+            refused(['share'], share({ path: folder + '\\..\\' + path.basename(folder) })) &&
+            refused(['share'], share({ path: folder + '/../' + path.basename(folder) })) &&
+            refused(['share'], share({ path: folder + ':stream' })) &&
+            refused(['share'], share({ path: folder + '.' })) &&
+            refused(['share'], share({ path: folder + ' ' })) &&
+            refused(['share'], share({ path: 'C:\\PROGRA~1' })) &&
+            refused(['share'], share({ readOnly: 'yes' })) &&
+            (!link || refused(['share'], share({ path: link }))),
+          'share refuses a Windows Sandbox or other foreign id, a foreign share name, an update, a drive, a relative, ' +
+            "missing, dotted, '/', stream, trailing-dot or -space, short-name or linked folder" +
+            (link ? '' : ' (link case skipped)'),
+        );
         const existing = t.write(path.join(tempRoot, 'existing.vhdx'), 'keep me');
         const over = raw.call(['create-vhdx', existing, '1']);
         t.check(

@@ -173,11 +173,12 @@ function facts(o: SandboxStatus): Fact[] {
   });
   return [
     ...(o.shared?.startedBy ? [fact('owner', 'Started by', o.shared.startedBy)] : []),
-    fact('running', 'Running', s.running ? 'yes' : 'no', { tone: s.running ? 'ok' : 'muted' }),
+    // One line for what it is doing: "Ready", "Installing Rust ...", or "not running".
+    fact('state', 'State', s.running ? s.message || s.phase : 'not running', {
+      tone: !s.running ? 'muted' : s.phase === 'ready' ? 'ok' : 'warn',
+    }),
     ...(s.running
       ? [
-          fact('phase', 'Phase', s.phase, { tone: s.phase === 'ready' ? 'ok' : 'warn' }),
-          fact('message', 'Message', s.message || '-'),
           fact('window', 'Window', s.headless ? 'hidden (sandbox show opens it)' : 'shown'),
           fact('uptime', 'Uptime', uptime(s) ?? '-'),
           fact('helper', 'Helper', s.daemon === '-' ? '-' : helperText(s.daemon)),
@@ -236,10 +237,12 @@ export function sandboxPage(o: SandboxStatus): Page {
     id: 'status',
     title: 'Status',
     facts: facts(o),
+    // Only the window action that changes something: show a hidden window, hide a shown one.
     actions: running
       ? [
-          action(showWindow, {}, { key: 'w', verb: 'show', importance: 3 }),
-          action(hideWindow, {}, { key: 'h', verb: 'hide', importance: 3 }),
+          o.sandbox.headless
+            ? action(showWindow, {}, { key: 'w', verb: 'show', importance: 3 })
+            : action(hideWindow, {}, { key: 'h', verb: 'hide', importance: 3 }),
           action(stopSandbox, {}, { key: 'x', verb: 'stop', importance: 1 }),
         ]
       : [],

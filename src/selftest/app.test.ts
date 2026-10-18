@@ -357,13 +357,16 @@ export const appSuite: Suite = {
       shared: { line: 'Running, started by bob (not shared)', limited: true, startedBy: 'bob' },
     });
     const ops = (page: Page): string[] => pageActions(page).flatMap((a) => (a.kind === 'operation' ? [a.op] : []));
+    const hiddenPage = sandboxPage({ ...STATUS, sandbox: { ...STATUS.sandbox, headless: true } });
+    const shownPage = sandboxPage({ ...STATUS, sandbox: { ...STATUS.sandbox, headless: false } });
     t.check(
-      ops(statusPage).join() === 'sandbox.showWindow,sandbox.hideWindow,sandbox.stop' &&
+      ops(hiddenPage).join() === 'sandbox.showWindow,sandbox.stop' &&
+        ops(shownPage).join() === 'sandbox.hideWindow,sandbox.stop' &&
         pageActions(statusPage).some((a) => a.kind === 'operation' && a.op === 'sandbox.stop' && a.danger) &&
         ops(stoppedPage).length === 0 &&
         limited.sections.length === 0 &&
         limited.notice?.text === 'Running, started by bob (not shared)',
-      "status: the window and stop (marked dangerous) only while it runs; another user's unshared sandbox shows only whose it is",
+      "status: show or hide (whichever changes the window) and stop (marked dangerous) only while it runs; another user's unshared sandbox shows only whose it is",
     );
     const list: SessionsList = {
       sandboxRunning: true,
@@ -451,7 +454,7 @@ export const appSuite: Suite = {
     );
     const statusLines = pageLines(statusPage);
     t.check(
-      statusLines.some((l) => /^Running\s+yes$/.test(l)) &&
+      statusLines.some((l) => /^State\s+\S/.test(l)) &&
         statusLines.some((l) => /^Helper\s+responding, 2 sessions running$/.test(l)) &&
         statusLines.includes('* api  C:\\Projects\\api  ->  C:\\Projects\\api  (started from here)') &&
         statusLines.some((l) => l.startsWith('Repo guard  1 folder(s) guarded')),

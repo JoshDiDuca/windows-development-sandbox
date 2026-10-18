@@ -748,16 +748,18 @@ export const vpnSuite: Suite = {
       lines,
     );
     t.equal(
-      pageActions(vpnPage({ ...sample, provider: 'wireguard-file' })).length,
-      0,
-      'vpn: wireguard needs no login and offers no login actions',
+      pageActions(vpnPage({ ...sample, provider: 'wireguard-file' })).map((a) =>
+        a.kind === 'operation' ? a.op : a.kind,
+      ),
+      ['settings.set'],
+      'vpn: wireguard needs no login and offers only turning the VPN on or off',
     );
     t.equal(
       pageActions(vpnPage({ ...sample, login: 'saved', loginSavedAt: '2026-10-14T09:30:00.000Z' })).map((a) =>
         a.kind === 'operation' ? a.op : a.kind,
       ),
-      ['vpn.login', 'vpn.logout'],
-      'a saved login offers saving again and deleting',
+      ['settings.set', 'vpn.login', 'vpn.logout'],
+      'a saved login offers turning the VPN on or off, saving the login again and deleting it',
     );
     t.equal(vpnLoginRowOf(sample).hint, 'not saved', 'the Settings row says not saved when no login is saved');
 

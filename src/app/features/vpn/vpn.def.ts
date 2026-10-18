@@ -11,6 +11,7 @@ import {
   type Page,
   type Section,
 } from '../../kernel/index.js';
+import { setSetting } from '../settings/settings.def.js';
 
 const ProviderSchema = z
   .enum(['nordvpn', 'openvpn-file', 'wireguard-file'])
@@ -21,7 +22,7 @@ const LoginStateSchema = z
 
 /** The warnings every VPN user must see (alpha): on every surface. */
 export const VPN_WARNINGS: readonly string[] = [
-  'The VPN is an alpha: not yet tried on a real PC (docs/vpn.md lists what still needs checking).',
+  'The VPN is an alpha: a tunnel carrying traffic is not confirmed yet (docs/vpn.md lists what still needs checking).',
   'The agent in the sandbox can read the VPN login (a service login you can revoke) and can turn the tunnel off, because it is the administrator there.',
   'Free VPNs see all your traffic: use one you trust.',
 ];
@@ -138,7 +139,7 @@ export function vpnPage(s: VpnStatus): Page {
   const facts: Fact[] = [
     s.enabled
       ? { id: 'vpn', label: 'VPN', value: 'on', tone: 'ok' }
-      : { id: 'vpn', label: 'VPN', value: 'off  (turn on: sandbox config set vpn.enabled true)' },
+      : { id: 'vpn', label: 'VPN', value: 'off (applies from the next start)', tone: 'muted' },
     { id: 'provider', label: 'Provider', value: PROVIDER_TEXT[s.provider] },
     { id: 'protocol', label: 'Protocol', value: s.protocol },
     { id: 'country', label: 'Country', value: s.country || 'best available' },
@@ -171,14 +172,23 @@ export function vpnPage(s: VpnStatus): Page {
           },
         ]
       : []),
-    ...VPN_WARNINGS.map((text) => ({ text, tone: 'muted' as const })),
+    ...VPN_WARNINGS.map((text) => ({ text, tone: 'warn' as const })),
   ];
-  const actions = wireguard
-    ? []
-    : [
-        action(vpnLogin, {}, { key: 'v', verb: 'save login' }),
-        ...(s.login !== 'none' ? [action(vpnLogout, {}, { key: 'x', verb: 'delete login' })] : []),
-      ];
+  // Turning it on or off is the vpn.enabled setting (it applies from the next start).
+  const toggle = action(
+    setSetting,
+    { scope: 'user', key: 'vpn.enabled', value: !s.enabled },
+    { label: s.enabled ? 'Turn the VPN off' : 'Turn the VPN on', verb: s.enabled ? 'turn off' : 'turn on', key: 'o' },
+  );
+  const actions = [
+    toggle,
+    ...(wireguard
+      ? []
+      : [
+          action(vpnLogin, {}, { key: 'v', verb: 'save login' }),
+          ...(s.login !== 'none' ? [action(vpnLogout, {}, { key: 'x', verb: 'delete login' })] : []),
+        ]),
+  ];
   const section: Section = { id: 'vpn', facts, notes, actions };
   return { title: 'VPN', sections: [section] };
 }
@@ -188,6 +198,6 @@ export const vpnView = defineView({
   title: 'VPN',
   summary: "The sandbox's VPN: whether it is on, the saved login, and the tunnel.",
   queries: { status: vpnStatus },
-  operations: [vpnLogin, vpnLogout],
+  operations: [vpnLogin, vpnLogout, setSetting],
   build: ({ status }) => vpnPage(status),
 });

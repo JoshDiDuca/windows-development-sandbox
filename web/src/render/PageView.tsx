@@ -20,7 +20,7 @@ import {
   Title,
   UnstyledButton,
 } from '@mantine/core';
-import { IconChevronDown, IconChevronRight, IconInfoCircle, IconSearch } from '@tabler/icons-react';
+import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconInfoCircle, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   pageHasContent,
@@ -435,13 +435,37 @@ function SectionNotes({ notes }: { readonly notes: readonly Note[] }) {
   // Marked items carry a "this folder" badge here, so the "* = …" legend of the text surfaces is left out.
   const shown = notes.filter((n) => (n.only === undefined || n.only === 'web') && !n.text.startsWith('* ='));
   if (!shown.length) return null;
+  // Warnings are read together in one box (the worst tone colours it); other notes stay quiet lines under the card.
+  const warnings = shown.filter((n) => n.tone === 'warn' || n.tone === 'danger');
+  const quiet = shown.filter((n) => !warnings.includes(n));
   return (
-    <Stack gap={2}>
-      {shown.map((n, i) => (
-        <Text key={i} size="xs" c={toneColor(n.tone) ?? 'dimmed'}>
-          {n.text}
-        </Text>
-      ))}
+    <Stack gap="xs">
+      {warnings.length > 0 && (
+        <Alert
+          color={warnings.some((n) => n.tone === 'danger') ? 'red' : 'yellow'}
+          variant="light"
+          radius="md"
+          p="sm"
+          icon={<IconAlertTriangle size={18} />}
+        >
+          <Stack gap={4}>
+            {warnings.map((n, i) => (
+              <Text key={i} size="sm">
+                {n.text}
+              </Text>
+            ))}
+          </Stack>
+        </Alert>
+      )}
+      {quiet.length > 0 && (
+        <Stack gap={2}>
+          {quiet.map((n, i) => (
+            <Text key={i} size="xs" c={toneColor(n.tone) ?? 'dimmed'}>
+              {n.text}
+            </Text>
+          ))}
+        </Stack>
+      )}
     </Stack>
   );
 }

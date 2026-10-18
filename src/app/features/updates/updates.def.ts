@@ -184,7 +184,6 @@ export function updatesPage(s: UpdatesStatus, latest: string | null): Page {
                     hint: 'off',
                     tone: 'warn',
                     description: s.autoOffText,
-                    details: [s.autoOffText],
                   }),
                 ]
               : []),
@@ -203,8 +202,8 @@ export function updatesPage(s: UpdatesStatus, latest: string | null): Page {
                   row('failed', 'Last failed update', {
                     hint: s.failed.version,
                     tone: 'danger',
-                    description: s.failed.reason,
-                    details: [s.failed.reason, 'It is not tried again until a newer version is released.'],
+                    description: 'It is not tried again until a newer version is released.',
+                    details: [s.failed.reason],
                   }),
                 ]
               : []),

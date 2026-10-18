@@ -8,7 +8,7 @@ import {
   defineOperation,
   defineQuery,
   defineView,
-  type Item,
+  type Fact,
   type Page,
   type Section,
 } from '../../kernel/index.js';
@@ -185,23 +185,17 @@ export const containedOff = defineOperation({
 
 /** The Storage page: the data folder (change, move, use another), then contained storage (beta). */
 export function storagePage(o: StorageShow, c: ContainedStatus): Page {
-  const folder: Item = {
-    id: '@data-folder',
-    label: 'Data folder',
-    hint: o.root,
-    description:
-      'Where your tools, logins, history and logs are kept between sandboxes. Press Enter to move them to another folder or drive, or to use a different folder.',
-    details: [
-      o.size,
-      'Default folder: ' + o.defaultRoot + (o.defaultInUse ? ' (in use)' : ''),
-      ...o.otherFoldersWithData.map((f) => 'Another folder with data: ' + f),
-    ],
-    primary: action(changeDataFolder, {}, { label: 'Data folder', verb: 'change' }),
-  };
+  // Move and use another folder are the two ways to change it (the same choice as the Data folder setting).
   const data: Section = {
     id: 'folder',
     title: 'Data folder',
-    items: [folder],
+    description: 'Where your tools, logins, history and logs are kept between sandboxes.',
+    facts: [
+      { id: 'folder', label: 'Folder', value: o.root },
+      { id: 'size', label: 'Size', value: o.size },
+      { id: 'default', label: 'Default folder', value: o.defaultRoot + (o.defaultInUse ? ' (in use)' : '') },
+      ...o.otherFoldersWithData.map((f, i): Fact => ({ id: 'other:' + i, label: 'Other folder with data', value: f })),
+    ],
     actions: [action(moveStorage, {}), action(useStorage, {})],
   };
   const contained: Section = {

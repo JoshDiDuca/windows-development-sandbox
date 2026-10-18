@@ -55,7 +55,7 @@ The first start downloads what the project needs (a few minutes, once). After th
 |---|---|
 | **Safe by default** | The agent sees only your project folder. Credentials are stripped before anything is copied in, your LAN is blocked, and nothing the sandbox writes can run on your PC. |
 | **Languages** | Node, Python, Rust, C/C++ (GCC or MSVC), .NET (incl. .NET Framework targeting), Go, Java, Ruby, PHP, Deno, Bun, PowerShell 7, with pnpm, yarn, Volta, uv, pyenv, Maven, Gradle, Composer, gh ... |
-| **Apps and tools** | VS Code (set up for your languages, with their extensions) and Windows Terminal, plus 60 optional apps and tools by category: DBeaver, pgAdmin, Bruno, Godot, Blender, kubectl, jq, ripgrep ... and programs of your own |
+| **Apps and tools** | VS Code (set up for your languages, with their extensions) and Windows Terminal, plus 60 optional apps and tools by category: DBeaver, pgAdmin, Bruno, Godot, Blender, kubectl, jq, ripgrep ... and programs of your own. Agent add-ons too: rtk (fewer tokens for command output), claude-mem, REA. Playwright works out of the box with Edge |
 | **Databases** | PostgreSQL, MySQL, MongoDB, Redis and DynamoDB Local with a web UI, started when the project uses them, or any time with `--database` / `sandbox db` |
 | **Agents** | Claude Code, Codex, Gemini, opencode, Qwen, Crush, Copilot, Kilo, Amp, Cline, Continue, Kimi, Aider, DeepSeek agents |
 | **Smart** | Detects what the project needs from its files, respects version files, installs in parallel and reuses everything |

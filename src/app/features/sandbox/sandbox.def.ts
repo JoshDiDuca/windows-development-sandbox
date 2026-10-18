@@ -152,12 +152,12 @@ function projectItem(p: SandboxStatus['projects'][number]): Item {
     hint: p.host + '  ->  ' + p.guest + '  (' + (MECHANISM_TEXT[p.mechanism] ?? 'wsb share') + ')',
     marked: p.here,
     details: [
-      'setup: ' + p.setup.phase + (p.setup.phase === 'ready' ? '' : ' - ' + p.setup.message),
+      'Setup: ' + p.setup.phase + (p.setup.phase === 'ready' ? '' : ' - ' + p.setup.message),
       ...(p.databases.length
-        ? ['databases: ' + p.databases.map((d) => d.database + ' :' + d.port + ' ' + d.state).join(', ')]
+        ? ['Databases: ' + p.databases.map((d) => d.database + ' :' + d.port + ' ' + d.state).join(', ')]
         : []),
-      ...p.sessions.map((s) => 'session ' + s.id + '  ' + s.harness + '  ' + s.viewers + '  ' + ago(s.started)),
-      ...p.repoGuard.map((f) => 'guard: ' + f),
+      ...p.sessions.map((s) => 'Session: ' + s.harness + ' ' + s.id + ', ' + s.viewers + ', started ' + ago(s.started)),
+      ...p.repoGuard.map((f) => 'Guard: ' + f),
     ],
   };
 }

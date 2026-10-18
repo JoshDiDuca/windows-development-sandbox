@@ -45,7 +45,7 @@ function Brand() {
           Sandbox
         </Text>
         <Text size="xs" c="dimmed" lh={1.1}>
-          Windows development sandbox
+          Development sandbox
         </Text>
       </Box>
     </Group>
@@ -98,7 +98,7 @@ function Navigation({ active, onPick }: { readonly active?: string; readonly onP
    */
   const renderSection = (section: NavSection, nested = false): ReactNode => {
     const Picture = AREA_ICONS[section.label] ?? IconBox;
-    const icon = nested ? undefined : <Picture size={18} stroke={1.6} />;
+    const icon = nested ? undefined : <Picture size={17} stroke={1.7} />;
     if (section.children?.length)
       return (
         <NavLink
@@ -154,7 +154,7 @@ export function Shell({ active, bare = false, children }: ShellProps) {
   return (
     <AppShell
       header={{ height: { base: 52, sm: 0 } }}
-      navbar={{ width: 256, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding={0}
     >
       <AppShell.Header className="app-header" hiddenFrom="sm">

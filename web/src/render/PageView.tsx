@@ -114,10 +114,10 @@ function FactTile({ fact }: { readonly fact: Fact }) {
   const color = toneColor(fact.tone);
   return (
     <div className="fact-tile" title={fact.description}>
-      <Text size="xs" c="dimmed" fw={600} tt="uppercase" lts={0.3}>
+      <Text size="xs" c="dimmed" fw={500}>
         {fact.label}
       </Text>
-      <Group gap={6} wrap="nowrap" mt={4}>
+      <Group gap={6} wrap="nowrap" mt={2}>
         {color && <span className="status-dot" style={{ ['--dot' as string]: `var(--mantine-color-${color}-6)` }} />}
         <Text size="sm" fw={600} style={{ wordBreak: 'break-word' }}>
           {fact.value}
@@ -143,11 +143,11 @@ function FactTile({ fact }: { readonly fact: Fact }) {
 
 export function Facts({ facts }: { readonly facts: readonly Fact[] }) {
   return (
-    <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="sm" verticalSpacing="sm">
+    <div className="facts-grid">
       {facts.map((f) => (
         <FactTile key={f.id} fact={f} />
       ))}
-    </SimpleGrid>
+    </div>
   );
 }
 
@@ -586,7 +586,7 @@ export function SectionBlock({ section }: { readonly section: Section }) {
         </Text>
       )}
       {facts.length > 0 && (
-        <Card>
+        <Card padding={0}>
           <Facts facts={facts} />
         </Card>
       )}

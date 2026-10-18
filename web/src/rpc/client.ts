@@ -199,7 +199,13 @@ export class RpcClient {
           for (const l of [...s.listeners]) l.error(e);
         },
       });
-      if (!this.hidden) this.send({ t: 'subscribe', id: s.id, query, input });
+      // Sent now only on an open socket: a socket still connecting sends every subscription when it opens (queueing it
+      // here as well sent it twice, and the server refused the second: "That id is in use").
+      if (!this.hidden) {
+        const socket = this.connect();
+        if (socket.readyState === WebSocket.OPEN)
+          socket.send(JSON.stringify({ t: 'subscribe', id: s.id, query, input }));
+      }
     } else if (shared.last) data(shared.last.output);
     const listener = { data, error };
     const s = shared;

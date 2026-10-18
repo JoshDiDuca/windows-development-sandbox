@@ -40,16 +40,24 @@ export const theme = createTheme({
   colors: { dark },
   fontFamily: '"Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
   fontFamilyMonospace: '"Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, "SF Mono", Menlo, monospace',
+  // A compact scale: 14 px body text, 13 px secondary text, headings that do not shout.
+  fontSizes: { xs: '0.75rem', sm: '0.8125rem', md: '0.875rem', lg: '1rem', xl: '1.125rem' },
+  lineHeights: { xs: '1.45', sm: '1.5', md: '1.55', lg: '1.55', xl: '1.5' },
   headings: {
     fontFamily: '"Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif',
     fontWeight: '650',
-    sizes: { h1: { fontSize: '1.625rem' }, h2: { fontSize: '1.375rem' }, h3: { fontSize: '1.0625rem' } },
+    sizes: {
+      h1: { fontSize: '1.375rem', lineHeight: '1.3' },
+      h2: { fontSize: '1.125rem', lineHeight: '1.35' },
+      h3: { fontSize: '0.9375rem', lineHeight: '1.4' },
+    },
   },
+  radius: { xs: '4px', sm: '6px', md: '8px', lg: '10px', xl: '14px' },
   defaultRadius: 'md',
   cursorType: 'pointer',
   focusRing: 'auto',
   components: {
-    Card: Card.extend({ defaultProps: { withBorder: true, radius: 'lg', padding: 'lg', shadow: 'none' } }),
+    Card: Card.extend({ defaultProps: { withBorder: true, radius: 'lg', padding: 'md', shadow: 'none' } }),
     Paper: Paper.extend({ defaultProps: { radius: 'lg' } }),
     Button: Button.extend({ defaultProps: { radius: 'md', size: 'sm' } }),
     ActionIcon: ActionIcon.extend({ defaultProps: { variant: 'subtle', color: 'gray', radius: 'md' } }),
@@ -63,7 +71,7 @@ export const theme = createTheme({
     Notification: Notification.extend({ defaultProps: { radius: 'md', withBorder: true } }),
     SegmentedControl: SegmentedControl.extend({ defaultProps: { radius: 'md' } }),
     Select: Select.extend({ defaultProps: { allowDeselect: false, checkIconPosition: 'right' } }),
-    Switch: Switch.extend({ defaultProps: { size: 'md' } }),
+    Switch: Switch.extend({ defaultProps: { size: 'sm' } }),
     TextInput: TextInput.extend({ defaultProps: { spellCheck: false } }),
   },
 });

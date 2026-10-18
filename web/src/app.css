@@ -1,23 +1,25 @@
 /* The tokens and layout Mantine's components do not cover: the page background, the shell's sidebar, rows, cards and
    the terminal. Colours come from Mantine's variables, so dark and light follow the theme. */
 :root {
-  --app-bg: var(--mantine-color-gray-0);
-  --app-surface: var(--mantine-color-white);
-  --app-sidebar: var(--mantine-color-white);
-  --app-border: var(--mantine-color-gray-2);
-  --app-hover: var(--mantine-color-gray-0);
-  --app-muted: var(--mantine-color-gray-6);
+  --app-bg: #f6f7f9;
+  --app-surface: #ffffff;
+  --app-sidebar: #fbfbfc;
+  --app-border: #e4e6eb;
+  --app-hover: #f2f3f6;
+  --app-muted: #6b7080;
+  --app-accent-soft: color-mix(in srgb, var(--mantine-color-indigo-5) 10%, transparent);
   --app-terminal: #ffffff;
   --app-content-width: 1080px;
 }
 
 [data-mantine-color-scheme='dark'] {
-  --app-bg: var(--mantine-color-dark-9);
-  --app-surface: var(--mantine-color-dark-8);
-  --app-sidebar: var(--mantine-color-dark-8);
-  --app-border: var(--mantine-color-dark-6);
-  --app-hover: var(--mantine-color-dark-7);
-  --app-muted: var(--mantine-color-dark-2);
+  --app-bg: #0d0f13;
+  --app-surface: #15171c;
+  --app-sidebar: #111318;
+  --app-border: #262a33;
+  --app-hover: #1c1f26;
+  --app-muted: #9097a6;
+  --app-accent-soft: color-mix(in srgb, var(--mantine-color-indigo-4) 16%, transparent);
   --app-terminal: #0e1015;
 }
 
@@ -95,7 +97,7 @@ body {
 .app-content {
   max-width: var(--app-content-width);
   margin: 0 auto;
-  padding: 28px 32px 64px;
+  padding: 24px 32px 64px;
 }
 
 .app-content.wide {
@@ -139,11 +141,46 @@ body {
 
 .nav-group-label {
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--app-muted);
-  padding: 14px 12px 4px;
+  padding: 12px 10px 4px;
+}
+
+/* Navigation items (the sidebar and the Settings categories): one compact style, a soft accent when active. */
+.app-navbar .mantine-NavLink-root,
+.category-nav .mantine-NavLink-root {
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--mantine-color-text);
+}
+
+.app-navbar .mantine-NavLink-label,
+.category-nav .mantine-NavLink-label {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+}
+
+.app-navbar .mantine-NavLink-root:hover,
+.category-nav .mantine-NavLink-root:hover {
+  background: var(--app-hover);
+}
+
+.app-navbar .mantine-NavLink-root[data-active],
+.category-nav .mantine-NavLink-root[data-active] {
+  background: var(--app-accent-soft);
+  color: var(--mantine-color-indigo-light-color);
+}
+
+.app-navbar .mantine-NavLink-section[data-position='left'] {
+  margin-inline-end: 10px;
+  color: var(--app-muted);
+}
+
+.app-navbar .mantine-NavLink-root[data-active] .mantine-NavLink-section[data-position='left'] {
+  color: inherit;
 }
 
 .kbd-hint {
@@ -312,12 +349,20 @@ body {
   flex: none;
 }
 
-/* Facts: label over value tiles */
+/* Facts: label over value, in one card divided by hairlines (the lines are drawn on each tile's top and left, and the
+   card clips the ones on its outer edge). */
+.facts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  overflow: hidden;
+}
+
 .fact-tile {
-  padding: 12px 14px;
-  border-radius: var(--mantine-radius-md);
-  background: var(--app-hover);
+  padding: 14px 18px;
   min-width: 0;
+  box-shadow:
+    -1px 0 0 0 var(--app-border),
+    0 -1px 0 0 var(--app-border);
 }
 
 /* The folder picker */

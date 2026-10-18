@@ -16,6 +16,7 @@ import {
 } from '../../../app/features/storage/index.js';
 import { CRASH, listLogs, logsPage, type LogFiles } from '../../../app/features/logs/index.js';
 import { updatesPage, updatesStatus, type UpdatesStatus } from '../../../app/features/updates/updates.def.js';
+import { webPage, webStatus, type WebStatus } from '../../../app/features/web/index.js';
 import type { Context } from '../../commands/context.js';
 import { commandSpec, type CommandSpec } from '../../manifest.js';
 import {
@@ -45,6 +46,8 @@ export interface MaintenanceModel {
   readonly updates: { readonly status: UpdatesStatus; readonly latest: string | null };
   /** The Engine category: each engine and its check (null until read: the checks run programs, so not on open). */
   readonly engine: Engines | null;
+  /** The web UI's server (the web feature's status): running or not, and its address. */
+  readonly web: WebStatus;
   /** The commands listed under "More commands". */
   readonly more: readonly { name: string; summary: string }[];
 }
@@ -67,6 +70,11 @@ const CATEGORIES = [
   },
   { id: 'logs', label: 'Logs', description: "The sandbox's own logs." },
   {
+    id: 'web',
+    label: 'Web UI',
+    description: 'The web UI server on this PC: start it, open it in your browser, stop it.',
+  },
+  {
     id: 'engine',
     label: 'Engine',
     description: 'What runs your sandbox, and what each engine can do on this PC.',
@@ -77,6 +85,9 @@ const CATEGORIES = [
 const MORE_COMMANDS = ['sync', 'audit', 'config', 'generate', 'exec', 'agent-commands'];
 
 const NO_LOGS: LogFiles = { folder: '', files: [], crash: false };
+
+/** Until the status is read: the server counts as not running. */
+const NO_WEB: WebStatus = { running: false, port: null, address: null };
 
 /** Plain names for the commands under More commands. */
 const MORE_LABELS: Readonly<Record<string, string>> = {
@@ -143,6 +154,11 @@ function logsMenu(files: LogFiles): MenuView {
   return menuView({ ...logsPage(files), empty: undefined }, { category: 'logs', refresh: false });
 }
 
+/** The Web UI view (src/app/features/web) as the menu's rows, keys and Enter labels, for the Web UI category. */
+function webMenu(m: MaintenanceModel): MenuView {
+  return menuView(webPage(m.web), { category: 'web', prefix: 'web:', refresh: false });
+}
+
 /** The list for the maintenance tab. Pure. */
 export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   // The logs rows have no section heading of their own: the category is their heading.
@@ -151,6 +167,7 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   const health = healthMenu(m);
   const updates = updatesMenu(m);
   const engine = engineMenu(m);
+  const web = webMenu(m);
   const more: ListItem<string>[] = m.more.map((c) => ({
     value: 'more:' + c.name,
     label: MORE_LABELS[c.name] ?? Text.humanize(c.name),
@@ -160,7 +177,7 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   return {
     path: [],
     categories: CATEGORIES,
-    items: [...updates.items, ...dataItems(m), ...health.items, ...logs, ...engine.items, ...more],
+    items: [...updates.items, ...dataItems(m), ...health.items, ...logs, ...web.items, ...engine.items, ...more],
     empty: 'Nothing here yet.',
     actions: maintenanceActions(m),
     enterLabel: (category, id) =>
@@ -170,9 +187,11 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
           ? updates.enterLabel(category, id)
           : category === 'engine'
             ? engine.enterLabel(category, id)
-            : (category === 'data'
-                ? storageMenu(m.storage)?.enterLabel(category, id) || dataMenuView(m.data)?.enterLabel(category, id)
-                : undefined) || enterLabel(id ?? ''),
+            : category === 'web'
+              ? web.enterLabel(category, id)
+              : (category === 'data'
+                  ? storageMenu(m.storage)?.enterLabel(category, id) || dataMenuView(m.data)?.enterLabel(category, id)
+                  : undefined) || enterLabel(id ?? ''),
   };
 }
 
@@ -226,6 +245,8 @@ function maintenanceActions(m: MaintenanceModel): (category: string | undefined)
         return updatesMenu(m).actions;
       case 'engine':
         return [{ key: 'l', label: m.engine ? 'check again' : 'check' }];
+      case 'web':
+        return webMenu(m).actions;
       default:
         return [];
     }
@@ -240,6 +261,7 @@ export class MaintenancePage extends ListPage<string> {
   private last: HealthLast | null = null;
   private updates: UpdatesStatus = NO_UPDATES;
   private engine: Engines | null = null;
+  private web: WebStatus = NO_WEB;
   private readonly operations: MenuOperations;
   /** The newer version the last check found (null: none, or not looked yet). */
   private latest: string | null = null;
@@ -260,6 +282,7 @@ export class MaintenancePage extends ListPage<string> {
       health: { last: this.last },
       updates: { status: this.updates, latest: this.latest },
       engine: this.engine,
+      web: this.web,
       more: MORE_COMMANDS.flatMap((name) => {
         const spec = commandSpec(name);
         return spec ? [{ name, summary: spec.summary }] : [];
@@ -283,6 +306,12 @@ export class MaintenancePage extends ListPage<string> {
     }
     this.last = (await readQuery(lastHealth, this.ctx)).last;
     this.updates = await readQuery(updatesStatus, this.ctx);
+    try {
+      this.web = await readQuery(webStatus, this.ctx);
+    } catch {
+      // Not on this PC (a sandbox cannot start the web UI): the category shows it as not running.
+      this.web = NO_WEB;
+    }
   }
 
   protected options(): ListOptions<string> {
@@ -304,6 +333,13 @@ export class MaintenancePage extends ListPage<string> {
       if (this.category === 'engine' && ((result.kind === 'pick' && id === 'engine:load') || key === 'l')) {
         this.busy('Checking the engines…');
         this.engine = await readQuery(engineStatus, this.ctx);
+        return {};
+      }
+      // The Web UI's keys (s, o, x) only in its category; the operation reports and the page reloads its facts.
+      if (this.category === 'web') {
+        const chosen = webMenu(this.model()).resolve(result);
+        if (chosen?.kind === 'action')
+          return await this.operations.perform(chosen.action, [this.label], (text) => this.busy(text));
         return {};
       }
       if (key === 'm' || id === 'data:measure') return await this.measure();

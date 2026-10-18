@@ -51,6 +51,7 @@ import {
   settingsView,
 } from './settings/settings.def.js';
 import { migrateSettings, runUpdate, updatesStatus, updatesView } from './updates/updates.def.js';
+import { openWeb, startWeb, stopWeb, webStatus, webView } from './web/web.def.js';
 
 export type { AgentRow, AgentsList } from './agents/agents.def.js';
 export type { AccountRow, AccountsList, AgentAccounts } from './accounts/accounts.def.js';
@@ -102,6 +103,9 @@ export const OPERATIONS = [
   changeDataFolder,
   containedOn,
   containedOff,
+  startWeb,
+  openWeb,
+  stopWeb,
 ] as const;
 export const QUERIES = [
   sandboxStatus,
@@ -122,6 +126,7 @@ export const QUERIES = [
   updatesStatus,
   engineStatus,
   checkEngine,
+  webStatus,
 ] as const;
 export const VIEWS = [
   sandboxView,
@@ -137,6 +142,7 @@ export const VIEWS = [
   logsView,
   updatesView,
   engineView,
+  webView,
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];

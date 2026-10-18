@@ -55,7 +55,8 @@ import {
   type SurfaceName,
   type AnyView,
 } from '../app/kernel/index.js';
-import { IMPLEMENTATIONS, readQuery, runDefinition } from '../app/registry.js';
+import { createRpcHost, IMPLEMENTATIONS, readQuery, runDefinition } from '../app/registry.js';
+import { webPage } from '../app/features/web/index.js';
 import { parseCli } from '../cli/args.js';
 import { contextOrDefaults } from '../cli/commands/index.js';
 import { COMMANDS, commandSpec } from '../cli/manifest.js';
@@ -1415,6 +1416,49 @@ export const appSuite: Suite = {
         definitionFor('engine', []) === undefined &&
         JSON.stringify(commandSpec('engine')?.args[0]?.choices) === '["show","check"]',
       'engine and check are the actions of the engine command; a bare engine is not an action',
+    );
+
+    t.section('web: CLI and menu only, never runnable from a browser');
+    const webDefs = DEFINITIONS.filter((d) => d.id.startsWith('web.'));
+    const webCtx = { storageRoot: t.dir('app-web') } as unknown as AppContext;
+    const webHost = createRpcHost(webCtx);
+    t.check(
+      webDefs.length === 4 &&
+        webDefs.every((d) => exemption(d, 'web') === 'the page is the web UI') &&
+        webDefs.every((d) => webHost.kind(d.id) === undefined),
+      'every web definition is exempt from the web with its reason, and the RPC host refuses them all',
+      webDefs.map((d) => d.id).join(),
+    );
+    const webOff = webPage({ running: false, port: null, address: null });
+    const webOn = webPage({ running: true, port: 47800, address: 'http://127.0.0.1:47800/' });
+    const opsOf = (page: Page): string =>
+      pageActions(page)
+        .flatMap((a) => (a.kind === 'operation' ? [a.op] : []))
+        .join();
+    t.check(
+      opsOf(webOff) === 'web.start,web.open' && opsOf(webOn) === 'web.open,web.stop',
+      'the web page offers start and open when stopped, open and stop when running',
+      opsOf(webOff) + ' | ' + opsOf(webOn),
+    );
+    const webLines = pageLines(webOn);
+    t.check(
+      webLines.some((l) => l.includes('Address') && l.includes('http://127.0.0.1:47800/')) &&
+        !webLines.some((l) => l.includes('#k=')),
+      'the web page shows the address without the login token',
+      webLines.join(' / '),
+    );
+    t.check(
+      menuView(webOn, { prefix: 'web:', refresh: false })
+        .actions.map((a) => a.key)
+        .join() === 'o,x',
+      'the Web UI category keys: o opens and x stops when running',
+    );
+    t.check(
+      definitionFor('web', ['open'])?.id === 'web.open' &&
+        definitionFor('web', ['status'])?.id === 'web.status' &&
+        definitionFor('web', []) === undefined &&
+        (commandSpec('web')?.args[0]?.choices as readonly string[] | undefined)?.join() === 'start,stop,status,open',
+      'the web actions are actions of the web command; sandbox web with no action is not one of them',
     );
   },
 };

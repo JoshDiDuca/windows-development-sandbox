@@ -1,10 +1,10 @@
-# Web UI (design)
+# Web UI
 
 Status: **Beta, off by default** (`web.enabled`; `sandbox web start` works either way; with `web.enabled` on, every
-sandbox start also starts it, and `web.openOnLaunch` opens it signed in). The foundation and the redesign are built;
-the remaining areas (agents, accounts, apps, maintenance ...) are moving into the shared core one at a time
-([design/web-ui-tasks.md](design/web-ui-tasks.md)), and appear in the web UI as they land. Complete in 2.0. How every
-page looks and how to check it: [design/web-ui-standard.md](design/web-ui-standard.md).
+sandbox start also starts it, and `web.openOnLaunch` opens it signed in). Every area of the menu is in it: agents,
+sessions with live terminals, the sandbox, projects, apps, accounts, settings (with VPN and GitHub as categories) and
+maintenance. It ends by itself after 20 minutes with no browser (5 when no sandbox runs). How every page looks and how
+to check it: [design/web-ui-standard.md](design/web-ui-standard.md).
 
 ## What it is for
 
@@ -67,9 +67,8 @@ The server is a way into every agent you run, so it is treated like a login:
 2. **Redesign** (done): a design system, the sidebar with the sandbox's live state, Ctrl+K search, one renderer for
    every Page (cards, tiles, tables, inline settings, categories), a folder picker, a terminal page with find, text
    size, full screen and a phone key row, settings rows for the web UI itself.
-3. **Every area in the web UI** (in progress): each area of the menu moves into the shared core and shows up here
-   ([design/web-ui-tasks.md](design/web-ui-tasks.md)). Also planned: a plain shell session kind (PowerShell through
-   ptyhost) and closing a session.
+3. **Every area in the web UI** (done): every area of the menu is a shared-core feature and shows up here. Still
+   planned: a plain shell session kind (PowerShell through ptyhost) and closing a session.
 4. **The sandbox's desktop in the browser** (idea): a view of the sandbox window with mouse and keyboard, so it can be
    used from another device. Options, in the order to try: capturing the sandbox window on the PC and streaming it
    over this server (no server in the guest); a VNC server in the sandbox that connects out to the PC, shown with

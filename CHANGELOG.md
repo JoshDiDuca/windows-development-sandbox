@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.11.7
+
+- **`sandbox update` works while a sandbox runs.** It installs the new version at once; the running sandbox keeps the
+  version it started with until it restarts, and new commands use the new one. Old versions are removed only when no
+  sandbox runs.
+- Docs: the roadmap matches what is built and planned; finished design specs are gone.
+
 ## 1.11.6
 
 - **Web terminal: no more blinking and bouncing.** It resizes once the window has settled instead of on every layout

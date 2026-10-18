@@ -856,6 +856,221 @@ sealed class ClientHub
     }
 }
 
+/// <summary>
+/// Everything a session's program started, followed while it runs (every few seconds, so a process whose parent has
+/// already exited is still known) and ended when the program exits: nothing an agent starts outlives its session.
+/// A process is recognised by its id and start time, so an id Windows has given to another process is never touched.
+/// Shared services an agent may start for every session (databases, the compile cache) are left running.
+/// </summary>
+sealed class ProcessTree
+{
+    private const uint SnapProcess = 0x00000002;
+    private const uint ProcessTerminate = 0x0001;
+    private const uint ProcessQueryLimited = 0x1000;
+    private const int FollowMs = 3000;
+    private const int MaxPath = 260;
+    private static readonly IntPtr InvalidHandle = new IntPtr(-1);
+    private static readonly HashSet<string> Shared = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "postgres.exe", "pg_ctl.exe", "mysqld.exe", "mariadbd.exe", "redis-server.exe", "mongod.exe", "sccache.exe",
+        "sbx-netproxy.exe",
+    };
+
+    // PROCESSENTRY32W.
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ProcessEntry
+    {
+        public uint Size;
+        public uint Usage;
+        public uint ProcessId;
+        public IntPtr DefaultHeapId;
+        public uint ModuleId;
+        public uint Threads;
+        public uint ParentProcessId;
+        public int PriorityBase;
+        public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MaxPath)]
+        public string ExeFile;
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool Process32FirstW(IntPtr snapshot, ref ProcessEntry entry);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool Process32NextW(IntPtr snapshot, ref ProcessEntry entry);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetProcessTimes(IntPtr process, out long creation, out long exit, out long kernel, out long user);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool TerminateProcess(IntPtr process, uint exitCode);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern int GetProcessId(IntPtr process);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(IntPtr handle);
+    }
+
+    private readonly object gate = new object();
+    /// <summary>The program and what it started: process id -> start time.</summary>
+    private readonly Dictionary<int, long> known = new Dictionary<int, long>();
+    private readonly int root;
+    private readonly Timer timer;
+    private bool ended;
+
+    public ProcessTree(IntPtr rootProcess)
+    {
+        root = NativeMethods.GetProcessId(rootProcess);
+        long start = StartTime(root);
+        if (root != 0 && start != 0)
+        {
+            known[root] = start;
+        }
+        timer = new Timer(Follow, null, FollowMs, FollowMs);
+    }
+
+    private void Follow(object unused)
+    {
+        lock (gate)
+        {
+            if (!ended)
+            {
+                Refresh();
+            }
+        }
+    }
+
+    /// <summary>Adds every process whose parent is known (and that started after it), until nothing new is found.</summary>
+    private void Refresh()
+    {
+        if (known.Count == 0)
+        {
+            return;
+        }
+        List<ProcessEntry> all = Snapshot();
+        bool added = true;
+        while (added)
+        {
+            added = false;
+            foreach (ProcessEntry p in all)
+            {
+                int pid = (int)p.ProcessId;
+                int parent = (int)p.ParentProcessId;
+                long parentStart;
+                if (known.ContainsKey(pid) || !known.TryGetValue(parent, out parentStart) || Shared.Contains(p.ExeFile))
+                {
+                    continue;
+                }
+                long start = StartTime(pid);
+                // A child starts after its parent: an older process that names a reused id as its parent is not ours.
+                if (start == 0 || start < parentStart)
+                {
+                    continue;
+                }
+                known[pid] = start;
+                added = true;
+            }
+        }
+    }
+
+    /// <summary>Stops following and ends what the program started that still runs; returns how many were ended.</summary>
+    public int EndAll()
+    {
+        lock (gate)
+        {
+            if (ended)
+            {
+                return 0;
+            }
+            Refresh();
+            ended = true;
+            timer.Dispose();
+            int count = 0;
+            foreach (KeyValuePair<int, long> p in known)
+            {
+                if (p.Key != root && StartTime(p.Key) == p.Value && Terminate(p.Key))
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+    }
+
+    private static List<ProcessEntry> Snapshot()
+    {
+        List<ProcessEntry> all = new List<ProcessEntry>();
+        IntPtr snapshot = NativeMethods.CreateToolhelp32Snapshot(SnapProcess, 0);
+        if (snapshot == InvalidHandle || snapshot == IntPtr.Zero)
+        {
+            return all;
+        }
+        try
+        {
+            ProcessEntry entry = new ProcessEntry();
+            entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry));
+            bool more = NativeMethods.Process32FirstW(snapshot, ref entry);
+            while (more)
+            {
+                all.Add(entry);
+                more = NativeMethods.Process32NextW(snapshot, ref entry);
+            }
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(snapshot);
+        }
+        return all;
+    }
+
+    /// <summary>When the process started (FILETIME), or 0 when it is gone or cannot be read.</summary>
+    private static long StartTime(int pid)
+    {
+        IntPtr process = NativeMethods.OpenProcess(ProcessQueryLimited, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return 0;
+        }
+        try
+        {
+            long creation;
+            long exit;
+            long kernel;
+            long user;
+            return NativeMethods.GetProcessTimes(process, out creation, out exit, out kernel, out user) ? creation : 0;
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
+    }
+
+    private static bool Terminate(int pid)
+    {
+        IntPtr process = NativeMethods.OpenProcess(ProcessTerminate, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return false;
+        }
+        try
+        {
+            return NativeMethods.TerminateProcess(process, 1);
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
+    }
+}
 /// <summary>One program running inside a pseudo console, with a thread pumping its output to `onOutput`.</summary>
 sealed class PseudoConsole : IDisposable
 {
@@ -867,16 +1082,20 @@ sealed class PseudoConsole : IDisposable
     private readonly IntPtr process;
     private readonly FileStream input;
     private readonly Thread pump;
+    private readonly ProcessTree tree;
+    private readonly Log log;
     private readonly object gate = new object();
     private bool closed;
     private bool disposed;
 
-    private PseudoConsole(IntPtr handle, IntPtr process, FileStream input, Thread pump)
+    private PseudoConsole(IntPtr handle, IntPtr process, FileStream input, Thread pump, Log log)
     {
         this.handle = handle;
         this.process = process;
         this.input = input;
         this.pump = pump;
+        this.log = log;
+        tree = new ProcessTree(process);
     }
 
     public static PseudoConsole Start(string commandLine, short cols, short rows, Action<byte[]> onOutput, Log log)
@@ -900,7 +1119,7 @@ sealed class PseudoConsole : IDisposable
         Thread pump = new Thread(() => Pump(output, onOutput));
         pump.IsBackground = true;
         pump.Start();
-        return new PseudoConsole(handle, process, new FileStream(inWrite, FileAccess.Write), pump);
+        return new PseudoConsole(handle, process, new FileStream(inWrite, FileAccess.Write), pump, log);
     }
 
     public int WaitForExit()
@@ -910,6 +1129,13 @@ sealed class PseudoConsole : IDisposable
         Native.GetExitCodeProcess(process, out code);
         Close();
         pump.Join(PumpJoinMs);
+        // Closing the console asked what was attached to it to end; whatever the program started that is still
+        // running now (a server in the background, a build that lost its parent) ends with it.
+        int ended = tree.EndAll();
+        if (ended > 0)
+        {
+            log.Write("ended " + ended + " process(es) the program left running");
+        }
         return (int)code;
     }
 

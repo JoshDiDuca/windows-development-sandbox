@@ -98,6 +98,47 @@ export const liveTerminalSuite: Suite = {
     t.check(!errors, 'ptyhost and the stand-in agent compile', errors);
     if (errors) return;
 
+    t.section('what a program leaves running ends with it (no leftover processes)');
+    {
+      // A copy of PING with a name of its own, started detached and hidden (its own console, so closing the pseudo
+      // console does not end it), by a program that then exits.
+      const probe = t.at('leftover-probe.exe');
+      fs.copyFileSync(path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE'), probe);
+      const starter =
+        '"' +
+        SYSTEM.powershell() +
+        '" -NoProfile -Command "Start-Process -WindowStyle Hidden -FilePath \'' +
+        probe +
+        "' -ArgumentList '-n','120','127.0.0.1'; Start-Sleep -Seconds 5\"";
+      const host = spawn(ptyhost, [String(await freePort()), 'tok', '80', '24', t.at('leftover.log'), starter], {
+        env: { ...process.env, PTYHOST_BIND: 'loopback' },
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      const probeRunning = (): boolean =>
+        spawnSync(SYSTEM.tasklist(), ['/FI', 'IMAGENAME eq leftover-probe.exe', '/NH'], { encoding: 'utf8' })
+          .stdout.toLowerCase()
+          .includes('leftover-probe.exe');
+      await t.waitFor(probeRunning, WAIT.screen);
+      t.check(probeRunning(), 'the program started a background process of its own');
+      await t.waitFor(() => host.exitCode !== null, 30000);
+      await t.waitFor(() => !probeRunning(), 5000);
+      const log = fs.existsSync(t.at('leftover.log')) ? fs.readFileSync(t.at('leftover.log'), 'utf8') : '';
+      t.check(
+        !probeRunning() && /ended [1-9]\d* process\(es\) the program left running/.test(log),
+        'when the program exits, the background process it left running is ended too',
+        log.slice(-400),
+      );
+      if (probeRunning())
+        spawnSync(
+          path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'),
+          ['/F', '/IM', 'leftover-probe.exe'],
+          {
+            stdio: 'ignore',
+          },
+        );
+    }
+
     t.section("the agents' job: a last-resort backstop, set once");
     {
       // A job of the test's own (PTYHOST_JOB_NAME), never the agents' real one.

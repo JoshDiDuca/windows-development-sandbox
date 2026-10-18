@@ -7,6 +7,14 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Nothing is left running.** When an agent session ends (it exits, or is restarted), everything it started that is
+  still running ends with it, including background programs whose parent had already exited (shared services such as
+  databases and the compile cache stay). The web UI's server ends after 20 minutes with no browser (5 when no sandbox
+  runs), and a sandbox closed hard or ended in Task Manager no longer leaves attached terminals hanging.
+- Health page: what a repair check found shows as a "Found:" line. GitHub Actions run on their Node 24 versions.
+
 ## 1.11.4
 
 - **Less work on your PC while a sandbox runs:** the background watcher reads this PC's memory from one long-running

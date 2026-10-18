@@ -68,8 +68,8 @@ param(
   }
   function Refresh-Path {
     # Keep what this session already had and add what installers registered.
-    $parts = @($env:Path -split ';') + @([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') + @([Environment]::GetEnvironmentVariable('Path', 'User') -split ';')
-    $env:Path = ($parts | Where-Object { $_ } | Select-Object -Unique) -join ';'
+    $pathParts = @($env:Path -split ';') + @([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') + @([Environment]::GetEnvironmentVariable('Path', 'User') -split ';')
+    $env:Path = ($pathParts | Where-Object { $_ } | Select-Object -Unique) -join ';'
   }
   function Remove-Inside($path, $root) {
     # The only deletes in this script: a folder this script made, never anything outside the folder it was given.
@@ -381,16 +381,16 @@ param(
     try {
       $file = Join-Path $toolFolder 'install.json'
       if (Test-Path -LiteralPath $file) {
-        $settings = Get-Content -LiteralPath $file -Raw -ErrorAction Stop | ConvertFrom-Json
-        $settings | Add-Member -NotePropertyName autoUpdate -NotePropertyValue $false -Force
-        Write-JsonAtomic $file $settings
+        $installSettings = Get-Content -LiteralPath $file -Raw -ErrorAction Stop | ConvertFrom-Json
+        $installSettings | Add-Member -NotePropertyName autoUpdate -NotePropertyValue $false -Force
+        Write-JsonAtomic $file $installSettings
       }
     } catch { Warn "Could not switch off automatic updates in install.json: $_" }
     if ($machine) {
       try {
         $current = Read-Pointer (Join-Path $toolFolder 'active-version') '^\d+\.\d+\.\d+$'
-        $taskScript = if ($current) { Join-Path $toolFolder "versions\$current\package\native\scripts\set-update-task.ps1" } else { $null }
-        if ($taskScript -and (Test-Path -LiteralPath $taskScript)) { & $powershellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $taskScript -Remove | Out-Null }
+        $removeTaskScript = if ($current) { Join-Path $toolFolder "versions\$current\package\native\scripts\set-update-task.ps1" } else { $null }
+        if ($removeTaskScript -and (Test-Path -LiteralPath $removeTaskScript)) { & $powershellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $removeTaskScript -Remove | Out-Null }
       } catch { }
     }
     Write-Host "   Automatic updates are off ($reason). Turn them back on with: sandbox update --auto on" -ForegroundColor Yellow

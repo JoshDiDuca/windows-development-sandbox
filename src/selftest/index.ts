@@ -24,6 +24,7 @@ import { migrateSuite } from './migrate.test.js';
 import { storageSuite } from './storage.test.js';
 import { updateSuite } from './update.test.js';
 import { installSuite } from './install.test.js';
+import { powershellVariablesSuite } from './powershell-variables.test.js';
 import { sharedUseSuite } from './shared-use.test.js';
 import { updateServiceSuite } from './update-service.test.js';
 import { sharingSuite } from './sharing.test.js';
@@ -75,6 +76,7 @@ export const SUITES: Suite[] = [
   updateSuite,
   updateServiceSuite,
   installSuite,
+  powershellVariablesSuite,
   sharingSuite,
   sharedUseSuite,
   workspaceSuite,

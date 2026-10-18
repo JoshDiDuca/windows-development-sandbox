@@ -57,6 +57,41 @@ body {
   background: var(--app-bg);
 }
 
+/* Desktop: the sidebar is a full-height column beside the page (sticky, so it stays in view and scrolls on its own
+   when its contents are taller than the window). Phones keep Mantine's fixed drawer behind the burger. */
+@media (min-width: 48em) {
+  .mantine-AppShell-root {
+    display: flex;
+    align-items: flex-start;
+  }
+
+  /* The navbar column is as tall as the page (its background runs down the whole page); its contents stick to the
+     window and scroll on their own (.app-navbar-sticky). */
+  .app-navbar {
+    position: relative;
+    top: auto;
+    height: auto;
+    align-self: stretch;
+    flex: none;
+    transform: none;
+  }
+
+  .app-navbar-sticky {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .app-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-inline-start: var(--app-shell-padding) !important;
+  }
+}
+
 .app-content {
   max-width: var(--app-content-width);
   margin: 0 auto;
@@ -70,6 +105,24 @@ body {
 @media (max-width: 48em) {
   .app-content {
     padding: 16px 16px 48px;
+  }
+
+  /* A page header's toolbar on a phone: the segmented control on its own row, the buttons below it in equal columns.
+     Targets the toolbar Group by its child (PageHeader in render/PageView.tsx has no class of its own). */
+  .app-content .mantine-Group-root:has(> .mantine-SegmentedControl-root) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: var(--mantine-spacing-xs);
+    width: 100%;
+  }
+
+  .app-content .mantine-Group-root:has(> .mantine-SegmentedControl-root) > .mantine-SegmentedControl-root {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .app-content .mantine-Group-root:has(> .mantine-SegmentedControl-root) > .mantine-Button-root {
+    width: 100%;
   }
 }
 

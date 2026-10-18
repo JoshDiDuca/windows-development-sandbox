@@ -804,6 +804,49 @@ async function sharedCore(t: Harness): Promise<void> {
     ['f', 'l', 'e'],
     'e turns Windows Sandbox on when the setup says it can be',
   );
+  const problems = healthPage({
+    last: {
+      ...saved,
+      mode: 'repair',
+      checks: [
+        {
+          id: 'stale',
+          group: 'Data folder',
+          name: 'Stale run folders',
+          status: 'needs-you',
+          detail: 'two folders from a sandbox that did not close',
+          means: 'they take space',
+          fix: 'stop the sandbox',
+          lines: ['run-20261012-0931'],
+          fixable: false,
+        },
+        {
+          id: 'net',
+          group: 'Network',
+          name: 'GitHub',
+          status: 'warn',
+          detail: 'no answer',
+          fix: 'check your VPN',
+          fixable: false,
+        },
+      ],
+    },
+  });
+  const repairItems = problems.sections.find((s) => s.id === 'repair')?.items ?? [];
+  const stale = repairItems[0];
+  t.equal(
+    stale?.details,
+    ['Found: two folders from a sandbox that did not close', 'Fix: stop the sandbox', 'run-20261012-0931'],
+    'a repair row lists what was found as a Found: line, then the fix and the paths (ids stay plain)',
+  );
+  t.equal(stale?.description, 'they take space', 'a repair row with a meaning shows it as the description');
+  const net = repairItems[1];
+  t.equal(
+    net?.details,
+    ['Found: no answer', 'Fix: check your VPN'],
+    'a repair row without a meaning still says Found:',
+  );
+  t.equal(net?.description, undefined, 'without a meaning, the found text is not repeated as the description');
 }
 
 export const healthSuite: Suite = {

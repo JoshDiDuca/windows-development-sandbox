@@ -197,7 +197,10 @@ export const enableSandbox = defineOperation({
   },
 });
 
-/** A repair row: what it means is the description; what was found and the fix are the detail lines. */
+/**
+ * A repair row: what it means is the description; what was found and the fix are label/value detail lines ("Found:",
+ * "Fix:"). An ok row has nothing to fix, so what it found is its description.
+ */
 function checkItems(last: HealthLast): Item[] {
   return last.checks.map((r, i) => {
     const found = r.detail + (r.timedOut ? ' (took too long)' : '');
@@ -205,14 +208,14 @@ function checkItems(last: HealthLast): Item[] {
       .slice(1)
       .map((l) => l.text.trim())
       .filter((l) => !l.startsWith('What it means: '));
-    const details = r.means ? [found, ...rest] : rest;
+    const details = r.status === 'ok' ? [] : ['Found: ' + found, ...rest];
     return {
       id: 'repair:' + i,
       label: r.name,
       hint: BADGE[r.status],
       ...(TONE[r.status] ? { tone: TONE[r.status] } : {}),
       badges: [{ text: BADGE[r.status], ...(TONE[r.status] ? { tone: TONE[r.status] } : {}) }],
-      description: r.means ?? found,
+      description: r.means ?? (details.length ? undefined : found),
       ...(details.length ? { details } : {}),
     };
   });

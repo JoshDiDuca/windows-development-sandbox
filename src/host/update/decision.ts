@@ -4,7 +4,7 @@ import { compareVersions } from '../install/layout.js';
 import type { ReleaseInfo } from './release-source.js';
 import type { UpdateState } from './update-state.js';
 
-export type SkipReason = 'no-release' | 'up-to-date' | 'failed-before' | 'sandbox-running' | 'too-soon';
+export type SkipReason = 'no-release' | 'up-to-date' | 'failed-before' | 'too-soon';
 
 export type UpdateDecision = { kind: 'install'; release: ReleaseInfo } | { kind: 'skip'; reason: SkipReason };
 
@@ -31,12 +31,12 @@ export function isTooSoon(state: UpdateState, now: Date, minHours: number): bool
 
 /**
  * Install only a version newer than the current one, and never a version that failed before (or an older one than
- * the failure). The sandbox must not be running: its files are in use.
+ * the failure). A running sandbox is no reason to wait: each version has its own folder, the sandbox and this PC's
+ * helpers keep running the version they started with, and old versions are only removed when no sandbox runs.
  */
 export function decideUpdate(input: DecisionInput): UpdateDecision {
   const skip = (reason: SkipReason): UpdateDecision => ({ kind: 'skip', reason });
   if (!input.force && isTooSoon(input.state, input.now, input.minHoursBetweenChecks)) return skip('too-soon');
-  if (input.sandboxRunning) return skip('sandbox-running');
   if (!input.latest) return skip('no-release');
   const latest = input.latest;
   if (compareVersions(latest.version, input.current) <= 0) return skip('up-to-date');

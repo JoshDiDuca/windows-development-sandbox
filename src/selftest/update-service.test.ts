@@ -62,14 +62,6 @@ async function service(t: Harness): Promise<void> {
     'a managed install reports its version, automatic updates off by default; check finds a newer version and changes nothing',
   );
 
-  sandbox = true;
-  const blocked = await svc.run();
-  t.check(
-    blocked?.kind === 'skipped' && blocked.reason === 'sandbox-running' && layout.activeVersion() === '1.0.0',
-    'a running sandbox stops the update',
-  );
-  sandbox = false;
-
   const held = new UpdateLock(root, () => clock.at).acquire();
   const whileHeld = held !== null && (await svc.run()) === null;
   held?.();
@@ -328,11 +320,8 @@ async function command(t: Harness): Promise<void> {
     '--check names the newer version and exits 0',
   );
 
-  const waiting = { kind: 'skipped', reason: 'sandbox-running', current: '1.0.0' } as const;
   t.check(
     describeResult(null, false).code === 0 &&
-      describeResult(waiting, false).code === 1 &&
-      describeResult(waiting, true).code === 0 &&
       describeResult({ kind: 'installed', version: '1.0.1', previous: '1.0.0' }, false).line.includes(
         'from 1.0.0 to 1.0.1',
       ) &&

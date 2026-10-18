@@ -99,14 +99,13 @@ export class Updater {
     const force = options.force ?? false;
     // The gates that need no network run first, so a skipped check costs nothing.
     const early = decideUpdate({ ...base, latest: null, sandboxRunning: options.sandboxRunning, force });
-    if (early.kind === 'skip' && (early.reason === 'too-soon' || early.reason === 'sandbox-running'))
-      return { kind: 'skipped', reason: early.reason, current };
+    if (early.kind === 'skip' && early.reason === 'too-soon') return { kind: 'skipped', reason: early.reason, current };
 
     const latest = await this.source.latest();
     this.state.update((s) => ({ ...s, lastCheck: this.now().toISOString() }));
     const decision = decideUpdate({ ...base, latest, sandboxRunning: options.sandboxRunning, force });
     if (decision.kind === 'skip') return { kind: 'skipped', reason: decision.reason, current };
-    return this.install(decision.release, current, node);
+    return this.install(decision.release, current, node, options.sandboxRunning);
   }
 
   /** Points the shims back at the version the last successful update replaced. Returns that version. */
@@ -129,7 +128,12 @@ export class Updater {
     return target;
   }
 
-  private async install(release: ReleaseInfo, current: string, node: string): Promise<UpdateResult> {
+  private async install(
+    release: ReleaseInfo,
+    current: string,
+    node: string,
+    sandboxRunning: boolean,
+  ): Promise<UpdateResult> {
     const version = release.version;
     const archive = path.join(this.layout.root, 'staging', version + '.tgz');
     const work = this.layout.versionDir(version) + '.staging';
@@ -173,7 +177,7 @@ export class Updater {
         // A leftover download is replaced by the next one.
       }
     }
-    this.finish(version, current);
+    this.finish(version, current, sandboxRunning);
     return { kind: 'installed', version, previous: current };
   }
 
@@ -319,10 +323,14 @@ export class Updater {
       );
   }
 
-  /** Records the update, keeps the replaced version for a rollback and removes the rest. */
-  private finish(version: string, previous: string): void {
+  /**
+   * Records the update, keeps the replaced version for a rollback and removes the rest, but only when no sandbox runs:
+   * its helpers on this PC may still run an older version from its folder.
+   */
+  private finish(version: string, previous: string, sandboxRunning: boolean): void {
     const at = this.now().toISOString();
     this.state.update((s) => ({ ...s, previous, lastResult: { version, ok: true, at } }));
+    if (sandboxRunning) return;
     for (const old of this.layout.installedVersions())
       if (old !== version && old !== previous) {
         try {

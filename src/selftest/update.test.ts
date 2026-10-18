@@ -117,14 +117,14 @@ export const updateSuite: Suite = {
         skip('no-release'),
         skip('up-to-date'),
         skip('up-to-date'),
-        skip('sandbox-running'),
+        install('1.0.1'),
         skip('too-soon'),
         install('1.0.1'),
         skip('failed-before'),
         skip('failed-before'),
         install('1.0.3'),
       ],
-      'only a newer release installs; a running sandbox blocks; an hour after the last check is too soon unless forced; a failed version (and older) is not retried',
+      'only a newer release installs, also while a sandbox runs; an hour after the last check is too soon unless forced; a failed version (and older) is not retried',
     );
     t.check(!isTooSoon({ lastCheck: 'not a date' }, now, 24), 'a damaged last-check time does not block updates');
 
@@ -170,9 +170,9 @@ export const updateSuite: Suite = {
       [
         { kind: 'skipped', reason: 'too-soon', current: '1.0.1' },
         { kind: 'skipped', reason: 'failed-before', current: '1.0.1' },
-        { kind: 'skipped', reason: 'sandbox-running', current: '1.0.1' },
+        { kind: 'skipped', reason: 'failed-before', current: '1.0.1' },
       ],
-      'no second look within 24 hours, no retry of the failed version, never under a running sandbox',
+      'no second look within 24 hours, no retry of the failed version (a running sandbox is not a reason to skip)',
     );
 
     publish(t, feed, '1.0.3', 'good');

@@ -7,7 +7,8 @@ import { holdsData, oldDefaultRoot } from '../../../host/storage/index.js';
 import type { UpdateResult } from '../../../host/update/index.js';
 
 /** One sentence for what an update run did, and whether it counts as done (1: it failed, or is waiting by hand). */
-export function describeResult(result: UpdateResult | null, unattended: boolean): { line: string; code: number } {
+// _unattended: kept for the callers; every result now reads the same whether a person or the schedule ran it.
+export function describeResult(result: UpdateResult | null, _unattended: boolean): { line: string; code: number } {
   if (!result) return { line: 'Another update is running right now.', code: 0 };
   if (result.kind === 'installed')
     return {
@@ -16,7 +17,7 @@ export function describeResult(result: UpdateResult | null, unattended: boolean)
         (result.previous ? 'from ' + result.previous + ' ' : '') +
         'to ' +
         result.version +
-        '. Open a new terminal to use it.',
+        '. New commands use it (open a new terminal); a running sandbox keeps the version it started with until it restarts.',
       code: 0,
     };
   if (result.kind === 'failed')
@@ -39,11 +40,6 @@ export function describeResult(result: UpdateResult | null, unattended: boolean)
   switch (result.reason) {
     case 'up-to-date':
       return { line: 'You have the newest version (' + result.current + ').', code: 0 };
-    case 'sandbox-running':
-      return {
-        line: 'A Windows Sandbox is running, so nothing was installed. Close it (sandbox stop), then update again.',
-        code: unattended ? 0 : 1,
-      };
     case 'failed-before':
       return {
         line: 'The newest version failed to install before. It is not tried again until a newer one is released.',

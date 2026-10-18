@@ -32,6 +32,13 @@ export interface AppGroup {
 /** The groups the page shows; the menu and the web list the apps by these, so the navigation stays short. */
 export const APP_GROUPS: readonly AppGroup[] = [
   {
+    id: 'agents',
+    label: 'Agent add-ons',
+    description:
+      'Plug-ins for the agents: rtk shortens command output (fewer tokens), claude-mem gives Claude a memory, REA adds an MCP server. A project cannot turn on rtk or claude-mem.',
+    members: ['agents'],
+  },
+  {
     id: 'editors',
     label: 'Editors & docs',
     description: 'Code and text editors (VS Code is on by default), plus diagrams and document conversion.',
@@ -106,6 +113,7 @@ export const AppRowSchema = z.object({
   cli: z.boolean().describe('A command-line tool (on PATH), not a desktop app'),
   mesa: z.boolean().describe('Needs OpenGL on the CPU (Mesa)'),
   fullGitOnly: z.boolean().describe('Only with full git access'),
+  plugsInto: z.string().optional().describe('Which agents an add-on plugs into, and how'),
   setting: z.string().optional().describe('The setting it stands for (VS Code, Windows Terminal)'),
   /** That setting's own Field and value (on, off or auto), so it is changed with its own control. */
   settingField: FieldSchema.optional(),
@@ -181,22 +189,56 @@ export const requestApp = defineOperation({
   surfaces: { except: { cli: 'a request is filed on GitHub; the address is in docs' } },
 });
 
-/** The lines under an app: its download, how it starts, what it needs. Plain text, like the CLI's. */
-function details(row: AppRow): string[] {
+/** One line under an app: a short label ('' for a warning on its own) and its text. */
+export interface AppDetail {
+  readonly label: string;
+  readonly text: string;
+  readonly warn?: boolean;
+}
+
+/**
+ * The lines under an app: its download, how it starts, what it plugs into, what it needs. A setting-backed entry with
+ * nothing to download (claude-mem) has no size, so no download lines. The menu draws the same lines with colours.
+ */
+export function appDetails(row: AppRow): AppDetail[] {
+  const downloads = row.size !== '';
   return [
-    'Download  ~' +
-      row.size +
-      ' once, kept in C:\\AgentData\\tools\\' +
-      (row.setting ? '' : 'apps\\') +
-      row.id +
-      (row.installed ? ' (downloaded already)' : ''),
-    'Starts    ' + (row.cli ? 'from a terminal (on PATH)' : 'from the desktop or Start > Sandbox apps'),
-    ...(row.mesa ? ['Graphics  OpenGL on the CPU (Mesa) is added for it'] : []),
-    ...(row.fullGitOnly
-      ? ['Needs full git access (Settings > Projects & setup > Git): it pushes with its own git.']
+    ...(downloads
+      ? [
+          {
+            label: 'Download',
+            text:
+              '~' +
+              row.size +
+              ' once, kept in C:\\AgentData\\tools\\' +
+              (row.setting ? '' : 'apps\\') +
+              row.id +
+              (row.installed ? ' (downloaded already)' : ''),
+          },
+          {
+            label: 'Starts',
+            text: row.cli ? 'from a terminal (on PATH)' : 'from the desktop or Start > Sandbox apps',
+          },
+        ]
       : []),
-    ...(row.setting ? ['Setting   ' + row.setting] : []),
+    ...(row.plugsInto ? [{ label: 'Plugs in', text: row.plugsInto }] : []),
+    ...(row.mesa ? [{ label: 'Graphics', text: 'OpenGL on the CPU (Mesa) is added for it' }] : []),
+    ...(row.fullGitOnly
+      ? [
+          {
+            label: '',
+            text: 'Needs full git access (Settings > Projects & setup > Git): it pushes with its own git.',
+            warn: true,
+          },
+        ]
+      : []),
+    ...(row.setting ? [{ label: 'Setting', text: row.setting }] : []),
   ];
+}
+
+/** The lines as plain text, like the CLI's. */
+function details(row: AppRow): string[] {
+  return appDetails(row).map((d) => (d.label ? d.label.padEnd(10) : '') + d.text);
 }
 
 /** The switch that turns an app on or off: one boolean field, changed in place. */

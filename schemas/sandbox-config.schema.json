@@ -1037,6 +1037,7 @@
           "items": {
             "type": "string",
             "enum": [
+              "rea",
               "notepadpp",
               "sublime",
               "neovim",
@@ -1081,7 +1082,6 @@
               "xh",
               "grpcurl",
               "k6",
-              "rea",
               "ghidra",
               "x64dbg",
               "ilspy",
@@ -1112,7 +1112,7 @@
               "rust-analyzer"
             ]
           },
-          "description": "Apps from the catalogue to install in every sandbox (the Apps screen in the menu lists them by category). Each is downloaded once and kept."
+          "description": "Apps from the catalogue this project adds to yours (agent add-ons such as rtk are set in your own settings only)."
         }
       },
       "additionalProperties": false

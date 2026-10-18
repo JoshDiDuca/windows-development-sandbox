@@ -4,6 +4,9 @@ import { APPS } from '../../shared/apps/index.js';
 
 const CATALOGUE_IDS = APPS.filter((a) => !a.setting).map((a) => a.id) as [string, ...string[]];
 export const AppIdSchema = z.enum(CATALOGUE_IDS);
+/** The apps a project's .sandbox-config.json may add: not the add-ons that are yours only (rtk hooks the agent). */
+const PROJECT_IDS = APPS.filter((a) => !a.setting && !a.userOnly).map((a) => a.id) as [string, ...string[]];
+export const ProjectAppIdSchema = z.enum(PROJECT_IDS);
 export const CustomAppIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/, 'lower-case letters, digits and - only');
 
 const compiles = (pattern: string): boolean => {
@@ -55,6 +58,15 @@ export const CustomAppSchema = z
   .refine((a) => (a.github && a.asset ? !a.url : Boolean(a.url) && !a.github && !a.asset), {
     message: 'give github + asset, or url (not both)',
   });
+
+/** What a project file may say about apps: catalogue apps it adds to yours (no add-ons that are yours only). */
+export const ProjectAppsSchema = z.strictObject({
+  install: z
+    .array(ProjectAppIdSchema)
+    .describe(
+      'Apps from the catalogue this project adds to yours (agent add-ons such as rtk are set in your own settings only).',
+    ),
+});
 
 export const AppsSchema = z.strictObject({
   install: z

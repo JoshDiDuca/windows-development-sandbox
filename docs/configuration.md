@@ -54,6 +54,7 @@ Commonly changed:
 | `toolchains.rust.linker`, `.linkSlots` | GNU host: `"lld"` (default, far less memory than GNU ld) or `"gnu"`, and how many programs may link at once in the whole sandbox (`"auto"` = one per 3 GB after 6 GB of the sandbox's memory, 2 to 8; the memory governor slows links down too when memory runs short) |
 | `toolchains.cli.gh`, `.zstd`, `.openssl` | small command-line tools |
 | `toolchains.mesa.enabled`, `.vulkan` | software OpenGL / Vulkan when there is no GPU |
+| `apps.install`, `apps.custom` | apps from the catalogue and programs of your own ([toolchains](toolchains.md#apps-and-tools)); `"rtk"` adds the rtk agent add-on and its Claude Code hook ([agent add-ons](toolchains.md#agent-add-ons)), your setting only |
 | `harnesses` | agents and how to install them; `home` says where an agent keeps its login (variable -> folder in the saved state, the login files, the folder on this PC) so logins can be saved and switched. An agent with no variable for it lists `profileDirs` (folders in the sandbox's user profile, such as `.qwen`): each is linked to `state\<agent>\profile\<folder>`, so its login survives the sandbox, and its `loginFiles` start with `profile/`. `localState` (variable -> folder in the agent's saved state) is for agents that keep SQLite databases (codex): SQLite cannot run in the shared data folder, so the agent runs from a copy on the sandbox's own disk (the variable points to it); the copy is restored at start and saved again after the agent exits. Every configured agent also gets its command (`claude`, `codex` ...) in every terminal tab: when it is not installed yet, the command installs it on first use (`sbx-agent list` shows them) |
 
 ## Paths
@@ -283,7 +284,8 @@ A repo can ship this file, so it is treated as untrusted:
   them (still flagged "outside the project" when you approve the file), `false` refuses them. Without a terminal,
   `"ask"` stops the launch and says how to allow them; `--trust-config` never does. The launch table marks them
   "(outside the project, allowed)".
-- It may add apps from the catalogue (`apps.install`, added to yours), never programs of its own (`apps.custom`).
+- It may add apps from the catalogue (`apps.install`, added to yours), never programs of its own (`apps.custom`) and
+  never `rtk` (an agent add-on that hooks every agent command: only your own settings turn it on).
 - It can only make protections **stricter**: read-only, git `readonly`/`none`, the LAN block, protected client, and
   turning off network, clipboard, microphone, camera, printers, vGPU, login copying and history / claude-mem sync, and
   turning on `downloads.requireChecksum`. A looser value is used only if you allow it: starting the project from an

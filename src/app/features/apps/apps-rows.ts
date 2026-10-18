@@ -40,9 +40,12 @@ export const SAVED: AppsSource = {
   custom: (file) => (file.isProject ? {} : (file.userConfig().apps.custom as Record<string, CustomProgram>)),
 };
 
-/** The catalogue entries a file can change (a project cannot change an app that has a setting of its own). */
+/**
+ * The catalogue entries a file can change (a project cannot change an app that has a setting of its own, nor an agent
+ * add-on that is yours only).
+ */
 export function entriesOf(file: ConfigFile): AppEntry[] {
-  return APPS.filter((a) => !(file.isProject && a.setting));
+  return APPS.filter((a) => !(file.isProject && (a.setting || a.userOnly)));
 }
 
 /** Downloaded already (into this data folder), so the next sandbox starts it without a download. */
@@ -81,6 +84,7 @@ export function appRows(file: ConfigFile, dataPath: string, source: AppsSource =
     cli: Boolean(entry.cli),
     mesa: entry.needs?.includes('mesa') ?? false,
     fullGitOnly: Boolean(entry.fullGitOnly),
+    ...(entry.plugsInto ? { plugsInto: entry.plugsInto } : {}),
     ...settingParts(entry, file, source),
     installed: installed(entry, dataPath),
     on: appIsOn(entry, file, source),

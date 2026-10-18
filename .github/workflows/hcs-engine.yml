@@ -37,8 +37,8 @@ jobs:
       HCSHOST: ${{ github.workspace }}\.hcs\bin\HcsHost.exe
       IMAGE: mcr.microsoft.com/windows/servercore:ltsc2022
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -223,7 +223,7 @@ jobs:
           $md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           exit 0
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: hcs-logs-${{ matrix.os }}

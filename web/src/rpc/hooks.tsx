@@ -58,12 +58,31 @@ export function useQueryData(def: QueryDef, input: unknown): QueryData {
   return { data: query.data, error, pending: query.data === undefined && !error };
 }
 
+/** How an action ended: done (with the operation's words), or failed (with what to do), or backed out of. */
+export type Outcome =
+  | {
+      readonly ok: true;
+      readonly text: string;
+      /** What the operation returned (checked by its output schema). */ readonly output: unknown;
+    }
+  | { readonly ok: false; readonly message: string; readonly fix?: string }
+  | { readonly ok: false; readonly cancelled: true; readonly message: string };
+
+export interface RunOptions {
+  /** A change made in place (a setting): a short note when it worked, the failure shown by the caller. */
+  readonly inline?: boolean;
+}
+
 /** Runs a page's operation action: questions in modals, progress and the result as notifications. */
-export function useRunAction(): (action: OperationAction, values?: Readonly<Record<string, unknown>>) => Promise<void> {
+export function useRunAction(): (
+  action: OperationAction,
+  values?: Readonly<Record<string, unknown>>,
+  options?: RunOptions,
+) => Promise<Outcome> {
   const client = useRpc();
   const queryClient = useQueryClient();
   return useCallback(
-    async (action, values = {}) => {
+    async (action, values = {}, options = {}) => {
       const def = operationById(action.op);
       const id = 'op-' + Date.now();
       const said: string[] = [];
@@ -84,19 +103,24 @@ export function useRunAction(): (action: OperationAction, values?: Readonly<Reco
           },
         );
         const text = def?.text?.(output) ?? 'Done.';
-        const result = { id, title: action.label, message: text, color: 'green', loading: false, autoClose: 5000 };
+        const result = {
+          id,
+          title: options.inline ? undefined : action.label,
+          message: text,
+          color: 'green',
+          loading: false,
+          autoClose: options.inline ? 2500 : 5000,
+        };
         if (shown) notifications.update(result);
         else notifications.show(result);
+        return { ok: true, text, output };
       } catch (e) {
         if (shown) notifications.hide(id);
-        if (e instanceof Cancelled) return;
-        const fix = (e as { fix?: string }).fix;
-        notifications.show({
-          title: e instanceof Error ? e.message : 'It did not work.',
-          message: fix ?? said.join(' '),
-          color: 'red',
-          autoClose: 10000,
-        });
+        if (e instanceof Cancelled) return { ok: false, cancelled: true, message: 'Cancelled.' };
+        const message = e instanceof Error ? e.message : 'It did not work.';
+        const fix = (e as { fix?: string }).fix ?? (said.length ? said.join(' ') : undefined);
+        if (!options.inline) notifications.show({ title: message, message: fix, color: 'red', autoClose: 10000 });
+        return { ok: false, message, fix };
       } finally {
         await queryClient.invalidateQueries();
       }

@@ -112,6 +112,7 @@ function sessionItem(s: SessionRow, wide: boolean): Item {
     badges: [{ text: s.phase, tone: running ? 'ok' : s.phase === 'failed' ? 'danger' : 'muted' }],
     group: s.here ? "This folder's project" : 'Other sessions',
     marked: s.here,
+    icon: s.harness,
     description: running
       ? "Opens this session's terminal (in a terminal, Ctrl+] detaches; the session keeps running)."
       : undefined,
@@ -148,6 +149,7 @@ export function sessionsPage(o: SessionsList): Page {
     sections: [
       {
         id: 'sessions',
+        cards: true,
         columns: [
           { key: 'here', label: '' },
           { key: 'id', label: 'ID' },
@@ -169,6 +171,7 @@ export function sessionsPage(o: SessionsList): Page {
       ...startSection,
     ],
     actions: [
+      ...(o.sandboxRunning ? [{ ...start, label: 'New session', key: 'n', verb: 'new session', importance: 1 }] : []),
       ...(sessions.length
         ? [action(restartSessions, { all: false }, { key: 'r', verb: 'restart agents', importance: 1 })]
         : []),

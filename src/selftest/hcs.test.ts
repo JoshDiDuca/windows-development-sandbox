@@ -653,8 +653,8 @@ export const hcsSuite: Suite = {
     const useLeftovers = (probes = fakeProbes()): void => {
       LEFTOVER_DEPS.current = {
         probes,
-        helper: (_root, quiet) => {
-          helperCalls.push(quiet);
+        helper: () => {
+          helperCalls.push(true);
           return new HcsHelper(() => 'C:\\fake\\HcsHost.exe', leftoverRun, leftoverTemp);
         },
       };
@@ -738,7 +738,7 @@ export const hcsSuite: Suite = {
       t.check(
         leftoverRow.name === 'HCS systems left running' &&
           leftoverRow.applies?.(rowEnv(f.baseConfig)) === true &&
-          helperCalls.every((quiet) => quiet),
+          helperCalls.every(Boolean),
         'shown on any engine when one of ours is found, and the doctor never builds HcsHost.exe to look',
       );
       const warn = await leftoverRow.run(rowEnv(f.baseConfig));
@@ -777,7 +777,7 @@ export const hcsSuite: Suite = {
     t.check(DEFAULTS.sandbox.engine === 'windows-sandbox', 'the default engine is unchanged');
 
     t.section("documents against Microsoft's published HCS schema (Windows 11 21H2 and Windows 10 1809)");
-    const schemaDir = path.join(t.packageRoot, 'test-fixtures', 'hcs-schema');
+    const schemaDir = path.join(t.packageRoot, 'src', 'selftest', 'fixtures', 'hcs-schema');
     if (!fs.existsSync(schemaDir)) {
       t.check(true, 'skipped: the schema fixtures are only in the repository');
     } else {

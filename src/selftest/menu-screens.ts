@@ -4,9 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Draft } from '../cli/menu/settings/draft.js';
 import { ConfigFile } from '../app/features/settings/index.js';
-import { AppsModel } from '../cli/menu/apps.js';
 import { accountsOptions, type AccountsModel } from '../cli/menu/pages/accounts-page.js';
-import { appsOptions } from '../cli/menu/pages/apps-page.js';
+import { appsOptions, stageTicks } from '../cli/menu/pages/apps-page.js';
 import { maintenanceOptions, type MaintenanceModel } from '../cli/menu/pages/maintenance-page.js';
 import { sandboxOptions, type SandboxModel } from '../cli/menu/pages/sandbox-page.js';
 import { sessionsOptions } from '../cli/menu/pages/sessions-page.js';
@@ -27,7 +26,7 @@ export const SIZES = [
 const NOW = Date.now();
 const API_FOLDER = 'C:\\Projects\\api';
 
-/** The Data folder row of General (in the menu it comes from data-folder.ts). */
+/** The Data folder row of General (in the menu it comes from settings-page.ts). */
 const DATA_FOLDER_ROW = [
   {
     value: '@data-folder',
@@ -39,18 +38,25 @@ const DATA_FOLDER_ROW = [
 ];
 
 const ACCOUNTS: AccountsModel = {
+  agent: 'claude',
   agents: [
-    { name: 'claude', kept: true, canSavePc: true },
-    { name: 'codex', kept: true, canSavePc: true },
-    { name: 'opencode', kept: false, canSavePc: false },
+    {
+      name: 'claude',
+      kept: true,
+      canSavePc: true,
+      accounts: [
+        { name: 'work', email: 'me@work.example', isDefault: true, isActive: true, savedAt: '2026-10-13T09:30:00Z' },
+        { name: 'home', email: null, isDefault: false, isActive: false, savedAt: '2026-10-01T18:00:00Z' },
+      ],
+    },
+    {
+      name: 'codex',
+      kept: true,
+      canSavePc: true,
+      accounts: [{ name: 'main', email: null, isDefault: true, isActive: false, savedAt: '2026-10-12T08:00:00Z' }],
+    },
+    { name: 'opencode', kept: false, canSavePc: false, accounts: [] },
   ],
-  rows: {
-    claude: [
-      { name: 'work', email: 'me@work.example', isDefault: true, isActive: true, savedAt: '2026-10-13T09:30:00Z' },
-      { name: 'home', email: null, isDefault: false, isActive: false, savedAt: '2026-10-01T18:00:00Z' },
-    ],
-    codex: [{ name: 'main', email: null, isDefault: true, isActive: false, savedAt: '2026-10-12T08:00:00Z' }],
-  },
 };
 
 const SESSIONS = [
@@ -192,54 +198,163 @@ export function renderScreens(dir: string): string {
   };
   const maintenance: MaintenanceModel = {
     data: {
+      dataPath: 'C:\\AgentData',
+      storageRoot: 'C:\\ProgramData\\AgentSandbox\\users\\me',
+      totalBytes: 8.9e9,
+      total: '8.9 GB',
+      storageShare: '<- sandbox storage (8.9 GB of it)',
+      areaTotals: { tools: '7.1 GB', state: '1.8 GB', host: '4.0 KB' },
       entries: [
-        { area: 'tools', name: 'rust', path: 'C:\\AgentData\\tools\\rust', bytes: 4.6e9 },
-        { area: 'tools', name: 'vscode', path: 'C:\\AgentData\\tools\\vscode', bytes: 2.5e9 },
-        { area: 'state', name: 'state/claude', path: 'C:\\AgentData\\state\\claude', bytes: 1.8e9 },
-        { area: 'host', name: 'accounts', path: 'C:\\Users\\me\\AppData\\Local\\AgentSandbox\\accounts', bytes: 4096 },
+        {
+          area: 'tools',
+          name: 'rust',
+          path: 'C:\\AgentData\\tools\\rust',
+          bytes: 4.6e9,
+          size: '4.6 GB',
+          target: 'tools/rust',
+        },
+        {
+          area: 'tools',
+          name: 'vscode',
+          path: 'C:\\AgentData\\tools\\vscode',
+          bytes: 2.5e9,
+          size: '2.5 GB',
+          target: 'tools/vscode',
+        },
+        {
+          area: 'state',
+          name: 'state/claude',
+          path: 'C:\\AgentData\\state\\claude',
+          bytes: 1.8e9,
+          size: '1.8 GB',
+          target: 'state/claude',
+        },
+        {
+          area: 'host',
+          name: 'accounts',
+          path: 'C:\\Users\\me\\AppData\\Local\\AgentSandbox\\accounts',
+          bytes: 4096,
+          size: '4.0 KB',
+          target: null,
+        },
       ],
-      disks: [{ drive: 'C:\\', totalBytes: 40e9, freeBytes: 22e9, usedBytes: 18e9, holdsStorage: true }],
-      total: 8.9e9,
+      disks: [
+        {
+          drive: 'C:\\',
+          totalBytes: 40e9,
+          freeBytes: 22e9,
+          usedBytes: 18e9,
+          holdsStorage: true,
+          used: '18 GB',
+          usedPercent: 45,
+          free: '22 GB',
+          total: '40 GB',
+        },
+      ],
     },
-    logs: [
-      { name: 'guest-2026-10-14.log', path: 'x', bytes: 120000, modified: NOW - 60000 },
-      { name: 'daemon-2026-10-14.log', path: 'y', bytes: 8000, modified: NOW - 600000 },
-    ],
-    doctor: [
-      ['Windows Sandbox', 'available'],
-      ['Config file', 'C:\\Users\\me\\.agent-sandbox\\config.json'],
-    ],
-    repair: [
-      { name: 'Config file', status: 'ok', detail: 'valid' },
-      { name: 'Stale run folders', status: 'fixed', detail: 'removed 2' },
-      { name: 'Toolchain cache', status: 'needs-you', detail: 'close the sandbox first' },
-    ],
-    settings: { pending: ['2026-10-unpin-config-defaults: stop pinning old defaults in your config.json'] },
-    dataFolder: {
-      label: 'Data folder',
-      hint: 'C:\\ProgramData\\AgentSandbox\\users\\me',
-      description: 'Where the sandbox keeps its tools, databases and agent state. Enter changes it.',
+    logs: {
+      folder: 'C:\\AgentData\\logs',
+      files: [
+        {
+          name: 'guest-2026-10-14.log',
+          path: 'C:\\AgentData\\logs\\guest-2026-10-14.log',
+          bytes: 120000,
+          modified: NOW - 60000,
+        },
+        {
+          name: 'daemon-2026-10-14.log',
+          path: 'C:\\AgentData\\logs\\daemon-2026-10-14.log',
+          bytes: 8000,
+          modified: NOW - 600000,
+        },
+      ],
+      crash: true,
     },
-    updates: {
-      managed: true,
-      version: '1.4.3',
-      scope: 'user',
-      autoUpdate: true,
-      autoOffText: null,
-      state: {
-        previous: '1.4.2',
-        failed: { version: '1.4.4', at: '2026-10-13T03:00:00Z', reason: 'it did not start' },
+    health: {
+      last: {
+        at: new Date(NOW - 180000).toISOString(),
+        mode: 'check',
+        checks: [
+          { id: 'config', group: 'Settings', name: 'Config file', status: 'ok', detail: 'valid', fixable: false },
+          {
+            id: 'stale',
+            group: 'Data folder',
+            name: 'Stale run folders',
+            status: 'fixed',
+            detail: 'removed 2',
+            fixable: false,
+          },
+          {
+            id: 'cache',
+            group: 'Sandbox',
+            name: 'Toolchain cache',
+            status: 'needs-you',
+            detail: 'close the sandbox first',
+            fixable: false,
+          },
+        ],
+        summary: { total: 3, ok: 1, fixed: 1, warn: 0, needsYou: 1, skipped: 0, fixable: 0 },
+        details: [
+          ['Windows Sandbox', 'available'],
+          ['Config file', 'C:\\Users\\me\\.agent-sandbox\\config.json'],
+        ],
+        setup: {
+          checks: [
+            { name: 'Windows edition', status: 'ok', detail: 'Pro' },
+            { name: 'Windows Sandbox feature', status: 'action', detail: 'turned off' },
+          ],
+          canEnable: true,
+          error: null,
+        },
+        log: null,
       },
     },
-    latest: '1.5.0',
-    setup: {
-      facts: {} as never,
-      canEnable: true,
-      checks: [
-        { name: 'Windows edition', status: 'ok', detail: 'Pro' },
-        { name: 'Windows Sandbox feature', status: 'action', detail: 'turned off' },
-      ],
+    storage: {
+      show: {
+        root: 'C:\\ProgramData\\AgentSandbox\\users\\me',
+        exists: true,
+        holdsData: true,
+        measured: null,
+        size: 'not measured yet',
+        defaultRoot: 'C:\\ProgramData\\AgentSandbox\\users\\me',
+        defaultInUse: true,
+        otherFoldersWithData: [],
+      },
+      contained: {
+        setting: 'off',
+        maxGb: 60,
+        available: true,
+        reasons: [],
+        fixes: [],
+        image: 'C:\\ProgramData\\AgentSandbox\\users\\me\\contained\\agent.vhdx',
+        imageExists: false,
+        imageBytes: null,
+        mountFolder: 'C:\\ProgramData\\AgentSandbox\\users\\me\\mount',
+        recordedMounted: false,
+        holders: 0,
+        mountedNow: null,
+      },
     },
+    updates: {
+      status: {
+        managed: true,
+        version: '1.4.3',
+        scope: 'user',
+        autoUpdate: true,
+        autoOffText: null,
+        previous: '1.4.2',
+        failed: { version: '1.4.4', reason: 'it did not start' },
+        npmCommand: 'npm install -g windows-development-sandbox',
+        error: null,
+        settings: {
+          pending: ['2026-10-unpin-config-defaults: stop pinning old defaults in your config.json'],
+          error: null,
+        },
+      },
+      latest: '1.5.0',
+    },
+    engine: null,
+    web: { running: true, port: 47800, address: 'http://127.0.0.1:47800/' },
     more: [
       { name: 'sync', summary: 'sync history now' },
       { name: 'audit', summary: 'show what the sandbox did' },
@@ -251,9 +366,9 @@ export function renderScreens(dir: string): string {
   const flag = settings.find((s) => s.node.editor === 'boolean');
   if (harness) draft.stage(user, harness.key, 'codex');
   if (flag) draft.stage(user, flag.key, !(user.userConfig() as unknown as Record<string, unknown>)[flag.key[0]]);
-  const apps = new AppsModel(user, path.join(dir, 'data'));
+  const appsData = path.join(dir, 'data');
   const appsDraft = new Draft();
-  apps.stageTicks(appsDraft, ['git-gui']);
+  stageTicks(user, appsDraft, ['git-gui']);
 
   const out: string[] = [];
   for (const size of SIZES) {
@@ -317,7 +432,7 @@ export function renderScreens(dir: string): string {
     out.push(
       block(
         '4 Apps (1 unsaved)',
-        draw(3, appsOptions(apps, user, appsDraft, 'user'), size, status, appsDraft.count()),
+        draw(3, appsOptions(user, appsData, appsDraft, 'user'), size, status, appsDraft.count()),
         size,
       ),
     );

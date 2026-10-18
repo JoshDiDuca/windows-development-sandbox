@@ -1,6 +1,7 @@
 // Signs in from the #k= fragment (then removes it from the address bar), and shows the page the address names inside
 // the shell: a view, or a session's terminal.
-import { Center, Loader, Stack, Text, Title } from '@mantine/core';
+import { Card, Center, Loader, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { IconLock } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { TerminalPage } from './pages/TerminalPage';
@@ -50,11 +51,22 @@ export function App() {
     );
   if (auth === 'out')
     return (
-      <Center h="100dvh" p="md">
-        <Stack gap="xs" align="center">
-          <Title order={3}>Not signed in</Title>
-          <Text>Open this page with sandbox web open on this PC. It signs you in.</Text>
-        </Stack>
+      <Center h="100dvh" p="md" style={{ background: 'var(--app-bg)' }}>
+        <Card maw={440} p="xl">
+          <Stack gap="sm" align="center" ta="center">
+            <ThemeIcon size={52} radius="xl" variant="light">
+              <IconLock size={26} stroke={1.6} />
+            </ThemeIcon>
+            <Title order={2}>Not signed in</Title>
+            <Text c="dimmed" size="sm">
+              This page only opens from this PC. In a terminal, run{' '}
+              <Text span ff="monospace" fw={600}>
+                sandbox web open
+              </Text>{' '}
+              : it opens the web UI already signed in.
+            </Text>
+          </Stack>
+        </Card>
       </Center>
     );
   if (route.page === 'terminal')

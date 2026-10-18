@@ -10,6 +10,8 @@ import { hostMemoryLine, type HostMemory } from './host-memory.js';
 
 export interface WatchdogState {
   readonly low: boolean;
+  /** Nearly out of memory: the request asks for the governor's last step. */
+  readonly severe: boolean;
   readonly calm: number;
   /** Seconds the CPU has been above the limit. */
   readonly cpuHighSeconds: number;
@@ -21,6 +23,7 @@ export interface WatchdogState {
 
 export const WATCHDOG_START: WatchdogState = {
   low: false,
+  severe: false,
   calm: 0,
   cpuHighSeconds: 0,
   diskHighSeconds: 0,
@@ -48,6 +51,8 @@ export interface WatchdogStep {
   readonly send: boolean;
   /** Why the PC is low (plain words), empty when it is not. */
   readonly reason: string;
+  /** Nearly out of memory: builds go to the governor's last step. */
+  readonly severe: boolean;
   /** The state changed (the log says so). */
   readonly changed: boolean;
 }
@@ -65,6 +70,21 @@ export function lowReason(memory: HostMemory, reserveHostMb: number, t: HostThre
     return 'only ' + memory.commitAvailableMb + ' MB of memory (RAM plus paging file) is left on this PC';
   return '';
 }
+
+/**
+ * Nearly out of memory on this PC: under 1.5 GB of RAM free, or commit within max(2 GB, 4 %) of its limit. Then the
+ * sandbox's builds go to the governor's last step at once (one compiler at a time, 15 % CPU) until it passes.
+ */
+export function severeHost(memory: HostMemory): boolean {
+  return (
+    memory.availableMb < SEVERE_AVAILABLE_MB ||
+    memory.commitAvailableMb < Math.max(SEVERE_COMMIT_MB, (memory.commitLimitMb * SEVERE_COMMIT_PERCENT) / 100)
+  );
+}
+
+const SEVERE_AVAILABLE_MB = 1536;
+const SEVERE_COMMIT_MB = 2048;
+const SEVERE_COMMIT_PERCENT = 4;
 
 /** One watchdog step. Hysteresis: low starts at the limits and ends above 1.25 times them for calmSamples samples. */
 export function watchdogStep(prev: WatchdogState, input: WatchdogInput): WatchdogStep {
@@ -93,10 +113,13 @@ export function watchdogStep(prev: WatchdogState, input: WatchdogInput): Watchdo
       calm = 0;
     }
   }
-  const send = low && input.nowMs - prev.lastSentAt >= RESEND_MS;
+  const severe = low && input.memory !== null && severeHost(input.memory);
+  // Getting severe is sent at once; otherwise the request is repeated every RESEND_MS while the PC stays low.
+  const send = low && (input.nowMs - prev.lastSentAt >= RESEND_MS || (severe && !prev.severe));
   return {
     state: {
       low,
+      severe,
       calm,
       cpuHighSeconds: cpuHigh,
       diskHighSeconds: diskHigh,
@@ -104,6 +127,7 @@ export function watchdogStep(prev: WatchdogState, input: WatchdogInput): Watchdo
     },
     send,
     reason: reason || (low ? 'this PC is still low' : ''),
+    severe,
     changed: low !== prev.low,
   };
 }

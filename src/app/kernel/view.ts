@@ -17,12 +17,12 @@ export interface Badge {
 export type Target =
   /** A running session's terminal: the menu attaches, the web opens its terminal page. */
   | { readonly kind: 'terminal'; readonly session: string }
-  /** Start an agent: the menu runs `launch`, the web opens its new-session dialog. */
+  /** Start an agent: the menu runs `launch`, the web runs agents.start and opens the session's terminal. */
   | { readonly kind: 'start-agent'; readonly agent: string }
   /** A command line of an area that is not a feature yet: the menu runs it, the web does not offer it. */
   | { readonly kind: 'command'; readonly argv: readonly string[] }
   /** Another view. */
-  | { readonly kind: 'view'; readonly view: string };
+  | { readonly kind: 'view'; readonly view: string; readonly params?: Readonly<Record<string, string>> };
 
 interface ActionBase {
   /** The words on a button or a row ("Stop the sandbox…"). */
@@ -47,6 +47,8 @@ export interface OperationAction extends ActionBase {
   readonly fields?: readonly Field[];
   /** What `fields` start as (the current value of a setting), by field name. */
   readonly initial?: Readonly<Record<string, unknown>>;
+  /** Its one field can be changed in place (the web shows the control in the row; the menu opens its editor). */
+  readonly inline?: boolean;
 }
 
 export interface LinkAction extends ActionBase {
@@ -64,6 +66,8 @@ export interface Fact {
   readonly tone?: Tone;
   readonly description?: string;
   readonly details?: readonly string[];
+  /** How full something is (memory used of total): a bar on the web, the value text elsewhere. */
+  readonly meter?: { readonly value: number; readonly max: number };
 }
 
 /** A column of a section shown as a table (CLI table, web table); items fill it through `cells`. */
@@ -78,9 +82,13 @@ export interface Item {
   readonly label: string;
   /** The right-hand text (a state, a value). */
   readonly hint?: string;
+  /** Its name in files and commands (a setting's key), shown small in monospace on the web. */
+  readonly code?: string;
   readonly tone?: Tone;
   readonly badges?: readonly Badge[];
   readonly description?: string;
+  /** Words about the menu's keys ("x deletes it."): the menu shows them after the description; the web does not. */
+  readonly keys?: string;
   /** Extra lines (the menu's details pane, the CLI's indented lines, the web's card body). */
   readonly details?: readonly string[];
   /** A heading inside the section ("This folder's project"). */
@@ -94,6 +102,8 @@ export interface Item {
   readonly actions?: readonly Action[];
   /** Why it cannot be used now. */
   readonly disabled?: string;
+  /** What picture fits it: an agent's name (claude), or project, folder, database, session. Only the web shows it. */
+  readonly icon?: string;
   /** More words a search finds it by. */
   readonly keywords?: string;
 }
@@ -117,8 +127,12 @@ export interface Section {
   readonly columns?: readonly Column[];
   /** Where `columns` is used: everywhere (default), or only on the command line (the web lists the items in full). */
   readonly columnsOn?: 'all' | 'cli';
+  /** The items are things to pick from (sessions, agents): the web shows them as cards rather than rows. */
+  readonly cards?: boolean;
   readonly actions?: readonly Action[];
   readonly notes?: readonly Note[];
+  /** Preformatted lines (a log): monospace, shown as they are. */
+  readonly text?: readonly string[];
 }
 
 /** What a page shows when it has nothing: the text and the next step (the CLI prints `cliText`, naming a command). */
@@ -138,6 +152,11 @@ export interface Page {
   readonly actions?: readonly Action[];
   /** Shown instead of the sections when they have no facts and no items. */
   readonly empty?: Empty;
+  /**
+   * The sections are categories of one long list (settings): the web shows one at a time beside a list of them, with
+   * a search over all; the menu and the CLI show them as they always do.
+   */
+  readonly categories?: boolean;
 }
 
 /** An action that runs `def` with `input` (typed from its input schema; `fields` may ask for the rest). */
@@ -167,7 +186,9 @@ export function link(
 
 /** Does the page show anything besides its empty state? */
 export function pageHasContent(page: Page): boolean {
-  return page.sections.some((s) => (s.facts?.length ?? 0) > 0 || (s.items?.length ?? 0) > 0);
+  return page.sections.some(
+    (s) => (s.facts?.length ?? 0) > 0 || (s.items?.length ?? 0) > 0 || (s.text?.length ?? 0) > 0,
+  );
 }
 
 /** Every action a page offers, wherever it sits (for parity checks and key bars). */

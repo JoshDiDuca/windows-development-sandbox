@@ -1,26 +1,333 @@
-/* The few layout tokens Mantine's components do not cover: the terminal fills the main area. */
+/* The tokens and layout Mantine's components do not cover: the page background, the shell's sidebar, rows, cards and
+   the terminal. Colours come from Mantine's variables, so dark and light follow the theme. */
+:root {
+  --app-bg: var(--mantine-color-gray-0);
+  --app-surface: var(--mantine-color-white);
+  --app-sidebar: var(--mantine-color-white);
+  --app-border: var(--mantine-color-gray-2);
+  --app-hover: var(--mantine-color-gray-0);
+  --app-muted: var(--mantine-color-gray-6);
+  --app-terminal: #ffffff;
+  --app-content-width: 1080px;
+}
+
+[data-mantine-color-scheme='dark'] {
+  --app-bg: var(--mantine-color-dark-9);
+  --app-surface: var(--mantine-color-dark-8);
+  --app-sidebar: var(--mantine-color-dark-8);
+  --app-border: var(--mantine-color-dark-6);
+  --app-hover: var(--mantine-color-dark-7);
+  --app-muted: var(--mantine-color-dark-2);
+  --app-terminal: #0e1015;
+}
+
 html,
 body,
 #root {
   height: 100%;
 }
 
+html {
+  background: var(--app-bg);
+}
+
+body {
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.mantine-Card-root,
+.mantine-Paper-root {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+}
+
+/* The shell */
+.app-navbar {
+  background: var(--app-sidebar);
+  border-right: 1px solid var(--app-border);
+}
+
+.app-header {
+  background: var(--app-sidebar);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-main {
+  background: var(--app-bg);
+}
+
+.app-content {
+  max-width: var(--app-content-width);
+  margin: 0 auto;
+  padding: 28px 32px 64px;
+}
+
+.app-content.wide {
+  max-width: 1320px;
+}
+
+@media (max-width: 48em) {
+  .app-content {
+    padding: 16px 16px 48px;
+  }
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: white;
+  background: linear-gradient(135deg, var(--mantine-color-indigo-5), var(--mantine-color-violet-6));
+  flex: none;
+}
+
+.nav-group-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+  padding: 14px 12px 4px;
+}
+
+.kbd-hint {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--app-border);
+  color: var(--app-muted);
+}
+
+/* Status dot: a small circle, pulsing while something is under way */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--dot, var(--mantine-color-gray-5));
+}
+
+.status-dot.pulse {
+  animation: dot-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--dot) 0%, transparent);
+  }
+}
+
+/* Rows of a list inside a card */
+.item-row {
+  padding: 12px 16px;
+  border-top: 1px solid var(--app-border);
+  transition: background 120ms ease;
+}
+
+.item-row:first-child {
+  border-top: none;
+}
+
+.item-row.clickable {
+  cursor: pointer;
+}
+
+.item-row.clickable:hover,
+.item-row:focus-visible {
+  background: var(--app-hover);
+  outline: none;
+}
+
+.item-row .row-actions {
+  opacity: 0.85;
+}
+
+.item-row:hover .row-actions {
+  opacity: 1;
+}
+
+.item-card {
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.item-card.clickable {
+  cursor: pointer;
+}
+
+.item-card.clickable:hover {
+  border-color: var(--mantine-color-indigo-4);
+  box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--mantine-color-indigo-5) 35%, transparent);
+}
+
+.list-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.group-heading {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+  padding: 14px 16px 6px;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-hover);
+}
+
+.group-heading:first-child {
+  border-top: none;
+}
+
+/* Settings: the categories beside the list */
+.category-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.category-nav {
+  position: sticky;
+  top: 20px;
+}
+
+@media (max-width: 62em) {
+  .category-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .category-nav {
+    position: static;
+  }
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 340px);
+  gap: 24px;
+  align-items: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--app-border);
+}
+
+.setting-row:first-child {
+  border-top: none;
+}
+
+.setting-row.flash {
+  animation: setting-flash 1.6s ease;
+}
+
+@keyframes setting-flash {
+  0% {
+    background: color-mix(in srgb, var(--mantine-color-indigo-5) 18%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (max-width: 48em) {
+  .setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+
+.setting-key {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 11.5px;
+  color: var(--app-muted);
+}
+
+.modified-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mantine-color-indigo-5);
+  flex: none;
+}
+
+/* Facts: label over value tiles */
+.fact-tile {
+  padding: 12px 14px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-hover);
+  min-width: 0;
+}
+
+/* The folder picker */
+.picker-list {
+  border: 1px solid var(--app-border);
+  border-radius: var(--mantine-radius-md);
+  height: 320px;
+  overflow: auto;
+}
+
+.picker-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.picker-entry:hover {
+  background: var(--app-hover);
+}
+
+.picker-entry[data-selected='true'] {
+  background: color-mix(in srgb, var(--mantine-color-indigo-5) 16%, transparent);
+}
+
+/* The terminal fills the main area */
 .terminal-page {
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  background: var(--app-terminal);
 }
 
 .terminal-toolbar {
-  border-bottom: 1px solid var(--mantine-color-default-border);
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-sidebar);
+  min-height: 48px;
 }
 
 .terminal-host {
   flex: 1;
   min-height: 0;
-  padding: 6px;
+  padding: 8px 4px 4px 10px;
   overflow: hidden;
-  background: var(--mantine-color-body);
+  background: var(--app-terminal);
+}
+
+.terminal-search {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  z-index: 5;
+}
+
+.key-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-sidebar);
 }

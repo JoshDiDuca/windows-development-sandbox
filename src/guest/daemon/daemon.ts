@@ -61,7 +61,7 @@ export class Daemon {
         return sessions.restart(req);
       case 'pressure':
         // No response: the host repeats it every few seconds while its memory stays low.
-        return governor.hostPressure(req.seconds, req.reason);
+        return governor.hostPressure(req.seconds, req.reason, req.level ?? 'slow');
       case 'ping':
         return respond(req.id, { ok: true, message: 'pong (' + sessions.count + ' session(s) running)' });
     }

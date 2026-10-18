@@ -15,7 +15,8 @@ the web UI all run the same code. Work like this:
 2. Read, in order: `CLAUDE.md` (all of it: the hard rules, the coding standard, the Gotchas), then
    [shared-core.md](shared-core.md) (the contract, then its "As built" and "How to add a feature" sections), then
    **[areas/00-worked-example.md](areas/00-worked-example.md) (mandatory: the sessions feature built file by file, the
-   commands to run and the common mistakes)**, then the rest of this file.
+   commands to run and the common mistakes)**, then **[web-ui-standard.md](web-ui-standard.md) (how every web page
+   must look, the Page hints that give that look, and how to check it with screenshots)**, then the rest of this file.
 3. Do the areas in the table at the end of this file **one at a time, in the order of the table**, starting with
    area 1 (agents). Each area has its own spec file in [areas/](areas/): read the whole file before you change
    anything, and follow it. It names every file, flag, text, key and test of the area, the definitions to write, and
@@ -64,8 +65,10 @@ The area file spells each step out for its area; this is the shape they all shar
    Maintenance areas, Sandbox > Projects) copies `sandbox-page.ts` and resolves keys only against the open category's
    view. Add the view to `src/cli/menu/views.ts`.
 5. Web: add the view to `NAV` in `src/app/features/defs.ts` (replacing the section's `elsewhere`, or as a child of a
-   section once area 2 has added `children`). Nothing else unless the area file asks for a new Field kind, target or
-   kernel addition.
+   section once area 2 has added `children`). Nothing else in `web/` unless the area file asks for a new Field kind,
+   target or kernel addition. Use the Page hints of [web-ui-standard.md](web-ui-standard.md) (cards for things to pick
+   from, facts for status, `inline` for values, `icon`, `verb`), add sample data to the web preview, and check the page
+   in light, dark and phone screenshots (`npm run web:preview`, `npm run web:shots`).
 6. CLI: a command that is wholly an operation loses its manifest entry and its `HANDLERS` line (the hint makes the
    command). A command with several actions, a default action or flags `withActions()` cannot carry (`data`,
    `storage`, `account`, `projects`, `vpn`, `engine`, `web`, `config`) keeps its hand-written manifest entry, its

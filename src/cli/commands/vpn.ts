@@ -14,6 +14,7 @@ const LOGIN_TEXT = {
 
 /** The warnings every VPN user must see. */
 export const VPN_WARNINGS: readonly string[] = [
+  'The VPN is an alpha: not yet tried on a real PC (docs/vpn.md lists what still needs checking).',
   'The agent in the sandbox can read the VPN login (a service login you can revoke) and can turn the tunnel off, because it is the administrator there.',
   'Free VPNs see all your traffic: use one you trust.',
 ];

@@ -7,6 +7,68 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- The menu no longer closes when an action fails: the problem is shown where you chose it (for example when an option
+  could not be read or saved), and you can go on.
+- More of the tool in the web UI: Maintenance > Updates, Data, Storage, Health, Logs and Engine, Settings export and
+  import, and the Web UI's own server in the menu. Each is written once for the command line, the menu and the browser.
+
+## 1.11.0
+
+- **Web UI (beta), rebuilt.** A new look in dark and light; a sidebar with the sandbox's live state; a search over
+  pages, sessions and every setting (Ctrl+K). Settings show one category at a time with a search, and each setting's
+  control sits in its row: switches and choices save at once, text and numbers when you press Enter. Folders and files
+  are picked with a folder browser instead of typed. Sessions show as cards with a New session button. The terminal
+  has find, text size, full screen, clickable links and, on phones, a row of the keys a phone keyboard lacks. Areas
+  that are not in the web UI yet are no longer dead links. Everything still runs through the same shared code as the
+  CLI and the menu.
+- **More of the tool in the web UI**, each written once for the command line, the menu and the browser: Agents (start
+  one, which then opens its terminal, add one, make one the default, remove one), Accounts (save, use, rename and remove
+  logins), Apps (switch catalogue apps on and off per scope, your own programs, request an app) and Sandbox > Projects
+  (project roots, projects, all or chosen), with nested navigation. Starting an agent from the web now runs the same
+  operation as the menu (the old `POST /api/sessions` is gone). Maintenance follows.
+- The menu's Sessions page has a New session key (n).
+- **Builds no longer fail with "the paging file is too small" (os error 1455) or out-of-memory errors in a healthy
+  sandbox.** Every new session re-applied its own memory limit to the job shared by all agents, so a session that
+  joined later could shrink everyone's limit (to 6 GB on a 32 GB sandbox). The job's limit is now only a last-resort
+  backstop just below the sandbox's commit limit (RAM plus paging file), set once by whoever creates the job and never
+  changed by a session that joins; slowing builds down comes first. `sandbox.agentMemoryHeadroomMb` now means the
+  distance of that backstop below the commit limit.
+- **The memory governor slows builds down in steps, like a PC, instead of pausing one compiler.** As the sandbox's
+  memory fills, build programs get lower CPU and memory priority (Windows trims their pages before the agents'), then
+  less CPU together (60 %, 35 %, 15 %), then compilers take turns (the others wait, suspended a few seconds at a time and
+  always resumed, who waits changing every 20 seconds) and the waiting ones are trimmed to the paging file. It also acts
+  when commit would run out within seconds at the rate it grows. Builds get slower; nothing fails. It never touches the
+  agents, also when they run as node.exe (Codex, Gemini ...).
+- When this PC is nearly out of memory (under 1.5 GB of RAM free, or commit within 4 % of its limit), its watchdog says
+  so at once and the sandbox's builds go straight to the governor's last step until it passes; when the PC is only low,
+  builds go to step 2 as before.
+- **The sandbox never gets more memory than this PC can keep in RAM for it**: the PC's RAM minus max(reserveHostMb,
+  25 %), and 2 GB more with vGPU on. A fixed `sandbox.memoryMb` above that is lowered (the launch says so). More would
+  be paged to this PC's disk while the sandbox pages to its own, the most likely cause of whole-PC freezes under heavy
+  builds.
+- **Agents see what the sandbox can really give them.** With a CPU cap, the sandbox's programs run on that share of the
+  processors, so cargo, .NET, ninja and `nproc` count right, and `NUMBER_OF_PROCESSORS` says the same. Each session
+  gets cargo and CMake job counts from a build budget (one job per 3 GB after 6 GB, up to 8 per session), and
+  `run\budget.json` (`SANDBOX_BUDGET_FILE`) states the real numbers for agents to plan with.
+- More links at once: `toolchains.rust.linkSlots: "auto"` allows one per 3 GB after 6 GB, 2 to 8 (was 2 to 4), now that
+  the governor slows links down when memory runs short.
+- Web UI: connections no longer pile up. The server pings every page and drops those gone without closing, a new page
+  always connects (the oldest connection makes room instead of the new one being refused), a hidden tab stops reading
+  live data and lets go of its connections, a closed one closes them at once, and a server of another version (left
+  running across an update) is replaced instead of reused. The server ends by itself after 30 minutes unused while no
+  sandbox runs.
+- An HCS engine workflow for GitHub Actions, run by hand (Actions > HCS engine (alpha)): it builds, checks the HCS
+  documents and tries a Hyper-V utility VM on hosted Windows runners, and says which isolation really worked
+  (docs/development.md).
+- The VPN is labelled alpha everywhere it shows (settings, `sandbox vpn`, the launch warnings, docs): it has not been tried on a real PC yet.
+- Terminals no longer show a second copy of the agent's screen at the bottom when another viewer (the web UI, a
+  terminal on the PC) joins or types: with conpty.dll the session is resized only when the size really changes, and a
+  viewer that only looks leaves the size to the one in use until it types.
+- The memory governor no longer writes a broken sample when a process ends while it is being read (it logged "bad
+  sample" and skipped that round).
+
 ## 1.10.0
 
 - The web UI starts with every sandbox when `web.enabled` is on (before, nothing started it, so nothing answered on its

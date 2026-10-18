@@ -55,6 +55,8 @@ export class RunDir {
   readonly vpnFile: string;
   /** What the memory governor in the sandbox is doing (pressure.json). */
   readonly pressureFile: string;
+  /** What the sandbox's programs may really use (budget.json): processors, memory, build jobs, link slots. */
+  readonly budgetFile: string;
   readonly requestsDir: string;
   readonly responsesDir: string;
   readonly sessionsDir: string;
@@ -69,6 +71,7 @@ export class RunDir {
     this.sandboxFile = path.join(this.root, 'sandbox.json');
     this.vpnFile = path.join(this.root, 'vpn.json');
     this.pressureFile = path.join(this.root, 'pressure.json');
+    this.budgetFile = path.join(this.root, 'budget.json');
     this.requestsDir = path.join(this.root, 'requests');
     this.responsesDir = path.join(this.root, 'responses');
     this.sessionsDir = path.join(this.root, 'sessions');

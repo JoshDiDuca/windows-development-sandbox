@@ -5,7 +5,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseCli } from '../cli/args.js';
-import { describeResult, runUpdate } from '../cli/commands/maintenance/update.js';
+import { describeResult } from '../app/features/updates/update-lines.js';
+import { updateWith } from '../app/features/updates/updates.run.js';
+import { fakeIO } from '../app/kernel/index.js';
 import { UpdateService, runsAsSystem, type UpdateTaskPort } from '../cli/services/index.js';
 import { InstallLayout, InstallRecordFile, UpdateTask, shimText } from '../host/install/index.js';
 import { nativeScript } from '../host/native.js';
@@ -222,7 +224,7 @@ async function failedInstall(t: Harness): Promise<void> {
     bad2?.kind === 'failed' &&
       bad2.autoUpdateOff &&
       new InstallRecordFile(root2).read()?.autoUpdate === false &&
-      (await runUpdate(svc2, { check: false, rollback: false, unattended: true }, () => undefined)) === 0 &&
+      (await updateWith(svc2, { check: false, rollback: false, unattended: true }, fakeIO().io)).line === '' &&
       layout2.activeVersion() === '1.0.0',
     'a task that cannot be removed does not stop the rollback; an unattended run with updates off does nothing',
   );
@@ -272,12 +274,22 @@ function pure(t: Harness): void {
 async function command(t: Harness): Promise<void> {
   t.section('sandbox update: what it prints');
   const lines: string[] = [];
-  const print = (line: string): void => void lines.push(line);
+  // sandbox update's work through the feature: the line it returns is what the command prints.
+  const runU = async (svc: UpdateService, input: { check?: boolean; auto?: 'on' | 'off' }): Promise<string> => {
+    const auto = input.auto ? { auto: input.auto } : {};
+    const out = await updateWith(
+      svc,
+      { check: input.check ?? false, rollback: false, unattended: false, ...auto },
+      fakeIO([true]).io,
+    );
+    lines.push(out.line);
+    return out.line;
+  };
   const npm = new UpdateService(null, { version: '1.0.0' });
   const npmAuto = await t.thrownMessage(() => npm.setAuto(true));
   t.check(
     !npm.managed &&
-      (await runUpdate(npm, { check: false, rollback: false, unattended: false }, print)) === 0 &&
+      (await runU(npm, {})).includes('npm install -g windows-development-sandbox') &&
       lines.join('\n').includes('npm install -g windows-development-sandbox') &&
       npmAuto.includes('installed with npm'),
     'an npm install is not managed, is told the npm command, and cannot turn on automatic updates',
@@ -294,9 +306,9 @@ async function command(t: Harness): Promise<void> {
     sandboxRunning: () => false,
     version: '1.0.0',
   });
-  await runUpdate(machine, { check: false, rollback: false, unattended: false, auto: 'on' }, print);
+  await runU(machine, { auto: 'on' });
   const afterOn = [...task.calls];
-  await runUpdate(machine, { check: false, rollback: false, unattended: false, auto: 'off' }, print);
+  await runU(machine, { auto: 'off' });
   t.check(
     afterOn.join() === 'register' && task.calls.join() === 'register,remove' && !machine.autoUpdateDue(),
     '--auto on/off creates and removes the scheduled task of an all-users install; it never updates from a CLI start',
@@ -312,8 +324,7 @@ async function command(t: Harness): Promise<void> {
   publish(t, feed, '1.0.1', 'good');
   lines.length = 0;
   t.check(
-    (await runUpdate(machine, { check: true, rollback: false, unattended: false }, print)) === 0 &&
-      lines.join('\n').includes('Version 1.0.1 is available'),
+    (await runU(machine, { check: true })).includes('Version 1.0.1 is available'),
     '--check names the newer version and exits 0',
   );
 

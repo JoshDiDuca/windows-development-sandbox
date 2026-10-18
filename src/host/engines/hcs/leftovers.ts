@@ -3,10 +3,10 @@
 // terminates one. Nothing here runs unless the PC has the Host Compute Service.
 import path from 'node:path';
 import { z } from 'zod';
-import { errMsg } from '../../../core/util/index.js';
+import { errMsg, fail } from '../../../core/util/index.js';
 import { realHcsProbes, system32Dir, type HcsProbes } from './check.js';
 import { HCS_OWNER } from './documents.js';
-import { HcsHelper, builtHcsHostExe, hcsHostExe, isOurSystemId } from './helper.js';
+import { HcsHelper, builtHcsHostExe, isOurSystemId } from './helper.js';
 
 export interface LeftoverSystem {
   readonly id: string;
@@ -31,8 +31,8 @@ export interface LeftoverOutcome {
 /** What the look runs on: replaceable by tests (probes of a pretend PC, a fake helper). */
 export interface LeftoverDeps {
   readonly probes: HcsProbes;
-  /** The helper, or null when HcsHost.exe is not there (and `quiet` forbids building it). */
-  helper(storageRoot: string, quiet: boolean): HcsHelper | null;
+  /** The helper, or null when HcsHost.exe was never built (then nothing of ours can be running). Never builds it. */
+  helper(storageRoot: string): HcsHelper | null;
 }
 
 export const LEFTOVER_DEPS: { current: LeftoverDeps | null } = { current: null };
@@ -40,8 +40,7 @@ export const LEFTOVER_DEPS: { current: LeftoverDeps | null } = { current: null }
 function realDeps(): LeftoverDeps {
   return {
     probes: realHcsProbes(),
-    helper: (root, quiet) => {
-      if (!quiet) return new HcsHelper(() => hcsHostExe(root));
+    helper: (root) => {
       const exe = builtHcsHostExe(root);
       return exe ? new HcsHelper(() => exe) : null;
     },
@@ -70,7 +69,14 @@ function noHcsReason(p: HcsProbes): string | null {
 
 /** Ours only: the id has our prefix and the system names us as its Owner. Anything else is never shown or touched. */
 function ownedSystems(helper: HcsHelper): LeftoverSystem[] {
-  const parsed = SystemListSchema.safeParse(JSON.parse(helper.enumerate().json || '[]'));
+  let list: unknown;
+  try {
+    list = JSON.parse(helper.enumerate().json || '[]');
+  } catch (e) {
+    if (e instanceof SyntaxError) return fail('The Host Compute Service answered with something that is not JSON.');
+    throw e;
+  }
+  const parsed = SystemListSchema.safeParse(list);
   if (!parsed.success) return [];
   return parsed.data
     .filter((s) => s.Owner === HCS_OWNER && isOurSystemId(s.Id))
@@ -83,15 +89,15 @@ function ownedSystems(helper: HcsHelper): LeftoverSystem[] {
 }
 
 /**
- * The compute systems of ours that exist now. `quiet` (the doctor) never builds HcsHost.exe: a PC that never used HCS
- * has none, and nothing of ours can be running there.
+ * The compute systems of ours that exist now. Never builds HcsHost.exe: a PC that never used HCS has none, and
+ * nothing of ours can be running there.
  */
-export function lookForLeftovers(storageRoot: string, quiet = false): LeftoverLook {
+export function lookForLeftovers(storageRoot: string): LeftoverLook {
   const deps = LEFTOVER_DEPS.current ?? realDeps();
   const none = noHcsReason(deps.probes);
   if (none) return { available: false, reason: none };
   try {
-    const helper = deps.helper(storageRoot, quiet);
+    const helper = deps.helper(storageRoot);
     if (!helper) return { available: true, systems: [] };
     return { available: true, systems: ownedSystems(helper) };
   } catch (e) {
@@ -105,7 +111,7 @@ export function lookForLeftovers(storageRoot: string, quiet = false): LeftoverLo
  */
 export function stopLeftovers(storageRoot: string, ids: readonly string[]): LeftoverOutcome[] {
   const deps = LEFTOVER_DEPS.current ?? realDeps();
-  const helper = deps.helper(storageRoot, false);
+  const helper = deps.helper(storageRoot);
   if (!helper) return ids.map((id) => ({ id, stopped: false, problem: 'HcsHost.exe is not available.' }));
   const now = ownedSystems(helper);
   const wanted = [...ids].sort((a, b) => Number(b.endsWith('-c')) - Number(a.endsWith('-c')));

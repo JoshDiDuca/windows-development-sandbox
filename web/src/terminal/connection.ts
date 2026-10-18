@@ -19,6 +19,7 @@ export class TerminalConnection {
   private attempt = 0;
   private closed = false;
   private finished = false;
+  private suspended = false;
   private size = { cols: 120, rows: 30 };
 
   constructor(
@@ -69,7 +70,7 @@ export class TerminalConnection {
     socket.onclose = () => {
       if (this.socket !== socket) return;
       this.socket = null;
-      if (this.closed || this.finished) return;
+      if (this.closed || this.finished || this.suspended) return;
       const wait = WAITS_MS[Math.min(this.attempt, WAITS_MS.length - 1)];
       this.attempt++;
       this.events.state('reconnecting');
@@ -84,6 +85,23 @@ export class TerminalConnection {
   resize(cols: number, rows: number): void {
     this.size = { cols, rows };
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ t: 'resize', cols, rows }));
+  }
+
+  /** A hidden page lets go of the session for now (no reconnect); resume() connects again and the screen comes back. */
+  suspend(): void {
+    if (this.closed || this.finished) return;
+    this.suspended = true;
+    window.clearTimeout(this.timer);
+    const socket = this.socket;
+    this.socket = null;
+    socket?.close(1000);
+  }
+
+  resume(): void {
+    if (!this.suspended || this.closed || this.finished) return;
+    this.suspended = false;
+    this.attempt = 0;
+    this.connect();
   }
 
   /** Detach: closes the socket and never reconnects. The session keeps running in the sandbox. */

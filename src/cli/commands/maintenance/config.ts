@@ -27,7 +27,6 @@ import { system32 } from '../../../shared/system.js';
 import { refuseInSelfTest } from '../../../host/test-guard.js';
 import { c, nextStep, table } from '../../output/index.js';
 import { type Context } from '../context.js';
-import { exportCommand, importCommand } from './config-share.js';
 
 /** The settings file exists already: open it, start over, or leave it (no terminal: say how). */
 async function existingFile(file: string): Promise<'open' | 'overwrite' | 'cancel'> {
@@ -160,7 +159,7 @@ function previewFolders(ctx: Context, dir: string, filePath: string, overrides: 
 
 export function config(ctx: Context): number | Promise<number> {
   // get, set, reset and list are the settings feature's operations (cli/operations runs them before this).
-  const [action = 'summary', key] = ctx.options.positionals;
+  const [action = 'summary'] = ctx.options.positionals;
   switch (action) {
     case 'summary':
       table([
@@ -185,10 +184,6 @@ export function config(ctx: Context): number | Promise<number> {
     case 'show':
       console.log(JSON.stringify(redactSecrets(ctx.loaded.config), null, 2));
       return 0;
-    case 'export':
-      return exportCommand(ctx, key);
-    case 'import':
-      return importCommand(ctx, key);
     case 'schema':
       return printSchemaSettings();
     case 'check':

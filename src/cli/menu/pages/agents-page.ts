@@ -1,11 +1,13 @@
 // Section 1: the agents. "Start" lists the agents you can start here (Enter starts one) after "Repeat last", and ends
-// with "Add an agent…" (the new one appears in the list); "Options" holds how a start goes (attach, window, folder) and
-// the other ways to start; "On this PC" has the not-sandboxed entries while agent commands are on.
+// with "Add an agent…" (the agents view's rows and keys: src/app/features/agents); "Options" holds how a start goes
+// (attach, window, folder) and the other ways to start; "On this PC" has the not-sandboxed entries while agent commands
+// are on.
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULTS } from '../../../core/config/index.js';
-import type { Config } from '../../../core/types.js';
-import { errMsg } from '../../../core/util/index.js';
+import type { Action } from '../../../app/kernel/index.js';
+import { agentsPage, listAgents, type AgentsList } from '../../../app/features/agents/index.js';
+import type { ConfigFile } from '../../../app/features/settings/index.js';
+import { readQuery } from '../../../app/registry.js';
 import type { Context } from '../../commands/context.js';
 import { commandLine, readHistory } from '../../history.js';
 import { AgentCommandsService, type AgentCommandsStatus } from '../../services/index.js';
@@ -15,13 +17,13 @@ import {
   Theme,
   type App,
   type Category,
-  type ListAction,
+  type ListItem,
   type ListOptions,
   type ListResult,
 } from '../../tui/index.js';
-import { AddAgent, makeDefaultAgent, removeAgent } from '../add-agent.js';
 import { CommandForm } from '../command-form.js';
-import type { ConfigFile } from '../../../app/features/settings/index.js';
+import { MenuOperations } from '../io-menu.js';
+import { menuView, type MenuView } from '../render-view.js';
 import type { Draft } from '../settings/draft.js';
 import { askPath } from '../settings/ask-path.js';
 import { SeveralAgents } from '../several.js';
@@ -42,28 +44,24 @@ export interface AgentsModel {
   readonly removable?: readonly string[];
 }
 
-/** The agents of `harnesses` that are not built in. Pure. */
-export function addedAgents(names: readonly string[]): string[] {
-  return names.filter((n) => !(n in DEFAULTS.harnesses));
+/** The agents page's data as the agents view takes it. Pure. */
+export function agentsList(m: AgentsModel): AgentsList {
+  const removable = m.removable ?? [];
+  return {
+    folder: m.folder,
+    defaultAgent: m.defaultAgent,
+    agents: m.agents.map((a) => ({
+      name: a.name,
+      ready: a.ready,
+      isDefault: a.name === m.defaultAgent,
+      removable: removable.includes(a.name),
+    })),
+  };
 }
 
-const agentOf = (id: string): string | undefined => (id.startsWith('agent:') ? id.slice(6) : undefined);
-
-/** The keys of the Start category: make an agent the default, remove one you added. Pure. */
-export function agentActions(m: Pick<AgentsModel, 'defaultAgent' | 'removable'>): ListAction<string>[] {
-  const isOther = (id: string): boolean => {
-    const name = agentOf(id);
-    return name !== undefined && name !== m.defaultAgent;
-  };
-  return [
-    { key: 'd', label: 'make default', importance: 1, applies: isOther },
-    {
-      key: 'x',
-      label: 'remove',
-      importance: 1,
-      applies: (id) => isOther(id) && (m.removable ?? []).includes(agentOf(id) ?? ''),
-    },
-  ];
+/** The Start category: the agents view's rows and keys, as the menu draws them. Pure. */
+function startView(m: AgentsModel): MenuView {
+  return menuView(agentsPage(agentsList(m)), { category: 'start', refresh: false });
 }
 
 /**
@@ -88,6 +86,11 @@ export function startArgv(m: AgentsModel, agent: string, cwd: string): string[] 
   ];
 }
 
+/** Settings has unsaved changes to the agents (their list or the default): the agent operations wait for them. */
+export function agentsHaveStagedChanges(file: ConfigFile, draft: Draft): boolean {
+  return draft.has(file, ['harnesses']) || draft.has(file, ['defaultHarness']);
+}
+
 /** The categories of the agents section; "On this PC" only when there is something in it. Pure. */
 export function agentCategories(m: Pick<AgentsModel, 'folder' | 'hostAgents'>): Category[] {
   return [
@@ -109,10 +112,20 @@ export function agentCategories(m: Pick<AgentsModel, 'folder' | 'hostAgents'>): 
   ];
 }
 
+/** A Start row of the view with the menu's own lines: the default's accent and the command a start runs. Pure. */
+function startRow(item: ListItem<string>, m: AgentsModel, cwd: string): ListItem<string> {
+  const name = item.value.startsWith('agent:') ? item.value.slice(6) : undefined;
+  if (name === undefined) return item;
+  return {
+    ...item,
+    hint: (name === m.defaultAgent ? Theme.accent('default  ') : '') + (item.hint ?? ''),
+    details: [Theme.muted('Command  ') + commandLine(startArgv(m, name, cwd))],
+  };
+}
+
 /** The list for the agents section. Pure. */
 export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): ListOptions<string> {
-  const section = 'Start in ' + path.basename(m.folder);
-  const agents = [...m.agents].sort((a, b) => Number(b.name === m.defaultAgent) - Number(a.name === m.defaultAgent));
+  const view = startView(m);
   return {
     path: [],
     categories: agentCategories(m),
@@ -129,36 +142,7 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
             },
           ]
         : []),
-      ...agents.map((a) => ({
-        value: 'agent:' + a.name,
-        label: a.name,
-        category: 'start',
-        section,
-        hint:
-          (a.name === m.defaultAgent ? Theme.accent('default  ') : '') +
-          (a.ready ? Theme.ok('ready') : Theme.muted('installs on first start')),
-        description:
-          'Starts ' +
-          a.name +
-          ' in ' +
-          path.basename(m.folder) +
-          '.' +
-          (a.name === m.defaultAgent ? ' It is the default agent.' : '') +
-          ((m.removable ?? []).includes(a.name) && a.name !== m.defaultAgent
-            ? ' You added it: x removes it.'
-            : (m.removable ?? []).includes(a.name)
-              ? ' You added it. Make another agent the default to remove it.'
-              : ''),
-        details: [Theme.muted('Command  ') + commandLine(startArgv(m, a.name, cwd))],
-      })),
-      {
-        value: 'add',
-        label: 'Add an agent…',
-        category: 'start',
-        section,
-        description:
-          'Add another agent by its npm or Python package, or a program on this PC. It is saved in your settings and appears in this list.',
-      },
+      ...view.items.map((item) => startRow(item, m, cwd)),
       {
         value: 'opt:attach',
         label: 'Attach this terminal',
@@ -214,7 +198,7 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
     ],
     enterLabel: (_category, id) =>
       ENTER[id ?? ''] ?? (id?.startsWith('agent:') ? 'start' : id?.startsWith('host:') ? 'run' : 'open'),
-    actions: (category) => (category === 'start' ? agentActions(m) : []),
+    actions: (category) => (category === 'start' ? view.actions : []),
   };
 }
 
@@ -233,53 +217,40 @@ export class AgentsPage extends ListPage<string> {
   private window: WindowChoice = 'config';
   private folder = process.cwd();
   private model: AgentsModel | undefined;
-  /** What load() looked up (programs on PATH, the history file): not asked again for every list that is built. */
-  private facts: { readonly commands: AgentCommandsStatus; readonly last: string[] | undefined } | undefined;
+  private readonly operations: MenuOperations;
+  /** What load() looked up: the agents view, programs on PATH, the history file. */
+  private facts:
+    | {
+        readonly agents: AgentsList;
+        readonly commands: AgentCommandsStatus;
+        readonly last: string[] | undefined;
+      }
+    | undefined;
 
   constructor(
     app: App,
     private readonly ctx: Context,
-    /** Your own config file and its unsaved changes: where "Add an agent" writes to. */
+    /** Your own config file: the default agent's name for where the cursor starts. */
     private readonly file: ConfigFile,
+    /** Unsaved changes in Settings: while there are some to the agents, the agent operations wait for them. */
     private readonly draft: Draft,
   ) {
     super(app);
-  }
-
-  /** Every agent: the configured ones, and any added in Settings that is not saved yet. */
-  private harnesses(): Config['harnesses'] {
-    const config = this.file.userConfig();
-    const staged = this.draft.has(this.file, ['harnesses'])
-      ? (this.draft.value(this.file, ['harnesses']) as Config['harnesses'] | undefined)
-      : undefined;
-    return { ...config.harnesses, ...staged };
-  }
-
-  /** Is this agent already in the sandbox's persistent storage (so starting it needs no install)? */
-  private installed(name: string, harnesses: Config['harnesses']): boolean {
-    const h = harnesses[name];
-    const dir = path.join(this.ctx.dataPath, 'tools', 'agents', name);
-    return (
-      Boolean(h) &&
-      [h.hostExecutable, h.npmBin && h.npmBin + '.cmd', h.uvBin && h.uvBin + '.exe'].some(
-        (f) => f && fs.existsSync(path.join(dir, f)),
-      )
-    );
+    this.operations = new MenuOperations(app, ctx);
   }
 
   private current(): AgentsModel {
-    const harnesses = this.harnesses();
     if (!this.facts) throw new Error('The agents tab was not loaded');
-    const { commands, last } = this.facts;
+    const { agents, commands, last } = this.facts;
     return {
       folder: this.folder,
-      defaultAgent: this.file.userConfig().defaultHarness,
-      agents: Object.keys(harnesses).map((name) => ({ name, ready: this.installed(name, harnesses) })),
+      defaultAgent: agents.defaultAgent,
+      agents: agents.agents.map((a) => ({ name: a.name, ready: a.ready })),
       last,
       attach: this.attach,
       window: this.window,
       hostAgents: hostAgentsToShow(commands.enabled, commands.found),
-      removable: addedAgents(Object.keys(harnesses)),
+      removable: agents.agents.filter((a) => a.removable).map((a) => a.name),
     };
   }
 
@@ -290,6 +261,7 @@ export class AgentsPage extends ListPage<string> {
 
   protected async load(): Promise<void> {
     this.facts = {
+      agents: await readQuery(listAgents, this.ctx),
       commands: await new AgentCommandsService(this.ctx).statusAsync(),
       last: readHistory()[0]?.argv,
     };
@@ -302,17 +274,21 @@ export class AgentsPage extends ListPage<string> {
   }
 
   protected async act(result: ListResult<string>): Promise<Outcome<string>> {
-    if (result.kind === 'action') return this.action(result.key, result.value);
+    const model = this.current();
+    const chosen = startView(model).resolve(result);
+    if (chosen?.kind === 'action') {
+      const { action } = chosen;
+      // A start keeps the options of this page (attach, window, folder), which the plain link does not know.
+      if (action.kind === 'link' && action.target.kind === 'start-agent')
+        return { exit: { kind: 'run', argv: startArgv(model, action.target.agent, process.cwd()) } };
+      return this.operate(action);
+    }
     if (result.kind !== 'pick') return {};
     const id = result.value;
-    const model = this.current();
     if (id.startsWith('host:')) return { exit: { kind: 'run', argv: ['host', id.slice(5)] } };
-    if (id.startsWith('agent:')) return { exit: { kind: 'run', argv: startArgv(model, id.slice(6), process.cwd()) } };
     switch (id) {
       case 'repeat':
         return model.last ? { exit: { kind: 'run', argv: model.last } } : {};
-      case 'add':
-        return this.add(model);
       case 'opt:attach':
         this.attach = !this.attach;
         return {};
@@ -352,51 +328,10 @@ export class AgentsPage extends ListPage<string> {
     }
   }
 
-  /** Make default (d) and Remove (x) on the highlighted agent. */
-  private async action(key: string, id: string | undefined): Promise<Outcome<string>> {
-    const name = id?.startsWith('agent:') ? id.slice(6) : undefined;
-    if (!name) return {};
-    try {
-      if (key === 'd') {
-        makeDefaultAgent(this.file, this.draft, name);
-        return { focus: id, notice: Theme.ok(Theme.glyph.ok + ' ' + name + ' is the default agent.') };
-      }
-      if (key !== 'x') return {};
-      const ok = await this.app.ask(
-        'Remove ' + name + '?',
-        ['It is taken out of your settings. Its files in the sandbox stay until you clean them up.'],
-        'Remove',
-        true,
-      );
-      if (!ok) return {};
-      removeAgent(this.file, this.draft, name);
-      return {
-        focus: 'agent:' + this.file.userConfig().defaultHarness,
-        notice: Theme.ok(Theme.glyph.ok + ' Removed ' + name + '.'),
-      };
-    } catch (e) {
-      return { notice: Theme.error(Theme.glyph.cross + ' ' + errMsg(e)) };
-    }
-  }
-
-  /** "Add an agent…": the new agent shows in the list, with the cursor on it. */
-  private async add(model: AgentsModel): Promise<Outcome<string>> {
-    try {
-      const added = await new AddAgent(
-        this.app,
-        this.file,
-        this.draft,
-        model.agents.map((a) => a.name),
-      ).run();
-      if (!added) return {};
-      return {
-        focus: 'agent:' + added.name,
-        notice:
-          Theme.ok(Theme.glyph.ok + ' Added ' + added.name + '.') +
-          Theme.muted(added.saved ? ' Enter starts it.' : ' Ctrl+S saves it.'),
-      };
-    } catch (e) {
-      return { notice: Theme.error(Theme.glyph.cross + ' ' + errMsg(e)) };
-    }
+  /** Add, make default and remove run through the menu's dialogs, unless Settings has unsaved changes to the agents. */
+  private async operate(action: Action): Promise<Outcome<string>> {
+    if (agentsHaveStagedChanges(this.file, this.draft))
+      return { notice: Theme.warn('Agents have unsaved changes in Settings: save them (Ctrl+S) or undo them first.') };
+    return this.operations.perform(action, [this.label], (text) => this.busy(text));
   }
 }

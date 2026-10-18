@@ -10,7 +10,7 @@ import { FrameType, sendControl } from '../../shared/pty/index.js';
 import { isWithin } from '../../shared/paths/projects.js';
 import { now } from '../../shared/channel/run-dir.js';
 import { SYSTEM } from '../../shared/system.js';
-import { cargoJobs } from '../../shared/memory/index.js';
+import { buildJobs, cargoJobs, linkSlotsFor, usableCpus } from '../../shared/memory/index.js';
 import { commandLine } from '../sessions/cmdline.js';
 import { freePort } from '../runtime/ports.js';
 import { primaryProject } from '../boot/project-status.js';
@@ -21,7 +21,8 @@ import { saveLocalState } from '../agents/local-state.js';
 import { projectHooks, runHooks, runHooksAsync, type HookTarget } from '../setup/hooks.js';
 import { guestAddresses } from '../network/addresses.js';
 import { withRegistryPath } from '../setup/environment.js';
-import { dataDir, toolsDir } from '../runtime/paths.js';
+import { dataDir, run, toolsDir } from '../runtime/paths.js';
+import { writeJsonAtomic } from '../../shared/io/json.js';
 import { exists } from '../runtime/fs.js';
 import { log, warn } from '../runtime/log.js';
 import { claudeDir, session, workspace } from '../runtime/session.js';
@@ -63,15 +64,44 @@ const harnessFor = (req: SessionRequest): Harness => {
 };
 
 /**
- * What keeps heavy load from taking the sandbox down: the job object's memory limit for everything the agents start
- * (ptyhost reads PTYHOST_JOB_MB) and cargo's parallel jobs sized to the sandbox's memory and the sessions building.
+ * What keeps heavy load from taking the sandbox down: the agents' job with its last-resort backstop (ptyhost reads
+ * PTYHOST_BACKSTOP_MB and the commit limit) and cargo's parallel jobs sized to the sandbox's memory and the sessions
+ * building. Slowing builds down comes first (the governor); the backstop only ever picks a build over Windows.
  */
 export function memoryEnv(env: NodeJS.ProcessEnv, sessions: number): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
-  if (session.agentMemoryLimitMb) out.PTYHOST_JOB_MB = String(session.agentMemoryLimitMb);
-  if (!env.CARGO_BUILD_JOBS)
-    out.CARGO_BUILD_JOBS = String(cargoJobs(os.cpus().length, os.totalmem() / 1024 ** 3, sessions));
+  out.PTYHOST_BACKSTOP_MB = String(session.agentBackstop ?? 'auto');
+  // What a program sees is what it may use: the processors of the CPU cap (the boot job's affinity), not every one.
+  const cpus = usableCpus(os.cpus().length, session.cpuLimitPercent ?? null);
+  const memoryGb = os.totalmem() / 1024 ** 3;
+  const jobs = cargoJobs(cpus, memoryGb, sessions);
+  out.NUMBER_OF_PROCESSORS = String(cpus);
+  if (!env.CARGO_BUILD_JOBS) out.CARGO_BUILD_JOBS = String(jobs);
+  if (!env.CMAKE_BUILD_PARALLEL_LEVEL) out.CMAKE_BUILD_PARALLEL_LEVEL = String(jobs);
+  out.SANDBOX_BUDGET_FILE = run.budgetFile;
+  writeBudget(cpus, memoryGb, jobs, env);
   return out;
+}
+
+/**
+ * run\budget.json (SANDBOX_BUDGET_FILE): the numbers an agent should plan with, because a program in a sandbox sees
+ * the sandbox's maximum (all processors, the whole RAM) rather than what it may use. Never stops a session.
+ */
+function writeBudget(cpus: number, memoryGb: number, jobs: number, env: NodeJS.ProcessEnv): void {
+  try {
+    writeJsonAtomic(run.budgetFile, {
+      processors: cpus,
+      memoryMb: Math.round(memoryGb * 1024),
+      buildJobs: buildJobs(cpus, memoryGb),
+      cargoJobsPerSession: jobs,
+      linkSlots: Number(env.AGENT_LINK_SLOTS) || linkSlotsFor(memoryGb),
+      cpuLimitPercent: session.cpuLimitPercent ?? null,
+      governor: run.pressureFile,
+      note: 'Plan builds with these numbers. When memory runs short the sandbox slows builds down in steps (governor); nothing fails.',
+    });
+  } catch (e) {
+    warn('budget.json could not be written: ' + errMsg(e));
+  }
 }
 
 /** Starts ptyhost for the agent and waits until it listens; a failure carries the tail of ptyhost's own log. */

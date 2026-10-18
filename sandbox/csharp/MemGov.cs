@@ -35,6 +35,24 @@ static class MemGov
     private const uint IdleClass = 0x00000040;
     private const uint BelowNormalClass = 0x00004000;
     private const uint NormalClass = 0x00000020;
+    // The throttle job: compilers join it from the governor's step 2; its CPU cap follows the dial.
+    private const string ThrottleJobName = "Local\\AgentSandboxBuildThrottle";
+    private const uint ProcessTerminate = 0x0001;
+    private const uint ProcessSetQuota = 0x0100;
+    private const int JobObjectCpuRateControlInformation = 15;
+    private const uint CpuRateEnable = 0x1;
+    private const uint CpuRateHardCap = 0x4;
+    private const int ProcessMemoryPriorityClass = 0;
+    private const uint MemoryPriorityLow = 2;
+    private const uint MemoryPriorityNormal = 5;
+
+    // JOBOBJECT_CPU_RATE_CONTROL_INFORMATION (CpuRate in hundredths of a percent).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CpuRateControl
+    {
+        public uint ControlFlags;
+        public uint CpuRate;
+    }
 
     // MEMORYSTATUSEX.
     [StructLayout(LayoutKind.Sequential)]
@@ -77,6 +95,21 @@ static class MemGov
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CloseHandle(IntPtr handle);
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref CpuRateControl info, int length);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool SetProcessInformation(IntPtr process, int infoClass, ref uint info, int length);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimum, IntPtr maximum);
+
         [DllImport("ntdll.dll")]
         public static extern int NtSuspendProcess(IntPtr process);
 
@@ -90,6 +123,7 @@ static class MemGov
     /// <summary>The paused process ids on disk, so a memgov that is killed mid-pause is undone by the next one.</summary>
     private static readonly string HeldFile = Path.Combine(Path.GetTempPath(), "agent-sandbox-memgov-held.txt");
     private static IntPtr job = IntPtr.Zero;
+    private static IntPtr throttleJob = IntPtr.Zero;
     private static volatile bool stop;
 
     static int Main(string[] args)
@@ -113,6 +147,8 @@ static class MemGov
         }
         // A memgov that ended without resuming (killed, crashed) left its pauses in the file: undo them first.
         RecoverHeld();
+        // A memgov that ended while compilers were capped left the cap: lift it before anything else.
+        SetCpuRate(100);
         Thread commands = new Thread(ReadCommands);
         commands.IsBackground = true;
         commands.Start();
@@ -136,7 +172,20 @@ static class MemGov
             }
         }
         ResumeAll();
+        SetCpuRate(100);
         return 0;
+    }
+
+    /// <summary>The self-test's own job (MEMGOV_JOB_NAME, a name in the agents' job family), or null.</summary>
+    private static string TestJobName()
+    {
+        string name = Environment.GetEnvironmentVariable("MEMGOV_JOB_NAME");
+        return !string.IsNullOrEmpty(name) && name.StartsWith(AgentJobName + "Test", StringComparison.Ordinal) ? name : null;
+    }
+
+    private static string JobName()
+    {
+        return TestJobName() ?? AgentJobName;
     }
 
     /// <summary>The job, opened once it exists (ptyhost makes it when the first agent starts).</summary>
@@ -144,7 +193,7 @@ static class MemGov
     {
         if (job == IntPtr.Zero)
         {
-            job = NativeMethods.OpenJobObjectW(JobObjectQuery, false, AgentJobName);
+            job = NativeMethods.OpenJobObjectW(JobObjectQuery, false, JobName());
         }
         return job;
     }
@@ -175,15 +224,17 @@ static class MemGov
             {
                 using (Process p = Process.GetProcessById(pid))
                 {
+                    // Read everything first: a process that ends half way must not leave half an entry behind.
+                    string entry = "{\"pid\":" + pid.ToString(CultureInfo.InvariantCulture)
+                        + ",\"name\":" + Json(p.ProcessName)
+                        + ",\"mb\":" + Mb((ulong)p.PrivateMemorySize64)
+                        + ",\"prio\":\"" + PriorityName(pid) + "\"}";
                     if (!first)
                     {
                         sb.Append(',');
                     }
                     first = false;
-                    sb.Append("{\"pid\":").Append(pid.ToString(CultureInfo.InvariantCulture));
-                    sb.Append(",\"name\":").Append(Json(p.ProcessName));
-                    sb.Append(",\"mb\":").Append(Mb((ulong)p.PrivateMemorySize64));
-                    sb.Append(",\"prio\":\"").Append(PriorityName(pid)).Append("\"}");
+                    sb.Append(entry);
                 }
             }
             catch (Exception)
@@ -277,12 +328,39 @@ static class MemGov
             stop = true;
             return;
         }
+        if (parts.Length == 2 && parts[0] == "cpurate")
+        {
+            int percent;
+            if (int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out percent))
+            {
+                SetCpuRate(percent);
+            }
+            return;
+        }
         int pid;
-        if (parts.Length < 3 || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out pid) || !Allowed(pid))
+        if (parts.Length < 2 || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out pid) || !Allowed(pid))
         {
             return;
         }
-        if (parts[0] == "priority")
+        if (parts[0] == "throttle")
+        {
+            Throttle(pid);
+            return;
+        }
+        if (parts[0] == "trim")
+        {
+            Trim(pid);
+            return;
+        }
+        if (parts.Length < 3)
+        {
+            return;
+        }
+        if (parts[0] == "memprio")
+        {
+            SetMemoryPriority(pid, parts[2] == "low" ? MemoryPriorityLow : MemoryPriorityNormal);
+        }
+        else if (parts[0] == "priority")
         {
             uint cls = parts[2] == "idle" ? IdleClass : parts[2] == "below" ? BelowNormalClass : NormalClass;
             IntPtr process = NativeMethods.OpenProcess(ProcessSetInformation, false, pid);
@@ -300,6 +378,93 @@ static class MemGov
                 return;
             }
             Suspend(pid, Math.Min(ms, MaxSuspendMs));
+        }
+    }
+
+    /// <summary>The throttle job, made once. A process already in the agents' job is nested in it (Windows 8+).</summary>
+    private static IntPtr ThrottleJob()
+    {
+        if (throttleJob == IntPtr.Zero)
+        {
+            string test = TestJobName();
+            throttleJob = NativeMethods.CreateJobObjectW(IntPtr.Zero, test != null ? test + "Throttle" : ThrottleJobName);
+        }
+        return throttleJob;
+    }
+
+    /// <summary>The CPU cap of the compilers in the throttle job, percent of the sandbox; 100 or more lifts it.</summary>
+    private static void SetCpuRate(int percent)
+    {
+        IntPtr throttle = ThrottleJob();
+        if (throttle == IntPtr.Zero)
+        {
+            return;
+        }
+        CpuRateControl info = new CpuRateControl();
+        if (percent < 100)
+        {
+            info.ControlFlags = CpuRateEnable | CpuRateHardCap;
+            info.CpuRate = (uint)(Math.Max(1, percent) * 100);
+        }
+        NativeMethods.SetInformationJobObject(throttle, JobObjectCpuRateControlInformation, ref info, Marshal.SizeOf(typeof(CpuRateControl)));
+    }
+
+    private static void Throttle(int pid)
+    {
+        IntPtr throttle = ThrottleJob();
+        if (throttle == IntPtr.Zero)
+        {
+            return;
+        }
+        IntPtr process = NativeMethods.OpenProcess(ProcessSetQuota | ProcessTerminate, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return;
+        }
+        try
+        {
+            NativeMethods.AssignProcessToJobObject(throttle, process);
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
+    }
+
+    /// <summary>Low memory priority: Windows trims this process's pages before others' (the agents keep theirs).</summary>
+    private static void SetMemoryPriority(int pid, uint priority)
+    {
+        IntPtr process = NativeMethods.OpenProcess(ProcessSetInformation, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return;
+        }
+        try
+        {
+            uint value = priority;
+            NativeMethods.SetProcessInformation(process, ProcessMemoryPriorityClass, ref value, sizeof(uint));
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
+    }
+
+    /// <summary>A waiting compiler's pages go to the paging file now, so the ones that run have the RAM.</summary>
+    private static void Trim(int pid)
+    {
+        IntPtr process = NativeMethods.OpenProcess(ProcessSetQuota, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return;
+        }
+        try
+        {
+            NativeMethods.SetProcessWorkingSetSize(process, new IntPtr(-1), new IntPtr(-1));
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
         }
     }
 

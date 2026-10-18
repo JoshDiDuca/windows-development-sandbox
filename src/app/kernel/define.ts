@@ -50,14 +50,17 @@ export interface CliHint {
   readonly json?: boolean;
   /** Shapes what --json prints (kept as the command printed it before the core); default: the output. */
   shapeJson?(output: unknown): unknown;
+  /** The command's exit code for this output (default 0). */
+  exitCode?(output: unknown): number;
   readonly examples?: readonly string[];
 }
 
 /** A CliHint as written in a definition: field names checked against the input, the output typed. */
-export interface TypedCliHint<I, O> extends Omit<CliHint, 'positional' | 'flags' | 'shapeJson'> {
+export interface TypedCliHint<I, O> extends Omit<CliHint, 'positional' | 'flags' | 'shapeJson' | 'exitCode'> {
   readonly positional?: readonly (keyof I & string)[];
   readonly flags?: { readonly [K in keyof I]?: CliFlag };
   shapeJson?(output: O): unknown;
+  exitCode?(output: O): number;
 }
 
 interface Definition<Id extends string, I extends z.ZodType, O extends z.ZodType> {
@@ -72,6 +75,8 @@ interface Definition<Id extends string, I extends z.ZodType, O extends z.ZodType
   readonly cli?: CliHint;
   /** The output in one text: what an operation did, or a value a query read (CLI output, menu notice, web note). */
   text?(output: z.output<O>): string;
+  /** The next step to suggest after the text, CLI only (a dimmed "Next:" line); menu and web ignore it. */
+  next?(output: z.output<O>): string | undefined;
 }
 
 /** What a definition is written as: its CLI hint typed against its own schemas. */
@@ -121,8 +126,12 @@ export interface ViewDef<Q extends QueryMap = QueryMap, P = Record<string, never
   readonly queries: Q;
   /** Every operation the page may offer (the parity check reads this). */
   readonly operations: readonly OperationDef[];
+  /** Queries its inputs read while you fill them in (the web's folder picker reads files.browse). */
+  readonly pickers?: readonly QueryDef[];
   /** A parameter switched with tabs above the page (Settings: all projects or this project), first choice default. */
   readonly tabs?: ViewTabs<P>;
+  /** Parameters taken from the address as they are (the log shown), besides the tabs' one. */
+  readonly params?: readonly (keyof P & string)[];
   /** The input of each query for these view parameters (default: each query's defaults). */
   inputs?(params: P): ViewInputs<Q>;
   /** Pure: query results in, a Page out. */

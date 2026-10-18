@@ -222,7 +222,14 @@ export abstract class ListPage<T> implements Page {
     const step = this.screen().handle(key);
     if (!step) return this.afterKey();
     const result = step.done;
-    const outcome = result.kind === 'back' ? { exit: { kind: 'quit' } as ShellExit } : await this.act(result);
+    let outcome: Outcome<T>;
+    try {
+      outcome = result.kind === 'back' ? { exit: { kind: 'quit' } as ShellExit } : await this.act(result);
+    } catch (e) {
+      // Whatever an action does wrong, the menu stays: the problem is shown where the action was chosen.
+      if (e instanceof Error && (e.name === 'ExitRequested' || e.name === 'ExitPromptError')) throw e;
+      outcome = { notice: Theme.error(Theme.glyph.cross + ' ' + errMsg(e)) };
+    }
     if (outcome.exit) return { done: outcome.exit };
     // What the action changed (a stop, a restart) is known to the menu before the page loads again. An action that
     // loads nothing again changed nothing the menu shows, so the keys do not wait for it.

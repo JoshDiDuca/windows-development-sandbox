@@ -59,6 +59,40 @@ getting updates, and a fix patched into the installed one would not be the one y
 `npm run install:global -- --force`; it prints how to undo it (`npm uninstall -g windows-development-sandbox`).
 `sandbox doctor` lists every copy on the PATH, and `sandbox --version` says where the running one is.
 
+## HCS engine workflow
+
+`.github/workflows/hcs-engine.yml` tests the alpha HCS engine on GitHub-hosted `windows-2022` and `windows-2025`
+runners. It runs only by hand: Actions tab > "HCS engine (alpha)" > Run workflow (never on push or pull request). The
+`require_hyperv` input makes the job fail when the Hyper-V utility VM cannot be started; by default that is reported
+only. No secrets are used.
+
+What it does, per runner: build; `self-test hcs,engine`; the read-only `Test-Hcs.ps1` probe; `engine check hcs` and
+`engine --json`; build `HcsHost.exe` with csc; pull `mcr.microsoft.com/windows/servercore:ltsc2022`; run it with
+Docker in process and in Hyper-V isolation (informational); then the go/no-go,
+`scripts/experiments/hcs/Test-HcsLifecycle.ps1`: with the documents our code generates from the pulled image
+(`export-documents.mjs`), HcsHost.exe creates the agent and scratch disks, grants the VM access, creates and starts the
+Hyper-V utility VM, tries the container inside it (informational: the writable layer is not built yet), and terminates
+both. A cleanup step always terminates leftovers, only ones HcsHost's guards accept (`agent-sandbox-*` ids with Owner
+`agent-sandbox`). The job summary has a pass/fail table and says which isolation worked; logs are uploaded as the
+`hcs-logs-<os>` artifacts.
+
+What it cannot test: hosted runners are virtual machines, and Hyper-V isolation needs nested virtualization, which
+GitHub does not document for them. If the utility VM step fails there, the summary says Hyper-V isolation still needs a
+real PC. Process isolation (shares the host kernel) is not what the engine ships and is only run to show the image
+works. Also not covered: the terminal bridge, Node and csc inside Server Core, VHDX formatting, networking.
+
+Once a run confirms it works, make `release.yml` run it on version pushes by adding a job there and making the
+publishing job wait for it:
+
+```yaml
+  hcs:
+    uses: ./.github/workflows/hcs-engine.yml
+    with:
+      require_hyperv: true
+```
+
+plus `needs: [hcs]` on the job that publishes. It is not added yet on purpose.
+
 ## Inside the sandbox
 
 Project scripts can check `AGENT_SANDBOX=1` to know they run in the sandbox, and `AGENT_SANDBOX_WORKSPACE` for the

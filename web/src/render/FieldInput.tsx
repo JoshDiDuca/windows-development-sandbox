@@ -2,6 +2,8 @@
 // its range, text, a hidden secret, a path, tags for lists, and JSON for shapes no input fits. The same Fields the
 // menu's editors read (app/kernel/fields.ts).
 import {
+  ActionIcon,
+  Group,
   JsonInput,
   MultiSelect,
   NumberInput,
@@ -11,9 +13,12 @@ import {
   Switch,
   TagsInput,
   TextInput,
+  Tooltip,
 } from '@mantine/core';
+import { IconFolderOpen } from '@tabler/icons-react';
 import { useState } from 'react';
 import type { ChoiceValue, Field } from '../../../src/app/kernel/index';
+import { pickPath } from './FolderPicker';
 
 interface FieldInputProps {
   readonly field: Field;
@@ -59,6 +64,31 @@ function EnumInput({ field, value, onChange, error }: FieldInputProps) {
         />
       )}
     </Stack>
+  );
+}
+
+/** The button beside a path that opens the folder picker. */
+export function BrowseButton({
+  field,
+  value,
+  onPick,
+}: {
+  readonly field: Field;
+  readonly value: string | undefined;
+  readonly onPick: (path: string) => void;
+}) {
+  const kind = field.pathKind ?? field.element?.pathKind ?? 'dir';
+  return (
+    <Tooltip label={kind === 'file' ? 'Choose a file' : 'Choose a folder'}>
+      <ActionIcon
+        variant="default"
+        size={36}
+        aria-label="Browse"
+        onClick={() => void pickPath(kind, value, field.label).then((picked) => picked && onPick(picked))}
+      >
+        <IconFolderOpen size={18} stroke={1.6} />
+      </ActionIcon>
+    </Tooltip>
   );
 }
 
@@ -127,17 +157,23 @@ export function FieldInput(props: FieldInputProps) {
         />
       );
     case 'path':
+      return (
+        <Group gap="xs" align="flex-end" wrap="nowrap">
+          <TextInput
+            {...common}
+            style={{ flex: 1 }}
+            ff="monospace"
+            placeholder={field.literals?.length ? field.literals.join(' or ') + ', or a path' : 'C:\\…'}
+            value={typeof value === 'string' ? value : ''}
+            onChange={(e) => onChange(e.currentTarget.value)}
+          />
+          <BrowseButton field={field} value={typeof value === 'string' ? value : undefined} onPick={onChange} />
+        </Group>
+      );
     case 'text':
       return (
         <TextInput
           {...common}
-          description={
-            field.kind === 'path'
-              ? [field.help, 'The full path of a ' + (field.pathKind === 'file' ? 'file' : 'folder') + ' on this PC.']
-                  .filter(Boolean)
-                  .join(' ')
-              : field.help
-          }
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange(e.currentTarget.value)}
         />
@@ -153,8 +189,18 @@ export function FieldInput(props: FieldInputProps) {
             onChange={(picked) => onChange(picked.map((p) => choiceOf(field.element!, p) ?? p))}
           />
         );
-      if (field.element && ['text', 'path'].includes(field.element.kind))
-        return <TagsInput {...common} value={items} onChange={onChange} clearable />;
+      if (field.element?.kind === 'path')
+        return (
+          <Group gap="xs" align="flex-end" wrap="nowrap">
+            <TagsInput {...common} style={{ flex: 1 }} value={items} onChange={onChange} clearable />
+            <BrowseButton
+              field={field}
+              value={undefined}
+              onPick={(picked) => onChange(items.includes(picked) ? items : [...items, picked])}
+            />
+          </Group>
+        );
+      if (field.element?.kind === 'text') return <TagsInput {...common} value={items} onChange={onChange} clearable />;
       return <JsonFieldInput {...props} />;
     }
     default:

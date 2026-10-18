@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { CliOptions } from '../args.js';
 import type { LoadedConfig } from '../../core/types.js';
-import { loadConfig, userDir } from '../../core/config/index.js';
-import { expandPath, fail, isInsideOrEqual } from '../../core/util/index.js';
+import { DEFAULTS, loadConfig, userDir } from '../../core/config/index.js';
+import { expandPath, fail, isInsideOrEqual, UserError } from '../../core/util/index.js';
 import { GUEST_DATA_DIR, insideSandbox, isSandboxRunning } from '../../host/sandbox/index.js';
 import type { Borrowed } from '../../host/sharing/index.js';
 
@@ -51,6 +51,33 @@ export function createContext(packageRoot: string, entry: string, options: CliOp
     storageRoot,
     dataPath: insideSandbox() ? GUEST_DATA_DIR : path.join(storageRoot, 'data', loaded.config.storage.dataName),
   };
+}
+
+/**
+ * The built-in defaults as a context, for a command that must run even when the settings file is broken (the
+ * settings problem is then the command's own to report).
+ */
+export function defaultsContext(packageRoot: string, entry: string, options: CliOptions): Context {
+  const loaded = { config: structuredClone(DEFAULTS), configPath: null, base: userDir() };
+  const storageRoot = expandPath(loaded.config.storage.root, loaded.base);
+  return {
+    packageRoot,
+    entry,
+    options,
+    loaded,
+    storageRoot,
+    dataPath: path.join(storageRoot, 'data', loaded.config.storage.dataName),
+  };
+}
+
+/** The context of a command that must not stop on a broken settings file: the defaults when createContext refuses. */
+export function contextOrDefaults(packageRoot: string, entry: string, options: CliOptions): Context {
+  try {
+    return createContext(packageRoot, entry, options);
+  } catch (e) {
+    if (!(e instanceof UserError)) throw e;
+    return defaultsContext(packageRoot, entry, options);
+  }
 }
 
 /** Reads the config again and takes the storage folder from it (after a migration or a move changed it). */

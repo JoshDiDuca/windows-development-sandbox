@@ -1,5 +1,12 @@
 # 05 · Storage (and the web folder browser)
 
+> **Superseded part (2026-10-16): the folder browser is already built.** The query is `files.browse`
+> (`src/app/features/files/`, input `{ path?, files }`, output with `entries`, `parent` and `places`), and the web's
+> `web/src/render/FolderPicker.tsx` uses it for every path Field, path list and `io.path` question. Views name it in
+> `pickers` (the parity test counts those). Skip everything below about `files.list`, `WEB_TOOLS`, moving
+> `path-listing.ts` and the FolderBrowser component, and its tests (checks 6 and the folder-browser lines of the
+> report). Do only the storage part of this area.
+
 Read [00-worked-example.md](00-worked-example.md) and [04-data.md](04-data.md) first (this area uses the prerequisites
 area 4 added: `noTerminal` on every question, `next()`, the Maintenance children in `NAV`).
 

@@ -15,7 +15,8 @@ User docs: README.md and docs/. Contributor summary: CONTRIBUTING.md. Releases: 
 ## Hard rules
 - **Features are written once in `src/app`; surfaces only render.** An operation, query or view is defined in
   `src/app/features/<area>` (docs/design/shared-core.md); the CLI, the menu and the web UI draw its Page and run it
-  through the registry, with no logic of their own. The kernel and `*.def.ts` are pure (the web bundle imports them);
+  through the registry, with no logic of their own. The web draws every Page with one renderer (no React per area;
+  docs/design/web-ui-standard.md). The kernel and `*.def.ts` are pure (the web bundle imports them);
   `npm test app` fails when an operation is not reachable on every surface and declares no exemption.
 - **Never on a real PC.** The self-test refuses to run outside a Windows Sandbox or GitHub Actions
   (`onThrowawayMachine`). Tests use only temp folders they create: never the real `~/.agent-sandbox`, registry, PATH,

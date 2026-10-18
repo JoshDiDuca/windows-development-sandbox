@@ -36,15 +36,16 @@ export const HCS_CHECKS: Check[] = [
     // Shown for the HCS engine, and on any PC where one of ours is found (never builds HcsHost.exe to look).
     applies: (env) => hcsInUse(env) || lookQuietly(env).length > 0,
     timeoutMs: 60000,
-    run: (env): Finding => {
-      const look = lookForLeftovers(env.ctx.loaded.config.storage.root, true);
+    run: (env: RepairEnv): Finding => {
+      const look = lookForLeftovers(env.ctx.loaded.config.storage.root);
       if (!look.available)
         return { status: 'skipped', detail: look.reason, means: 'No HCS system can be left running here.' };
       if (!look.systems.length) return ok('none of ours is running');
       return {
         status: 'warn',
         detail: look.systems.length + ' running: ' + look.systems.map((s) => s.id).join(', '),
-        means: 'A command that crashed left them up. They hold memory until stopped; no data is lost.',
+        means:
+          'They hold memory until stopped (a crashed command can leave one up). If a sandbox is running on purpose, leave them.',
         fix: 'sandbox engine clean',
       };
     },
@@ -53,6 +54,6 @@ export const HCS_CHECKS: Check[] = [
 
 /** The ids of ours that are running ([] when HCS is not there or has never been used). */
 function lookQuietly(env: RepairEnv): string[] {
-  const look = lookForLeftovers(env.ctx.loaded.config.storage.root, true);
+  const look = lookForLeftovers(env.ctx.loaded.config.storage.root);
   return look.available ? look.systems.map((s) => s.id) : [];
 }

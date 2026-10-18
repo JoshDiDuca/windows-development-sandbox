@@ -1,11 +1,42 @@
-// The engine feature's work: looking for HCS systems this tool left running, and stopping them.
+// The engine feature's work: what each engine can do and whether this PC can run it (engineReports, which runs a few
+// Windows programs, so it is read on purpose and never live). Nothing is run or changed for the check's fixes.
 import { fail, safeText } from '../../../core/util/index.js';
-import { lookForLeftovers, stopLeftovers } from '../../../host/engines/index.js';
+import { engineReports, lookForLeftovers, stopLeftovers, type EngineReport } from '../../../host/engines/index.js';
 import { implement } from '../../context.js';
 import { cancelled, plural } from '../../kernel/index.js';
-import { cleanEngine, engineLeftovers, type Leftovers } from './engine.def.js';
+import {
+  checkEngine,
+  cleanEngine,
+  engineLeftovers,
+  engineStatus,
+  type EngineReportRow,
+  type Leftovers,
+} from './engine.def.js';
 
-const NOT_AVAILABLE = ' Nothing to clean.';
+/** The report as the definitions describe it (the host's arrays are readonly; the output is plain data). */
+function reportRow(r: EngineReport): EngineReportRow {
+  return {
+    id: r.id,
+    inUse: r.inUse,
+    capabilities: { ...r.capabilities },
+    check: { available: r.check.available, reasons: [...r.check.reasons], fixes: [...r.check.fixes] },
+  };
+}
+
+export const engineStatusRun = implement(engineStatus, async (ctx) => {
+  const reports = await engineReports(ctx.loaded.config);
+  const using = reports.find((r) => r.inUse);
+  return {
+    engine: using?.id ?? ctx.loaded.config.sandbox.engine,
+    engines: reports.map(reportRow),
+  };
+});
+
+export const checkEngineRun = implement(checkEngine, async (ctx, input) => {
+  const report = (await engineReports(ctx.loaded.config)).find((r) => r.id === input.engine);
+  if (!report) return fail('Unknown engine: ' + input.engine, 'Use windows-sandbox or hcs.');
+  return reportRow(report);
+});
 
 export const engineLeftoversRun = implement(engineLeftovers, (ctx): Leftovers => {
   const look = lookForLeftovers(ctx.loaded.config.storage.root);
@@ -28,14 +59,15 @@ export const engineLeftoversRun = implement(engineLeftovers, (ctx): Leftovers =>
 export const cleanEngineRun = implement(cleanEngine, async (ctx, _input, io) => {
   const root = ctx.loaded.config.storage.root;
   const look = lookForLeftovers(root);
-  if (!look.available) return { available: false, stopped: 0, failed: 0, message: look.reason + NOT_AVAILABLE };
+  if (!look.available) return { available: false, stopped: 0, failed: 0, message: look.reason + ' Nothing to clean.' };
   if (!look.systems.length)
     return { available: true, stopped: 0, failed: 0, message: 'No HCS system of ours is running. Nothing to clean.' };
   const yes = await io.confirm({
     title: 'Stop ' + plural(look.systems.length, 'HCS system') + '?',
     lines: [
       ...look.systems.map((s) => s.id + '  (' + safeText(s.kind) + ', ' + safeText(s.state) + ')'),
-      'They hold memory until stopped. Nothing is deleted.',
+      'A sandbox that is running on purpose is listed too: stopping it ends its sessions, and anyone else on this PC who uses this tool loses theirs.',
+      'No file is deleted and no other program is touched.',
     ],
     yes: 'Stop them',
     danger: true,

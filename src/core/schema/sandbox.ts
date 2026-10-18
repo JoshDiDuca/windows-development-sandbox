@@ -30,7 +30,9 @@ export const SandboxSchema = z.strictObject({
     ),
   memoryMb: z
     .union([z.literal('auto'), z.number().int().min(2048)])
-    .describe('Sandbox RAM in MB (>= 2048), or "auto": free RAM minus reserveHostMb, capped at maxMemoryMb.'),
+    .describe(
+      'Sandbox RAM in MB (>= 2048), or "auto": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered.',
+    ),
   maxMemoryMb: z.number().int().positive().describe('Upper limit for memoryMb "auto".'),
   maxMemoryPercent: z
     .number()
@@ -61,12 +63,12 @@ export const SandboxSchema = z.strictObject({
   agentMemoryHeadroomMb: z
     .union([z.literal('auto'), z.literal('none'), z.number().int().min(0)])
     .describe(
-      'Memory kept out of the agents reach inside the sandbox, in MB: everything the agents start (their builds, tests, tools) together may use at most the sandbox memory minus this; a runaway parallel build then gets out-of-memory errors in its own session instead of freezing or crashing the whole sandbox. "auto" = the larger of 2048 MB and 10 % of the sandbox memory; "none" = no limit. Yours only: a project file cannot change it.',
+      'The last resort that keeps the sandbox up, in MB below its commit limit (RAM plus paging file): builds are slowed down long before (sandbox.pressureResponse); only if everything the agents start together would take the sandbox to the very edge of its memory, where Windows inside it would start failing, is a build refused memory instead of Windows. "auto" = the larger of 1536 MB and 3 % of the commit limit; "none" = no backstop. Yours only: a project file cannot change it.',
     ),
   pressureResponse: z
     .boolean()
     .describe(
-      'When the sandbox (or this PC) runs low on memory, slow the heaviest build programs down (lower priority) and, if that is not enough, pause the biggest compiler for a few seconds at a time, so heavy parallel builds slow down instead of closing the sandbox. Never touches the agents themselves. Yours only: a project file cannot change it.',
+      'When the sandbox (or this PC) runs low on memory, slow builds down in steps, like a PC that gets slower instead of failing: build programs get lower CPU and memory priority, then less CPU, then compilers take turns (the waiting ones briefly suspended and trimmed to the paging file). Nothing is stopped or killed, and the agents themselves are never touched. Yours only: a project file cannot change it.',
     ),
   vGpu: z
     .boolean()

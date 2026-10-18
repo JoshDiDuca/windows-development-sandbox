@@ -1,27 +1,20 @@
 export { createContext, type Context } from './context.js';
 export { launch } from './launch/index.js';
 export { setup } from './setup/index.js';
-export { data } from './data/index.js';
-export { storage, storageBeforeCommand } from './storage/index.js';
+export { storageBeforeCommand } from './storage/index.js';
 export { repairCommand } from './repair/index.js';
+export { contextOrDefaults } from './context.js';
 export { attach, db, exec } from './sessions/index.js';
-export { account } from './accounts.js';
 export { resume } from './resume.js';
-export { projects } from './projects/index.js';
 export {
   audit,
   claudeHost,
-  clean,
   config,
   doctor,
   hostCommand,
   logs,
-  migrate,
   migrateBeforeCommand,
-  runMigrate,
-  runUpdate,
   sync,
-  update,
   updatesBeforeCommand,
   watcher,
 } from './maintenance/index.js';

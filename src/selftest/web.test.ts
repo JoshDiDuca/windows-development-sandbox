@@ -190,7 +190,7 @@ export const webSuite: Suite = {
     const cookie = good.ok ? good.cookie : '';
     t.check(auth.signedIn('x=1; sbxweb=' + cookie), 'the cookie signs in');
     t.check(
-      !auth.signedIn('sbxweb=' + cookie.replace(/.$/, '0')) && !auth.signedIn(undefined),
+      !auth.signedIn('sbxweb=' + cookie.replace(/.$/, (c) => (c === '0' ? '1' : '0'))) && !auth.signedIn(undefined),
       'another cookie does not',
     );
     clock += 13 * 60 * 60 * 1000;
@@ -276,7 +276,6 @@ export const webSuite: Suite = {
     await fake.start();
     const endpoint: Endpoint = { addresses: ['127.0.0.1'], port: fake.port, token: ATTACH_TOKEN };
     const listed: WebSession = webSession(session('abc123'), 0);
-    const created: unknown[] = [];
     const backend: WebBackend = {
       info: () =>
         Promise.resolve({
@@ -289,10 +288,6 @@ export const webSuite: Suite = {
         }),
       sessions: () => Promise.resolve([listed]),
       endpoint: (id) => (id === 'abc123' ? endpoint : null),
-      create: (request) => {
-        created.push(request);
-        return Promise.resolve(listed);
-      },
     };
     let stopped = false;
     const rpc = fakeRpc();
@@ -303,6 +298,7 @@ export const webSuite: Suite = {
       staticRoot: root,
       rpc: rpc.host,
       onStop: () => (stopped = true),
+      heartbeatMs: 200,
     });
     await server.start();
     const { port } = server;
@@ -389,22 +385,9 @@ export const webSuite: Suite = {
       t.equal((await send(port, 'GET', '/api/info', { Cookie })).status, 200, 'and reads the info');
       t.equal(
         (await send(port, 'POST', '/api/sessions', { ...json, Cookie }, '{}')).status,
-        403,
-        'a new session needs CSRF and Origin',
+        404,
+        'starting an agent is an operation now: there is no POST /api/sessions',
       );
-      t.equal(
-        (await send(port, 'POST', '/api/sessions', { ...ajax, Cookie }, '{"harness":"../x","project":"p"}')).status,
-        400,
-        'odd names are refused',
-      );
-      const made = await send(
-        port,
-        'POST',
-        '/api/sessions',
-        { ...ajax, Cookie },
-        '{"harness":"claude","project":"app"}',
-      );
-      t.check(made.status === 201 && created.length === 1, 'a new session is requested');
 
       t.section('the terminal bridge');
       const url = 'ws://127.0.0.1:' + port + '/api/sessions/abc123/terminal?cols=100&rows=40';
@@ -550,6 +533,33 @@ export const webSuite: Suite = {
       leaver.socket.close();
       await t.waitFor(() => leaver.closeCode !== null, 5000);
       t.check(rpc.ran.length === runs + 1, 'a browser that leaves mid-question answers no (the call ends)');
+
+      t.section('connections never pile up');
+      const tabs: Tab[] = [];
+      for (let i = 0; i < 9; i++) {
+        const tab = new Tab(rpcUrl, { Origin: origin, Cookie });
+        tabs.push(tab);
+        await t.waitFor(() => tab.opened || tab.failed, 5000);
+      }
+      await t.waitFor(() => server.openSockets('rpc') <= 8, 5000);
+      t.check(
+        tabs.every((tab) => tab.opened) && server.openSockets('rpc') === 8,
+        'a new page always connects: at the limit the oldest connection makes room',
+        'open: ' + server.openSockets('rpc'),
+      );
+      t.check(
+        [browser, ...tabs].some((tab) => tab.closeCode === 4000),
+        'the oldest is closed with "replaced by a newer page"',
+      );
+      for (const tab of tabs) tab.socket.close();
+
+      const silent = new WebSocket(rpcUrl, { headers: { Origin: origin, Cookie }, autoPong: false });
+      let silentClosed = false;
+      silent.on('close', () => (silentClosed = true));
+      silent.on('error', () => undefined);
+      await t.waitFor(() => silent.readyState === WebSocket.OPEN, 5000);
+      await t.waitFor(() => silentClosed, 3000);
+      t.check(silentClosed, 'a page that stops answering pings (gone without closing) is dropped');
 
       t.section('stopping');
       t.equal(

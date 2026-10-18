@@ -5,18 +5,11 @@ import fs from 'node:fs';
 import http from 'node:http';
 import type net from 'node:net';
 import type { Duplex } from 'node:stream';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, type WebSocket } from 'ws';
 import type { RpcHost } from '../../app/kernel/index.js';
 import { UserError, safeText } from '../../core/util/index.js';
 import type { Endpoint } from '../../shared/pty/index.js';
-import {
-  MAX_CLIENT_MESSAGE_BYTES,
-  MAX_COLS,
-  MAX_ROWS,
-  MIN_COLS,
-  MIN_ROWS,
-  type NewSessionRequest,
-} from '../../shared/web/index.js';
+import { MAX_CLIENT_MESSAGE_BYTES, MAX_COLS, MAX_ROWS, MIN_COLS, MIN_ROWS } from '../../shared/web/index.js';
 import { cookieHeader, csrfOk, hostAllowed, originAllowed, WebAuth } from './auth.js';
 import type { WebBackend } from './backend.js';
 import { TerminalBridge } from './bridge.js';
@@ -31,6 +24,10 @@ export const CONTENT_SECURITY_POLICY =
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_TERMINALS = 16;
 const MAX_RPC_SOCKETS = 8;
+/** Every socket is pinged this often; one that has not answered the last ping by the next is dropped. */
+const HEARTBEAT_MS = 20_000;
+/** The server ends after this long with no request, no socket and no sandbox running (it starts again with one). */
+export const IDLE_EXIT_MS = 30 * 60_000;
 const SESSION_PATH = /^\/api\/sessions\/([A-Za-z0-9_-]{1,64})\/terminal$/;
 export const RPC_PATH = '/api/rpc';
 
@@ -47,6 +44,17 @@ export interface WebServerOptions {
   readonly dial?: (endpoint: Endpoint) => Promise<net.Socket>;
   /** The shared core's operations and queries the browser may run (none: /api/rpc is not served). */
   readonly rpc?: RpcHost;
+  /** End by itself (onStop) after this long unused while no sandbox runs; 0 or missing: never (tests). */
+  readonly idleExitMs?: number;
+  /** Heartbeat period (tests make it short). */
+  readonly heartbeatMs?: number;
+}
+
+/** A browser's socket: which kind, whether it answered the last ping, and when it was opened. */
+interface Tracked {
+  readonly kind: 'terminal' | 'rpc';
+  readonly opened: number;
+  alive: boolean;
 }
 
 class HttpFailure extends Error {
@@ -67,15 +75,20 @@ export class WebServer {
   });
   private readonly auth: WebAuth;
   private readonly files: StaticFiles;
-  private terminals = 0;
-  private rpcSockets = 0;
+  private readonly tracked = new Map<WebSocket, Tracked>();
   private actualPort = 0;
+  private lastUsed = Date.now();
+  private heartbeat: NodeJS.Timeout | undefined;
+  private idleCheck: NodeJS.Timeout | undefined;
 
   constructor(private readonly options: WebServerOptions) {
     this.auth = new WebAuth(options.token);
     this.files = new StaticFiles(options.staticRoot);
     this.server = http.createServer((req, res) => void this.handle(req, res));
-    this.server.on('upgrade', (req, socket, head) => this.upgrade(req, socket, head));
+    this.server.on('upgrade', (req, socket, head) => {
+      this.lastUsed = Date.now();
+      this.upgrade(req, socket, head);
+    });
     this.server.headersTimeout = 15000;
     this.server.requestTimeout = 0; // creating a session waits for the agent to start
   }
@@ -90,12 +103,75 @@ export class WebServer {
       this.server.listen(this.options.port, '127.0.0.1', () => {
         this.server.off('error', reject);
         this.actualPort = (this.server.address() as net.AddressInfo).port;
+        this.heartbeat = setInterval(() => this.beat(), this.options.heartbeatMs ?? HEARTBEAT_MS);
+        this.heartbeat.unref();
+        if (this.options.idleExitMs) {
+          this.idleCheck = setInterval(() => void this.checkIdle(), Math.min(60_000, this.options.idleExitMs));
+          this.idleCheck.unref();
+        }
         resolve();
       });
     });
   }
 
+  /** How many browser sockets are open, by kind. */
+  openSockets(kind: Tracked['kind']): number {
+    return [...this.tracked.values()].filter((t) => t.kind === kind).length;
+  }
+
+  /**
+   * Drops sockets that did not answer the last ping (a tab that went away without closing: sleep, a killed browser),
+   * so they never hold a slot or a session connection.
+   */
+  private beat(): void {
+    for (const [ws, t] of this.tracked) {
+      if (!t.alive) {
+        ws.terminate();
+        continue;
+      }
+      t.alive = false;
+      try {
+        ws.ping();
+      } catch {
+        ws.terminate(); // the socket broke between the check and the ping
+      }
+    }
+  }
+
+  /** Nothing has used the server for a while and no sandbox runs: it ends (the next launch starts it again). */
+  private async checkIdle(): Promise<void> {
+    const limit = this.options.idleExitMs ?? 0;
+    if (!limit || this.tracked.size > 0 || Date.now() - this.lastUsed < limit) return;
+    try {
+      if ((await this.options.backend.info()).sandbox === 'running') return;
+    } catch {
+      return; // cannot tell: keep running
+    }
+    this.options.onStop?.();
+  }
+
+  /** Counts a new socket; at the limit, the oldest of its kind makes room (a new tab always works). */
+  private track(ws: WebSocket, kind: Tracked['kind'], limit: number): void {
+    const same = [...this.tracked.entries()]
+      .filter(([, t]) => t.kind === kind)
+      .sort((a, b) => a[1].opened - b[1].opened);
+    for (const [old] of same.slice(0, Math.max(0, same.length - limit + 1)))
+      old.close(4000, 'replaced by a newer page');
+    this.tracked.set(ws, { kind, opened: Date.now(), alive: true });
+    ws.on('pong', () => {
+      const t = this.tracked.get(ws);
+      if (t) t.alive = true;
+    });
+    ws.on('message', () => (this.lastUsed = Date.now()));
+    ws.on('close', () => {
+      this.tracked.delete(ws);
+      this.lastUsed = Date.now();
+    });
+  }
+
   stop(): Promise<void> {
+    clearInterval(this.heartbeat);
+    clearInterval(this.idleCheck);
     for (const client of this.sockets.clients) client.close(1001, 'server stopping');
     this.server.closeAllConnections();
     return new Promise((resolve) => this.server.close(() => resolve()));
@@ -122,6 +198,7 @@ export class WebServer {
   }
 
   private async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    this.lastUsed = Date.now();
     try {
       if (!hostAllowed(req.headers.host, this.actualPort)) throw new HttpFailure(421, 'Wrong host name.');
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -171,12 +248,6 @@ export class WebServer {
     if (!this.auth.signedIn(req.headers.cookie)) throw new HttpFailure(401, 'Not signed in.');
     if (pathname === '/api/info' && method === 'GET') return this.json(res, 200, await backend.info());
     if (pathname === '/api/sessions' && method === 'GET') return this.json(res, 200, await backend.sessions());
-    if (pathname === '/api/sessions' && method === 'POST') {
-      this.requireSameSite(req);
-      const request = newSessionRequest(await this.body(req));
-      if (!request) throw new HttpFailure(400, 'Choose an agent and a project.');
-      return this.json(res, 201, await backend.create(request));
-    }
     if (pathname === '/api/stop' && method === 'POST') {
       this.requireSameSite(req);
       this.json(res, 200, { ok: true });
@@ -222,32 +293,22 @@ export class WebServer {
     // The Origin must be this page (a page of another site can open WebSockets too) and the cookie is the login.
     if (!originAllowed(req.headers.origin, req.headers.host, this.actualPort)) return refuse('403 Forbidden');
     if (!this.auth.signedIn(req.headers.cookie)) return refuse('401 Unauthorized');
-    if (rpc) return this.upgradeRpc(req, socket, head, rpc, refuse);
+    if (rpc) return this.upgradeRpc(req, socket, head, rpc);
     if (!match) return refuse('404 Not Found');
-    if (this.terminals >= MAX_TERMINALS) return refuse('503 Service Unavailable');
     const endpoint = this.options.backend.endpoint(match[1]);
     if (!endpoint) return refuse('404 Not Found');
     const cols = bounded(url.searchParams.get('cols'), MIN_COLS, MAX_COLS, 120);
     const rows = bounded(url.searchParams.get('rows'), MIN_ROWS, MAX_ROWS, 30);
     this.sockets.handleUpgrade(req, socket, head, (ws) => {
-      this.terminals++;
-      ws.on('close', () => this.terminals--);
+      this.track(ws, 'terminal', MAX_TERMINALS);
       void new TerminalBridge(ws, endpoint, cols, rows, this.options.dial).start();
     });
   }
 
   /** The RPC socket (after the same Origin and cookie checks as a terminal). */
-  private upgradeRpc(
-    req: http.IncomingMessage,
-    socket: Duplex,
-    head: Buffer,
-    rpc: RpcHost,
-    refuse: (status: string) => void,
-  ): void {
-    if (this.rpcSockets >= MAX_RPC_SOCKETS) return refuse('503 Service Unavailable');
+  private upgradeRpc(req: http.IncomingMessage, socket: Duplex, head: Buffer, rpc: RpcHost): void {
     this.sockets.handleUpgrade(req, socket, head, (ws) => {
-      this.rpcSockets++;
-      ws.on('close', () => this.rpcSockets--);
+      this.track(ws, 'rpc', MAX_RPC_SOCKETS);
       new RpcSession(ws, rpc).start();
     });
   }
@@ -256,11 +317,4 @@ export class WebServer {
 function bounded(text: string | null, min: number, max: number, fallback: number): number {
   const n = Number(text);
   return text !== null && Number.isInteger(n) && n >= min && n <= max ? n : fallback;
-}
-
-function newSessionRequest(body: unknown): NewSessionRequest | null {
-  if (typeof body !== 'object' || body === null) return null;
-  const { harness, project } = body as Record<string, unknown>;
-  const ok = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(v);
-  return ok(harness) && ok(project) ? { harness, project } : null;
 }

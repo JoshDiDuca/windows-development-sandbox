@@ -280,7 +280,8 @@ export class Watcher {
             ? 'this PC is low (' + step.reason + '): asking the sandbox to slow its builds down'
             : 'this PC has recovered: no longer asking the sandbox to slow down',
         );
-      if (step.send) new SandboxChannel(this.dataPath).pressure(step.reason, REQUEST_SECONDS);
+      if (step.send)
+        new SandboxChannel(this.dataPath).pressure(step.reason, REQUEST_SECONDS, step.severe ? 'severe' : 'slow');
     } catch (e) {
       this.note('host watchdog: ' + errMsg(e));
     } finally {

@@ -7,7 +7,7 @@ export const VpnSchema = z.strictObject({
   enabled: z
     .boolean()
     .describe(
-      "Send the sandbox's traffic through a VPN. Only the sandbox: your PC's own connection is untouched. Needs a saved login first (sandbox vpn login). The agent in the sandbox can read that login and can turn the tunnel off (it is the administrator there).",
+      "(Alpha: not yet tried on a real PC) Send the sandbox's traffic through a VPN. Only the sandbox: your PC's own connection is untouched. Needs a saved login first (sandbox vpn login). The agent in the sandbox can read that login and can turn the tunnel off (it is the administrator there).",
     ),
   provider: z
     .enum(VPN_PROVIDERS)

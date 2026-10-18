@@ -15,7 +15,8 @@ import { withConfig, hoistConfig, withoutConfig } from './argv.js';
 import { report } from './report.js';
 import { versionText } from './version.js';
 import { HANDLERS } from './commands/index.js';
-import { operationHandler } from './operations/index.js';
+import { definitionHandler, operationHandler } from './operations/index.js';
+import { runUpdate } from '../app/features/updates/index.js';
 
 const entry = path.join(PACKAGE_ROOT, 'dist', 'bin', 'agent-sandbox.js');
 
@@ -111,7 +112,8 @@ export async function main(rawArgv: string[], preset: Preset = {}): Promise<numb
     return commands.repairCommand(PACKAGE_ROOT, entry, options);
   }
   // update works on the install, not on a sandbox: it needs no settings (and a broken file must not stop it).
-  if (options.command === 'update') return commands.update(options);
+  if (options.command === 'update')
+    return (await definitionHandler(runUpdate)(commands.contextOrDefaults(PACKAGE_ROOT, entry, options))) ?? 0;
   const handler = operationHandler(options.command, options.positionals) ?? HANDLERS[options.command];
   if (!handler)
     return fail(

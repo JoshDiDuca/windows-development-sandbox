@@ -21,7 +21,7 @@ import { guestSession, logonEnv } from './session-file.js';
 import { copyRuntime, stageGitIdentity, stageHooks } from './stage.js';
 import { decideProjectToolchains } from './toolchains.js';
 import { buildLaunchPlan } from './launch-plan.js';
-import { decideMemory, GUEST, memoryNote, resolveMemoryMb } from './wsb-file.js';
+import { cappedMemoryMb, decideMemory, GUEST, memoryNote, residentNote, resolveMemoryMb } from './wsb-file.js';
 
 const NO_PROFILE: ProfileResult = { hostDir: null, staged: [], skipped: [], credentials: false, secretsRemoved: [] };
 
@@ -69,10 +69,12 @@ export function generateSandbox(
 
   // Checked before anything is written, so a refusal leaves nothing behind.
   const commitAvailableMb = o.commitAvailableMb ?? null;
-  const memoryMb = Math.max(
+  const askedMb = Math.max(
     resolveMemoryMb(config.sandbox, o.freeMemoryBytes, undefined, commitAvailableMb),
     ...others.map((p) => (typeof p.config.sandbox.memoryMb === 'number' ? p.config.sandbox.memoryMb : 0)),
   );
+  // Never more than this PC can keep in RAM for it, whatever was asked.
+  const memoryMb = cappedMemoryMb(askedMb, config.sandbox, Math.floor(os.totalmem() / 1048576));
   const launchId = Date.now() + '-' + crypto.randomBytes(3).toString('hex');
   const launchPath = path.join(storageRoot, 'launches', launchId);
   // Whatever must stay secret goes in a one-shot file in the data folder, never into the launch folder (the sandbox
@@ -146,7 +148,8 @@ export function generateSandbox(
     sessionPath,
     memoryMb,
     memoryNote:
-      config.sandbox.memoryMb === 'auto'
+      residentNote(askedMb, memoryMb) ??
+      (config.sandbox.memoryMb === 'auto'
         ? memoryNote(
             decideMemory(
               config.sandbox,
@@ -155,7 +158,7 @@ export function generateSandbox(
               commitAvailableMb,
             ),
           )
-        : null,
+        : null),
     bootConfig: config,
     widened: wide.widened,
     mappings,

@@ -239,8 +239,8 @@ export class SandboxChannel {
   }
 
   /** The PC is low on memory or CPU: the sandbox slows its builds down for `seconds`. Never waits for an answer. */
-  pressure(reason: string, seconds: number): void {
-    this.send({ kind: 'pressure', id: newId(), reason, seconds, createdAt: now() });
+  pressure(reason: string, seconds: number, level: 'slow' | 'severe' = 'slow'): void {
+    this.send({ kind: 'pressure', id: newId(), reason, seconds, level, createdAt: now() });
   }
 
   async ping(): Promise<GuestResponse> {

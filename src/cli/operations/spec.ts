@@ -65,6 +65,7 @@ function argSpec(def: AnyDefinition, name: string): ArgSpec {
     description: field.help ?? '',
     required: !field.optional,
     ...(choices ? { choices } : {}),
+    ...(field.kind === 'list' ? { variadic: true } : {}),
   };
 }
 
@@ -88,6 +89,11 @@ export function commandSpecOf(def: AnyDefinition): CommandSpec {
   };
 }
 
+/** The first word of an action: `contained` for `contained on`. */
+function firstWord(action: string): string {
+  return action.split(' ')[0];
+}
+
 /**
  * A hand-written command with the actions the definitions add (`config reset`): the action is one of the first
  * argument's choices, each later argument is asked for it in the menu's command form, and --json is offered when an
@@ -97,10 +103,11 @@ export function withActions(spec: CommandSpec, defs: readonly AnyDefinition[] = 
   const mine = defs.filter((d) => d.cli?.name === spec.name);
   if (!mine.length || !spec.args.length) return spec;
   const [first, ...rest] = spec.args;
-  const actions = mine.map((d) => d.cli!.action!);
+  // A two-word action (`contained on`) is listed by its first word: the argument's choice is that word.
+  const actions = mine.map((d) => firstWord(d.cli!.action!));
   const choices = Array.isArray(first.choices) ? [...new Set([...first.choices, ...actions])] : first.choices;
   const asked = (arg: ArgSpec, position: number): ArgSpec => {
-    const users = mine.filter((d) => (d.cli?.positional?.length ?? 0) > position).map((d) => d.cli!.action!);
+    const users = mine.filter((d) => (d.cli?.positional?.length ?? 0) > position).map((d) => firstWord(d.cli!.action!));
     if (!users.length || arg.when === undefined) return arg;
     const when = Array.isArray(arg.when) ? arg.when : [arg.when];
     return { ...arg, when: [...new Set([...when, ...users])] };

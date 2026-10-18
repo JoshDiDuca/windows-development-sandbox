@@ -11,6 +11,8 @@ export const WebStateSchema = z.strictObject({
   port: z.number().int().min(1).max(65535),
   token: z.string().regex(/^[0-9a-f]{64}$/),
   startedAt: z.string().max(64),
+  /** The version that started it (missing: an older one). Another version is replaced, never reused. */
+  version: z.string().max(64).optional(),
 });
 export type WebState = z.output<typeof WebStateSchema>;
 

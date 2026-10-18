@@ -1,9 +1,23 @@
 // The web's answer to an operation's questions (io.confirm, choose, text, secret, path, checklist): one modal per
 // question. Closing it is "no" (or "backed out"), as Esc is in the menu.
-import { Alert, Button, Checkbox, Group, PasswordInput, Radio, Stack, Text, TextInput } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Checkbox,
+  Group,
+  PasswordInput,
+  Radio,
+  Stack,
+  Text,
+  TextInput,
+  Tooltip,
+} from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { useState, type FormEvent } from 'react';
+import { IconFolderOpen } from '@tabler/icons-react';
 import type { Answer, Question } from '../../../src/app/kernel/index';
+import { pickPath } from './FolderPicker';
 
 interface QuestionFormProps {
   readonly question: Question;
@@ -72,17 +86,30 @@ function QuestionForm({ question: q, said, done }: QuestionFormProps) {
             </Stack>
           </Checkbox.Group>
         )}
-        {(q.kind === 'text' || q.kind === 'path') && (
-          <TextInput
-            value={text}
-            onChange={(e) => setText(e.currentTarget.value)}
-            description={
-              q.kind === 'path'
-                ? 'The full path of a ' + (q.pathKind === 'file' ? 'file' : 'folder') + ' on this PC'
-                : undefined
-            }
-            data-autofocus
-          />
+        {q.kind === 'text' && (
+          <TextInput value={text} onChange={(e) => setText(e.currentTarget.value)} data-autofocus />
+        )}
+        {q.kind === 'path' && (
+          <Group gap="xs" wrap="nowrap" align="flex-end">
+            <TextInput
+              style={{ flex: 1 }}
+              ff="monospace"
+              value={text}
+              onChange={(e) => setText(e.currentTarget.value)}
+              description={'The full path of a ' + (q.pathKind === 'file' ? 'file' : 'folder') + ' on this PC'}
+              data-autofocus
+            />
+            <Tooltip label={q.pathKind === 'file' ? 'Choose a file' : 'Choose a folder'}>
+              <ActionIcon
+                variant="default"
+                size={36}
+                aria-label="Browse"
+                onClick={() => void pickPath(q.pathKind, text || undefined).then((picked) => picked && setText(picked))}
+              >
+                <IconFolderOpen size={18} stroke={1.6} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         )}
         {q.kind === 'secret' && (
           <PasswordInput value={text} onChange={(e) => setText(e.currentTarget.value)} data-autofocus />

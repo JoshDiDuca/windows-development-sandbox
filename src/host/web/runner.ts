@@ -16,7 +16,7 @@ export interface WebRunOptions {
   readonly staticRoot: string;
   /** This program's version, kept in the state file. */
   readonly version: string;
-  /** End after this long unused while no sandbox runs (WebServerOptions.idleExitMs). */
+  /** End after this long with no browser (sooner with no sandbox): WebServerOptions.idleExitMs. */
   readonly idleExitMs?: number;
 }
 

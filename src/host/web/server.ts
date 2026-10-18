@@ -27,8 +27,13 @@ const MAX_TERMINALS = 16;
 const MAX_RPC_SOCKETS = 8;
 /** Every socket is pinged this often; one that has not answered the last ping by the next is dropped. */
 const HEARTBEAT_MS = 20_000;
-/** The server ends after this long with no request, no socket and no sandbox running (it starts again with one). */
-export const IDLE_EXIT_MS = 30 * 60_000;
+/**
+ * The server ends after this long with no browser connected and no request, even while a sandbox runs (sandbox web
+ * open and the next launch start it again), so it never sits in memory unused.
+ */
+export const IDLE_EXIT_MS = 20 * 60_000;
+/** ...and sooner when no sandbox runs either: there is nothing to look at. */
+export const IDLE_NO_SANDBOX_MS = 5 * 60_000;
 const SESSION_PATH = /^\/api\/sessions\/([A-Za-z0-9_-]{1,64})\/terminal$/;
 export const RPC_PATH = '/api/rpc';
 
@@ -45,8 +50,10 @@ export interface WebServerOptions {
   readonly dial?: (endpoint: Endpoint) => Promise<net.Socket>;
   /** The shared core's operations and queries the browser may run (none: /api/rpc is not served). */
   readonly rpc?: RpcHost;
-  /** End by itself (onStop) after this long unused while no sandbox runs; 0 or missing: never (tests). */
+  /** End by itself (onStop) after this long with no browser, even while a sandbox runs; 0 or missing: never (tests). */
   readonly idleExitMs?: number;
+  /** ...or after this long when no sandbox runs either (default IDLE_NO_SANDBOX_MS; tests make it short). */
+  readonly idleNoSandboxMs?: number;
   /** Heartbeat period (tests make it short). */
   readonly heartbeatMs?: number;
 }
@@ -110,7 +117,7 @@ export class WebServer {
         this.heartbeat = setInterval(() => this.beat(), this.options.heartbeatMs ?? HEARTBEAT_MS);
         this.heartbeat.unref();
         if (this.options.idleExitMs) {
-          this.idleCheck = setInterval(() => void this.checkIdle(), Math.min(60_000, this.options.idleExitMs));
+          this.idleCheck = setInterval(() => void this.checkIdle(), Math.min(60_000, this.quietMs()));
           this.idleCheck.unref();
         }
         resolve();
@@ -142,16 +149,24 @@ export class WebServer {
     }
   }
 
-  /** Nothing has used the server for a while and no sandbox runs: it ends (the next launch starts it again). */
+  /** No browser has used the server for a while: it ends (sooner when no sandbox runs). */
   private async checkIdle(): Promise<void> {
     const limit = this.options.idleExitMs ?? 0;
-    if (!limit || this.tracked.size > 0 || Date.now() - this.lastUsed < limit) return;
+    if (!limit || this.tracked.size > 0) return;
+    const idle = Date.now() - this.lastUsed;
+    if (idle >= limit) return this.options.onStop?.();
+    if (idle < this.quietMs()) return;
     try {
       if ((await this.options.backend.info()).sandbox === 'running') return;
     } catch {
-      return; // cannot tell: keep running
+      return; // cannot tell: wait for the longer limit
     }
     this.options.onStop?.();
+  }
+
+  /** How long unused before it ends when no sandbox runs. */
+  private quietMs(): number {
+    return Math.min(this.options.idleExitMs ?? 0, this.options.idleNoSandboxMs ?? IDLE_NO_SANDBOX_MS);
   }
 
   /** Counts a new socket; at the limit, the oldest of its kind makes room (a new tab always works). */

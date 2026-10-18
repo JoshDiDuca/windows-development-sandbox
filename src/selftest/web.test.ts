@@ -314,6 +314,50 @@ export const webSuite: Suite = {
       t.check(hub.size === 0 && reads === stopped, 'with nobody watching, nothing is read');
     }
 
+    t.section('an unused server ends by itself (no process left behind)');
+    {
+      const idleServer = async (sandbox: 'running' | 'stopped', limits: { exit: number; quiet: number }) => {
+        let ended = false;
+        const idle = new WebServer({
+          port: 0,
+          token: TOKEN,
+          backend: {
+            info: () =>
+              Promise.resolve({
+                sandbox,
+                owner: null,
+                canUse: true,
+                harnesses: [],
+                defaultHarness: 'claude',
+                projects: [],
+              }),
+            sessions: () => Promise.resolve([]),
+            endpoint: () => null,
+          },
+          staticRoot: t.dir('idle-static-' + sandbox + limits.exit),
+          idleExitMs: limits.exit,
+          idleNoSandboxMs: limits.quiet,
+          onStop: () => (ended = true),
+        });
+        await idle.start();
+        await new Promise((r) => setTimeout(r, 1500));
+        await idle.stop();
+        return ended;
+      };
+      t.check(
+        await idleServer('stopped', { exit: 60_000, quiet: 200 }),
+        'no browser and no sandbox: it ends after the short wait',
+      );
+      t.check(
+        !(await idleServer('running', { exit: 60_000, quiet: 200 })),
+        'a sandbox runs: the short wait does not end it',
+      );
+      t.check(
+        await idleServer('running', { exit: 300, quiet: 200 }),
+        'no browser for the long wait: it ends even while a sandbox runs',
+      );
+    }
+
     t.section('the server');
     const fake = new FakePtyHost();
     await fake.start();

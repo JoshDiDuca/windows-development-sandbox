@@ -17,6 +17,9 @@ const connectOnce = (host: string, port: number, timeoutMs: number): Promise<net
     socket.once('connect', () => {
       clearTimeout(timer);
       socket.setNoDelay(true);
+      // A sandbox that vanished (closed hard, ended in Task Manager) never closes the connection: keepalive notices
+      // within seconds, so an attached terminal or the web's bridge ends instead of hanging on.
+      socket.setKeepAlive(true, KEEPALIVE_IDLE_MS);
       resolve(socket);
     });
     socket.once('error', (e: Error) => {
@@ -27,6 +30,9 @@ const connectOnce = (host: string, port: number, timeoutMs: number): Promise<net
 };
 
 /** Tries every address the sandbox published and returns the first one that answers. */
+/** Idle time before TCP keepalive probes start (the same as ptyhost's own side). */
+const KEEPALIVE_IDLE_MS = 10_000;
+
 export async function connect(endpoint: Endpoint, timeoutMs = 3000): Promise<net.Socket> {
   const errors: string[] = [];
   for (const address of endpoint.addresses) {

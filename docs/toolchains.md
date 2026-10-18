@@ -13,7 +13,7 @@ config always win.
 
 | | | Version from |
 |---|---|---|
-| **Node** ✅ | nvm, npm, pnpm and yarn via corepack, **Volta** when the project pins it | `.nvmrc`, `.node-version`, `package.json` volta, your PC |
+| **Node** ✅ | nvm, npm, pnpm and yarn via corepack, **Volta** when the project pins it; **Playwright** ready (Edge, the browser every sandbox has: `channel: 'msedge'`, and the Playwright MCP server uses it; browsers `npx playwright install` downloads are kept between sandboxes) | `.nvmrc`, `.node-version`, `package.json` volta, your PC |
 | **Python** ✅ | CPython 3 + pip, Python 2.7 (`python2`), uv, pyenv-win when your PC uses pyenv | `.python-version` |
 | **Rust** ✅ | rustup, cargo: the msvc host when MSVC is on (like most PCs), else GNU; `rust.crates` prebuilt via cargo-binstall | `rust-toolchain.toml` |
 | **C / C++** ✅ | MinGW-w64 GCC, CMake, Ninja, premake5, win_flex/bison | |

@@ -1,7 +1,7 @@
 // A page whose sections are categories of one long list (settings): the categories down the side with how many are
 // changed in each, one category at a time, a search over all of them, and each item as a row with its control in
 // place. #<section> opens a category and #item-<id> opens the one holding that item and points it out.
-import { Badge, Box, Card, Group, NavLink, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { Anchor, Badge, Box, Card, Group, NavLink, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconFileSettings, IconInfoCircle, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Item, Page, Section } from '../../../src/app/kernel/index';
@@ -25,13 +25,19 @@ function changedCount(section: Section): number {
   return (section.items ?? []).filter((i) => i.badges?.length).length;
 }
 
+/** The info icon: the setting's name in the config file and its details (default, allowed values ...). */
 function ItemDetails({ item }: { readonly item: Item }) {
-  if (!item.details?.length) return null;
+  if (!item.details?.length && !item.code) return null;
   return (
     <Tooltip
       label={
         <Stack gap={0}>
-          {item.details.map((d, i) => (
+          {item.code && (
+            <Text size="xs" ff="monospace" fw={700}>
+              {item.code}
+            </Text>
+          )}
+          {(item.details ?? []).map((d, i) => (
             <Text key={i} size="xs" ff="monospace" style={{ whiteSpace: 'pre' }}>
               {d}
             </Text>
@@ -43,6 +49,26 @@ function ItemDetails({ item }: { readonly item: Item }) {
     >
       <IconInfoCircle size={14} color="var(--app-muted)" style={{ flex: 'none', cursor: 'help' }} />
     </Tooltip>
+  );
+}
+
+/** Descriptions longer than this show two lines and a "More" link. */
+const LONG_DESCRIPTION = 150;
+
+function Description({ text }: { readonly text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > LONG_DESCRIPTION;
+  return (
+    <Box mt={4}>
+      <Text size="xs" c="dimmed" lh={1.5} lineClamp={long && !open ? 2 : undefined}>
+        {text}
+      </Text>
+      {long && (
+        <Anchor component="button" type="button" size="xs" onClick={() => setOpen(!open)}>
+          {open ? 'Less' : 'More'}
+        </Anchor>
+      )}
+    </Box>
   );
 }
 
@@ -60,12 +86,7 @@ function CategoryRow({ item, flash }: { readonly item: Item; readonly flash: boo
           </Text>
           <ItemDetails item={item} />
         </Group>
-        {item.code && <div className="setting-key">{item.code}</div>}
-        {item.description && (
-          <Text size="xs" c="dimmed" mt={4} lh={1.45}>
-            {item.description}
-          </Text>
-        )}
+        {item.description && <Description text={item.description} />}
         {item.disabled && (
           <Text size="xs" c="dimmed" fs="italic" mt={4}>
             {item.disabled}
@@ -79,11 +100,17 @@ function CategoryRow({ item, flash }: { readonly item: Item; readonly flash: boo
           ) : (
             <Group justify="flex-end" gap="sm" wrap="nowrap">
               {item.hint && (
-                <Text size="sm" c="dimmed" ff="monospace" truncate>
-                  {tidy(item.hint)}
-                </Text>
+                <Tooltip label={tidy(item.hint)} openDelay={400} maw={480} multiline>
+                  <Text size="sm" c="dimmed" ff="monospace" truncate style={{ minWidth: 0 }}>
+                    {tidy(item.hint)}
+                  </Text>
+                </Tooltip>
               )}
-              {primary && <ActionButton action={primary} size="xs" />}
+              {primary && (
+                <Box style={{ flex: 'none' }}>
+                  <ActionButton action={primary} size="xs" />
+                </Box>
+              )}
             </Group>
           )}
         </Box>
@@ -92,6 +119,22 @@ function CategoryRow({ item, flash }: { readonly item: Item; readonly flash: boo
         </Box>
       </Group>
     </div>
+  );
+}
+
+/** "Editing C:\...\config.json": the file's name in a quiet line, the whole path when pointed at. */
+function FileNotice({ text }: { readonly text: string }) {
+  const file = /[A-Za-z]:\\[^\s]+|\/[^\s]+/.exec(text)?.[0];
+  const name = file ? file.split(/[\\/]/).pop() : undefined;
+  return (
+    <Tooltip label={text} openDelay={300} maw={560} multiline>
+      <Group gap={6} wrap="nowrap" mt={-8} style={{ width: 'fit-content', cursor: 'default' }}>
+        <IconFileSettings size={15} color="var(--app-muted)" style={{ flex: 'none' }} />
+        <Text size="xs" c="dimmed">
+          {name ? 'Saved in ' + name : text}
+        </Text>
+      </Group>
+    </Tooltip>
   );
 }
 
@@ -146,14 +189,7 @@ export function CategoryPage({ page, summary, toolbar }: CategoryPageProps) {
   return (
     <Stack gap="lg">
       <PageHeader title={page.title} summary={summary} toolbar={toolbar} actions={page.actions} />
-      {page.notice && (
-        <Group gap={8} wrap="nowrap" mt={-8}>
-          <IconFileSettings size={16} color="var(--app-muted)" style={{ flex: 'none' }} />
-          <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>
-            {page.notice.text}
-          </Text>
-        </Group>
-      )}
+      {page.notice && <FileNotice text={page.notice.text} />}
       <div className="category-layout">
         <Stack gap="sm" className="category-nav">
           <TextInput

@@ -96,9 +96,11 @@ export const engineSuite: Suite = {
     );
     t.equal(path.basename(gen.wsbPath), 'agent.wsb', 'the engine file is still agent.wsb in the launch folder');
     t.equal(gen.enginePlan.entry, gen.wsbPath, 'the engine plan starts from that file');
+    // home/.gitconfig is written only when this machine's ~/.gitconfig has a name or email (a GitHub runner has none).
+    const sameOnEveryMachine = (f: string): boolean => f !== 'home/.gitconfig';
     t.equal(
-      filesUnder(gen.launchPath),
-      [...LAUNCH_FILES_GOLDEN],
+      filesUnder(gen.launchPath).filter(sameOnEveryMachine),
+      LAUNCH_FILES_GOLDEN.filter(sameOnEveryMachine),
       'the launch folder has exactly the files it had before',
     );
     t.equal(

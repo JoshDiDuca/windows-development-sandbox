@@ -139,6 +139,16 @@ const activate = async (version: string): Promise<void> => {
   fs.symlinkSync(path.join(NVM_HOME, 'v' + version), NVM_SYMLINK, 'junction');
 };
 
+/**
+ * Playwright works in every sandbox without setup: the browsers `npx playwright install` downloads go in the tools
+ * folder, so they last between sandboxes, and its MCP server (and `channel: 'msedge'` in tests) uses Edge, the one
+ * browser Windows Sandbox always has (Chrome is not there).
+ */
+const PLAYWRIGHT_VARS = (): Record<string, string> => ({
+  PLAYWRIGHT_BROWSERS_PATH: tool('ms-playwright'),
+  PLAYWRIGHT_MCP_BROWSER: 'msedge',
+});
+
 export async function setupNode(env: ToolEnv, versions: ToolVersions, config: Toolchains['node']): Promise<void> {
   if (dryRun) {
     log('(dry run) would provision nvm and Node ' + versions.node.spec + ' (from ' + versions.node.source + ')');
@@ -173,7 +183,7 @@ export async function setupNode(env: ToolEnv, versions: ToolVersions, config: To
       warn('Node ' + version + ' from this PC: ' + errMsg(e));
     }
   }
-  Object.assign(env.vars, { NVM_HOME, NVM_SYMLINK });
+  Object.assign(env.vars, { NVM_HOME, NVM_SYMLINK, ...PLAYWRIGHT_VARS() });
   // At boot, nvm's symlink selects the version. A project added later must not switch it under the sessions already
   // running: its own version's folder goes first on its sessions' PATH instead.
   if (duringSession()) env.prepend.push(path.join(NVM_HOME, 'v' + main), NVM_HOME, NVM_SYMLINK);
@@ -182,6 +192,7 @@ export async function setupNode(env: ToolEnv, versions: ToolVersions, config: To
     env.prepend.push(NVM_HOME, NVM_SYMLINK);
   }
   env.summary.push('node: ' + main + ' (from ' + versions.node.source + ', switch with nvm use)');
+  env.summary.push("playwright: ready (Edge; browsers it downloads are kept; in tests use channel: 'msedge')");
   await packageManagers(env, config, main);
 }
 

@@ -4,6 +4,7 @@
 // warns.
 import dns from 'node:dns';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { now } from '../../shared/channel/run-dir.js';
@@ -22,7 +23,7 @@ import {
 import { isIPv4 } from '../../shared/network/firewall-rules.js';
 import { killSwitchCommands, tunnelCommands, type KillSwitchServer } from '../../shared/vpn/kill-switch.js';
 import { errMsg } from '../../core/util/errors.js';
-import { run as netsh } from '../network/firewall.js';
+import { longPath, run as netsh } from '../network/firewall.js';
 import { dryRun, isWin, launchDir, run } from '../runtime/paths.js';
 import { log, warn } from '../runtime/log.js';
 import { session } from '../runtime/session.js';
@@ -93,16 +94,54 @@ async function publicAddress(): Promise<string | null> {
 const hasAdapter = (ip: string): boolean =>
   Object.values(os.networkInterfaces()).some((list) => (list ?? []).some((i) => i.address === ip));
 
+/** Well-known public addresses a direct connection is tried to, to see that the kill switch holds. */
+const PROBE_TARGETS = ['1.1.1.1', '8.8.8.8', '9.9.9.9'] as const;
+const PROBE_TIMEOUT_MS = 3000;
+
+function connects(ip: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: ip, port });
+    const done = (ok: boolean): void => {
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(PROBE_TIMEOUT_MS, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
+}
+
+/** True when a direct connection out (before the tunnel exists) fails: the kill switch holds. */
+async function directConnectionBlocked(servers: readonly KillSwitchServer[]): Promise<boolean> {
+  const targets = PROBE_TARGETS.filter((ip) => !servers.some((s) => s.ip === ip));
+  const results = await Promise.all(targets.map((ip) => connects(ip, 443)));
+  return !results.some(Boolean);
+}
+
 /** The whole step. Returns true when the tunnel is up. */
 export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null): Promise<boolean> {
   const vpn = session.vpn;
   if (!vpn) return true;
   const killSwitch = vpn.killSwitch;
   let blocked = false;
-  const block = (servers: KillSwitchServer[]): void => {
-    if (isWin && !dryRun) netsh(killSwitchCommands(servers, ptyHostExe));
-    blocked = true;
-    log('VPN: kill switch on: nothing leaves the sandbox except through the tunnel.');
+  /** A direct connection was tried after the kill switch and failed: only then is the sandbox said to be offline. */
+  let held = false;
+  const block = async (servers: KillSwitchServer[]): Promise<void> => {
+    if (!isWin || dryRun) {
+      blocked = held = true;
+      return;
+    }
+    try {
+      netsh(killSwitchCommands(servers, ptyHostExe ? longPath(ptyHostExe) : null));
+    } finally {
+      blocked = true;
+      held = await directConnectionBlocked(servers);
+    }
+    if (held) log('VPN: kill switch on: nothing leaves the sandbox except through the tunnel (checked).');
+    else
+      warn(
+        'VPN: the kill switch did not hold: a direct connection still got out. If the tunnel drops, traffic leaves through your normal connection.',
+      );
   };
   setVpnStatus('starting', 'Starting the VPN');
   try {
@@ -119,7 +158,7 @@ export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null):
         warn(
           'VPN: AllowedIPs does not include 0.0.0.0/0: with the kill switch on, only the tunnel traffic can leave the sandbox.',
         );
-      if (killSwitch) block(servers);
+      if (killSwitch) await block(servers);
       if (dryRun || !isWin) {
         log('(dry run) would start the WireGuard tunnel ' + vpn.server);
         setVpnStatus('off', 'dry run');
@@ -139,7 +178,7 @@ export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null):
       const exe = await ensureOpenVpn();
       const servers = await serverAddresses(remotes);
       if (servers.length === 0) throw new Error('the VPN server addresses could not be found');
-      if (killSwitch) block(servers);
+      if (killSwitch) await block(servers);
       if (dryRun || !isWin) {
         log('(dry run) would start the VPN tunnel to ' + vpn.server);
         setVpnStatus('off', 'dry run');
@@ -158,24 +197,27 @@ export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null):
       throw new Error('the tunnel reported it was up, but no network adapter with its address appeared');
     const publicIp = await publicAddress();
     log('VPN: up' + (publicIp ? ' (the sandbox appears as ' + publicIp + ')' : '') + '.');
-    setVpnStatus('up', 'The tunnel is up', publicIp ? { publicIp } : {});
+    setVpnStatus('up', 'The tunnel is up', {
+      ...(publicIp ? { publicIp } : {}),
+      ...(killSwitch ? { killSwitchHeld: held } : {}),
+    });
     return true;
   } catch (e) {
     const reason = errMsg(e);
     // Without the kill switch the sandbox keeps its normal connection: the rest of the boot goes on, with a warning.
     try {
-      if (killSwitch && !blocked) block([]);
+      if (killSwitch && !blocked) await block([]);
     } catch (blockError) {
       warn('VPN: could not close the network after the failure: ' + errMsg(blockError));
     }
-    const text =
-      'VPN failed: ' +
-      reason +
-      (killSwitch
+    // "No internet" is said only when a direct connection was tried and failed.
+    const after = !killSwitch
+      ? ' The kill switch is off, so this sandbox is using your normal connection.'
+      : held
         ? ' The kill switch is on, so this sandbox has NO internet access.'
-        : ' The kill switch is off, so this sandbox is using your normal connection.');
-    warn(text);
-    setVpnStatus('failed', reason);
+        : ' The kill switch could NOT close the network, so this sandbox is ONLINE through your normal connection, without the VPN.';
+    warn('VPN failed: ' + reason + after);
+    setVpnStatus('failed', reason, killSwitch ? { killSwitchHeld: held } : {});
     return false;
   }
 }

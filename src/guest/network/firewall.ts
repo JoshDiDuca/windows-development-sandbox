@@ -71,14 +71,14 @@ export function networkProblems(): readonly string[] {
 }
 
 /** netsh needs the long form of a path: the sandbox's TEMP is an 8.3 short path (WDAGUT~1). */
-const longPath = (file: string): string => {
+export function longPath(file: string): string {
   if (!hasShortName(file)) return file;
   try {
     return fs.realpathSync.native(file);
   } catch {
-    return file;
+    return file; // netsh then says the program cannot be found, which is reported where the rule was wanted
   }
-};
+}
 
 /**
  * The inbound rule for ptyhost (the attach channel). A rule that cannot be added is a missing protection, so it is

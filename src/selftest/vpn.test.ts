@@ -30,6 +30,7 @@ import type { SecretsFile } from '../shared/channel/secrets.js';
 import { OPENVPN_MSI, WIREGUARD_MSI } from '../shared/vpn/download.js';
 import {
   cleanServers,
+  ipv4Except,
   killSwitchCommands,
   removeKillSwitchCommands,
   tunnelAddressFromLog,
@@ -212,6 +213,50 @@ export const vpnSuite: Suite = {
       !phase1.some((c) => c.includes('localip=') || (c.includes('action=allow') && c.includes('remoteip=any'))),
       'nothing else is allowed before the tunnel exists (no blanket rule)',
     );
+    const blockAt = (name: string): number =>
+      phase1.findIndex((c) => c.includes('name=AgentSandbox-VPN-' + name + ' '));
+    const internet = phase1[blockAt('Block-Internet')] ?? '';
+    t.check(
+      ['Block-Internet', 'Block-IPv6', 'Block-DNS-UDP', 'Block-DNS-TCP'].every(
+        (name) => blockAt(name) >= 0 && blockAt(name) < policyAt && phase1[blockAt(name)].includes('action=block'),
+      ),
+      'the kill switch is made of block rules, added before anything else (Windows Sandbox allows all outbound itself)',
+      phase1.join('\n'),
+    );
+    t.check(
+      internet.includes('1.0.0.0-9.255.255.255') &&
+        internet.includes('-185.1.2.2,185.1.2.4-185.9.9.8,185.9.9.10-') &&
+        !/(^|[=,])10\.\d/.test(internet.split('remoteip=')[1] ?? '') &&
+        internet.includes('-172.15.255.255,172.32.0.0-') &&
+        internet.includes('-192.167.255.255,192.169.0.0-') &&
+        internet.endsWith('-223.255.255.255'),
+      'the block covers every public address except the VPN servers (private, loopback and multicast are the LAN block)',
+      internet,
+    );
+    t.check(
+      phase1[blockAt('Block-IPv6')].includes('remoteip=2000::/3') &&
+        phase1[blockAt('Block-DNS-UDP')].includes('protocol=udp remoteport=53') &&
+        phase1[blockAt('Block-DNS-TCP')].includes('protocol=tcp remoteport=53'),
+      'global IPv6 and DNS (which would leak the names you visit) are blocked too',
+    );
+    t.equal(
+      [
+        ipv4Except([]),
+        ipv4Except([[0, 0]]),
+        ipv4Except([[4294967295, 4294967295]]),
+        ipv4Except([
+          [5, 9],
+          [7, 12],
+        ]),
+      ],
+      [
+        '0.0.0.0-255.255.255.255',
+        '0.0.0.1-255.255.255.255',
+        '0.0.0.0-255.255.255.254',
+        '0.0.0.0-0.0.0.4,0.0.0.13-255.255.255.255',
+      ],
+      'address lists without some addresses (edges and overlaps)',
+    );
     t.check(
       killSwitchCommands([], null).every((c) => !c.join(' ').includes('Server-1') || c[2] === 'delete') &&
         !killSwitchCommands([], null).some((c) => c.join(' ').includes('name=AgentSandbox-VPN-Host') && c[2] === 'add'),
@@ -226,6 +271,18 @@ export const vpnSuite: Suite = {
       ],
       'once the tunnel is up, traffic from its own address (the tunnel) is allowed',
     );
+    const phase2 = tunnelCommands('10.8.0.6').map((c) => c.join(' '));
+    t.check(
+      ['Block-Internet', 'Block-DNS-UDP', 'Block-DNS-TCP'].every((name) =>
+        phase2.some(
+          (c) =>
+            c.startsWith('advfirewall firewall set rule name=AgentSandbox-VPN-' + name + ' new ') &&
+            c.endsWith('localip=0.0.0.0-10.8.0.5,10.8.0.7-255.255.255.255'),
+        ),
+      ) && !phase2.some((c) => c.includes('delete') && c.includes('Block-')),
+      'the block rules are narrowed in place to everything but the tunnel (never deleted, so no moment without them)',
+      phase2.join('\n'),
+    );
     await t.throws(
       () => tunnelCommands('10.8.0.6; calc'),
       'Not an IPv4',
@@ -233,7 +290,8 @@ export const vpnSuite: Suite = {
     );
     t.check(
       removeKillSwitchCommands().some((c) => c.join(' ').includes('blockinbound,allowoutbound')) &&
-        removeKillSwitchCommands().some((c) => c.join(' ').includes('name=AgentSandbox-VPN-Tunnel')),
+        removeKillSwitchCommands().some((c) => c.join(' ').includes('name=AgentSandbox-VPN-Tunnel')) &&
+        removeKillSwitchCommands().some((c) => c.join(' ').includes('name=AgentSandbox-VPN-Block-Internet')),
       'taking it away restores the default and deletes the rules',
     );
     t.equal(
@@ -478,6 +536,13 @@ export const vpnSuite: Suite = {
         ) &&
         status('starting').level === 'warn',
       "up with another address is fine, up with this PC's own address is flagged, a failure says what the kill switch did",
+    );
+    t.check(
+      status('failed', { killSwitchHeld: false }).text.includes('ONLINE') &&
+        !status('failed', { killSwitchHeld: false }).text.includes('no internet') &&
+        status('failed', { killSwitchHeld: true }).text.includes('no internet') &&
+        status('up', { publicIp: '185.1.2.3', killSwitchHeld: false }).level === 'warn',
+      'a kill switch that did not hold is never reported as "no internet" (a failure says the sandbox is online)',
     );
     t.check(
       !vpnLine({

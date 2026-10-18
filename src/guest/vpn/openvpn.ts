@@ -8,7 +8,8 @@ import { downloader, spawnAsync } from '../../shared/download/index.js';
 import { SYSTEM } from '../../shared/system.js';
 import { dryRun, isWin, toolsDir } from '../runtime/paths.js';
 import { exists, mkdirp } from '../runtime/fs.js';
-import { log } from '../runtime/log.js';
+import { log, warn } from '../runtime/log.js';
+import { scriptOutput } from '../runtime/process.js';
 import { OPENVPN_MSI } from '../../shared/vpn/download.js';
 
 /** Where the MSI puts the program. */
@@ -19,6 +20,16 @@ export function openvpnExe(env: NodeJS.ProcessEnv = process.env): string {
 export function openvpnDownload(arch: string = process.arch): { file: string; sha256: string; url: string } {
   const entry = arch === 'arm64' ? OPENVPN_MSI.arm64 : OPENVPN_MSI.x64;
   return { ...entry, url: OPENVPN_MSI.base + entry.file };
+}
+
+/**
+ * Windows Sandbox cannot answer WMI questions about services (a class whose provider is missing), and installers that
+ * ask (OpenVPN's MSI does) fail with 1603: the dead class is removed first (repair-wmi-services.ps1). Never throws.
+ */
+export function repairServiceQueries(): void {
+  const did = scriptOutput('repair-wmi-services.ps1');
+  if (did === 'removed') log('VPN: repaired the Windows service queries installers use (a Windows Sandbox gap).');
+  else if (did !== 'absent' && did !== 'kept') warn('VPN: could not check the Windows service queries installers use.');
 }
 
 const hasHash = (file: string, sha256: string): boolean =>
@@ -36,6 +47,7 @@ export async function ensureOpenVpn(): Promise<string> {
     log('VPN: downloading OpenVPN ' + OPENVPN_MSI.version + ' (about 6 MB)');
     await downloader.file(dl.url, msi, dl.sha256);
   }
+  repairServiceQueries();
   log('VPN: installing OpenVPN');
   const logFile = path.join(toolsDir, 'downloads', 'openvpn-install.log');
   const code = await spawnAsync(SYSTEM.msiexec(), ['/i', msi, '/qn', '/norestart', '/l*v', logFile], {

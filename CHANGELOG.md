@@ -14,6 +14,10 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
 - More of the tool in the web UI: Maintenance > Updates, Data, Storage, Health, Logs and Engine, Settings export and
   import, and the Web UI's own server in the menu. Each is written once for the command line, the menu and the browser.
 - VPN in the web UI, under Settings: its status, and saving or deleting the login (typed hidden, never shown).
+- **VPN (alpha) fixes from the first real try.** OpenVPN now installs in Windows Sandbox (its installer asks WMI about
+  services, which Windows Sandbox could not answer). The kill switch now holds: Windows Sandbox allows all outbound
+  traffic itself, so the kill switch is made of block rules, and a direct connection is tried before the sandbox is
+  said to be offline. Before, a failed tunnel left the sandbox online while it said "no internet".
 - **(Alpha)** `sandbox engine clean` stops HCS systems a crashed command left running, after naming them. Only your
   own are touched: HCS sandboxes now carry a tag for the Windows user that started them.
 - A check for PowerShell variable mistakes (built-in names, letter-case clashes, settings leaking out of functions)

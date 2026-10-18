@@ -1,7 +1,7 @@
 # VPN (NordVPN first) — alpha
 
-> **Alpha.** Built and tested inside a sandbox, but not yet tried on a real PC: the tunnel driver, the kill switch and
-> attaching with the tunnel on still need checking ([what is not tested yet](#what-is-not-tested-yet)). Keep using it
+> **Alpha.** The first real try (October 2026) found two bugs, now fixed: OpenVPN would not install in Windows Sandbox,
+> and the kill switch did not hold. A tunnel carrying traffic and attaching with it on still need checking ([what is not tested yet](#what-is-not-tested-yet)). Keep using it
 > only where a broken tunnel would not hurt.
 
 The sandbox can send all its traffic through a VPN. Only the sandbox: your PC's own connection is untouched. NordVPN
@@ -109,9 +109,12 @@ or a login ([configuration](configuration.md#vpn)).
    is never in `session.json`.
 3. In the sandbox, after the tools and before the agent: the profile is checked again, OpenVPN Community is downloaded
    (checked against a SHA-256 stored in this program) and installed silently, then **the kill switch is applied first**:
-   everything that goes out is blocked except loopback, the VPN server, DHCP and the channel your terminal uses to attach
-   to the sandbox. OpenVPN starts with the login in a file that is deleted as soon as the tunnel is up (or has failed). A
-   second rule then lets through what leaves from the tunnel's own address, which is all the sandbox's traffic.
+   block rules for every public address except the VPN server, for global IPv6 and for DNS. (Windows Sandbox allows all
+   outbound traffic by itself, and only block rules win over that.) A direct connection is then tried: the sandbox is
+   said to be offline only when it really is. Loopback, DHCP, private addresses (the LAN block's job) and the channel
+   your terminal uses to attach stay as they were. OpenVPN starts with the login in a file that is deleted as soon as
+   the tunnel is up (or has failed). The block rules are then narrowed in place to every address except the tunnel's
+   own, which lets through all the sandbox's traffic that goes through the tunnel.
 4. The sandbox reports `up` or `failed` and its public address; the launch prints it.
 
 If the tunnel fails: with the kill switch on (the default) the sandbox **stays offline** and the launch says so in red,
@@ -127,7 +130,9 @@ keeps your normal connection and the launch warns in yellow.
 - The login file is deleted once the tunnel is up, so a tunnel that drops does not come back by itself: with the kill
   switch the sandbox goes offline until you restart it.
 - Free VPNs see all your traffic. Use one you trust.
-- Windows Sandbox needs a network driver for the tunnel; OpenVPN installs its own (Wintun).
+- Windows Sandbox needs a network driver for the tunnel; OpenVPN installs its own (TAP-Windows and ovpn-dco both install
+  there). Windows Sandbox cannot answer the WMI service queries the OpenVPN installer makes, so the sandbox removes the
+  one broken WMI class first (`repair-wmi-services.ps1`).
 
 ## If it does not work
 
@@ -148,12 +153,12 @@ site answers.
 Everything here was built and tested on the logic side (profile checks, firewall rules as text, login storage,
 settings rules, secrets kept out of files). It has not been run against a real tunnel. On a real PC, check:
 
-- **The driver inside Windows Sandbox.** The OpenVPN MSI installs Wintun (and ovpn-dco); whether the driver installs and
-  a tunnel adapter appears inside Windows Sandbox is unknown. If not, no VPN is possible there (the kill switch keeps the
-  sandbox offline and says so).
+- **The driver inside Windows Sandbox.** Checked: the OpenVPN MSI installs TAP-Windows and ovpn-dco and both adapters
+  appear. Still to check: that OpenVPN brings the tunnel up on one of them.
 - **A tunnel carries traffic** and the address `sandbox vpn status` shows is NordVPN's, not yours; DNS answers through the
   tunnel (NordVPN's DNS servers are public addresses, so the LAN block does not get in the way).
-- **The kill switch:** with the tunnel failing on purpose (wrong credentials) the sandbox has no internet; after
+- **The kill switch.** Checked in Windows Sandbox: its block rules refuse a direct connection and DNS while the VPN
+  server stays reachable. Still to check: with the tunnel failing on purpose (wrong credentials) the sandbox has no internet; after
   `taskkill /f /im openvpn.exe` inside, traffic stops; with the tunnel up, nothing leaves except through it.
 - **Attach still works** (`sandbox claude -t` from the PC) and so do `forwardPorts`, while the kill switch is on. The
   rules assume return traffic of connections your PC opens is allowed by Windows' firewall state, as it is for the LAN

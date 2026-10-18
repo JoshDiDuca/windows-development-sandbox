@@ -182,6 +182,8 @@ export const VpnStatusSchema = z.object({
   state: z.enum(['off', 'starting', 'up', 'failed']),
   message: Text(2000),
   killSwitch: z.boolean(),
+  /** A direct connection was tried after the kill switch was applied: false = it still got out. */
+  killSwitchHeld: z.boolean().optional(),
   /** The server's name, e.g. uk2201.nordvpn.com. */
   server: Text(128).optional(),
   /** What the sandbox's traffic looks like from outside, once the tunnel is up. */

@@ -14,6 +14,7 @@ import { handshakeDone, serviceRunning } from '../../shared/vpn/wireguard.js';
 import { dryRun, isWin, toolsDir } from '../runtime/paths.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log } from '../runtime/log.js';
+import { repairServiceQueries } from './openvpn.js';
 import type { TunnelOutcome } from './tunnel.js';
 
 /** The tunnel's name: the config file is sandbox.conf and the Windows service WireGuardTunnel$sandbox. */
@@ -47,6 +48,7 @@ export async function ensureWireguard(): Promise<string> {
     log('VPN: downloading WireGuard ' + WIREGUARD_MSI.version + ' (about 3 MB)');
     await downloader.file(dl.url, msi, dl.sha256);
   }
+  repairServiceQueries();
   log('VPN: installing WireGuard');
   const logFile = path.join(toolsDir, 'downloads', 'wireguard-install.log');
   // DO_NOT_LAUNCH: the installer would otherwise start the manager window.

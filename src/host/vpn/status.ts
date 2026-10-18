@@ -22,8 +22,17 @@ export async function hostPublicIp(fetchText: Fetcher = fetchBounded): Promise<s
 export function vpnLine(status: VpnStatus | null, hostIp: string | null = null): VpnLine {
   if (!status) return { level: 'warn', text: 'The sandbox has not reported on the VPN.' };
   const message = safeText(status.message).slice(0, 300);
+  const leaky = status.killSwitch && status.killSwitchHeld === false;
   if (status.state === 'up') {
     const same = hostIp !== null && status.publicIp === hostIp;
+    if (!same && leaky)
+      return {
+        level: 'warn',
+        text:
+          'VPN up' +
+          (status.publicIp ? ', the sandbox appears as ' + safeText(status.publicIp) : '') +
+          ', but the kill switch did not hold: if the tunnel drops, traffic goes out through your normal connection.',
+      };
     return same
       ? {
           level: 'bad',
@@ -48,9 +57,11 @@ export function vpnLine(status: VpnStatus | null, hostIp: string | null = null):
       text:
         'VPN failed: ' +
         message +
-        (status.killSwitch
-          ? ' The kill switch is on, so the sandbox has no internet.'
-          : ' The kill switch is off, so the sandbox uses your normal connection.'),
+        (leaky
+          ? ' The kill switch did not hold, so the sandbox is ONLINE through your normal connection, without the VPN.'
+          : status.killSwitch
+            ? ' The kill switch is on, so the sandbox has no internet.'
+            : ' The kill switch is off, so the sandbox uses your normal connection.'),
     };
   return { level: 'warn', text: 'VPN ' + status.state + (message ? ': ' + message : '') };
 }

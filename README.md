@@ -24,8 +24,9 @@ irm https://github.com/JoshDiDuca/windows-development-sandbox/releases/latest/do
 
 It checks your PC, offers to turn on Windows Sandbox, and asks **1) Just me** or **2) Everyone on this PC** (needs
 admin). It brings its own private copy of Node.js; nothing else is installed system-wide, and no Start menu shortcut
-unless you ask for one. `sandbox update` installs newer versions (and can do it by itself); a version that fails to
-start is rolled back automatically, and `sandbox update --rollback` goes back one by hand.
+unless you ask for one. `sandbox update` installs newer versions (and can do it by itself), even while a sandbox runs:
+the sandbox keeps its version until it restarts. A version that fails to start is rolled back automatically, and
+`sandbox update --rollback` goes back one by hand.
 
 Needs Windows 10/11 **Pro, Enterprise or Education**. Have Node.js 20+? `npm install -g windows-development-sandbox`
 works too. [Scopes, options (`-Version`, `-StartMenuShortcut` ...), upgrading, uninstall](docs/install.md)
@@ -60,6 +61,8 @@ The first start downloads what the project needs (a few minutes, once). After th
 | **Smart** | Detects what the project needs from its files, respects version files, installs in parallel and reuses everything |
 | **Several projects** | `sandbox claude` from another project joins the running sandbox: its own folder, tools, versions, databases and environment, set up on demand. Start several agents at once (`--session claude@A --session codex@B`, or the menu) and attach to any of them from any terminal |
 | **Picks up where you left off** | After a crash or a restart, `sandbox resume` reopens the last sessions; `sandbox restart` restarts the agents in place and they continue their conversation |
+| **Leaves nothing behind** | When an agent's session ends, everything it started ends with it, background servers included. The web UI's server stops when no browser uses it, and nothing of this tool keeps running on your PC once the sandbox is closed |
+| **GitHub, safely** | Give sandboxes a fine-grained GitHub token you made for them (`sandbox github login`, `github.shareToken`): `gh` and `git push` work inside, and the token never lands in the sandbox's files |
 | **Feels like home** | Your desktop look, Claude settings, MCP servers and conversation history come along; history syncs back. Logins you save (`sandbox account`) are kept encrypted for your Windows user |
 
 ## Built for heavy workloads
@@ -98,10 +101,12 @@ Details and settings: [troubleshooting](docs/troubleshooting.md#the-sandbox-clos
 | `sandbox exec -- <cmd>` | run a command inside |
 | `sandbox config get\|set\|reset\|list` | read and change any setting from the command line (`export` / `import` to share them) |
 | `sandbox account` | save, switch and rename agent logins |
+| `sandbox github` / `vpn` | the GitHub token for sandboxes; the VPN login and status |
 | `sandbox web` | (Beta) the web UI: start, stop, status, open |
 | `sandbox stop` / `hide` / `show` | shut down, hide or show the window |
 | `sandbox data` / `storage` | what's stored and how big, freeing space, moving the data folder |
 | `sandbox setup` / `doctor` / `repair` | check this PC, see what will be installed, fix common problems |
+| `sandbox engine` | the engines and what each can do on this PC; `engine clean` stops HCS systems left running |
 | `sandbox logs [-f] [--crash]` | the sandbox log, or the report of the last crash |
 | `sandbox update [--rollback]` / `--version` | update (or go back one version); the installed version |
 
@@ -117,14 +122,15 @@ keeps every feature it has.
 | **Web UI** (`sandbox web`, `web.enabled`) | Beta | Agents, sessions with live terminals, the sandbox's status, apps, accounts and every setting in your browser, with search (Ctrl+K) and a folder picker; on this PC only (loopback, signed in with a token). `web.openOnLaunch` opens it with every sandbox. [web-ui.md](docs/web-ui.md) |
 | **Agent commands** (`sandbox agent-commands on`) | Beta | Typing `claude`, `codex` ... in any folder starts it in a hidden sandbox and attaches your terminal |
 | **Contained storage** (`sandbox storage contained on`) | Beta | Tools, logins and logs in one disk image per data set, mounted only while a sandbox runs. One admin prompt per launch. [engines](docs/design/engines.md) |
-| **VPN** (`sandbox vpn`, `vpn.enabled`) | Alpha | The sandbox's traffic through NordVPN, your own OpenVPN profile or a WireGuard config, with a kill switch. Not yet tried on a real PC: read [vpn.md](docs/vpn.md) first |
-| **HCS engine** (`sandbox.engine: hcs`, `sandbox engine`) | Alpha | Headless agents in a Hyper-V isolated Server Core container. `sandbox engine check hcs` shows what your PC lacks; starting it is not enabled yet |
+| **VPN** (`sandbox vpn`, `vpn.enabled`) | Alpha | The sandbox's traffic through NordVPN, your own OpenVPN profile or a WireGuard config, with a kill switch that is checked with a real connection. The first real try fixed the install and the kill switch; a tunnel carrying traffic is not confirmed yet: read [vpn.md](docs/vpn.md) first |
+| **HCS engine** (`sandbox.engine: hcs`, `sandbox engine`) | Alpha | Headless agents in a Hyper-V isolated Server Core container. `sandbox engine check hcs` shows what your PC lacks; starting it is not enabled yet. Its create, start and stop steps pass on GitHub's Windows Server 2022 and 2025 runners |
 
 ## Known gaps
 
 - Adding a folder to a RUNNING sandbox needs Windows 11 24H2+ with the updated Windows Sandbox (`wsb share`,
   untested). On older Windows, folders inside a project root open at once and anything else offers a restart.
-  [Details, and how to get `wsb`](docs/projects.md#adding-folders-to-a-running-sandbox-wsb-share).
+  [Details, and how to get `wsb`](docs/projects.md#adding-folders-to-a-running-sandbox-wsb-share). A way for older
+  Windows through HCS is designed and waiting for a test on a real PC ([design](docs/design/hcs-live-folders.md)).
 - Windows Sandbox runs one sandbox at a time per PC; every project and agent shares it.
 - What is planned next: [roadmap](docs/roadmap.md).
 

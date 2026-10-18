@@ -69,6 +69,23 @@ static class MemGov
         public ulong AvailExtendedVirtual;
     }
 
+    // PROCESS_MEMORY_COUNTERS_EX (PrivateUsage is the private memory Process.PrivateMemorySize64 reported).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MemoryCounters
+    {
+        public uint Size;
+        public uint PageFaultCount;
+        public UIntPtr PeakWorkingSetSize;
+        public UIntPtr WorkingSetSize;
+        public UIntPtr QuotaPeakPagedPoolUsage;
+        public UIntPtr QuotaPagedPoolUsage;
+        public UIntPtr QuotaPeakNonPagedPoolUsage;
+        public UIntPtr QuotaNonPagedPoolUsage;
+        public UIntPtr PagefileUsage;
+        public UIntPtr PeakPagefileUsage;
+        public UIntPtr PrivateUsage;
+    }
+
     private static class NativeMethods
     {
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -109,6 +126,12 @@ static class MemGov
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimum, IntPtr maximum);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags, StringBuilder name, ref uint size);
+
+        [DllImport("kernel32.dll", EntryPoint = "K32GetProcessMemoryInfo", SetLastError = true)]
+        public static extern bool GetProcessMemoryInfo(IntPtr process, ref MemoryCounters counters, uint size);
 
         [DllImport("ntdll.dll")]
         public static extern int NtSuspendProcess(IntPtr process);
@@ -213,36 +236,68 @@ static class MemGov
         sb.Append(",\"commitAvailMb\":").Append(Mb(status.AvailPageFile));
         sb.Append(",\"procs\":[");
         bool first = true;
-        int self = Process.GetCurrentProcess().Id;
+        int self = SelfId;
         foreach (int pid in JobProcessIds())
         {
             if (pid == self)
             {
                 continue;
             }
-            try
+            // Read everything first: a process that ends half way must not leave half an entry behind.
+            string entry = Entry(pid);
+            if (entry == null)
             {
-                using (Process p = Process.GetProcessById(pid))
-                {
-                    // Read everything first: a process that ends half way must not leave half an entry behind.
-                    string entry = "{\"pid\":" + pid.ToString(CultureInfo.InvariantCulture)
-                        + ",\"name\":" + Json(p.ProcessName)
-                        + ",\"mb\":" + Mb((ulong)p.PrivateMemorySize64)
-                        + ",\"prio\":\"" + PriorityName(pid) + "\"}";
-                    if (!first)
-                    {
-                        sb.Append(',');
-                    }
-                    first = false;
-                    sb.Append(entry);
-                }
+                continue;
             }
-            catch (Exception)
+            if (!first)
             {
-                // The process ended while it was read.
+                sb.Append(',');
             }
+            first = false;
+            sb.Append(entry);
         }
         return sb.Append("]}").ToString();
+    }
+
+    private static readonly int SelfId = Process.GetCurrentProcess().Id;
+
+    /// <summary>
+    /// One process's line, read through one handle: its name, private memory and priority (null when it ended). Not
+    /// System.Diagnostics.Process, which reads the whole system's process list for every process it opens: with a
+    /// build's dozens of processes every two seconds that alone kept a CPU busy.
+    /// </summary>
+    private static string Entry(int pid)
+    {
+        IntPtr process = NativeMethods.OpenProcess(ProcessQueryLimited, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return null;
+        }
+        try
+        {
+            StringBuilder path = new StringBuilder(1024);
+            uint size = (uint)path.Capacity;
+            if (!NativeMethods.QueryFullProcessImageNameW(process, 0, path, ref size))
+            {
+                return null;
+            }
+            MemoryCounters counters = new MemoryCounters();
+            counters.Size = (uint)Marshal.SizeOf(typeof(MemoryCounters));
+            if (!NativeMethods.GetProcessMemoryInfo(process, ref counters, counters.Size))
+            {
+                return null;
+            }
+            uint c = NativeMethods.GetPriorityClass(process);
+            string priority = c == IdleClass ? "idle" : c == BelowNormalClass ? "below" : "normal";
+            return "{\"pid\":" + pid.ToString(CultureInfo.InvariantCulture)
+                + ",\"name\":" + Json(Path.GetFileNameWithoutExtension(path.ToString(0, (int)size)))
+                + ",\"mb\":" + Mb(counters.PrivateUsage.ToUInt64())
+                + ",\"prio\":\"" + priority + "\"}";
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
     }
 
     private static List<int> JobProcessIds()
@@ -275,28 +330,10 @@ static class MemGov
         return ids;
     }
 
-    private static string PriorityName(int pid)
-    {
-        IntPtr process = NativeMethods.OpenProcess(ProcessQueryLimited, false, pid);
-        if (process == IntPtr.Zero)
-        {
-            return "normal";
-        }
-        try
-        {
-            uint c = NativeMethods.GetPriorityClass(process);
-            return c == IdleClass ? "idle" : c == BelowNormalClass ? "below" : "normal";
-        }
-        finally
-        {
-            NativeMethods.CloseHandle(process);
-        }
-    }
-
     /// <summary>Whether pid is a process of the agents' job and not this one: the only ones this program touches.</summary>
     private static bool Allowed(int pid)
     {
-        return pid != Process.GetCurrentProcess().Id && JobProcessIds().Contains(pid);
+        return pid != SelfId && JobProcessIds().Contains(pid);
     }
 
     private static void ReadCommands()

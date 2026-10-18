@@ -153,6 +153,8 @@ export interface GovernorState {
   /** Used commit (MB) and when, at the last sample: how fast it grows. */
   readonly lastCommitMb: number;
   readonly lastAt: number;
+  /** Commit growth in MB per second, smoothed over the samples. */
+  readonly growth: number;
   /** The PC asked for slowing down until this time (ms): the dial is at least at `hostStep` until then. */
   readonly hostUntil: number;
   /** 2 when the PC is low, 4 when it is nearly out of memory. */
@@ -169,6 +171,7 @@ export const INITIAL_STATE: GovernorState = {
   cpuRate: 100,
   lastCommitMb: 0,
   lastAt: 0,
+  growth: 0,
   hostUntil: 0,
   hostStep: 0,
 };
@@ -184,6 +187,9 @@ export type Action =
   /** Its pages go to the paging file while it waits, so the compilers that run have the RAM. */
   | { readonly kind: 'trim'; readonly pid: number; readonly name: string };
 
+/** How much the newest sample counts in the smoothed commit growth. */
+const GROWTH_WEIGHT = 0.3;
+
 /** How long a held compiler waits before it may get a turn again (the governor repeats the hold while it waits). */
 export const HOLD_MS = 3000;
 /** Which compilers wait their turn changes this often, so none waits for ever. */
@@ -197,11 +203,18 @@ export interface Decision {
   readonly commitPercent: number;
 }
 
+/**
+ * "Full soon" only counts this close (in commit percent) to a step's own threshold: a build that grabs a few GB in a
+ * burst while most of the memory is free is normal, not a reason to pause compilers.
+ */
+const SOON_WITHIN_PERCENT = 12;
+
 /** The step a sample calls for on its own: the highest step whose threshold it crosses. */
 export function stepFor(ramFree: number, commit: number, secondsToLimit: number, profile: LoadProfile): number {
   let step = 0;
   DIAL_STEPS[profile].forEach((t, i) => {
-    const soon = t.secondsToLimit !== undefined && secondsToLimit < t.secondsToLimit;
+    const near = commit > t.commitPercent - SOON_WITHIN_PERCENT;
+    const soon = near && t.secondsToLimit !== undefined && secondsToLimit < t.secondsToLimit;
     if (ramFree < t.availablePercent || commit > t.commitPercent || soon) step = i + 1;
   });
   return step;
@@ -232,7 +245,9 @@ export function decide(
   const usedMb = sample.commitLimitMb - sample.commitAvailMb;
   const commit = (usedMb / Math.max(1, sample.commitLimitMb)) * 100;
   const seconds = (nowMs - prev.lastAt) / 1000;
-  const growth = prev.lastAt > 0 && seconds > 0 ? (usedMb - prev.lastCommitMb) / seconds : 0;
+  const instant = prev.lastAt > 0 && seconds > 0 ? (usedMb - prev.lastCommitMb) / seconds : 0;
+  // Smoothed over the last samples, so one burst between two samples is not read as a trend.
+  const growth = prev.lastAt > 0 ? prev.growth * (1 - GROWTH_WEIGHT) + instant * GROWTH_WEIGHT : 0;
   const secondsToLimit = growth > 0 ? sample.commitAvailMb / growth : Number.POSITIVE_INFINITY;
   const pcLow = nowMs < prev.hostUntil;
   const wanted = Math.max(stepFor(ramFree, commit, secondsToLimit, profile), pcLow ? prev.hostStep : 0);
@@ -293,7 +308,9 @@ export function decide(
   // Turns: of the heavy compilers only so many go on; the rest wait, and who waits changes every ROTATE_MS.
   const heavy = sample.procs.filter((p) => isHeavyCompiler(p.name)).sort((a, b) => a.pid - b.pid);
   let allowed = compilersAllowed(step, heavy.length);
-  if (maxCompilers !== null) allowed = Math.min(allowed, Math.max(1, maxCompilers));
+  // The cap is a memory measure: with memory to spare, Windows shares the CPU (the priorities above) and no compiler
+  // waits. A waiting rustc also holds cargo's job tokens, which stalls the whole build.
+  if (maxCompilers !== null && step >= 2) allowed = Math.min(allowed, Math.max(1, maxCompilers));
   if (allowed < heavy.length) {
     const turn = Math.floor(nowMs / ROTATE_MS) % heavy.length;
     const order = [...heavy.slice(turn), ...heavy.slice(0, turn)];
@@ -319,6 +336,7 @@ export function decide(
       cpuRate,
       lastCommitMb: usedMb,
       lastAt: nowMs,
+      growth,
       hostUntil: prev.hostUntil,
       hostStep: prev.hostStep,
     },

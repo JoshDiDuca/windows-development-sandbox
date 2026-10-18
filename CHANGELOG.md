@@ -7,8 +7,18 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.11.3
 
+- **The memory governor no longer slows a sandbox that has memory to spare.** It paused compilers and pushed their
+  memory to the paging file with 70% of RAM free: a build that grabbed a few GB in a burst read as "full in seconds".
+  That estimate is now smoothed and only counts close to the limit. The cap on how many compilers run at once (vGPU on)
+  now applies only under memory pressure; before, compilers waited their turn all the time, which also stalled cargo.
+- The governor's sampler used most of a CPU core during big builds (it read the whole process list once for every build
+  process, every two seconds). It now reads each process directly: about 400 times less work.
+- The web UI's server does far less while you watch it: one shared poll per live view for all tabs (slower while
+  nothing changes, at once after an action), one shared process list instead of a tasklist run per read, and the
+  database ports (asked inside the sandbox) reused for 20 seconds.
+- CI and the HCS engine test run after each new version and by hand, not on every push.
 - **A GitHub token for sandboxes (opt-in).** `sandbox github login` saves a token you made for sandboxes (best a
   fine-grained one, limited to some repositories and permissions), typed hidden and kept encrypted; OAuth tokens from
   `gh auth token` are refused. With `github.shareToken` on and git access `full`, each new sandbox gets it through the

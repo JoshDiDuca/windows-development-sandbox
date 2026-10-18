@@ -275,15 +275,22 @@ export const heavyLoadSuite: Suite = {
       decide(INITIAL_STATE, sample(50, 98, procs), 1000, 'normal').state.step === 4,
       'commit above 97 % is step 4',
     );
+    // A build that grabs 2 GB in two seconds while most memory is free is normal: no false alarm (it paused compilers).
+    const burst = decide({ ...INITIAL_STATE, lastCommitMb: 4000, lastAt: 1000 }, sample(50, 60, procs), 3000, 'normal');
+    t.check(
+      burst.state.step === 0,
+      'a burst of commit while most memory is free does not turn the dial',
+      'step ' + burst.state.step,
+    );
     const growing = decide(
-      { ...INITIAL_STATE, lastCommitMb: 1000, lastAt: 1000 },
-      sample(50, 60, procs),
-      2000,
+      { ...INITIAL_STATE, lastCommitMb: 8400, lastAt: 1000, growth: 200 },
+      sample(50, 88, procs),
+      3000,
       'normal',
     );
     t.check(
       growing.state.step === 4,
-      'commit that would reach its limit within seconds turns the dial up before it gets there',
+      'commit near its limit that keeps growing (about 6 s left) turns the dial up before it gets there',
       'step ' + growing.state.step,
     );
     const everything = [one, two, three, growing].flatMap((d) => d.actions);
@@ -365,9 +372,16 @@ export const heavyLoadSuite: Suite = {
       proc(3, 'claude.exe', 500),
       proc(14, 'node.exe', 400),
     ];
-    const capped = decide(INITIAL_STATE, sample(60, 40, many), 0, 'gentle', 2);
+    // The cap is a memory measure: with memory to spare no compiler waits (a waiting rustc stalls cargo's whole build).
+    const free = decide(INITIAL_STATE, sample(60, 40, many), 0, 'gentle', 2);
+    t.check(of(free, 'hold').length === 0, 'with memory to spare, nothing waits even beyond the cap');
+    const capped = decide(INITIAL_STATE, sample(14, 40, many), 0, 'gentle', 2);
     const holds = of(capped, 'hold').map((a) => ('pid' in a ? a.pid : 0));
-    t.check(holds.length === 2, 'beyond the cap, compilers wait their turn', holds.join(','));
+    t.check(
+      capped.state.step === 2 && holds.length === 2,
+      'under memory pressure (step 2), compilers beyond the cap wait their turn',
+      holds.join(','),
+    );
     t.check(!holds.includes(3) && !holds.includes(14), 'agents (claude, and codex or gemini as node) are never held');
     t.check(
       of(decide(INITIAL_STATE, sample(60, 40, many), 0, 'gentle', null), 'hold').length === 0,

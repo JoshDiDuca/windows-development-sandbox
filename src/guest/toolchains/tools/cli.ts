@@ -35,6 +35,25 @@ export function ghExePath(): string {
   return path.join(entry?.subdir ? path.join(dir, entry.subdir) : dir, entry?.exe ?? 'gh.exe');
 }
 
+/**
+ * gh keeps its token in Windows Credential Manager unless told otherwise, and that is wiped with the sandbox: only a
+ * login made with --insecure-storage (the token in GH_CONFIG_DIR, which persists) is still there next time.
+ */
+const GH_NOTE = ' (log in once with: gh auth login --web --insecure-storage; it is kept between sandboxes)';
+
+/** A saved gh account whose token was in Credential Manager (gone now): say how to log in so that it lasts. */
+function warnKeyringLogin(): void {
+  try {
+    const hosts = fs.readFileSync(path.join(ghConfigDir(), 'hosts.yml'), 'utf8');
+    if (/^\s*user:/m.test(hosts) && !/oauth_token:/.test(hosts))
+      warn(
+        'gh: the GitHub login from an earlier sandbox was kept in Windows Credential Manager, which is wiped with each sandbox. Log in again with: gh auth login --web --insecure-storage (then it lasts).',
+      );
+  } catch {
+    // No saved login: nothing to say.
+  }
+}
+
 const toolVars: Partial<Record<CliName, () => Record<string, string>>> = {
   gh: () => ({
     GH_CONFIG_DIR: exists(deliveredGhConfigDir()) ? deliveredGhConfigDir() : mkdirp(ghConfigDir()),
@@ -100,8 +119,10 @@ export async function setupCli(
         refresh,
         subdir: entry.subdir,
         size: entry.size,
+        ...(name === 'gh' ? { note: GH_NOTE } : {}),
       });
       Object.assign(env.vars, toolVars[name]?.() ?? {});
+      if (name === 'gh') warnKeyringLogin();
     } catch (e) {
       // One tool failing never takes the others down.
       warn(name + ' could not be set up and is skipped; the other tools are not affected. Reason: ' + errMsg(e));

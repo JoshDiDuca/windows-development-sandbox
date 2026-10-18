@@ -966,17 +966,20 @@ export const appSuite: Suite = {
     const dataSample = dataPage(stored);
     const dataSectionIds = dataSample.sections.map((s) => s.id);
     const dataOps = pageActions(dataSample);
-    const accountsItem = dataSample.sections.find((s) => s.id === 'area:host')?.items?.[0];
+    const keptSection = dataSample.sections.find((s) => s.id === 'kept');
+    const keptItems = keptSection?.items ?? [];
+    const accountsItem = keptItems.find((i) => i.label === 'accounts');
     t.check(
-      dataSectionIds.includes('area:tools') &&
-        dataSectionIds.includes('area:state') &&
-        dataOps.some(
-          (a) =>
-            a.kind === 'operation' && a.op === 'data.clean' && JSON.stringify(a.input) === '{"targets":["tools/rust"]}',
-        ) &&
-        (accountsItem?.actions ?? []).length === 0 &&
-        dataOps.some((a) => a.kind === 'operation' && a.op === 'data.prune'),
-      'data: disks, one section per area, x deletes only what may be deleted',
+      dataSectionIds.join() === 'disks,kept' &&
+        keptItems.map((i) => i.label).join() === 'rust,state/claude,accounts' &&
+        keptSection?.summary === '6.5 GB in all' &&
+        keptItems[0]?.primary?.kind === 'operation' &&
+        keptItems[0].primary.op === 'data.clean' &&
+        JSON.stringify(keptItems[0].primary.input) === '{"targets":["tools/rust"]}' &&
+        accountsItem?.primary === undefined &&
+        (keptSection?.actions ?? []).some((a) => a.kind === 'operation' && a.op === 'data.prune') &&
+        dataOps.some((a) => a.kind === 'operation' && a.op === 'data.clean'),
+      'data: disks, then one table of every kept folder (total in the summary); delete only where it may be deleted',
       dataSectionIds.join(),
     );
     const shaped = showData.cli!.shapeJson!(stored) as Record<string, unknown>;
@@ -992,6 +995,10 @@ export const appSuite: Suite = {
     t.check(
       dataLines.some((l) => l.startsWith('Disks')) &&
         dataLines.some((l) => /^DRIVE\s+USED\s+FREE\s+SIZE/.test(l)) &&
+        dataLines.some((l) => l.startsWith('What the sandbox keeps  6.5 GB in all')) &&
+        dataLines.some((l) => /^KIND\s+NAME\s+SIZE\s+FOLDER/.test(l)) &&
+        dataLines.some((l) => /^Toolchains\s+rust\s+4\.6 GB\s+C:\\AgentData\\tools\\rust/.test(l)) &&
+        dataLines.some((l) => l.startsWith('Kept on this PC on purpose, not deleted here: accounts.')) &&
         dataLines.some((l) => l.startsWith('Persistent data for the sandbox: ')) &&
         dataLines.some((l) => l.startsWith('Free space with:')),
       'data on the command line: the disks table, the data folder line and the free space line',
@@ -1342,11 +1349,13 @@ export const appSuite: Suite = {
       mountedNow: null,
     };
     const storagePageNow = storagePage(shownStorage, shownContained);
-    const folderPrimary = storagePageNow.sections[0]?.items?.[0]?.primary;
+    const folderSection = storagePageNow.sections[0];
+    const folderOps = (folderSection?.actions ?? []).map((a) => (a.kind === 'operation' ? a.op : a.kind));
     const containedActions = storagePageNow.sections[1]?.actions ?? [];
     t.check(
-      folderPrimary?.kind === 'operation' &&
-        folderPrimary.op === 'storage.change' &&
+      folderOps.join() === 'storage.move,storage.use' &&
+        (folderSection?.facts ?? []).map((f) => f.label).join() ===
+          'Folder,Size,Default folder,Other folder with data' &&
         containedActions.length === 1 &&
         containedActions[0].kind === 'operation' &&
         containedActions[0].op === 'storage.containedOn',

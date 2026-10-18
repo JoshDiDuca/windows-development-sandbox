@@ -10,6 +10,7 @@ import {
   fieldOf,
   SchemaNode,
   type Item,
+  type Note,
   type Page,
   type Section,
 } from '../../kernel/index.js';
@@ -129,7 +130,7 @@ export const pruneStorage = defineOperation({
 
 const DAYS_FIELD = fieldOf(new SchemaNode(PruneInputSchema).child('days')!, ['days']);
 
-/** The data page: disks, then one section per area, the total, and clean-up. */
+/** The data page: the disks, then every kept folder in one table (its total as the summary, clean-up as its action). */
 export function dataPage(o: DataShow): Page {
   const disks: Section = {
     id: 'disks',
@@ -158,53 +159,31 @@ export function dataPage(o: DataShow): Page {
     })),
     notes: [{ text: 'Persistent data for the sandbox: ' + o.dataPath + ' (C:\\AgentData inside)' }],
   };
-  const areas: Section[] = DATA_AREAS.flatMap((area) => {
-    const rows = o.entries.filter((e) => e.area === area);
-    if (!rows.length) return [];
-    return [
-      {
-        id: 'area:' + area,
-        title: AREA_LABEL[area],
-        summary: o.areaTotals[area] ?? '',
-        columns: [
-          { key: 'name', label: '' },
-          { key: 'size', label: '' },
-          { key: 'path', label: '' },
-        ],
-        columnsOn: 'cli' as const,
-        items: rows.map((e): Item => ({
-          id: 'entry:' + e.name,
-          label: e.name,
-          hint: e.size,
-          ...(e.target
-            ? { keys: 'x deletes it.' }
-            : { description: 'Kept on this PC on purpose; it is not deleted here.' }),
-          details: ['Folder  ' + e.path],
-          cells: { name: '  ' + e.name, size: e.size, path: e.path },
-          actions: e.target
-            ? [action(cleanData, { targets: [e.target] }, { label: 'Delete', key: 'x', verb: 'delete' })]
-            : [],
-        })),
-      },
-    ];
-  });
-  const total: Section = {
-    id: 'total',
-    facts: [{ id: 'total', label: 'Total', value: o.total }],
-    notes: [
-      ...(o.entries.length
-        ? []
-        : [{ text: 'Nothing stored yet. Toolchains, databases and agent logins appear here after the first start.' }]),
-      {
-        text: 'Free space with: sandbox data clean <target...>  (e.g. tools/go, databases/postgres-18, logs, launches)',
-        tone: 'muted' as const,
-        only: 'cli' as const,
-      },
+  // Every folder in one table, grouped by kind (the order of DATA_AREAS), biggest first within a kind.
+  const kindRank = (area: DataAreaName): number => DATA_AREAS.indexOf(area);
+  const rows = [...o.entries].sort((a, b) => kindRank(a.area) - kindRank(b.area) || b.bytes - a.bytes);
+  const kept: Section = {
+    id: 'kept',
+    title: 'What the sandbox keeps',
+    summary: o.total + ' in all',
+    columns: [
+      { key: 'kind', label: 'KIND' },
+      { key: 'name', label: 'NAME' },
+      { key: 'size', label: 'SIZE' },
+      { key: 'folder', label: 'FOLDER' },
     ],
-  };
-  const clean: Section = {
-    id: 'clean',
-    title: 'Clean up',
+    items: rows.map((e): Item => {
+      const del = e.target
+        ? action(cleanData, { targets: [e.target] }, { label: 'Delete', key: 'x', verb: 'delete' })
+        : undefined;
+      return {
+        id: 'entry:' + e.name,
+        label: e.name,
+        hint: e.size,
+        cells: { kind: AREA_LABEL[e.area], name: e.name, size: e.size, folder: e.path },
+        ...(del ? { primary: del } : {}),
+      };
+    }),
     actions: [
       action(
         pruneStorage,
@@ -217,8 +196,25 @@ export function dataPage(o: DataShow): Page {
         },
       ),
     ],
+    notes: [
+      ...(o.entries.length
+        ? []
+        : [{ text: 'Nothing stored yet. Toolchains, databases and agent logins appear here after the first start.' }]),
+      ...keptNote(o),
+      {
+        text: 'Free space with: sandbox data clean <target...>  (e.g. tools/go, databases/postgres-18, logs, launches)',
+        tone: 'muted' as const,
+        only: 'cli' as const,
+      },
+    ],
   };
-  return { title: 'Data', sections: [disks, ...areas, total, clean] };
+  return { title: 'Data', sections: [disks, kept] };
+}
+
+/** The folders kept on purpose (not deleted here), named in one note. */
+function keptNote(o: DataShow): Note[] {
+  const names = o.entries.filter((e) => !e.target).map((e) => e.name);
+  return names.length ? [{ text: 'Kept on this PC on purpose, not deleted here: ' + names.join(', ') + '.' }] : [];
 }
 
 export const dataView = defineView({

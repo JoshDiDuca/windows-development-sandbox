@@ -197,22 +197,33 @@ export const enableSandbox = defineOperation({
   },
 });
 
+/** A repair row: what it means is the description; what was found and the fix are the detail lines. */
 function checkItems(last: HealthLast): Item[] {
   return last.checks.map((r, i) => {
-    const lines = resultLines(r)
+    const found = r.detail + (r.timedOut ? ' (took too long)' : '');
+    const rest = resultLines(r)
       .slice(1)
-      .map((l) => l.text.trim());
+      .map((l) => l.text.trim())
+      .filter((l) => !l.startsWith('What it means: '));
+    const details = r.means ? [found, ...rest] : rest;
     return {
       id: 'repair:' + i,
       label: r.name,
       hint: BADGE[r.status],
       ...(TONE[r.status] ? { tone: TONE[r.status] } : {}),
       badges: [{ text: BADGE[r.status], ...(TONE[r.status] ? { tone: TONE[r.status] } : {}) }],
-      description: r.detail,
-      ...(lines.length ? { details: lines } : {}),
+      description: r.means ?? found,
+      ...(details.length ? { details } : {}),
     };
   });
 }
+
+/** A "Set up this PC" row: the real value is the hint; OK or action needed is the tone and the badge. */
+const SETUP_BADGE: Readonly<Record<'ok' | 'warn' | 'action', string>> = {
+  ok: 'OK',
+  warn: 'WARNING',
+  action: 'NEEDS YOU',
+};
 
 /** The health page: before any check, the two things to do; after one, what it found. Pure. */
 export function healthPage(o: { last: HealthLast | null }): Page {
@@ -258,8 +269,8 @@ export function healthPage(o: { last: HealthLast | null }): Page {
   const sections: Section[] = [
     {
       id: 'status',
-      summary: (last.mode === 'repair' ? 'Repaired ' : 'Checked ') + ago(last.at),
-      facts: last.log ? [{ id: 'log', label: 'Log', value: last.log }] : [],
+      summary: (last.mode === 'repair' ? 'Last repair ' : 'Last check ') + ago(last.at),
+      ...(last.log ? { notes: [{ text: 'Log: ' + last.log, tone: 'muted' as const }] } : {}),
     },
     {
       id: 'doctor',
@@ -267,8 +278,9 @@ export function healthPage(o: { last: HealthLast | null }): Page {
       items: last.details.map(([name, detail], i) => ({
         id: 'doctor:' + i,
         label: name,
+        // The hint is the whole value; only a long one is cut, and then the description keeps all of it.
         hint: cut(detail, 50),
-        details: [detail],
+        ...(detail.length > 50 ? { description: detail } : {}),
       })),
     },
     {
@@ -287,9 +299,14 @@ export function healthPage(o: { last: HealthLast | null }): Page {
         : setup.checks.map((c, i) => ({
             id: 'setup:' + i,
             label: c.name,
-            hint: c.status === 'ok' ? 'OK' : c.status === 'warn' ? 'WARNING' : 'ACTION NEEDED',
+            hint: c.detail,
             tone: c.status === 'ok' ? 'ok' : c.status === 'warn' ? 'warn' : 'danger',
-            description: c.detail,
+            badges: [
+              {
+                text: SETUP_BADGE[c.status],
+                tone: c.status === 'ok' ? 'ok' : c.status === 'warn' ? 'warn' : 'danger',
+              },
+            ],
           })),
       notes: canEnable
         ? [{ text: 'Turn Windows Sandbox on from the menu or with sandbox setup.', tone: 'muted', only: 'web' }]

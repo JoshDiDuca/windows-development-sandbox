@@ -7,7 +7,7 @@ export const WebSchema = z.strictObject({
   enabled: z
     .boolean()
     .describe(
-      '(Beta) Allow the web UI: your sandbox sessions in a browser on this PC. Off by default, and nothing starts it by itself yet: sandbox web start works either way and runs it until sandbox web stop (or a restart of the PC).',
+      '(Beta) The web UI: your sandbox sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every sandbox start also starts it in the background (it keeps running until sandbox web stop or a restart of the PC). Off: only sandbox web start runs it. Open it signed in with sandbox web open.',
     ),
   port: z
     .number()
@@ -15,4 +15,7 @@ export const WebSchema = z.strictObject({
     .min(1024)
     .max(65535)
     .describe('Port of the web UI on 127.0.0.1 (this PC only). Pick another when it is taken.'),
+  openOnLaunch: z
+    .boolean()
+    .describe('(Beta) With the web UI on: open it in your browser, already signed in, every time a sandbox starts.'),
 });

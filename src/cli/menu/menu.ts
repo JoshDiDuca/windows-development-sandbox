@@ -100,7 +100,7 @@ export class Menu {
         new AgentsPage(app, ctx, files.user, draft),
         new SessionsPage(app, ctx),
         new SandboxPage(app, ctx),
-        new AppsPage(app, files, draft, ctx.dataPath),
+        new AppsPage(app, ctx, files, draft),
         new SettingsPage(app, files, draft, ctx),
         new AccountsPage(app, ctx),
         new MaintenancePage(app, ctx),

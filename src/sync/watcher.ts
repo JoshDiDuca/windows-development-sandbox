@@ -16,8 +16,16 @@ import { sizeWithin } from '../core/disk.js';
 import {
   autoRestartAllowed,
   causeSince,
+  appendHostMemory,
+  cpuPercentBetween,
   KeepAwake,
   LifeRecord,
+  readHostMemoryAsync,
+  readLoadSettings,
+  REQUEST_SECONDS,
+  WATCHDOG_START,
+  watchdogStep,
+  type WatchdogState,
   saveCrashReport,
   SessionLedger,
   type StopCause,
@@ -29,11 +37,16 @@ import { clearSecrets } from '../host/secrets/index.js';
 import { endSharing, sharingDeps } from '../host/sharing/index.js';
 import { PACKAGE_ROOT } from '../core/package-info.js';
 import { syncBack } from './sync-cycle.js';
+import os from 'node:os';
 
 const WATCH_INTERVAL_MS = 60 * 1000;
 /** The first sync waits this long: the sandbox is still booting. */
 const FIRST_SYNC_MS = 30000;
 const AUDIT_FLUSH_MS = 10000;
+/** How often this PC's memory and CPU are sampled (the sample runs asynchronously: it never holds anything up). */
+const WATCHDOG_MS = 10000;
+/** The host memory log gets a line this often, and at every sample while the PC is low. */
+const HOST_LOG_EVERY_MS = 60000;
 /** After the sandbox closed: a moment for its last writes to land before the final sync. */
 const SETTLE_MS = 3000;
 /** The longest the watcher may take after the sandbox closed (final syncs) before it stops anyway. */
@@ -97,6 +110,11 @@ export class Watcher {
   private awake: KeepAwake | null = null;
   private views: ViewOptions[] = [];
   private stops: (() => void)[] = [];
+  private watchdogTimer: NodeJS.Timeout | null = null;
+  private watchdog: WatchdogState = WATCHDOG_START;
+  private watchdogBusy = false;
+  private lastCpu: os.CpuInfo[] = os.cpus();
+  private lastHostLog = 0;
 
   constructor(
     private readonly dataPath: string,
@@ -221,8 +239,54 @@ export class Watcher {
       }
     });
     this.stops = [...viewStops, stopForwards, stopMarking];
+    // Memory and CPU of this PC: when low, the sandbox is asked to slow its builds down (host/life/watchdog.ts).
+    this.watchdogTimer = setInterval(() => void this.watchHost(), WATCHDOG_MS);
+    this.watchdogTimer.unref();
     // sandbox.keepAwake, and the life record that tells the next launch how this run ended (host/life).
     this.awake = this.life.read()?.keepAwake ? KeepAwake.start(process.pid, storageRoot) : null;
+  }
+
+  /** One watchdog sample: this PC's memory and CPU; asks the sandbox to slow down while the PC is low. Never throws. */
+  private async watchHost(): Promise<void> {
+    if (this.watchdogBusy) return;
+    this.watchdogBusy = true;
+    try {
+      const settings = readLoadSettings(this.storageRoot, this.dataPath);
+      const memory = await readHostMemoryAsync(this.storageRoot);
+      const cpus = os.cpus();
+      const cpuPercent = cpuPercentBetween(this.lastCpu, cpus);
+      this.lastCpu = cpus;
+      const nowMs = Date.now();
+      const step = watchdogStep(this.watchdog, {
+        memory,
+        cpuPercent,
+        intervalSeconds: WATCHDOG_MS / 1000,
+        nowMs,
+        reserveHostMb: settings.reserveHostMb,
+        profile: settings.profile,
+      });
+      this.watchdog = step.state;
+      if (memory && (step.state.low || nowMs - this.lastHostLog >= HOST_LOG_EVERY_MS)) {
+        this.lastHostLog = nowMs;
+        appendHostMemory(
+          path.join(this.storageRoot, 'logs', 'host-memory-' + path.basename(this.dataPath) + '.log'),
+          memory,
+          cpuPercent,
+        );
+      }
+      if (step.changed)
+        this.note(
+          step.state.low
+            ? 'this PC is low (' + step.reason + '): asking the sandbox to slow its builds down'
+            : 'this PC has recovered: no longer asking the sandbox to slow down',
+        );
+      if (step.send)
+        new SandboxChannel(this.dataPath).pressure(step.reason, REQUEST_SECONDS, step.severe ? 'severe' : 'slow');
+    } catch (e) {
+      this.note('host watchdog: ' + errMsg(e));
+    } finally {
+      this.watchdogBusy = false;
+    }
   }
 
   /** The repo guard, then history and (at the end) claude-mem back to this PC. */
@@ -296,6 +360,7 @@ export class Watcher {
   /** Stops what start() started, syncs the filtered workspaces a last time and records the data folder's size. */
   private stop(): void {
     this.awake?.stop();
+    if (this.watchdogTimer) clearInterval(this.watchdogTimer);
     this.stops.forEach((stop) => stop());
     if (this.auditTimer) clearInterval(this.auditTimer);
     try {

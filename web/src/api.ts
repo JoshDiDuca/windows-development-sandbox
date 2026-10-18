@@ -1,12 +1,6 @@
 // Calls to the sandbox web server. Every call carries the CSRF header; the login cookie is HttpOnly (the page never
 // sees it).
-import {
-  CSRF_HEADER,
-  CSRF_VALUE,
-  type NewSessionRequest,
-  type WebInfo,
-  type WebSession,
-} from '../../src/shared/web/index';
+import { CSRF_HEADER, CSRF_VALUE, type WebInfo, type WebSession } from '../../src/shared/web/index';
 
 export class ApiError extends Error {
   constructor(
@@ -36,5 +30,4 @@ export const api = {
   login: (token: string): Promise<unknown> => call('POST', '/api/login', { token }),
   info: (): Promise<WebInfo> => call('GET', '/api/info'),
   sessions: (): Promise<WebSession[]> => call('GET', '/api/sessions'),
-  create: (request: NewSessionRequest): Promise<WebSession> => call('POST', '/api/sessions', request),
 };

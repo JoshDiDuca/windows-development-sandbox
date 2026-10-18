@@ -6,6 +6,7 @@ import { dryRun } from '../runtime/paths.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log, warn } from '../runtime/log.js';
 import { robocopy } from '../runtime/process.js';
+import { copyTreeTolerant } from '../../shared/io/copy-tree.js';
 
 /**
  * claude-mem keeps SQLite + a vector store. They run from the sandbox's own disk (SQLite and mapped folders do not
@@ -53,8 +54,12 @@ const databaseFingerprint = (dir: string): string => {
       const full = path.join(folder, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.isFile() && /\.(db|sqlite3?)(-wal)?$/i.test(entry.name)) {
-        const s = fs.statSync(full);
-        parts.push(full + ':' + s.size + ':' + s.mtimeMs);
+        try {
+          const s = fs.statSync(full);
+          parts.push(full + ':' + s.size + ':' + s.mtimeMs);
+        } catch {
+          // Gone since the listing (a database being replaced): left out, the next save looks again.
+        }
       }
     }
   };
@@ -121,8 +126,10 @@ export function saveClaudeMem(): void {
   const incoming = store + '.incoming';
   const previous = store + '.previous';
   fs.rmSync(incoming, { recursive: true, force: true });
-  // The database, its -wal and -shm files are copied together, so the copy is consistent with itself.
-  fs.cpSync(local, incoming, { recursive: true, filter: (src) => !/\.(pid|lock)$/i.test(src) });
+  // The database and its -wal are copied together, so the copy is consistent with itself. A -journal is never copied:
+  // beside a database taken at another moment it would be rolled back over it. The -shm is rebuilt by SQLite. Files the
+  // agent removes while this runs (hook spool files) are skipped.
+  copyTreeTolerant(local, incoming, (name) => /\.(pid|lock)$|-journal$|-shm$/i.test(name));
   // Swap without a window where no copy exists: old aside, new in, then keep the old one as a dated backup.
   fs.rmSync(previous, { recursive: true, force: true });
   if (exists(store)) fs.renameSync(store, previous);

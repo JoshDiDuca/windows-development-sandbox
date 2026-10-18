@@ -116,7 +116,13 @@ export const LocalOverridesSchema = z
       'Scripts (.ps1 / .mjs / .cmd, relative to this file) run inside the sandbox before the agent.',
     ),
     // This PC's resources are yours to share: CPU and paging file (this PC's disk) are not a project's to set.
-    sandbox: SandboxSchema.omit({ cpuLimit: true, pageFileMb: true, engine: true }).partial(),
+    sandbox: SandboxSchema.omit({
+      cpuLimit: true,
+      pageFileMb: true,
+      engine: true,
+      agentMemoryHeadroomMb: true,
+      pressureResponse: true,
+    }).partial(),
     // A project may block more (the LAN, hosts); it never opens hosts, ports, DNS or a proxy.
     network: NetworkSchema.pick({ blockPrivateRanges: true, blockHosts: true }).partial(),
     // A project may turn the kill switch on, never off, and never choose a VPN, a server, a file or a login.

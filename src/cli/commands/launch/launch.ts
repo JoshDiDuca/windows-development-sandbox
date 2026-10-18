@@ -11,7 +11,7 @@ import {
   setNameOf,
   type StorageProvider,
 } from '../../../host/storage/index.js';
-import { generateSandbox, GUEST } from '../../../host/launch/index.js';
+import { generateSandbox, GUEST, vgpuSource, vgpuWarning } from '../../../host/launch/index.js';
 import { findSecretFiles } from '../../../host/profile/index.js';
 import { RepoGuardStore } from '../../../host/guard/index.js';
 import { hostPublicIp, prepareVpn, readVpnLine, vpnNotes } from '../../../host/vpn/index.js';
@@ -24,7 +24,7 @@ import {
   realContainedDeps,
 } from '../../../host/sandbox/index.js';
 import { KnownProjects, ProjectRegistry } from '../../../host/projects/index.js';
-import { LifeRecord, SessionLedger } from '../../../host/life/index.js';
+import { LifeRecord, pageFileRisk, readHostMemory, SessionLedger, takePageFileHint } from '../../../host/life/index.js';
 import { isWithin } from '../../../shared/paths/index.js';
 import { watcherRunning } from '../../../sync/index.js';
 import { protectionsOf } from '../../../core/local-config/index.js';
@@ -61,6 +61,7 @@ import {
   openSession,
   readySandbox,
 } from './running.js';
+import { startWebOnLaunch } from '../web.js';
 import { maybeAddRoot } from './add-root.js';
 import { prepare, firstBootNotice } from './prepare.js';
 import { bootWantsFor } from './boot-wants.js';
@@ -219,9 +220,12 @@ class Launcher {
           sandboxRunning: isSandboxRunning(),
           base: run.workspaceHost,
         });
+    // This PC's commit (RAM plus paging file) bounds the sandbox's memory as much as free RAM does.
+    const hostMemory = generateOnly ? null : readHostMemory(ctx.storageRoot);
     const generated: GeneratedSandbox = generateSandbox(
       {
         packageRoot: ctx.packageRoot,
+        ...(hostMemory ? { commitAvailableMb: hostMemory.commitAvailableMb } : {}),
         run,
         harnessArgs: this.options.passthrough,
         probe: probeHost(config, run.harnessName),
@@ -236,6 +240,11 @@ class Launcher {
 
     const notes = [...run.notes, ...bootWants.notes, ...generated.projects.notes, ...generated.mappingNotes];
     for (const note of notes) console.log(note);
+    if (generated.memoryNote) console.log(c.yellow(generated.memoryNote));
+    if (generated.bootConfig.sandbox.vGpu)
+      console.log(c.yellow(vgpuWarning(vgpuSource(ctx.loaded.config.sandbox.vGpu))));
+    const risk = hostMemory ? pageFileRisk(hostMemory, generated.memoryMb) : null;
+    if (risk && takePageFileHint(ctx.storageRoot)) console.log(c.yellow(risk.text));
     this.warnSecretFiles(run);
     for (const line of vpnNotes(config.vpn)) console.log(c.yellow(line));
     table(launchSummary(run, generated, prepared));
@@ -246,6 +255,7 @@ class Launcher {
     this.share(generated);
     await engine.start(generated.enginePlan);
     this.startWatcher();
+    await startWebOnLaunch(this.ctx);
     if (reopen.length) await this.reopenAfterBoot(generated.launchId, reopen);
     return this.afterStart(run, generated);
   }

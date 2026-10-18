@@ -1,0 +1,223 @@
+name: HCS engine (alpha)
+
+# Tests the alpha HCS engine on GitHub-hosted Windows runners. Run by hand (Actions > this workflow > Run workflow);
+# it never runs on push or pull request. `workflow_call` lets release.yml use it later (docs/development.md#hcs-engine-workflow).
+# Hosted runners are Azure VMs: Hyper-V isolation needs nested virtualization, which they may not offer, so the job
+# reports which isolation really worked. No secrets are used.
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_hyperv:
+        description: Fail the job when the Hyper-V utility VM cannot be created and started (otherwise it is only reported)
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      require_hyperv:
+        description: Fail the job when the Hyper-V utility VM cannot be created and started (otherwise it is only reported)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  hcs:
+    name: HCS on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    env:
+      # The runner context is not available at job level; the workspace (github context) is.
+      LOGS: ${{ github.workspace }}\.hcs\logs
+      DOCS: ${{ github.workspace }}\.hcs\docs
+      HCSHOST: ${{ github.workspace }}\.hcs\bin\HcsHost.exe
+      IMAGE: mcr.microsoft.com/windows/servercore:ltsc2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Machine facts
+        id: facts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:LOGS | Out-Null
+          $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          $lines = @(
+            "os: $([Environment]::OSVersion.VersionString)",
+            "administrator: $isAdmin",
+            "computer: $((Get-CimInstance Win32_ComputerSystem | ForEach-Object { $_.Manufacturer + ' / ' + $_.Model + ' / hypervisor present: ' + $_.HypervisorPresent }))"
+          )
+          $lines += (Get-WindowsOptionalFeature -Online | Where-Object { $_.FeatureName -match 'Containers|Hyper-V|VirtualMachinePlatform|Sandbox' } | ForEach-Object { 'feature ' + $_.FeatureName + ': ' + $_.State })
+          $lines += ('docker: ' + ((docker version --format '{{.Server.Os}} {{.Server.Version}}' 2>&1) -join ' '))
+          $lines += ('docker isolation default: ' + ((docker info --format '{{.Isolation}}' 2>&1) -join ' '))
+          $lines | Tee-Object -FilePath "$env:LOGS\facts.txt"
+          exit 0
+
+      - run: npm ci # also builds (prepare)
+      - name: Build
+        id: build
+        run: npm run build
+
+      - name: Self-test (hcs, engine suites)
+        id: selftest
+        shell: pwsh
+        run: |
+          node dist/bin/agent-sandbox.js self-test hcs,engine 2>&1 | Tee-Object -FilePath "$env:LOGS\selftest.txt"
+          # Gate on the printed text, not the exit code (CLAUDE.md).
+          if (-not (Select-String -Path "$env:LOGS\selftest.txt" -Pattern 'ALL TESTS PASSED' -Quiet)) { exit 1 }
+          exit 0
+
+      - name: Probe (Test-Hcs.ps1, read-only)
+        id: probe
+        shell: powershell
+        run: |
+          .\scripts\experiments\hcs\Test-Hcs.ps1 -ReportPath "$env:LOGS\probe.txt"
+          exit 0
+
+      - name: Engine check and engine list
+        id: check
+        shell: pwsh
+        run: |
+          # `engine check` exits 1 when the PC cannot run the engine: that is a result, not an error.
+          node dist/bin/agent-sandbox.js engine check hcs 2>&1 | Tee-Object -FilePath "$env:LOGS\engine-check.txt"
+          node dist/bin/agent-sandbox.js engine check hcs --json 2>&1 | Out-File -Encoding utf8 "$env:LOGS\engine-check.json"
+          node dist/bin/agent-sandbox.js engine --json 2>&1 | Out-File -Encoding utf8 "$env:LOGS\engine.json"
+          if (-not (Test-Path "$env:LOGS\engine.json") -or (Get-Item "$env:LOGS\engine.json").Length -lt 10) { exit 1 }
+          exit 0
+
+      - name: Build HcsHost.exe with csc
+        id: hcshost
+        shell: pwsh
+        run: |
+          $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+          New-Item -ItemType Directory -Force (Split-Path $env:HCSHOST) | Out-Null
+          $sources = Get-ChildItem native\csharp\HcsHost\*.cs | ForEach-Object { $_.FullName }
+          & $csc /nologo /optimize /target:exe /r:System.Web.Extensions.dll "/out:$env:HCSHOST" @sources 2>&1 | Tee-Object -FilePath "$env:LOGS\csc.txt"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $env:HCSHOST)) { exit 1 }
+          & $env:HCSHOST check --out "$env:LOGS\hcshost-check.json"
+          Get-Content "$env:LOGS\hcshost-check.json"
+          exit 0
+
+      - name: Pull Server Core image
+        id: pull
+        shell: pwsh
+        run: |
+          docker pull $env:IMAGE 2>&1 | Tee-Object -FilePath "$env:LOGS\pull.txt"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          docker image inspect $env:IMAGE --format '{{.Id}} {{.Os}} {{.OsVersion}}' 2>&1 | Tee-Object -FilePath "$env:LOGS\image.txt"
+          exit 0
+
+      - name: Docker container, process isolation
+        id: process
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          # On windows-2025 an ltsc2022 image cannot run with process isolation (build mismatch): expected there.
+          docker run --rm --isolation=process $env:IMAGE cmd /c "echo process-isolation-ok" 2>&1 | Tee-Object -FilePath "$env:LOGS\docker-process.txt"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Docker container, Hyper-V isolation
+        id: dockerhyperv
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          docker run --rm --isolation=hyperv $env:IMAGE cmd /c "echo hyperv-isolation-ok" 2>&1 | Tee-Object -FilePath "$env:LOGS\docker-hyperv.txt"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: HCS lifecycle with HcsHost.exe (go/no-go)
+        id: lifecycle
+        continue-on-error: ${{ !inputs.require_hyperv }}
+        shell: powershell
+        run: |
+          # Our documents (Hyper-V utility VM + container), written from the image Docker just pulled.
+          node scripts\experiments\hcs\export-documents.mjs "$env:DOCS" agent-sandbox-ci 2>&1 | Tee-Object -FilePath "$env:LOGS\export.txt"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\scripts\experiments\hcs\Test-HcsLifecycle.ps1 -HcsHost $env:HCSHOST -DocumentsDir $env:DOCS 2>&1 | Tee-Object -FilePath "$env:LOGS\lifecycle.txt"
+          $code = $LASTEXITCODE
+          Copy-Item "$env:DOCS\lifecycle.json" "$env:LOGS\lifecycle.json" -ErrorAction SilentlyContinue
+          Copy-Item "$env:DOCS\uvm.json", "$env:DOCS\container.json" $env:LOGS -ErrorAction SilentlyContinue
+          exit $code
+
+      - name: Clean up compute systems this job created
+        if: always()
+        shell: pwsh
+        run: |
+          # HcsHost only terminates ids that start with agent-sandbox- and carry Owner agent-sandbox.
+          if (Test-Path $env:HCSHOST) {
+            & $env:HCSHOST enumerate --out "$env:LOGS\enumerate.json"
+            $reply = Get-Content -Raw "$env:LOGS\enumerate.json" | ConvertFrom-Json
+            if ($reply.ok -and $reply.json) {
+              foreach ($system in @($reply.json | ConvertFrom-Json)) {
+                if ($system.Id -like 'agent-sandbox-*') { & $env:HCSHOST terminate $system.Id --out "$env:LOGS\terminate-$($system.Id).json" }
+              }
+            }
+          }
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $env:DOCS
+          exit 0
+
+      - name: Job summary
+        if: always()
+        shell: pwsh
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          OS: ${{ matrix.os }}
+        run: |
+          $s = $env:STEPS | ConvertFrom-Json
+          function Outcome([string]$id) { if ($s.PSObject.Properties.Name -contains $id) { $s.$id.outcome } else { 'skipped' } }
+          function Mark([string]$o) { switch ($o) { 'success' { 'PASS' } 'failure' { 'FAIL' } default { $o.ToUpper() } } }
+          $rows = @(
+            @('Build', 'build', 'npm run build'),
+            @('Self-test (hcs, engine)', 'selftest', 'ALL TESTS PASSED'),
+            @('Probe (read-only)', 'probe', 'Test-Hcs.ps1'),
+            @('Engine check and list', 'check', 'engine check hcs, engine --json'),
+            @('Build HcsHost.exe', 'hcshost', 'csc, C# 5'),
+            @('Pull Server Core ltsc2022', 'pull', 'docker pull'),
+            @('Docker, process isolation', 'process', 'informational'),
+            @('Docker, Hyper-V isolation', 'dockerhyperv', 'informational (needs nested virtualization)'),
+            @('HCS lifecycle (go/no-go)', 'lifecycle', 'HcsHost.exe: disks, create, start, terminate')
+          )
+          $md = New-Object System.Collections.Generic.List[string]
+          $md.Add("## HCS engine on $env:OS")
+          $md.Add('')
+          $md.Add('| Step | Result | Notes |')
+          $md.Add('| --- | --- | --- |')
+          foreach ($r in $rows) { $md.Add('| {0} | {1} | {2} |' -f $r[0], (Mark (Outcome $r[1])), $r[2]) }
+          $md.Add('')
+          $md.Add('### Isolation tested')
+          $hv = Outcome 'lifecycle'
+          if ($hv -eq 'success') {
+            $md.Add('**Hyper-V isolation worked**: our generated utility VM document was created, started and terminated through HcsHost.exe.')
+          } else {
+            $md.Add('**Hyper-V isolation was NOT shown to work on this runner** (no nested virtualization, or a document problem: see lifecycle.txt). The HCS engine only supports Hyper-V isolation, so it still needs a real PC (or a runner with nested virtualization) for the go/no-go.')
+          }
+          $po = Outcome 'process'
+          $md.Add(('Docker process isolation: {0}. Process isolation is NOT what the engine ships (it shares the host kernel); it only shows the image runs.' -f (Mark $po)))
+          $md.Add('Not tested here: terminal bridge, Node and csc inside Server Core, agent VHDX formatting, the writable layer (HcsHost cannot make one yet), networking.')
+          if (Test-Path "$env:LOGS\lifecycle.json") {
+            $md.Add('')
+            $md.Add('### Lifecycle steps')
+            $md.Add('| Step | Result | Required | Message |')
+            $md.Add('| --- | --- | --- | --- |')
+            foreach ($step in @(Get-Content -Raw "$env:LOGS\lifecycle.json" | ConvertFrom-Json)) {
+              $msg = ([string]$step.message -replace '[|\r\n]', ' ')
+              if ($msg.Length -gt 300) { $msg = $msg.Substring(0, 300) }
+              $md.Add('| {0} | {1} | {2} | {3} |' -f $step.name, $(if ($step.ok) { 'PASS' } else { 'FAIL' }), $step.required, $msg)
+            }
+          }
+          $md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hcs-logs-${{ matrix.os }}
+          path: ${{ env.LOGS }}
+          if-no-files-found: warn

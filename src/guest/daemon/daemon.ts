@@ -5,6 +5,7 @@ import { saveClaudeMem } from '../setup/claude-mem.js';
 import { saveLocalState } from '../agents/local-state.js';
 import { execCommand } from './exec.js';
 import { sessions } from './sessions.js';
+import { governor } from '../governor/index.js';
 import { respond, safely } from './state.js';
 import { run } from '../runtime/paths.js';
 import { withRequestSecrets } from '../runtime/secrets.js';
@@ -58,6 +59,9 @@ export class Daemon {
         return execCommand(req);
       case 'restart':
         return sessions.restart(req);
+      case 'pressure':
+        // No response: the host repeats it every few seconds while its memory stays low.
+        return governor.hostPressure(req.seconds, req.reason, req.level ?? 'slow');
       case 'ping':
         return respond(req.id, { ok: true, message: 'pong (' + sessions.count + ' session(s) running)' });
     }

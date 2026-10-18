@@ -15,6 +15,8 @@ import { hubName, PROJECTS_GUEST, substDrives } from '../../shared/paths/index.j
 import { hostClaudeDir } from '../profile/index.js';
 import type { BootProjects } from './boot-projects.js';
 import { databaseCatalog } from './database-plan.js';
+import { effectiveCpuLimit } from '../../shared/memory/index.js';
+import { loadProfileOf } from './risk-notes.js';
 
 /** What generateSandbox has decided or staged before it writes session.json. */
 export interface SessionParts {
@@ -26,6 +28,8 @@ export interface SessionParts {
   readonly profile: ProfileResult;
   readonly databases: DatabasePlan[];
   readonly toolchains: Generated['toolchains'];
+  /** The sandbox's memory (MB), for the agents' memory limit. */
+  readonly memoryMb: number;
 }
 
 /** What was found on this PC to copy instead of download. */
@@ -83,8 +87,11 @@ export function guestSession(o: GenerateOptions, parts: SessionParts): GuestSess
     },
     personalization: fs.existsSync(path.join(parts.launchPath, 'personalize', 'personalize.reg')),
     substDrives: substDrives(parts.mappings.map((m) => m.guest)),
-    cpuLimitPercent: config.sandbox.cpuLimit === 'none' ? null : config.sandbox.cpuLimit,
+    cpuLimitPercent: effectiveCpuLimit(config.sandbox.cpuLimit, loadProfileOf(config)),
+    loadProfile: loadProfileOf(config),
     pageFileMb: config.sandbox.pageFileMb,
+    agentBackstop: config.sandbox.agentMemoryHeadroomMb,
+    pressureResponse: config.sandbox.pressureResponse,
     apps: config.apps,
     auditProcesses: config.audit.enabled && config.audit.processes,
     agentHomes: Object.assign({}, ...Object.values(config.harnesses).map((h) => h.home?.env ?? {})),

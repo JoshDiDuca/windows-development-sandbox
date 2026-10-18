@@ -15,6 +15,7 @@ import { arch, tool, type ToolEnv } from '../tool-env.js';
 import { installOnce } from '../package-ledger.js';
 import { resolveCached } from '../version-cache.js';
 import { duringSession } from '../../runtime/project-context.js';
+import { session } from '../../runtime/session.js';
 import { pickNodeVersion, pickSpreadVersions, type NodeRelease } from '../../../core/detect/versions.js';
 
 const NVM_HOME = tool('nvm');
@@ -81,7 +82,15 @@ const ensureNvm = async (): Promise<void> => {
   await downloader.archive(asset.url, NVM_HOME, { sha256: asset.sha256, locate: 'nvm.exe', fileName: asset.name });
 };
 
-/** A Node version: from the host's nvm when it has it (fast, offline), else `nvm install`. */
+/** This PC's own Node folder (mapped read-only), when it is exactly this version. */
+const hostNodeFolder = (version: string): string | null => {
+  const dir = path.join(hostToolsDir, 'node');
+  return session.hostTools.nodeVersion?.replace(/^v/, '') === version && exists(path.join(dir, 'node.exe'))
+    ? dir
+    : null;
+};
+
+/** A Node version: from the host's nvm or Node when it has it (fast, offline), else `nvm install`. */
 const installNodeVersion = async (version: string): Promise<void> => {
   const dir = path.join(NVM_HOME, 'v' + version);
   const fromHost = path.join(HOST_NVM, 'v' + version);
@@ -89,6 +98,12 @@ const installNodeVersion = async (version: string): Promise<void> => {
   if (exists(path.join(fromHost, 'node.exe'))) {
     log('Copying Node ' + version + " from this PC's nvm (without global packages) ...");
     copyNode(fromHost, dir);
+    return;
+  }
+  const hostNode = hostNodeFolder(version);
+  if (hostNode) {
+    log('Copying Node ' + version + ' from this PC (without global packages) ...');
+    copyNode(hostNode, dir);
     return;
   }
   log('Downloading Node ' + version + ' (~30 MB once) ...');
@@ -99,8 +114,22 @@ const installNodeVersion = async (version: string): Promise<void> => {
   } finally {
     safeRemove(NVM_TEMP, NVM_HOME);
   }
-  if (!exists(path.join(dir, 'node.exe')))
-    throw new Error('nvm install ' + version + ' failed: ' + out.trim().split('\n').slice(-2).join(' '));
+  if (!exists(path.join(dir, 'node.exe'))) {
+    const tail = out.trim().split(/\r?\n/).filter(Boolean).slice(-3).join(' ');
+    const why = /complete/i.test(out)
+      ? 'nvm said it finished, but its move into the data folder did not happen'
+      : 'nvm could not download or unpack it: check the internet connection and the free disk space';
+    throw new Error(
+      'nvm install ' +
+        version +
+        ' did not leave ' +
+        path.join(dir, 'node.exe') +
+        ' (' +
+        why +
+        ')' +
+        (tail ? '. nvm printed: ' + tail : ''),
+    );
+  }
 };
 
 const activate = async (version: string): Promise<void> => {

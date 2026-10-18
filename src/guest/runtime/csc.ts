@@ -22,6 +22,7 @@ const SOURCES = {
   cargoshim: 'CargoShim.cs',
   linkgate: 'LinkGate.cs',
   pathsync: 'PathSync.cs',
+  memgov: 'MemGov.cs',
 } as const;
 
 export type Helper = keyof typeof SOURCES;

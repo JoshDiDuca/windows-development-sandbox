@@ -632,7 +632,7 @@ export const hcsSuite: Suite = {
     t.check(DEFAULTS.sandbox.engine === 'windows-sandbox', 'the default engine is unchanged');
 
     t.section("documents against Microsoft's published HCS schema (Windows 11 21H2 and Windows 10 1809)");
-    const schemaDir = path.join(t.packageRoot, 'test-fixtures', 'hcs-schema');
+    const schemaDir = path.join(t.packageRoot, 'src', 'selftest', 'fixtures', 'hcs-schema');
     if (!fs.existsSync(schemaDir)) {
       t.check(true, 'skipped: the schema fixtures are only in the repository');
     } else {

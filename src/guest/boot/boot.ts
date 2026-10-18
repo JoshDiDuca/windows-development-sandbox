@@ -14,7 +14,7 @@ import { syncClaudeProfile } from '../setup/claude-profile.js';
 import { agentEnv, persistEnvironment } from '../setup/environment.js';
 import { runHooks } from '../setup/hooks.js';
 import { applyAllowOnly, proxyEnv } from '../network/allow-only.js';
-import { applyNetworkPolicy, type LanState } from '../network/firewall.js';
+import { applyNetworkPolicy, networkProblems, type LanState } from '../network/firewall.js';
 import { writeManagedSettings } from '../setup/managed-policy.js';
 import { applyPersonalization } from '../setup/desktop.js';
 import { setupGitConfig } from '../setup/git-identity.js';
@@ -192,6 +192,7 @@ export class Boot {
       databases: session.databases ?? [],
       apps: session.apps,
     });
+    for (const p of networkProblems()) tools.summary.push('PROTECTION MISSING: ' + p);
     if (!dryRun) tools.prepend.push(writeDbCommand());
     // network.allowOnly / network.proxy: everything started from now on uses the proxy.
     Object.assign(tools.vars, proxyEnv());

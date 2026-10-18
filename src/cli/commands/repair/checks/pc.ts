@@ -1,7 +1,8 @@
 // This PC: Windows itself, what Windows Sandbox needs of it, and whether Windows wants a restart. The hardware and
 // edition answers come from the same look `sandbox setup` takes (once per run).
 import { isWin } from '../../../../core/util/index.js';
-import { updateRestartPending } from '../../../../host/life/index.js';
+import { pageFileRisk, readHostMemory, updateRestartPending } from '../../../../host/life/index.js';
+import { decideMemory } from '../../../../host/launch/index.js';
 import { buildChecks, type CheckStatus } from '../../setup/checks.js';
 import type { Check, Finding, RepairEnv } from '../types.js';
 import { ok } from './common.js';
@@ -42,6 +43,37 @@ export const PC_CHECKS: Check[] = [
   fromFacts('pc-virtualization', 'This PC', 'CPU virtualization', 'CPU virtualization'),
   fromFacts('pc-memory', 'This PC', 'Memory', 'Memory'),
   fromFacts('pc-node', 'This PC', 'Node.js', 'Node.js'),
+  {
+    id: 'pc-commit',
+    group: 'This PC',
+    name: 'Memory for the sandbox',
+    timeoutMs: 40_000,
+    run: (env: RepairEnv): Finding => {
+      const memory = readHostMemory(env.storageRoot);
+      if (!memory) return { status: 'skipped', detail: 'the memory of this PC could not be read' };
+      const sandbox = env.ctx.loaded.config.sandbox;
+      const planned =
+        sandbox.memoryMb === 'auto'
+          ? decideMemory(sandbox, memory.availableMb, memory.totalMb, memory.commitAvailableMb).mb
+          : sandbox.memoryMb;
+      const detail =
+        Math.floor(memory.commitAvailableMb / 1024) +
+        ' GB of RAM plus paging file free, page file ' +
+        memory.pageFile +
+        ', the next sandbox gets ' +
+        Math.floor(planned / 1024) +
+        ' GB';
+      const risk = pageFileRisk(memory, planned);
+      return risk
+        ? {
+            status: 'warn',
+            detail,
+            means: risk.text,
+            fix: 'Nothing is changed for you: set the page file as above (Windows keeps working either way).',
+          }
+        : ok(detail);
+    },
+  },
   {
     id: 'pc-restart-pending',
     group: 'This PC',

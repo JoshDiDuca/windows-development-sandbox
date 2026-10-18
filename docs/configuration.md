@@ -30,17 +30,19 @@ Commonly changed:
 | `toolchains.<lang>.enabled` | `true`, `false` or `"auto"` (only when the project uses it). Every tool is like this, Bun, uv and VS Code too, and a project's `.sandbox-config.json` can set it |
 | `toolchains.<lang>.version` | default versions; project version files still win |
 | `databases.<db>.enabled`, `.port` | `true`, `false` or `"auto"`, and the port inside |
-| `sandbox.memoryMb`, `.headless`, `.vGpu`, `.networking` | RAM, no window, GPU, internet |
+| `sandbox.memoryMb`, `.headless`, `.vGpu`, `.networking` | RAM, no window, GPU, internet. vGPU lets heavy use freeze the whole PC with some graphics drivers: leave it off unless a program needs the GPU; with it on the sandbox runs gentler by itself (lower CPU cap, earlier memory thresholds) |
 | `sandbox.engine` | **(Alpha)** what runs the sandbox: `"windows-sandbox"` (default, everything described here) or `"hcs"`: a headless Hyper-V isolated Windows Server Core container for agents. `hcs` needs Windows features turned on by you (Containers and Hyper-V or Virtual Machine Platform), an Administrators or Hyper-V Administrators account, and a Server Core (ltsc2022) image already on this PC (for example pulled by Docker Desktop, or a folder named in `AGENT_SANDBOX_HCS_IMAGE`); `sandbox engine check hcs` lists what is missing with the exact commands, and changes nothing. It has no desktop window, no GPU, no clipboard, no audio or camera, and no network yet. **Starting it is not enabled yet in this alpha** (a launch with `hcs` passes the check and stops with that message). `sandbox engine` shows the engine in use and what each can do. Your setting only: a project's `.sandbox-config.json` cannot set it |
 | `sandbox.pageFileMb` | size of the sandbox's paging file, created at full size at start so it never grows under load (default `16384`; `0` = Windows' own ~1 GB, which parallel builds run out of) |
 | `sandbox.keepAwake` | keep this PC from sleeping while a sandbox runs (default `true`), so agents left overnight keep working. The screen may still turn off; closing a laptop lid still sleeps it |
 | `sharing.otherUsers` | let other Windows users of this PC use a sandbox you start: list its sessions, attach, run commands and stop it (default `false`). They use the agent logins inside it, and history goes to your account. Only your own settings can set it, never a project's `.sandbox-config.json`. A machine file (`%ProgramData%\AgentSandbox\config.json`, all-users installs) is read first; your file wins |
 | `sandbox.cpuLimit` | most of your PC's CPU the sandbox may use, in percent (default `80`; `"none"` = all of it). Your setting only: a project file cannot change it |
-| `sandbox.maxMemoryPercent`, `.maxMemoryMb`, `.reserveHostMb` | `memoryMb: "auto"` = free RAM minus `reserveHostMb` (8 GB), at most `maxMemoryPercent` (80) of your RAM and `maxMemoryMb` |
+| `sandbox.maxMemoryPercent`, `.maxMemoryMb`, `.reserveHostMb` | `memoryMb: "auto"` = free RAM minus `reserveHostMb` (8 GB), and also this PC's unused commit (RAM plus paging file) minus `reserveHostMb`, at most `maxMemoryPercent` (80) of your RAM and `maxMemoryMb` |
+| `sandbox.agentMemoryHeadroomMb` | the last resort that keeps the sandbox up: how far below the sandbox's commit limit (RAM plus paging file) everything the agents start together is stopped from committing more. Builds are slowed down long before that (`sandbox.pressureResponse`); this only ever matters at the very edge, where Windows inside the sandbox would otherwise start failing, and then a build is refused memory instead of Windows (default `"auto"` = the larger of 1536 MB and 3 % of the commit limit; a number of MB; `"none"` = no backstop). Your setting only |
+| `sandbox.pressureResponse` | when the sandbox (or this PC) runs low on memory, slow the heaviest build programs down and, if needed, pause the biggest compiler for a few seconds (default `true`; see troubleshooting "The sandbox closes under heavy load"). Your setting only |
 | `attach.auto` | starting an agent attaches this terminal automatically (like `-t`) |
 | `agentCommands.enabled` | **(Beta)** typing `claude`, `codex` ... on this PC starts the agent in a hidden sandbox and attaches (default off) |
 | `agentCommands.agents` | `"auto"` = every agent installed on this PC, or a list such as `["claude", "codex"]` |
-| `web.enabled`, `web.port` | **(Beta)** the web UI ([web-ui.md](web-ui.md)): off by default and not settable from a project; `sandbox web start` works either way and runs it on `127.0.0.1:<port>` (default `47800`) until `sandbox web stop` |
+| `web.enabled`, `web.port`, `web.openOnLaunch` | **(Beta)** the web UI ([web-ui.md](web-ui.md)) on `127.0.0.1:<port>` (default `47800`, this PC only); off by default and not settable from a project. With `web.enabled` on, every sandbox start also starts it in the background (it keeps running until `sandbox web stop`); with `web.openOnLaunch` on too, your browser opens it already signed in. `sandbox web start` / `open` work either way. The address alone does not sign you in: open it with `sandbox web open` (or `web.openOnLaunch`) |
 | `attach.autoHide` | the sandbox window hides whenever this terminal attaches (`sandbox show` brings it back) |
 | `provisioning.git.access` | `full`, `readonly` or `none` |
 | `secrets.allow`, `secrets.patterns` | let named variables through, or strip more |
@@ -48,7 +50,7 @@ Commonly changed:
 | `toolchains.environment` | extra environment variables (e.g. registry mirrors) |
 | `toolchains.msvc.acceptLicense` | `true` to allow installing MSVC (see [toolchains](toolchains.md#msvc)) |
 | `toolchains.rust.host`, `.targetDir`, `.crates` | Rust target (`auto`, msvc or gnu), where builds go, and binaries to install with cargo |
-| `toolchains.rust.linker`, `.linkSlots` | GNU host: `"lld"` (default, far less memory than GNU ld) or `"gnu"`, and how many programs may link at once in the whole sandbox (`"auto"` = one per 8 GB, 2 to 4) |
+| `toolchains.rust.linker`, `.linkSlots` | GNU host: `"lld"` (default, far less memory than GNU ld) or `"gnu"`, and how many programs may link at once in the whole sandbox (`"auto"` = one per 3 GB after 6 GB of the sandbox's memory, 2 to 8; the memory governor slows links down too when memory runs short) |
 | `toolchains.cli.gh`, `.zstd`, `.openssl` | small command-line tools |
 | `toolchains.mesa.enabled`, `.vulkan` | software OpenGL / Vulkan when there is no GPU |
 | `harnesses` | agents and how to install them; `home` says where an agent keeps its login (variable -> folder in the saved state, the login files, the folder on this PC) so logins can be saved and switched. An agent with no variable for it lists `profileDirs` (folders in the sandbox's user profile, such as `.qwen`): each is linked to `state\<agent>\profile\<folder>`, so its login survives the sandbox, and its `loginFiles` start with `profile/`. `localState` (variable -> folder in the agent's saved state) is for agents that keep SQLite databases (codex): SQLite cannot run in the shared data folder, so the agent runs from a copy on the sandbox's own disk (the variable points to it); the copy is restored at start and saved again after the agent exits. Every configured agent also gets its command (`claude`, `codex` ...) in every terminal tab: when it is not installed yet, the command installs it on first use (`sbx-agent list` shows them) |
@@ -165,9 +167,9 @@ These are applied inside the sandbox, where the agent is an administrator: they 
 tools it runs) in bounds, but a determined one could undo them. `sandbox.networking: false` is the only hard isolation.
 A project's `.sandbox-config.json` may add `blockHosts` and turn on `blockPrivateRanges`, nothing else here.
 
-## VPN
+## VPN (alpha)
 
-The **VPN** settings (Network category, or `vpn` in your file) send the sandbox's traffic through a VPN. Only the
+**Alpha: not yet tried on a real PC.** The **VPN** settings (Network category, or `vpn` in your file) send the sandbox's traffic through a VPN. Only the
 sandbox: your PC's own connection is untouched. Plain steps for NordVPN: [vpn.md](vpn.md).
 
 | Setting | |

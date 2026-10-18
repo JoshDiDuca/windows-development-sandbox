@@ -12,9 +12,58 @@ import {
   type QueryDef,
   type RpcHost,
 } from './kernel/index.js';
+import {
+  addAgentRun,
+  listAgentsRun,
+  makeDefaultAgentRun,
+  removeAgentRun,
+  startAgentRun,
+} from './features/agents/index.js';
+import {
+  defaultAccountRun,
+  listAccountsRun,
+  removeAccountRun,
+  renameAccountRun,
+  saveAccountRun,
+  useAccountRun,
+} from './features/accounts/index.js';
+import { listAppsRun, requestAppRun, setCustomAppsRun, toggleAppRun } from './features/apps/index.js';
+import { browseFolderRun } from './features/files/index.js';
+import { cleanDataRun, pruneStorageRun, showDataRun } from './features/data/index.js';
+import {
+  changeDataFolderRun,
+  containedOffRun,
+  containedOnRun,
+  containedStatusRun,
+  moveStorageRun,
+  showStorageRun,
+  useStorageRun,
+} from './features/storage/index.js';
+import {
+  addProjectRun,
+  allProjectsRun,
+  chooseProjectsRun,
+  excludeProjectRun,
+  includeProjectRun,
+  listProjectsRun,
+  projectRootsRun,
+  removeProjectRun,
+} from './features/projects/index.js';
+import { checkHealthRun, enableSandboxRun, lastHealthRun, repairHealthRun } from './features/health/index.js';
 import { hideWindowRun, sandboxStatusRun, showWindowRun, stopSandboxRun } from './features/sandbox/index.js';
+import { listLogsRun, tailLogRun } from './features/logs/index.js';
 import { listSessionsRun, restartSessionsRun } from './features/sessions/index.js';
-import { getSettingRun, listSettingsRun, resetSettingRun, setSettingRun } from './features/settings/index.js';
+import {
+  exportConfigRun,
+  getSettingRun,
+  importConfigRun,
+  listSettingsRun,
+  resetSettingRun,
+  setSettingRun,
+} from './features/settings/index.js';
+import { migrateSettingsRun, runUpdateRun, updatesStatusRun } from './features/updates/index.js';
+import { checkEngineRun, engineStatusRun } from './features/engine/index.js';
+import { openWebRun, startWebRun, stopWebRun, webStatusRun } from './features/web/index.js';
 
 export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>[] = [
   sandboxStatusRun,
@@ -23,10 +72,61 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   stopSandboxRun,
   listSessionsRun,
   restartSessionsRun,
+  startAgentRun,
+  addAgentRun,
+  makeDefaultAgentRun,
+  removeAgentRun,
+  listAgentsRun,
   listSettingsRun,
   getSettingRun,
   setSettingRun,
   resetSettingRun,
+  exportConfigRun,
+  importConfigRun,
+  browseFolderRun,
+  listAccountsRun,
+  saveAccountRun,
+  useAccountRun,
+  defaultAccountRun,
+  renameAccountRun,
+  removeAccountRun,
+  listAppsRun,
+  toggleAppRun,
+  setCustomAppsRun,
+  requestAppRun,
+  listProjectsRun,
+  chooseProjectsRun,
+  addProjectRun,
+  removeProjectRun,
+  includeProjectRun,
+  excludeProjectRun,
+  allProjectsRun,
+  projectRootsRun,
+  lastHealthRun,
+  checkHealthRun,
+  repairHealthRun,
+  enableSandboxRun,
+  showDataRun,
+  cleanDataRun,
+  pruneStorageRun,
+  showStorageRun,
+  moveStorageRun,
+  useStorageRun,
+  changeDataFolderRun,
+  containedStatusRun,
+  containedOnRun,
+  containedOffRun,
+  listLogsRun,
+  tailLogRun,
+  runUpdateRun,
+  migrateSettingsRun,
+  updatesStatusRun,
+  engineStatusRun,
+  checkEngineRun,
+  startWebRun,
+  openWebRun,
+  stopWebRun,
+  webStatusRun,
 ];
 
 export function implementationOf(id: string): Implementation<AnyDefinition, AppContext> | undefined {

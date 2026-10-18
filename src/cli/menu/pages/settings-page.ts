@@ -6,15 +6,19 @@ import _ from 'lodash';
 import {
   CATEGORIES,
   labelOf,
+  listSettings,
   nameOf,
   settingRow,
   settingsOf,
+  settingsPage,
   type ConfigFile,
   type Setting,
   type SettingRow,
   type SettingsSource,
 } from '../../../app/features/settings/index.js';
-import { valueText } from '../../../app/kernel/index.js';
+import { changeDataFolder } from '../../../app/features/storage/index.js';
+import { action, valueText } from '../../../app/kernel/index.js';
+import { readQuery } from '../../../app/registry.js';
 import type { Config } from '../../../core/types.js';
 import type { Context } from '../../commands/context.js';
 import { errMsg } from '../../../core/util/index.js';
@@ -27,8 +31,7 @@ import {
   type ListOptions,
   type ListResult,
 } from '../../tui/index.js';
-import { dataFolderRow, DataFolderFlow } from '../data-folder.js';
-import { EXPORT_SETTINGS, IMPORT_SETTINGS, ShareSettingsFlow, shareSettingsRows } from '../share-settings.js';
+import { MenuOperations } from '../io-menu.js';
 import { VpnLoginFlow, vpnLoginRow, VPN_LOGIN } from '../vpn-login.js';
 import type { Draft } from '../settings/draft.js';
 import { ValueEditor } from '../settings/value-editor.js';
@@ -36,6 +39,29 @@ import { SCOPES, scopeStatus, type Scope } from './scopes.js';
 import { ListPage, type Outcome } from './list-page.js';
 
 export { settingsOf, type Setting };
+
+/** The rows in General that export and import your settings (the page's actions of the settings feature). */
+export const EXPORT_SETTINGS = '@export-settings';
+export const IMPORT_SETTINGS = '@import-settings';
+
+export function shareSettingsRows(): { value: string; label: string; hint: string; description: string }[] {
+  return [
+    {
+      value: EXPORT_SETTINGS,
+      label: 'Export settings…',
+      hint: '.json',
+      description:
+        'Write the settings you changed to a .json file you can share with a team. Secrets, the data folder and folders or files of this PC are left out.',
+    },
+    {
+      value: IMPORT_SETTINGS,
+      label: 'Import settings…',
+      hint: '.json',
+      description:
+        'Read a settings file someone shared, see what it would change, and apply it once you say yes. Secrets, the data folder and paths in it are never taken.',
+    },
+  ];
+}
 
 /** The files with the menu's unsaved changes laid over them. */
 function draftSource(draft: Draft): SettingsSource {
@@ -99,8 +125,18 @@ function current(file: ConfigFile, draft: Draft, key: string[], config: Config):
   return file.isProject ? (source.written(file, key) ?? _.get(config, key)) : source.effective(file, key, config);
 }
 
-/** The row in General that opens the data folder flow (your own settings only). */
+/** The row in General that changes the data folder (your own settings only): the storage area's operation runs it. */
 export const DATA_FOLDER = '@data-folder';
+
+/** The row's words: where the saved data is, and what Enter does. */
+function dataFolderRow(ctx: Context): { label: string; hint: string; description: string } {
+  return {
+    label: 'Data folder',
+    hint: ctx.storageRoot,
+    description:
+      'Where your tools, logins, history and logs are kept between sandboxes. Press Enter to move them to another folder or drive, or to use a different folder.',
+  };
+}
 
 /** The list for the settings section. Pure (reads the files it is given). `extra` are rows that are not settings. */
 export function settingsOptions(
@@ -146,6 +182,7 @@ export class SettingsPage extends ListPage<string> {
   override readonly stages = true;
   private scope: Scope = 'user';
   private readonly editor: ValueEditor;
+  private readonly operations: MenuOperations;
 
   constructor(
     app: App,
@@ -154,6 +191,7 @@ export class SettingsPage extends ListPage<string> {
     private readonly ctx: Context,
   ) {
     super(app);
+    this.operations = new MenuOperations(app, ctx);
     this.editor = new ValueEditor(app, {
       suggestions: (key) =>
         ['defaultHarness', 'harness'].includes(key.join('.'))
@@ -201,14 +239,18 @@ export class SettingsPage extends ListPage<string> {
     if (result.value === undefined) return {};
     if (result.value === DATA_FOLDER) {
       if (result.kind !== 'pick') return {};
-      const exit = await new DataFolderFlow(this.app, this.ctx).run();
-      return exit ? { exit } : { reload: true };
+      return this.operations.perform(action(changeDataFolder, {}), [this.label, 'Data folder'], (text) =>
+        this.busy(text),
+      );
     }
     if (result.value === EXPORT_SETTINGS || result.value === IMPORT_SETTINGS) {
       if (result.kind !== 'pick') return {};
-      const flow = new ShareSettingsFlow(this.app, this.ctx);
-      const notice = await (result.value === EXPORT_SETTINGS ? flow.export() : flow.import());
-      return { reload: true, notice };
+      const exporting = result.value === EXPORT_SETTINGS;
+      const page = settingsPage(await readQuery(listSettings, this.ctx, { scope: 'user' }));
+      const wanted = exporting ? 'settings.export' : 'settings.import';
+      const act = page.actions?.find((a) => a.kind === 'operation' && a.op === wanted);
+      if (!act) return {};
+      return this.operations.perform(act, ['Settings', exporting ? 'Export settings' : 'Import settings']);
     }
     if (result.value === VPN_LOGIN) {
       if (result.kind !== 'pick') return {};

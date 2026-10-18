@@ -3,7 +3,7 @@ import path from 'node:path';
 import _ from 'lodash';
 import fs from 'node:fs';
 import { DEFAULTS, loadConfig } from '../core/config/index.js';
-import { diffText, exportSettings, planImport } from '../cli/menu/settings/index.js';
+import { diffText, exportSettings, planImport } from '../app/features/settings/settings-share.js';
 import { readJsonc } from '../core/util/index.js';
 import type { Suite } from './support/suite.js';
 

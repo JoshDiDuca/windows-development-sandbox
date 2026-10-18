@@ -36,11 +36,6 @@ export interface WebInfo {
   readonly projects: readonly WebProject[];
 }
 
-export interface NewSessionRequest {
-  readonly harness: string;
-  readonly project: string;
-}
-
 /** Browser -> server on the terminal socket: binary messages are keystrokes; text messages are these (JSON). */
 export type ClientMessage = { readonly t: 'resize'; readonly cols: number; readonly rows: number };
 

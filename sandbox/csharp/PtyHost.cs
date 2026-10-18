@@ -79,7 +79,7 @@ sealed class SessionHost
         log.Write("starting: " + command);
         while (true)
         {
-            using (PseudoConsole console = PseudoConsole.Start(command, hub.Cols, hub.Rows, hub.Broadcast))
+            using (PseudoConsole console = PseudoConsole.Start(command, hub.Cols, hub.Rows, hub.Broadcast, log))
             {
                 hub.Attach(console);
                 log.Write("pseudo console: " + Native.ConsoleKind);
@@ -432,7 +432,17 @@ sealed class ClientHub
                 clients.Add(client);
             }
         }
-        TakeOwnership(client);
+        // Passed through, a size change makes the program redraw for everyone (a second copy of the screen in some),
+        // so a viewer that only looks leaves the size to the one in use; it takes over when it types or is resized.
+        bool owned;
+        lock (gate)
+        {
+            owned = sizeOwner != null;
+        }
+        if (!passthrough || !owned)
+        {
+            TakeOwnership(client);
+        }
         return true;
     }
 
@@ -781,9 +791,11 @@ sealed class ClientHub
             return;
         }
         PseudoConsole current;
+        bool same;
         lock (gate)
         {
             current = console;
+            same = cols == width && rows == height;
             cols = width;
             rows = height;
         }
@@ -791,7 +803,18 @@ sealed class ClientHub
         {
             return;
         }
-        // ConPTY repaints everything on a size change; resizing by one row first forces that even for the same size.
+        if (Native.ConsoleKind.StartsWith("conpty"))
+        {
+            // Passed through: nothing repaints, the program redraws itself on every resize. Programs like Claude Code
+            // leave a second copy of their screen behind when they do, so resize only when the size really changes.
+            if (!same)
+            {
+                current.Resize(width, height);
+            }
+            return;
+        }
+        // Windows' own ConPTY repaints everything on a size change; resizing by one row first forces that even for the
+        // same size.
         current.Resize(width, (short)(height - 1));
         current.Resize(width, height);
     }
@@ -856,7 +879,7 @@ sealed class PseudoConsole : IDisposable
         this.pump = pump;
     }
 
-    public static PseudoConsole Start(string commandLine, short cols, short rows, Action<byte[]> onOutput)
+    public static PseudoConsole Start(string commandLine, short cols, short rows, Action<byte[]> onOutput, Log log)
     {
         SafeFileHandle inRead;
         SafeFileHandle inWrite;
@@ -872,7 +895,7 @@ sealed class PseudoConsole : IDisposable
         }
         inRead.Dispose();
         outWrite.Dispose();
-        IntPtr process = Native.Spawn(commandLine, handle);
+        IntPtr process = Native.Spawn(commandLine, handle, log);
         FileStream output = new FileStream(outRead, FileAccess.Read);
         Thread pump = new Thread(() => Pump(output, onOutput));
         pump.IsBackground = true;
@@ -1085,6 +1108,16 @@ sealed class Log
 static class Native
 {
     private const uint ExtendedStartupInfoPresent = 0x00080000;
+    private const uint CreateSuspended = 0x00000004;
+    // The shared job of everything the agents start (the memory governor in the daemon opens it by this name).
+    private const string AgentJobName = "Local\\AgentSandboxAgentsJob";
+    private const int JobObjectExtendedLimitInformation = 9;
+    private const uint JobObjectLimitJobMemory = 0x00000200;
+    private const int ErrorAlreadyExists = 183;
+    /// <summary>The backstop's headroom for "auto": this much of the commit limit, at least MinHeadroomMb.</summary>
+    private const int HeadroomPercent = 3;
+    private const long MinHeadroomMb = 1536;
+    private const long BytesPerMb = 1024L * 1024L;
     private const int UseStdHandles = 0x00000100;
     private static readonly IntPtr PseudoConsoleAttribute = (IntPtr)0x00020016;
 
@@ -1123,6 +1156,58 @@ static class Native
     {
         public StartupInfo StartupInfo;
         public IntPtr lpAttributeList;
+    }
+
+    // JOBOBJECT_BASIC_LIMIT_INFORMATION, IO_COUNTERS and JOBOBJECT_EXTENDED_LIMIT_INFORMATION.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JobBasicLimit
+    {
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public uint LimitFlags;
+        public UIntPtr MinimumWorkingSetSize;
+        public UIntPtr MaximumWorkingSetSize;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint PriorityClass;
+        public uint SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IoCounters
+    {
+        public ulong ReadOperationCount;
+        public ulong WriteOperationCount;
+        public ulong OtherOperationCount;
+        public ulong ReadTransferCount;
+        public ulong WriteTransferCount;
+        public ulong OtherTransferCount;
+    }
+
+    // MEMORYSTATUSEX: ullTotalPageFile is the commit limit (RAM plus paging files).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MemoryStatus
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JobExtendedLimit
+    {
+        public JobBasicLimit BasicLimitInformation;
+        public IoCounters IoInfo;
+        public UIntPtr ProcessMemoryLimit;
+        public UIntPtr JobMemoryLimit;
+        public UIntPtr PeakProcessMemoryUsed;
+        public UIntPtr PeakJobMemoryUsed;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -1181,6 +1266,21 @@ static class Native
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool CreateProcessW(string lpApplicationName, StringBuilder lpCommandLine, IntPtr lpProcessAttributes, IntPtr lpThreadAttributes, bool bInheritHandles, uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory, ref StartupInfoEx lpStartupInfo, out ProcessInformation lpProcessInformation);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref JobExtendedLimit info, int length);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern uint ResumeThread(IntPtr thread);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
@@ -1241,9 +1341,95 @@ static class Native
         return NativeMethods.CreatePipe(out read, out write, IntPtr.Zero, 0);
     }
 
-    /// <summary>Starts `commandLine` attached to the pseudo console. Null std handles: never leak our own stdio into the child.</summary>
-    public static IntPtr Spawn(string commandLine, IntPtr pseudoConsole)
+    private static IntPtr agentJob;
+    private static bool agentJobTried;
+
+    /// <summary>
+    /// The shared job of everything the agents start (the governor reads it to slow builds down). Its only limit is a
+    /// last-resort backstop: the sandbox's commit limit minus a small headroom (PTYHOST_BACKSTOP_MB: "auto", a number
+    /// of MB, or "none"). The job's committed memory is part of the whole sandbox's, so it can reach the backstop only
+    /// when Windows inside the sandbox is about to refuse memory to everyone; then a build is refused instead of
+    /// Windows' own processes. Only the ptyhost that creates the job sets it: one that joins it never changes it.
+    /// ptyhost itself is never in it; the handle stays open for ptyhost's whole life.
+    /// </summary>
+    private static IntPtr AgentJob(Log log)
     {
+        if (agentJobTried)
+        {
+            return agentJob;
+        }
+        agentJobTried = true;
+        string setting = Environment.GetEnvironmentVariable("PTYHOST_BACKSTOP_MB");
+        if (string.IsNullOrEmpty(setting))
+        {
+            return IntPtr.Zero;
+        }
+        // The self-test uses a job of its own (a name in the same family), never the agents' real one.
+        string name = Environment.GetEnvironmentVariable("PTYHOST_JOB_NAME");
+        if (string.IsNullOrEmpty(name) || !name.StartsWith(AgentJobName + "Test", StringComparison.Ordinal))
+        {
+            name = AgentJobName;
+        }
+        IntPtr job = NativeMethods.CreateJobObjectW(IntPtr.Zero, name);
+        int error = Marshal.GetLastWin32Error();
+        if (job == IntPtr.Zero)
+        {
+            log.Write("agent job: CreateJobObject failed (" + error + "); agents run outside it");
+            return IntPtr.Zero;
+        }
+        agentJob = job;
+        if (error == ErrorAlreadyExists)
+        {
+            log.Write("agent job: joined the existing one (its backstop stays as it was set)");
+            return job;
+        }
+        if (setting == "none")
+        {
+            log.Write("agent job: no backstop (sandbox.agentMemoryHeadroomMb is none)");
+            return job;
+        }
+        long commitMb;
+        long limitMb = BackstopMb(setting, out commitMb);
+        if (limitMb <= 0)
+        {
+            log.Write("agent job: the commit limit cannot be read; no backstop");
+            return job;
+        }
+        JobExtendedLimit info = new JobExtendedLimit();
+        info.BasicLimitInformation.LimitFlags = JobObjectLimitJobMemory;
+        info.JobMemoryLimit = new UIntPtr((ulong)(limitMb * BytesPerMb));
+        if (!NativeMethods.SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref info, Marshal.SizeOf(typeof(JobExtendedLimit))))
+        {
+            log.Write("agent job: setting the backstop failed (" + Marshal.GetLastWin32Error() + "); no backstop");
+            return job;
+        }
+        log.Write("agent job: last-resort backstop at " + limitMb + " MB committed (the sandbox's commit limit is " + commitMb + " MB)");
+        return job;
+    }
+
+    /// <summary>The commit limit minus the headroom ("auto" or MB), at least half of it; 0 when it cannot be read.</summary>
+    private static long BackstopMb(string setting, out long commitMb)
+    {
+        commitMb = 0;
+        MemoryStatus status = new MemoryStatus();
+        status.Length = (uint)Marshal.SizeOf(typeof(MemoryStatus));
+        if (!NativeMethods.GlobalMemoryStatusEx(ref status))
+        {
+            return 0;
+        }
+        commitMb = (long)(status.TotalPageFile / (ulong)BytesPerMb);
+        long headroom;
+        if (setting == "auto" || !long.TryParse(setting, out headroom) || headroom < 0)
+        {
+            headroom = Math.Max(MinHeadroomMb, commitMb * HeadroomPercent / 100);
+        }
+        return Math.Max(commitMb / 2, commitMb - headroom);
+    }
+
+    /// <summary>Starts `commandLine` attached to the pseudo console. Null std handles: never leak our own stdio into the child.</summary>
+    public static IntPtr Spawn(string commandLine, IntPtr pseudoConsole, Log log)
+    {
+        IntPtr job = AgentJob(log);
         IntPtr size = IntPtr.Zero;
         NativeMethods.InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
         IntPtr attributes = Marshal.AllocHGlobal(size);
@@ -1256,9 +1442,18 @@ static class Native
             info.StartupInfo.dwFlags = UseStdHandles;
             info.lpAttributeList = attributes;
             ProcessInformation pi;
-            if (!NativeMethods.CreateProcessW(null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero, false, ExtendedStartupInfoPresent, IntPtr.Zero, null, ref info, out pi))
+            if (!NativeMethods.CreateProcessW(null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero, false, ExtendedStartupInfoPresent | (job != IntPtr.Zero ? CreateSuspended : 0), IntPtr.Zero, null, ref info, out pi))
             {
                 throw new IOException("CreateProcess failed (" + Marshal.GetLastWin32Error() + "): " + commandLine);
+            }
+            if (job != IntPtr.Zero)
+            {
+                // Suspended until it is in the job, so nothing it starts can be outside.
+                if (!NativeMethods.AssignProcessToJobObject(job, pi.hProcess))
+                {
+                    log.Write("agent job: could not add the agent (" + Marshal.GetLastWin32Error() + "); it runs without the memory limit");
+                }
+                NativeMethods.ResumeThread(pi.hThread);
             }
             NativeMethods.CloseHandle(pi.hThread);
             return pi.hProcess;

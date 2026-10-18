@@ -8,12 +8,21 @@ import {
   GuestRequestSchema,
   GuestResponseSchema,
   IdSchema,
+  PressureStatusSchema,
   ProjectStatusSchema,
   SandboxStatusSchema,
   SessionStatusSchema,
   VpnStatusSchema,
 } from './schema.js';
-import type { GuestRequest, GuestResponse, ProjectStatus, SandboxStatus, SessionStatus, VpnStatus } from './schema.js';
+import type {
+  GuestRequest,
+  GuestResponse,
+  PressureStatus,
+  ProjectStatus,
+  SandboxStatus,
+  SessionStatus,
+  VpnStatus,
+} from './schema.js';
 import { readValid } from '../io/index.js';
 
 /** Ids become file names, so only a strict alphabet is allowed (no separators, no dots). */
@@ -44,6 +53,10 @@ export class RunDir {
   readonly root: string;
   readonly sandboxFile: string;
   readonly vpnFile: string;
+  /** What the memory governor in the sandbox is doing (pressure.json). */
+  readonly pressureFile: string;
+  /** What the sandbox's programs may really use (budget.json): processors, memory, build jobs, link slots. */
+  readonly budgetFile: string;
   readonly requestsDir: string;
   readonly responsesDir: string;
   readonly sessionsDir: string;
@@ -57,6 +70,8 @@ export class RunDir {
     this.root = path.join(dataDir, 'run');
     this.sandboxFile = path.join(this.root, 'sandbox.json');
     this.vpnFile = path.join(this.root, 'vpn.json');
+    this.pressureFile = path.join(this.root, 'pressure.json');
+    this.budgetFile = path.join(this.root, 'budget.json');
     this.requestsDir = path.join(this.root, 'requests');
     this.responsesDir = path.join(this.root, 'responses');
     this.sessionsDir = path.join(this.root, 'sessions');
@@ -87,6 +102,9 @@ export class RunDir {
   }
   readVpnStatus(): VpnStatus | null {
     return readValid(VpnStatusSchema, this.vpnFile);
+  }
+  readPressure(): PressureStatus | null {
+    return readValid(PressureStatusSchema, this.pressureFile);
   }
   readSession(id: string): SessionStatus | null {
     return readValid(SessionStatusSchema, this.sessionFile(id));

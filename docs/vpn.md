@@ -1,4 +1,8 @@
-# VPN (NordVPN first)
+# VPN (NordVPN first) — alpha
+
+> **Alpha.** Built and tested inside a sandbox, but not yet tried on a real PC: the tunnel driver, the kill switch and
+> attaching with the tunnel on still need checking ([what is not tested yet](#what-is-not-tested-yet)). Keep using it
+> only where a broken tunnel would not hurt.
 
 The sandbox can send all its traffic through a VPN. Only the sandbox: your PC's own connection is untouched. NordVPN
 works with the login you already have; you do not need a NordVPN app on your PC. You can also use your own OpenVPN

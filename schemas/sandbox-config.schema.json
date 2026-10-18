@@ -105,7 +105,7 @@
               "maximum": 9007199254740991
             }
           ],
-          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb."
+          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered."
         },
         "maxMemoryMb": {
           "type": "integer",
@@ -123,11 +123,11 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "RAM always left for this PC when memoryMb is \"auto\"."
+          "description": "Memory always left for this PC when memoryMb is \"auto\": the sandbox gets at most (free RAM, and RAM plus paging file still unused) minus this."
         },
         "vGpu": {
           "type": "boolean",
-          "description": "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface."
+          "description": "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface. The sandbox then uses this PC's graphics card, and with some graphics drivers heavy use can freeze the whole PC: turn it on only when a program in the sandbox needs the GPU (the mesa toolchain gives software OpenGL without it)."
         },
         "networking": {
           "type": "boolean",
@@ -411,7 +411,7 @@
                   "maximum": 32
                 }
               ],
-              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 8 GB of sandbox memory, 2 to 4. Several agents linking big programs at once can take Windows down."
+              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 3 GB of sandbox memory after 6 GB, 2 to 8 (the memory governor slows links down too when memory runs short)."
             }
           },
           "additionalProperties": false

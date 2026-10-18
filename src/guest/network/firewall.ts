@@ -5,7 +5,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { relayPort, withBlockedHosts } from '../../shared/network/policy.js';
 import {
+  attachRuleCommands,
   buildFirewallCommands,
+  hasShortName,
   ipv4DnsServers,
   isIPv4,
   parseDefaultGateways,
@@ -17,8 +19,6 @@ import { dryRun, isWin } from '../runtime/paths.js';
 import { log, warn } from '../runtime/log.js';
 import { session } from '../runtime/session.js';
 import { errMsg } from '../../core/util/errors.js';
-
-const ATTACH_RULE = 'AgentSandbox-Attach';
 
 const netsh = (args: string[]): { status: number | null; out: string } => {
   const r = spawnSync(SYSTEM.netsh(), args, { encoding: 'utf8', windowsHide: true });
@@ -63,24 +63,47 @@ const waitForInternet = async (seconds: number): Promise<boolean> => {
 /** What the agent's manifest says about the LAN. */
 export type LanState = 'blocked' | 'open' | 'offline';
 
-/** Inbound rule for ptyhost only, and only from the sandbox's own subnet (where the host's Hyper-V adapter is). */
-const attachRule = (ptyHostExe: string): string[][] => [
-  ['advfirewall', 'firewall', 'delete', 'rule', 'name=' + ATTACH_RULE],
-  [
-    'advfirewall',
-    'firewall',
-    'add',
-    'rule',
-    'name=' + ATTACH_RULE,
-    'dir=in',
-    'action=allow',
-    'enable=yes',
-    'profile=any',
-    'protocol=tcp',
-    'remoteip=LocalSubnet',
-    'program=' + ptyHostExe,
-  ],
-];
+/** Protections that could not be put in place this boot (shown in the boot summary and the log, never silent). */
+const problems: string[] = [];
+
+export function networkProblems(): readonly string[] {
+  return problems;
+}
+
+/** netsh needs the long form of a path: the sandbox's TEMP is an 8.3 short path (WDAGUT~1). */
+const longPath = (file: string): string => {
+  if (!hasShortName(file)) return file;
+  try {
+    return fs.realpathSync.native(file);
+  } catch {
+    return file;
+  }
+};
+
+/**
+ * The inbound rule for ptyhost (the attach channel). A rule that cannot be added is a missing protection, so it is
+ * tried again a few times and then reported loudly instead of being skipped.
+ */
+async function applyAttachRule(ptyHostExe: string | null): Promise<void> {
+  if (!session.attach.enabled) return;
+  if (!ptyHostExe) {
+    problems.push('attach: the session host was not built, so the firewall rule for it was not created');
+    warn(problems[problems.length - 1]);
+    return;
+  }
+  let last = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      run(attachRuleCommands(longPath(ptyHostExe)));
+      return;
+    } catch (e) {
+      last = errMsg(e);
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+  problems.push('attach: the firewall rule for the session host could not be created (' + last + ')');
+  warn('PROTECTION MISSING: ' + problems[problems.length - 1]);
+}
 
 export function run(commands: string[][]): void {
   for (const c of commands) {
@@ -103,10 +126,11 @@ export async function applyNetworkPolicy(ptyHostExe: string | null): Promise<Lan
   const block = session.network.blockPrivateRanges;
   const exempt = block ? discoverExemptIps() : [];
   const lanRules = block ? buildFirewallCommands(exempt) : [];
+  const forwardRules = forwardRule();
   const commands = [
     ...lanRules,
-    ...(ptyHostExe && session.attach.enabled ? attachRule(ptyHostExe) : []),
-    ...forwardRule(),
+    ...(ptyHostExe && session.attach.enabled ? attachRuleCommands(ptyHostExe) : []),
+    ...forwardRules,
   ];
   if (isWin && !dryRun) {
     try {
@@ -133,7 +157,21 @@ export async function applyNetworkPolicy(ptyHostExe: string | null): Promise<Lan
   }
   if (commands.length === 0) return 'open';
   const online = block ? await waitForInternet(30) : true;
-  run(commands);
+  // Each group on its own: one failing must not skip the others (or the internet check below).
+  const failures: string[] = [];
+  try {
+    run(lanRules);
+  } catch (e) {
+    failures.push(errMsg(e));
+  }
+  await applyAttachRule(ptyHostExe);
+  try {
+    run(forwardRules);
+  } catch (e) {
+    problems.push('forwardPorts: the firewall rule for the relays could not be created (' + errMsg(e) + ')');
+    warn('PROTECTION MISSING: ' + problems[problems.length - 1]);
+  }
+  if (failures.length) throw new Error(failures[0]);
   if (!block) return 'open';
   if (online && !(await waitForInternet(15))) {
     run(lanRules.filter((c) => c[2] === 'delete'));

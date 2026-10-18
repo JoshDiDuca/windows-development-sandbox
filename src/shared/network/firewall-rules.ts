@@ -134,3 +134,34 @@ export function buildFirewallCommands(exemptIps: string[]): string[][] {
   }
   return commands;
 }
+
+export const ATTACH_RULE = 'AgentSandbox-Attach';
+
+/**
+ * True when a Windows path has an 8.3 short name in it (`C:\Users\WDAGUT~1\...`). netsh refuses `program=` paths
+ * like that ("The application name could not be resolved"), so they are expanded first.
+ */
+export function hasShortName(file: string): boolean {
+  return file.split(/[/\\]/).some((part) => /~\d/.test(part));
+}
+
+/** Inbound rule for ptyhost only, and only from the sandbox's own subnet (where the host's Hyper-V adapter is). */
+export function attachRuleCommands(ptyHostExe: string): string[][] {
+  return [
+    ['advfirewall', 'firewall', 'delete', 'rule', 'name=' + ATTACH_RULE],
+    [
+      'advfirewall',
+      'firewall',
+      'add',
+      'rule',
+      'name=' + ATTACH_RULE,
+      'dir=in',
+      'action=allow',
+      'enable=yes',
+      'profile=any',
+      'protocol=tcp',
+      'remoteip=LocalSubnet',
+      'program=' + ptyHostExe,
+    ],
+  ];
+}

@@ -37,6 +37,7 @@ export interface CliOptions {
   accountTo?: string;
   noRestart: boolean;
   follow: boolean;
+  crash: boolean;
   json: boolean;
   yes: boolean;
   /** sessions --wide: also the folder column. */
@@ -300,6 +301,7 @@ export function parseCli(argv: string[], wrapper = false): CliOptions {
     accountTo: name === 'account' && typeof o.to === 'string' ? o.to : undefined,
     noRestart: o.restart === false,
     follow: Boolean(o.follow),
+    crash: Boolean(o.crash),
     json: Boolean(o.json),
     yes: Boolean(o.yes),
     wide: Boolean(o.wide),
@@ -347,6 +349,7 @@ function defaults(): CliOptions {
     fromHost: false,
     noRestart: false,
     follow: false,
+    crash: false,
     dryRun: false,
     fix: false,
     auto: false,

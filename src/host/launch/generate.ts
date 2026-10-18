@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import type { GenerateOptions, Generated, ProfileResult } from '../../core/types.js';
 import { widenForProjects } from '../../core/local-config/index.js';
 import { dirExists, ensureDir, fail, writeJson } from '../../core/util/index.js';
@@ -11,6 +12,8 @@ import { capturePersonalization, stageClaudeProfile } from '../profile/index.js'
 import { clearSecrets, writeSecrets } from '../secrets/index.js';
 import { folderAttachment } from '../storage/providers/index.js';
 import { assertTestWritable } from '../test-guard.js';
+import { writeLoadSettings } from '../life/watchdog.js';
+import { loadProfileOf } from './risk-notes.js';
 import { planBootProjects } from './boot-projects.js';
 import { planDatabases } from './database-plan.js';
 import { collectMappings } from './mappings.js';
@@ -18,7 +21,7 @@ import { guestSession, logonEnv } from './session-file.js';
 import { copyRuntime, stageGitIdentity, stageHooks } from './stage.js';
 import { decideProjectToolchains } from './toolchains.js';
 import { buildLaunchPlan } from './launch-plan.js';
-import { GUEST, resolveMemoryMb } from './wsb-file.js';
+import { cappedMemoryMb, decideMemory, GUEST, memoryNote, residentNote, resolveMemoryMb } from './wsb-file.js';
 
 const NO_PROFILE: ProfileResult = { hostDir: null, staged: [], skipped: [], credentials: false, secretsRemoved: [] };
 
@@ -65,10 +68,13 @@ export function generateSandbox(
   assertTestWritable(dataPath);
 
   // Checked before anything is written, so a refusal leaves nothing behind.
-  const memoryMb = Math.max(
-    resolveMemoryMb(config.sandbox, o.freeMemoryBytes),
+  const commitAvailableMb = o.commitAvailableMb ?? null;
+  const askedMb = Math.max(
+    resolveMemoryMb(config.sandbox, o.freeMemoryBytes, undefined, commitAvailableMb),
     ...others.map((p) => (typeof p.config.sandbox.memoryMb === 'number' ? p.config.sandbox.memoryMb : 0)),
   );
+  // Never more than this PC can keep in RAM for it, whatever was asked.
+  const memoryMb = cappedMemoryMb(askedMb, config.sandbox, Math.floor(os.totalmem() / 1048576));
   const launchId = Date.now() + '-' + crypto.randomBytes(3).toString('hex');
   const launchPath = path.join(storageRoot, 'launches', launchId);
   // Whatever must stay secret goes in a one-shot file in the data folder, never into the launch folder (the sandbox
@@ -94,9 +100,23 @@ export function generateSandbox(
     ensureDir(path.join(launchPath, 'vpn'));
     fs.writeFileSync(path.join(launchPath, 'vpn', 'server.ovpn'), o.vpn.profile, 'utf8');
   }
-  const session = guestSession(o, { launchId, launchPath, harness, boot, mappings, profile, databases, toolchains });
+  const session = guestSession(o, {
+    launchId,
+    launchPath,
+    harness,
+    boot,
+    mappings,
+    profile,
+    databases,
+    toolchains,
+    memoryMb,
+  });
   const sessionPath = path.join(launchPath, 'session.json');
   writeJson(sessionPath, session);
+  writeLoadSettings(storageRoot, dataPath, {
+    profile: loadProfileOf(config),
+    reserveHostMb: config.sandbox.reserveHostMb,
+  });
   writeSecrets(dataPath, launchId, {
     ...(harness && Object.keys(harness.environment).length ? { harnessEnvironment: harness.environment } : {}),
     ...(claudeCredentials ? { claudeCredentials } : {}),
@@ -127,6 +147,18 @@ export function generateSandbox(
     launchId,
     sessionPath,
     memoryMb,
+    memoryNote:
+      residentNote(askedMb, memoryMb) ??
+      (config.sandbox.memoryMb === 'auto'
+        ? memoryNote(
+            decideMemory(
+              config.sandbox,
+              Math.floor((o.freeMemoryBytes ?? os.freemem()) / 1048576),
+              Math.floor(os.totalmem() / 1048576),
+              commitAvailableMb,
+            ),
+          )
+        : null),
     bootConfig: config,
     widened: wide.widened,
     mappings,

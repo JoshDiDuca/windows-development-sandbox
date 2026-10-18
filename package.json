@@ -1,6 +1,6 @@
 {
   "name": "windows-development-sandbox",
-  "version": "1.9.0",
+  "version": "1.11.0",
   "description": "A disposable Windows Sandbox for development, with or without an AI agent (Claude Code, Codex, Gemini, opencode, ...): the folder you run it from is the workspace, toolchains and databases for your project install themselves, and nothing else on your PC is reachable.",
   "type": "module",
   "license": "MIT",
@@ -42,7 +42,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/bundle.mjs && node scripts/bundle-web.mjs && node scripts/schemas.mjs",
+    "build": "tsc -p tsconfig.json && tsc -p web/tsconfig.json --noEmit && node scripts/bundle.mjs && node scripts/bundle-web.mjs && node scripts/schemas.mjs",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "rebuild": "npm run clean && npm run build",
     "test": "npm run build && node dist/bin/agent-sandbox.js self-test",
@@ -56,7 +56,9 @@
     "doctor": "node dist/bin/agent-sandbox.js doctor",
     "lint": "eslint src scripts web",
     "format": "prettier --write src scripts web",
-    "format:check": "prettier --check src scripts web"
+    "format:check": "prettier --check src scripts web",
+    "web:preview": "node dist/selftest/support/web-preview.js",
+    "web:shots": "node scripts/web-shots.mjs"
   },
   "publishConfig": {
     "access": "public"
@@ -99,6 +101,7 @@
     "@mantine/hooks": "^7.17.8",
     "@mantine/modals": "^7.17.8",
     "@mantine/notifications": "^7.17.8",
+    "@mantine/spotlight": "7.17.8",
     "@tabler/icons-react": "^3.49.0",
     "@tanstack/react-query": "^5.104.3",
     "@types/lodash": "^4.17.26",
@@ -107,10 +110,14 @@
     "@types/react-dom": "^18.3.7",
     "@types/ws": "^8.18.2",
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-search": "0.16.0",
+    "@xterm/addon-unicode11": "0.9.0",
+    "@xterm/addon-web-links": "0.12.0",
     "@xterm/xterm": "^6.0.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "mantine-form-zod-resolver": "^1.3.0",
+    "playwright-core": "1.63.0",
     "prettier": "^3.9.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

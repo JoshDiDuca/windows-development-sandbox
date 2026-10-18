@@ -21,7 +21,7 @@ const StopEventsSchema = z
       provider: z.string().max(200),
       process: z
         .string()
-        .max(400)
+        .max(1600)
         .nullable()
         .transform((p) => p ?? ''),
     }),
@@ -37,6 +37,12 @@ export interface StopCause {
 
 const UPDATERS =
   /^(trustedinstaller|mousocoreworker|musnotification(ux)?|usoclient|wuauclt|tiworker|updateorchestrator)\.exe$/i;
+
+/** The stop code in Kernel-Power 41's detail ("BugcheckCode 209" -> "0xD1"); null for 0 (no blue screen). */
+export function bugcheckCode(detail: string): string | null {
+  const n = Number(/BugcheckCode\s+(\d+)/.exec(detail)?.[1] ?? 0);
+  return n > 0 ? '0x' + n.toString(16).toUpperCase() : null;
+}
 
 /**
  * The first event that ends a running sandbox (pure): Windows inside the sandbox crashing (Hyper-V 18590; `process`
@@ -62,12 +68,24 @@ export function explainStop(events: StopEvent[]): StopCause | null {
             },
           ];
     }
-    if ((e.id === 41 && p.includes('kernel-power')) || (e.id === 6008 && p.includes('eventlog')))
+    if (e.id === 41 && p.includes('kernel-power')) {
+      const code = bugcheckCode(e.process);
       return [
         {
           kind: 'crash',
           at: e.at,
-          text: 'Windows stopped unexpectedly (a crash, a power cut, or the power button held down)',
+          text: code
+            ? 'this PC blue-screened (stop code ' + code + ')'
+            : 'Windows stopped unexpectedly (a freeze, a crash, a power cut, or the power button held down)',
+        },
+      ];
+    }
+    if (e.id === 6008 && p.includes('eventlog'))
+      return [
+        {
+          kind: 'crash',
+          at: e.at,
+          text: 'Windows stopped unexpectedly (a freeze, a crash, a power cut, or the power button held down)',
         },
       ];
     if (e.id === 42 && p.includes('kernel-power'))

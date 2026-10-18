@@ -24,6 +24,8 @@
     "cpuLimit": 80,
     "pageFileMb": 16384,
     "reserveHostMb": 8192,
+    "agentMemoryHeadroomMb": "auto",
+    "pressureResponse": true,
     "vGpu": false,
     "networking": true,
     "clipboard": true,
@@ -220,7 +222,8 @@
   },
   "web": {
     "enabled": false,
-    "port": 47800
+    "port": 47800,
+    "openOnLaunch": false
   },
   "agentCommands": {
     "enabled": false,

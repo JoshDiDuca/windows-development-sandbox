@@ -137,6 +137,8 @@ const LABELS: Readonly<Record<string, string>> = {
   'sandbox.headless': 'Hide the sandbox window',
   'sandbox.memoryMb': 'Memory (MB)',
   'sandbox.pageFileMb': 'Swap file (MB)',
+  'sandbox.agentMemoryHeadroomMb': 'Memory kept free from agents (MB)',
+  'sandbox.pressureResponse': 'Slow builds down when memory runs low',
   'network.dns': 'DNS servers',
   'projects.wsbShare': 'Add folders while the sandbox runs',
   'projects.all': 'Map all known projects at start',

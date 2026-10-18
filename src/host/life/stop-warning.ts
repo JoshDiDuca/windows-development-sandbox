@@ -5,7 +5,8 @@ const ADVICE: Record<StopKind, string> = {
   updates:
     'Before leaving agents overnight, restart for pending updates first or pause them (Settings > Windows Update > Pause updates).',
   restart: 'If that was not you, check Settings > Windows Update and Event Viewer > Windows Logs > System.',
-  crash: 'Event Viewer > Windows Logs > System has the details; a laptop also needs to stay plugged in.',
+  crash:
+    'sandbox logs --crash prints what Windows logged and how much memory this PC had; Event Viewer > Windows Logs > System has the rest. A laptop also needs to stay plugged in.',
   sleep:
     'sandbox.keepAwake keeps this PC awake while a sandbox runs (closing a laptop lid still sleeps it). Check it is on, and that sleep is not forced by a policy.',
   sandboxCrash:

@@ -30,7 +30,9 @@ export const SandboxSchema = z.strictObject({
     ),
   memoryMb: z
     .union([z.literal('auto'), z.number().int().min(2048)])
-    .describe('Sandbox RAM in MB (>= 2048), or "auto": free RAM minus reserveHostMb, capped at maxMemoryMb.'),
+    .describe(
+      'Sandbox RAM in MB (>= 2048), or "auto": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered.',
+    ),
   maxMemoryMb: z.number().int().positive().describe('Upper limit for memoryMb "auto".'),
   maxMemoryPercent: z
     .number()
@@ -51,8 +53,28 @@ export const SandboxSchema = z.strictObject({
     .describe(
       'Size of the sandbox\'s paging file in MB, created at full size when it starts so it never grows while builds run (8 GB of its disk always stays free). Windows Sandbox starts with about 1 GB: parallel builds then fail with "The paging file is too small", and Windows grows the file under load. 0 = leave Windows\' own.',
     ),
-  reserveHostMb: z.number().int().nonnegative().describe('RAM always left for this PC when memoryMb is "auto".'),
-  vGpu: z.boolean().describe('Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface.'),
+  reserveHostMb: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'Memory always left for this PC when memoryMb is "auto": the sandbox gets at most (free RAM, and RAM plus paging file still unused) minus this.',
+    ),
+  agentMemoryHeadroomMb: z
+    .union([z.literal('auto'), z.literal('none'), z.number().int().min(0)])
+    .describe(
+      'The last resort that keeps the sandbox up, in MB below its commit limit (RAM plus paging file): builds are slowed down long before (sandbox.pressureResponse); only if everything the agents start together would take the sandbox to the very edge of its memory, where Windows inside it would start failing, is a build refused memory instead of Windows. "auto" = the larger of 1536 MB and 3 % of the commit limit; "none" = no backstop. Yours only: a project file cannot change it.',
+    ),
+  pressureResponse: z
+    .boolean()
+    .describe(
+      'When the sandbox (or this PC) runs low on memory, slow builds down in steps, like a PC that gets slower instead of failing: build programs get lower CPU and memory priority, then less CPU, then compilers take turns (the waiting ones briefly suspended and trimmed to the paging file). Nothing is stopped or killed, and the agents themselves are never touched. Yours only: a project file cannot change it.',
+    ),
+  vGpu: z
+    .boolean()
+    .describe(
+      "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface. The sandbox then uses this PC's graphics card, and with some graphics drivers heavy use can freeze the whole PC: turn it on only when a program in the sandbox needs the GPU (the mesa toolchain gives software OpenGL without it).",
+    ),
   networking: z.boolean().describe('Internet access. false is the only hard network isolation Windows Sandbox offers.'),
   clipboard: z
     .boolean()

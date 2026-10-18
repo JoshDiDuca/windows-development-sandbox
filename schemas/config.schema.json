@@ -140,7 +140,7 @@
               "maximum": 9007199254740991
             }
           ],
-          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb."
+          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered."
         },
         "maxMemoryMb": {
           "type": "integer",
@@ -178,11 +178,33 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "RAM always left for this PC when memoryMb is \"auto\"."
+          "description": "Memory always left for this PC when memoryMb is \"auto\": the sandbox gets at most (free RAM, and RAM plus paging file still unused) minus this."
+        },
+        "agentMemoryHeadroomMb": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "auto"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          ],
+          "description": "The last resort that keeps the sandbox up, in MB below its commit limit (RAM plus paging file): builds are slowed down long before (sandbox.pressureResponse); only if everything the agents start together would take the sandbox to the very edge of its memory, where Windows inside it would start failing, is a build refused memory instead of Windows. \"auto\" = the larger of 1536 MB and 3 % of the commit limit; \"none\" = no backstop. Yours only: a project file cannot change it."
+        },
+        "pressureResponse": {
+          "type": "boolean",
+          "description": "When the sandbox (or this PC) runs low on memory, slow builds down in steps, like a PC that gets slower instead of failing: build programs get lower CPU and memory priority, then less CPU, then compilers take turns (the waiting ones briefly suspended and trimmed to the paging file). Nothing is stopped or killed, and the agents themselves are never touched. Yours only: a project file cannot change it."
         },
         "vGpu": {
           "type": "boolean",
-          "description": "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface."
+          "description": "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface. The sandbox then uses this PC's graphics card, and with some graphics drivers heavy use can freeze the whole PC: turn it on only when a program in the sandbox needs the GPU (the mesa toolchain gives software OpenGL without it)."
         },
         "networking": {
           "type": "boolean",
@@ -340,7 +362,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Send the sandbox's traffic through a VPN. Only the sandbox: your PC's own connection is untouched. Needs a saved login first (sandbox vpn login). The agent in the sandbox can read that login and can turn the tunnel off (it is the administrator there)."
+          "description": "(Alpha: not yet tried on a real PC) Send the sandbox's traffic through a VPN. Only the sandbox: your PC's own connection is untouched. Needs a saved login first (sandbox vpn login). The agent in the sandbox can read that login and can turn the tunnel off (it is the administrator there)."
         },
         "provider": {
           "type": "string",
@@ -603,7 +625,7 @@
                   "maximum": 32
                 }
               ],
-              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 8 GB of sandbox memory, 2 to 4. Several agents linking big programs at once can take Windows down."
+              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 3 GB of sandbox memory after 6 GB, 2 to 8 (the memory governor slows links down too when memory runs short)."
             }
           },
           "additionalProperties": false
@@ -1214,13 +1236,17 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "(Beta) Allow the web UI: your sandbox sessions in a browser on this PC. Off by default, and nothing starts it by itself yet: sandbox web start works either way and runs it until sandbox web stop (or a restart of the PC)."
+          "description": "(Beta) The web UI: your sandbox sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every sandbox start also starts it in the background (it keeps running until sandbox web stop or a restart of the PC). Off: only sandbox web start runs it. Open it signed in with sandbox web open."
         },
         "port": {
           "type": "integer",
           "minimum": 1024,
           "maximum": 65535,
           "description": "Port of the web UI on 127.0.0.1 (this PC only). Pick another when it is taken."
+        },
+        "openOnLaunch": {
+          "type": "boolean",
+          "description": "(Beta) With the web UI on: open it in your browser, already signed in, every time a sandbox starts."
         }
       },
       "additionalProperties": false

@@ -10,6 +10,7 @@ import path from 'node:path';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { encodeFrame, FrameType } from '../shared/pty/index.js';
+import { SYSTEM } from '../shared/system.js';
 import { CSC, openViewer, tail, WAIT, type Viewer } from './support/live.js';
 import type { Suite } from './support/suite.js';
 
@@ -96,6 +97,93 @@ export const liveTerminalSuite: Suite = {
       compile(t.at('mouse-agent.cs'), agent);
     t.check(!errors, 'ptyhost and the stand-in agent compile', errors);
     if (errors) return;
+
+    t.section("the agents' job: a last-resort backstop, set once");
+    {
+      // A job of the test's own (PTYHOST_JOB_NAME), never the agents' real one.
+      const jobName = 'Local\\AgentSandboxAgentsJobTest' + process.pid + '-' + Date.now();
+      const ping = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE');
+      const holder = '"' + SYSTEM.cmd() + '" /c "' + ping + '" -n 6 127.0.0.1 >nul';
+      const startHost = async (backstop: string, log: string): Promise<ChildProcess> =>
+        spawn(ptyhost, [String(await freePort()), 'tok', '80', '24', t.at(log), holder], {
+          env: { ...process.env, PTYHOST_BIND: 'loopback', PTYHOST_BACKSTOP_MB: backstop, PTYHOST_JOB_NAME: jobName },
+          stdio: 'ignore',
+          windowsHide: true,
+        });
+      const read = (log: string): string => (fs.existsSync(t.at(log)) ? fs.readFileSync(t.at(log), 'utf8') : '');
+      const first = await startHost('auto', 'job-first.log');
+      await t.waitFor(() => read('job-first.log').includes('agent job:'), WAIT.screen);
+      const second = await startHost('500000', 'job-second.log');
+      await t.waitFor(() => read('job-second.log').includes('agent job:'), WAIT.screen);
+
+      // The governor's hands on the same test job (MEMGOV_JOB_NAME): it sees the job's processes, and the dial's
+      // commands (memory priority, the throttle job and its CPU cap, trimming) leave them running.
+      const memgovExe = t.at('memgov.exe');
+      const memgovErrors = compile(path.join(t.packageRoot, 'sandbox', 'csharp', 'MemGov.cs'), memgovExe);
+      t.check(!memgovErrors, 'memgov compiles', memgovErrors);
+      if (!memgovErrors) {
+        const memgov = spawn(memgovExe, ['serve', '--interval', '1'], {
+          env: { ...process.env, MEMGOV_JOB_NAME: jobName },
+          stdio: ['pipe', 'pipe', 'ignore'],
+          windowsHide: true,
+        });
+        let lines = '';
+        memgov.stdout.on('data', (chunk: Buffer) => (lines += chunk.toString('utf8')));
+        const procsSeen = (): { pid: number; name: string }[] => {
+          const last = lines.trim().split(/\r?\n/).pop() ?? '';
+          try {
+            return (JSON.parse(last) as { procs: { pid: number; name: string }[] }).procs;
+          } catch {
+            return [];
+          }
+        };
+        await t.waitFor(() => procsSeen().length > 0, WAIT.screen);
+        const target = procsSeen().find((p) => /ping|cmd/i.test(p.name));
+        t.check(target !== undefined, "memgov sees the processes in the agents' job", lines.slice(-300));
+        if (target) {
+          for (const command of [
+            'memprio ' + target.pid + ' low',
+            'throttle ' + target.pid,
+            'cpurate 20',
+            'trim ' + target.pid,
+          ])
+            memgov.stdin.write(command + '\n');
+          await new Promise((r) => setTimeout(r, 1500));
+          memgov.stdin.write('cpurate 100\n');
+          await new Promise((r) => setTimeout(r, 1200));
+          t.check(
+            memgov.exitCode === null && procsSeen().some((p) => p.pid === target.pid),
+            'memory priority, the throttle job, a CPU cap and trimming leave the process running (and memgov too)',
+          );
+        }
+        memgov.stdin.end();
+        await t.waitFor(() => memgov.exitCode !== null, 5000);
+        t.check(memgov.exitCode === 0, 'memgov ends cleanly when the daemon goes away (and lifts the cap)');
+      }
+
+      for (const c of [first, second]) {
+        try {
+          if (c.exitCode === null) c.kill();
+        } catch {
+          /* it ended between the check and the kill: nothing left to stop */
+        }
+      }
+      const set = /backstop at (\d+) MB committed \(the sandbox's commit limit is (\d+) MB\)/.exec(
+        read('job-first.log'),
+      );
+      const commit = Number(set?.[2] ?? 0);
+      t.check(
+        set !== null &&
+          Number(set[1]) === Math.max(Math.floor(commit / 2), commit - Math.max(1536, Math.floor((commit * 3) / 100))),
+        'the ptyhost that creates the job sets the backstop just below the commit limit (auto: 3 %, at least 1.5 GB)',
+        read('job-first.log'),
+      );
+      t.check(
+        read('job-second.log').includes('joined the existing one'),
+        'a ptyhost that joins the job never changes its backstop',
+        read('job-second.log'),
+      );
+    }
     const client = t.at('client.mjs');
     fs.writeFileSync(
       client,

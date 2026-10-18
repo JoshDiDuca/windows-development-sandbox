@@ -5,7 +5,9 @@ param([Parameter(Mandatory = $true)][string]$ListFile)
 $ErrorActionPreference = 'Stop'
 
 $shell = New-Object -ComObject WScript.Shell
-foreach ($entry in @(Get-Content -LiteralPath $ListFile -Raw -Encoding UTF8 | ConvertFrom-Json)) {
+# Windows PowerShell 5.1 hands a JSON array over as ONE object: pipe it through ForEach-Object to get its elements.
+$entries = @(ConvertFrom-Json -InputObject (Get-Content -LiteralPath $ListFile -Raw -Encoding UTF8) | ForEach-Object { $_ })
+foreach ($entry in $entries) {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $entry.link) | Out-Null
     $shortcut = $shell.CreateShortcut($entry.link)
     $shortcut.TargetPath = $entry.target

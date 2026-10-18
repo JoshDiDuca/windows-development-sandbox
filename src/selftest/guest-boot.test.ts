@@ -2,7 +2,10 @@
 // what it copies in, and what it refuses to.
 import fs from 'node:fs';
 import path from 'node:path';
-import { readJsonFile } from '../shared/io/index.js';
+import { spawnSync } from 'node:child_process';
+import { copyTreeTolerant, readJsonFile, robocopyErrors, robocopyFailed, robocopyMeaning } from '../shared/io/index.js';
+import { scriptArgs } from '../shared/scripts.js';
+import { SYSTEM } from '../shared/system.js';
 import type { Suite } from './support/suite.js';
 
 export const guestBootSuite: Suite = {
@@ -147,5 +150,72 @@ export const guestBootSuite: Suite = {
       '--no-agent provisions without an agent',
       noAgent.out,
     );
+
+    t.section('robocopy results, vanished files, shortcuts');
+    t.check(
+      [0, 1, 2, 3, 7].every((c) => !robocopyFailed(c)) &&
+        [8, 9, 16].every((c) => robocopyFailed(c)) &&
+        robocopyFailed(null),
+      'robocopy: exit codes below 8 are success, 8 and up (9 = some copied, some failed) are failures',
+    );
+    t.includes(robocopyMeaning(9), 'some files were copied and some could not be', 'robocopy: exit 9 is explained');
+    t.equal(
+      robocopyErrors(
+        'x\r\n2026/10/11 ERROR 32 (0x00000020) Copying File C:\\a\\b.dll\r\nThe process cannot access the file because it is being used by another process.\r\n',
+        5,
+      ),
+      [
+        '2026/10/11 ERROR 32 (0x00000020) Copying File C:\\a\\b.dll',
+        'The process cannot access the file because it is being used by another process.',
+      ],
+      'robocopy: the failing file and the reason are picked out of its output',
+    );
+    const spool = t.dir('copy-tree', 'live');
+    t.write(path.join(spool, 'a.json'), '1');
+    t.write(path.join(spool, 'b.json'), '2');
+    t.write(path.join(spool, 'db', 'chroma.sqlite3'), 'db');
+    t.write(path.join(spool, 'db', 'chroma.sqlite3-journal'), 'j');
+    t.write(path.join(spool, 'x.lock'), 'l');
+    const copied = copyTreeTolerant(spool, t.at('copy-tree', 'out'), (name) => /\.lock$|-journal$/.test(name));
+    t.check(
+      copied.copied === 3 && !fs.existsSync(t.at('copy-tree', 'out', 'db', 'chroma.sqlite3-journal')),
+      'copy tree: files are copied, a -journal and a lock file are left out',
+    );
+    // The first file of the listing deletes the second before it is reached: the second has vanished, not failed.
+    const racing = t.dir('copy-tree', 'racing');
+    t.write(path.join(racing, 'a.json'), '1');
+    t.write(path.join(racing, 'b.json'), '2');
+    const result = copyTreeTolerant(racing, t.at('copy-tree', 'racing-out'), (name) => {
+      if (name === 'a.json') fs.rmSync(path.join(racing, 'b.json'), { force: true });
+      return false;
+    });
+    t.check(
+      result.copied === 1 && result.vanished === 1,
+      'copy tree: a file that vanishes during the copy is skipped, not an error',
+    );
+    t.equal(
+      copyTreeTolerant(t.at('copy-tree', 'nothing'), t.at('copy-tree', 'nothing-out')).vanished,
+      1,
+      'copy tree: a missing folder is tolerated',
+    );
+    if (process.platform === 'win32') {
+      // Windows PowerShell 5.1 hands a JSON array over as one object: two or more shortcuts used to fail.
+      const out = t.dir('shortcuts');
+      const list = t.writeJson(path.join(out, 'in.json'), [
+        { link: path.join(out, 'one', 'A.lnk'), target: path.join(process.env.WINDIR ?? 'C:\\Windows', 'notepad.exe') },
+        { link: path.join(out, 'two', 'B.lnk'), target: path.join(process.env.WINDIR ?? 'C:\\Windows', 'notepad.exe') },
+      ]);
+      const made = spawnSync(SYSTEM.powershell(), scriptArgs('new-shortcuts.ps1', ['-ListFile', list]), {
+        encoding: 'utf8',
+        windowsHide: true,
+      });
+      t.check(
+        made.status === 0 &&
+          fs.existsSync(path.join(out, 'one', 'A.lnk')) &&
+          fs.existsSync(path.join(out, 'two', 'B.lnk')),
+        'new-shortcuts.ps1 makes every shortcut of a list of two',
+        String(made.stderr),
+      );
+    }
   },
 };

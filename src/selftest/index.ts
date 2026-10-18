@@ -16,6 +16,7 @@ import { credentialsSuite } from './credentials.test.js';
 import { vpnSuite } from './vpn.test.js';
 import { agentCommandsSuite } from './agent-commands.test.js';
 import { channelSuite } from './channel.test.js';
+import { heavyLoadSuite } from './heavy-load.test.js';
 import { cliSuite } from './cli.test.js';
 import { agentPathsSuite } from './agent-paths.test.js';
 import { cmdlineSuite } from './cmdline.test.js';
@@ -100,6 +101,7 @@ export const SUITES: Suite[] = [
   // an untrusted sandbox: what the host refuses to do with what it finds
   linksSuite,
   channelSuite,
+  heavyLoadSuite,
   gitAccessSuite,
   repoGuardSuite,
   secretsSuite,

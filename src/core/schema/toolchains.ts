@@ -71,7 +71,7 @@ export const ToolchainsSchema = z.strictObject({
     linkSlots: z
       .union([z.literal('auto'), z.number().int().min(1).max(32)])
       .describe(
-        'GNU host: how many programs may link at the same time in the whole sandbox (other links wait). "auto" = one per 8 GB of sandbox memory, 2 to 4. Several agents linking big programs at once can take Windows down.',
+        'GNU host: how many programs may link at the same time in the whole sandbox (other links wait). "auto" = one per 3 GB of sandbox memory after 6 GB, 2 to 8 (the memory governor slows links down too when memory runs short).',
       ),
   }),
   msvc: z.strictObject({

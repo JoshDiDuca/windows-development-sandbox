@@ -52,6 +52,7 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'sandbox/csharp/EnvBroadcast.cs',
   'sandbox/csharp/GitShim.cs',
   'sandbox/csharp/LinkGate.cs',
+  'sandbox/csharp/MemGov.cs',
   'sandbox/csharp/OpenSsl.cs',
   'sandbox/csharp/PathSync.cs',
   'sandbox/csharp/PtyHost.cs',

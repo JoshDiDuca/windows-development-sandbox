@@ -1,8 +1,11 @@
 // How doctor and repair look: headings per group, one line per result as it finishes (a "Checking ..." line while it
 // runs on a terminal), "What it means" and "Fix" under what is not ok, and the summary. The engine's only printing.
+import { summaryText } from '../../../app/features/health/index.js';
 import { c, canAnimate } from '../../output/index.js';
 import type { Check, CheckResult, RepairStatus, Summary } from './types.js';
 import type { RunHooks } from './engine.js';
+
+export { summaryText };
 
 /** Where text goes (the terminal; a test collects it). */
 export interface Out {
@@ -18,18 +21,6 @@ const GLYPH: Record<RepairStatus, { tty: string; plain: string; paint: (t: strin
 };
 
 const MAX_LINES = 6;
-
-/** "12 ok, 2 fixed, 1 needs you": the parts that are zero are left out (except ok). */
-export function summaryText(s: Summary): string {
-  const parts = [
-    s.ok + ' ok',
-    s.fixed && s.fixed + ' fixed',
-    s.needsYou && s.needsYou + ' ' + (s.needsYou === 1 ? 'needs' : 'need') + ' you',
-    s.warn && s.warn + (s.warn === 1 ? ' warning' : ' warnings'),
-    s.skipped && s.skipped + ' skipped',
-  ];
-  return parts.filter(Boolean).join(', ');
-}
 
 export class HealthPrinter {
   private group: string | null = null;

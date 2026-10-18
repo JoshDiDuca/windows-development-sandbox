@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync, type SpawnOptions, type SpawnSyncOptions } from 'node:child_process';
 import { moveIntoPlace, spawnAsync, stagingFolder } from '../../shared/download/index.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
+import { robocopyErrors, robocopyFailed, robocopyMeaning } from '../../shared/io/robocopy-result.js';
 import { SYSTEM } from '../../shared/system.js';
 import { scriptArgs } from '../../shared/scripts.js';
 import { isWin } from './paths.js';
@@ -30,7 +31,16 @@ export function execOutput(file: string, args: string[], options: SpawnSyncOptio
 
 /** Runs sandbox\scripts\<name> (a .ps1 in the launch folder) with `args`; throws when it fails. */
 export function runScript(name: string, args: readonly string[] = []): void {
-  exec(SYSTEM.powershell(), scriptArgs(name, args));
+  const result = spawnSync(SYSTEM.powershell(), scriptArgs(name, args), {
+    stdio: ['inherit', 'inherit', 'pipe'],
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (result.error) throw result.error;
+  const errors = String(result.stderr ?? '').trim();
+  if (errors) process.stderr.write(errors + '\n');
+  if (result.status !== 0)
+    throw new Error(name + ' failed with exit code ' + result.status + (errors ? ': ' + errors.slice(0, 400) : ''));
 }
 
 /** runScript for what it prints ('' when it fails). */
@@ -64,14 +74,51 @@ export function robocopy(from: string, to: string, files: string[] = []): void {
       fs.copyFileSync(path.join(from, f), path.join(to, f));
     return;
   }
-  const what = files.length ? files : ['/E', '/MT:16'];
-  const result = spawnSync(
-    SYSTEM.robocopy(),
-    [from, to, ...what, '/NFL', '/NDL', '/NJH', '/NJS', '/NP', '/R:1', '/W:1', '/XJ'],
-    { stdio: 'ignore', windowsHide: true },
+  const what = files.length ? files : ['/E'];
+  // A second pass for what the first could not copy (a file another program holds open for a moment, a busy mapped
+  // folder): one thread and more patience; robocopy skips what is already in place.
+  const passes = [
+    ['/MT:16', '/R:1', '/W:1'],
+    ['/MT:1', '/R:4', '/W:3'],
+  ];
+  let code: number | null = null;
+  let output = '';
+  for (const pass of passes) {
+    const result = spawnSync(
+      SYSTEM.robocopy(),
+      [
+        from,
+        to,
+        ...what,
+        ...(files.length ? [] : [pass[0]]),
+        pass[1],
+        pass[2],
+        '/NFL',
+        '/NDL',
+        '/NJH',
+        '/NJS',
+        '/NP',
+        '/XJ',
+      ],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    code = result.status;
+    output = String(result.stdout ?? '') + String(result.stderr ?? '');
+    if (!robocopyFailed(code)) return;
+  }
+  const why = robocopyErrors(output);
+  throw new Error(
+    'robocopy ' +
+      from +
+      ' -> ' +
+      to +
+      ' failed (exit ' +
+      code +
+      ': ' +
+      robocopyMeaning(code) +
+      ')' +
+      (why.length ? ': ' + why.join(' | ') : ''),
   );
-  if ((result.status ?? 16) >= 8)
-    throw new Error('robocopy ' + from + ' -> ' + to + ' failed (exit ' + result.status + ')');
 }
 
 /**

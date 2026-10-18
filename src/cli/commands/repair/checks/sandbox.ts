@@ -6,13 +6,14 @@ import path from 'node:path';
 import { dirExists, fileExists, isLink } from '../../../../core/util/index.js';
 import { SandboxChannel } from '../../../../host/channel/index.js';
 import { orphanWatchers, runStateProblems, staleLaunchFolders, watcherRecords } from '../../../../host/health/index.js';
+import { vgpuSource, vgpuWarning } from '../../../../host/launch/index.js';
 import { hostToolsExe } from '../../../../host/native.js';
 import { sandboxFeatureInstalled } from '../../../../host/sandbox/index.js';
 import { assertTestWritable, refuseInSelfTest } from '../../../../host/test-guard.js';
 import { conptyDir, terminalDir, terminalExe } from '../../../../host/tools/index.js';
 import { RunDir } from '../../../../shared/channel/index.js';
 import { safeRemove } from '../../../../shared/io/index.js';
-import { removeTree } from '../../data/remove.js';
+import { removeTree } from '../../../services/data-remove.js';
 import { deadPidFiles } from '../finders.js';
 import type { Check, Finding, FixOutcome, RepairEnv } from '../types.js';
 import { fromFacts } from './pc.js';
@@ -23,6 +24,20 @@ const LAUNCH_DAYS = 7;
 const hiddenWindowsFile = (env: RepairEnv): string => path.join(env.storageRoot, 'run', 'hidden-windows.json');
 
 export const SANDBOX_CHECKS: Check[] = [
+  {
+    id: 'sandbox-vgpu',
+    group: 'Sandbox',
+    name: 'vGPU',
+    run: (env: RepairEnv): Finding =>
+      env.ctx.loaded.config.sandbox.vGpu
+        ? {
+            status: 'warn',
+            detail: 'vGPU is on in your settings',
+            means: vgpuWarning(vgpuSource(true)),
+            fix: 'Run: sandbox config set sandbox.vGpu false',
+          }
+        : ok('off'),
+  },
   {
     id: 'sandbox-exe',
     group: 'Sandbox',

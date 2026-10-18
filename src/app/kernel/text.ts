@@ -38,6 +38,14 @@ const UPPER = new Set([
 /** "harness" is the code's word for an agent; screens say agent. */
 const PLAIN: Readonly<Record<string, string>> = { harness: 'agent', harnesses: 'agents' };
 
+/** 1536 -> "1.5 KB" (the same words as core/disk.ts humanBytes, which the CLI prints). */
+export function bytesText(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = bytes <= 0 ? 0 : Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const value = bytes / 1024 ** i;
+  return (i === 0 ? String(bytes) : value.toFixed(value < 10 ? 1 : 0)) + ' ' + units[i];
+}
+
 /** "memoryMb" -> "Memory MB", "vGpu" -> "V GPU": a readable label from a setting's key. */
 export function humanize(key: string): string {
   const words = key

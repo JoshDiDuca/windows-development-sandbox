@@ -148,6 +148,7 @@ function projectItem(p: SandboxStatus['projects'][number]): Item {
   return {
     id: 'project:' + p.name,
     label: p.name,
+    icon: 'project',
     hint: p.host + '  ->  ' + p.guest + '  (' + (MECHANISM_TEXT[p.mechanism] ?? 'wsb share') + ')',
     marked: p.here,
     details: [
@@ -192,6 +193,7 @@ function projectsSection(o: SandboxStatus): Section {
   const roots: Item[] = o.roots.map((r) => ({
     id: 'root:' + r.host,
     label: 'root',
+    icon: 'folder',
     hint: r.host + '  ->  ' + r.guest + '  (every project in it opens without a restart)',
   }));
   const here = o.projects.some((p) => p.here);
@@ -232,6 +234,7 @@ export function sandboxPage(o: SandboxStatus): Page {
   const running = o.sandbox.running;
   const status: Section = {
     id: 'status',
+    title: 'Status',
     facts: facts(o),
     actions: running
       ? [

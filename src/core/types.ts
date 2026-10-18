@@ -135,6 +135,8 @@ export interface GenerateOptions {
   harnessArgs: string[];
   probe: HostProbe;
   freeMemoryBytes?: number;
+  /** This PC's unused commit (RAM plus paging file) in MB from HostTools memory-status; omitted = not checked. */
+  commitAvailableMb?: number | null;
   databases?: DatabasePlan[];
   pcLanguages?: AutoToolchain[];
   /**
@@ -158,6 +160,8 @@ export interface Generated {
   launchId: string;
   sessionPath: string;
   memoryMb: number;
+  /** Plain words when the PC's commit made the memory much smaller than free RAM allowed. */
+  memoryNote: string | null;
   /** The config the sandbox boots with: the launch folder's plus what the other projects mapped at boot want. */
   bootConfig: Config;
   /** Boot settings turned on for another project (setting -> project). */
@@ -257,6 +261,16 @@ export interface GuestSession {
   cpuLimitPercent?: number | null;
   /** sandbox.pageFileMb (0 = Windows' own); sandbox\scripts\set-page-file.ps1 applies it at logon. */
   pageFileMb?: number;
+  /**
+   * sandbox.agentMemoryHeadroomMb: how far below the sandbox's commit limit the last-resort backstop of the agents'
+   * job sits ("auto", MB, or "none"). ptyhost reads the commit limit in the sandbox and sets it once, on the job it
+   * creates.
+   */
+  agentBackstop?: 'auto' | 'none' | number;
+  /** "gentle" when vGPU is on: the governor and the watchdog act earlier, compilers run below normal. */
+  loadProfile?: 'normal' | 'gentle';
+  /** sandbox.pressureResponse: the daemon slows builds down when memory runs low. */
+  pressureResponse?: boolean;
   /** Apps to install (catalogue ids and your own programs); missing in launch folders of older versions. */
   apps?: Config['apps'];
   /** audit.enabled and audit.processes: the sandbox reports the programs it starts (host keeps the log). */

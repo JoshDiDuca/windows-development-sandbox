@@ -125,6 +125,7 @@ sizes and what is installed already) or in `apps.install`:
 
 | Category | Apps |
 | --- | --- |
+| Agent add-ons | rtk (compacts command output for the agents), claude-mem (its own setting, see below), REA (reverse-engineering MCP server) |
 | Editors | Notepad++, Sublime Text, Neovim (VS Code: see [VS Code](#vs-code) above) |
 | Database clients | DBeaver, pgAdmin 4, HeidiSQL, DB Browser for SQLite, MongoDB Compass, Redis Insight, DbGate, Beekeeper Studio, dynamodb-admin |
 | API clients | Bruno, Insomnia |
@@ -141,6 +142,25 @@ Each is downloaded once into `C:\AgentData\tools\apps` and kept. Nothing is inst
 unpacked, installers opened with 7-Zip and MSIs extracted, so it all survives the sandbox closing. Programs get a
 desktop and **Start > Sandbox apps** shortcut; command-line tools are on PATH. Downloads are checked against the
 checksum the publisher gives (GitHub releases, and most vendors); the Visual C++ runtime is installed first.
+
+### Agent add-ons
+
+Things that plug into the agents, in the **Agent add-ons** category of Apps:
+
+- **rtk** ([rtk-ai/rtk](https://github.com/rtk-ai/rtk), `"rtk"` in `apps.install`, off by default) shortens what
+  shell commands print (git, test runners, builds, `ls`, `grep` ...) before the agent reads it, so a session uses fewer
+  tokens. The sandbox downloads a pinned release (rtk 1.0.1, the Apache-2.0 `rtk-oss` Windows build, checked against
+  its SHA-256) once into `C:\AgentData\tools\apps\rtk` and puts it on PATH. For Claude Code it adds rtk's own hook
+  (`rtk hook claude` on Bash commands, PreToolUse) to the sandbox's managed settings
+  (`C:\Program Files\ClaudeCode\managed-settings.json`, rewritten every boot): your Claude settings on this PC and the
+  copy in the sandbox are not changed, and turning rtk off removes the hook at the next start. Codex, Gemini and the
+  other agents get a line in their sandbox guide telling them to put `rtk` in front of shell commands. Claude's own
+  Read, Grep and Glob tools do not go through it. Only your own settings can turn it on: a project's
+  `.sandbox-config.json` cannot.
+- **claude-mem** is the `claudeProfile.syncClaudeMem` setting (on by default): it brings the database of the
+  claude-mem plugin you use on this PC into the sandbox. The switch in Apps changes that setting.
+- **REA** (Reverse Engineer Anything) installs from npm; run `rea setup` once to add its MCP server to Claude Code and
+  Codex.
 
 **Your own programs** (`apps.custom`, or **c** in the Apps screen): a GitHub repository and a pattern for the release
 file, or an https link, plus the program to start (and whether it is a command-line tool). They install the same way.

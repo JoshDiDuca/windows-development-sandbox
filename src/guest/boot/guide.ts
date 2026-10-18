@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { claudeDir, session, stateDir, workspace } from '../runtime/session.js';
 import { dataDir, launchDir, toolsDir } from '../runtime/paths.js';
+import { RTK_GUIDE_LINE } from '../../shared/apps/index.js';
+import { installedRtk } from '../setup/agent-addons.js';
 
 const BEGIN = '<!-- agent-sandbox:begin (generated every boot, do not edit) -->';
 const END = '<!-- agent-sandbox:end -->';
@@ -32,6 +34,7 @@ export function sandboxGuide(
   toolSummary: string[],
   lan: 'blocked' | 'open' | 'offline' = 'blocked',
   projects: GuideProject[] = [],
+  addons: string[] = [],
 ): string {
   return [
     BEGIN,
@@ -60,6 +63,8 @@ export function sandboxGuide(
     '- RO: `' + launchDir + "` (this boot's scripts) · lost on close: everything else, incl. `C:\\nvm` (Node symlink)",
     ...mirrorLine(),
     '- Tools: ' + toolSummary.join(' · '),
+    // Agent add-ons that change how the agent should work (rtk).
+    ...addons,
     '- Persistent installs: `npm i -g` (per nvm version), `pip`, `cargo install`, `dotnet tool -g`, `uv tool`, `bun add -g`. Real installers must re-run each boot via a hook (ask the user).',
     '- Mapped folders (workspace, C:\\AgentData) allow NO symlinks or junctions: pnpm runs hoisted (set), npm workspaces / `file:` deps and deno node_modules dirs fail there (use a folder on C:\\ outside them), bun cannot save its lockfile there (`bun install --no-save`).',
     '- Network: ' +
@@ -101,7 +106,7 @@ export function writeGuides(
   lan: 'blocked' | 'open' | 'offline',
   projects: GuideProject[] = [],
 ): string {
-  const guide = sandboxGuide(toolSummary, lan, projects);
+  const guide = sandboxGuide(toolSummary, lan, projects, installedRtk() ? [RTK_GUIDE_LINE] : []);
   const managed = managedClaudeMd();
   fs.mkdirSync(path.dirname(managed), { recursive: true });
   fs.writeFileSync(managed, guide + '\n', 'utf8');

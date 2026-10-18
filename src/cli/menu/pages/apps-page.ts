@@ -6,6 +6,7 @@ import _ from 'lodash';
 import { errMsg } from '../../../core/util/index.js';
 import {
   APP_GROUPS,
+  appDetails,
   appIsOn,
   appRows,
   type AppRow,
@@ -62,20 +63,9 @@ export function appsCategories(file: ConfigFile): Category[] {
 }
 
 function appItem(row: AppRow): ListItem<string> {
-  const notes = [
-    Theme.muted('Download  ') +
-      '~' +
-      row.size +
-      ' once, kept in C:\\AgentData\\tools\\' +
-      (row.setting ? '' : 'apps\\') +
-      row.id,
-    Theme.muted('Starts    ') + (row.cli ? 'from a terminal (on PATH)' : 'from the desktop or Start > Sandbox apps'),
-    ...(row.mesa ? [Theme.muted('Graphics  ') + 'OpenGL on the CPU (Mesa) is added for it'] : []),
-    ...(row.fullGitOnly
-      ? [Theme.warn('Needs full git access (Settings > Projects & setup > Git): it pushes with its own git.')]
-      : []),
-    ...(row.setting ? [Theme.muted('Setting   ') + row.setting] : []),
-  ];
+  const notes = appDetails(row).map((d) =>
+    d.warn ? Theme.warn(d.text) : (d.label ? Theme.muted(d.label.padEnd(10)) : '') + d.text,
+  );
   return {
     value: row.id,
     label: row.name,

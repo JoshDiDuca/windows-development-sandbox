@@ -28,7 +28,7 @@ export const listAppsRun = implement(listApps, (ctx, input) => {
 export const toggleAppRun = implement(toggleApp, (ctx, input) => {
   const file = settingsFiles(ctx)[input.scope];
   const entry = APPS.find((a) => a.id === input.id);
-  if (!entry || (file.isProject && entry.setting))
+  if (!entry || (file.isProject && (entry.setting || entry.userOnly)))
     fail('"' + input.id + '" is not an app this scope can change.', 'Pick one of the apps the Apps page lists.');
   const name = entry.name;
   // A setting-backed app (VS Code, Windows Terminal) is its setting; a catalogue app is one id in apps.install.

@@ -7,6 +7,15 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **rtk in the sandbox.** A new **Agent add-ons** category in Apps holds things that plug into the agents: rtk
+  (rtk-ai/rtk, compacts what shell commands print so the agent uses fewer tokens), claude-mem (its existing
+  `claudeProfile.syncClaudeMem` setting) and REA (moved from Reverse engineering). Turn rtk on (`"rtk"` in
+  `apps.install`, off by default) and the sandbox installs a pinned, checksum-verified rtk 1.0.1 once, puts it on
+  PATH, adds rtk's hook to Claude Code through the sandbox's managed settings (nothing changes on your PC) and tells the
+  other agents to use it. Only your own settings can turn rtk on; a project's `.sandbox-config.json` cannot.
+
 ## 1.11.7
 
 - **`sandbox update` works while a sandbox runs.** It installs the new version at once; the running sandbox keeps the

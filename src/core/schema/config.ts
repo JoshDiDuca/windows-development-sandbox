@@ -19,7 +19,7 @@ import {
   WorkspaceFilterSchema,
 } from './sandbox.js';
 import { ToolchainsSchema } from './toolchains.js';
-import { AppsSchema } from './apps.js';
+import { AppsSchema, ProjectAppsSchema } from './apps.js';
 import { ProjectsSchema } from './projects.js';
 import { ResumeSchema } from './resume.js';
 import { WebSchema } from './web.js';
@@ -144,8 +144,8 @@ export const LocalOverridesSchema = z
     attach: AttachSchema.partial(),
     personalization: toggle('Copy your desktop look into the sandbox.').partial(),
     // Catalogue apps only (a vetted list): your own programs (apps.custom) download anything, so a repo cannot add
-    // them.
-    apps: AppsSchema.pick({ install: true }).partial(),
+    // them, nor agent add-ons that are yours only (rtk adds a hook to every agent command).
+    apps: ProjectAppsSchema.partial(),
     claudeProfile: ClaudeProfileSchema.pick({
       enabled: true,
       overwrite: true,

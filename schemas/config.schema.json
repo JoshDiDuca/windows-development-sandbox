@@ -1337,6 +1337,8 @@
           "items": {
             "type": "string",
             "enum": [
+              "rtk",
+              "rea",
               "notepadpp",
               "sublime",
               "neovim",
@@ -1381,7 +1383,6 @@
               "xh",
               "grpcurl",
               "k6",
-              "rea",
               "ghidra",
               "x64dbg",
               "ilspy",

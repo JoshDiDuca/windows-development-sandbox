@@ -14,7 +14,15 @@ import { parseReleasePage, parseReleaseTags } from '../shared/download/index.js'
 import { decidePwsh, pcHasPwsh, PWSH_MAX_BYTES, readPwshScripts, usesPwsh } from '../core/detect/index.js';
 import { binstallAsset, CLI_TOOLS, decideCli, pwshAsset, type CliSettings } from '../guest/toolchains/catalogue.js';
 import { missingExtensions, vscodeExtensions, vscodeSettings } from '../guest/toolchains/tools/vscode-profile.js';
-import { APP_CATEGORIES, APPS, appsNeedMesa, appsToInstall, exeMatcher } from '../shared/apps/index.js';
+import {
+  APP_CATEGORIES,
+  APPS,
+  appsNeedMesa,
+  appsToInstall,
+  claudeManagedSettings,
+  exeMatcher,
+  RTK_VERSION,
+} from '../shared/apps/index.js';
 import { ConfigSchema, LocalOverridesSchema } from '../core/schema/index.js';
 import type { Suite } from './support/suite.js';
 
@@ -343,6 +351,60 @@ export const toolchainsSuite: Suite = {
       !LocalOverridesSchema.safeParse({ apps: { custom: {} } }).success &&
         LocalOverridesSchema.safeParse({ apps: { install: ['jq'] } }).success,
       'apps: a project file may add catalogue apps but never programs of its own',
+    );
+
+    t.section('agent add-ons');
+    const rtk = APPS.find((a) => a.id === 'rtk');
+    const rtkSource = rtk?.source;
+    t.check(
+      rtk?.category === 'agents' &&
+        rtk.cli === true &&
+        rtk.userOnly === true &&
+        rtkSource !== undefined &&
+        'url' in rtkSource &&
+        rtkSource.url.startsWith('https://github.com/rtk-ai/rtk/releases/download/v' + RTK_VERSION + '/') &&
+        rtkSource.url.endsWith('-x86_64-pc-windows-msvc.zip') &&
+        /^[0-9a-f]{64}$/.test(rtkSource.sha256 ?? ''),
+      'rtk: a pinned https release file of rtk-ai/rtk with its SHA-256, on PATH, in your own settings only',
+    );
+    t.check(
+      APPS.every((a) => !('url' in a.source) || a.source.url.startsWith('https://')) &&
+        APPS.every(
+          (a) => !('url' in a.source) || a.source.sha256 === undefined || /^[0-9a-f]{64}$/.test(a.source.sha256),
+        ),
+      'apps: every direct link is https, and a pinned checksum is 64 hex characters',
+    );
+    const agentApps = APPS.filter((a) => a.category === 'agents').map((a) => a.id);
+    t.check(
+      APP_CATEGORIES.some((c) => c.id === 'agents' && c.label === 'Agent add-ons') &&
+        agentApps.includes('rtk') &&
+        agentApps.includes('claude-mem') &&
+        APPS.find((a) => a.id === 'claude-mem')?.setting === 'claudeProfile.syncClaudeMem',
+      'apps: the Agent add-ons category holds rtk and claude-mem (claude-mem through its own setting)',
+    );
+    t.check(
+      !LocalOverridesSchema.safeParse({ apps: { install: ['rtk'] } }).success &&
+        !LocalOverridesSchema.safeParse({ apps: { install: ['claude-mem'] } }).success &&
+        ConfigSchema.shape.apps.shape.install.safeParse(['rtk']).success,
+      'rtk: only your own settings turn it on; a project file cannot',
+    );
+    const exe = 'C:\\AgentData\\tools\\apps\\rtk\\rtk.exe';
+    const withRtk = claudeManagedSettings([], exe);
+    const both = claudeManagedSettings(['Bash(git push:*)'], exe);
+    const gitOnly = claudeManagedSettings(['Bash(git push:*)'], null);
+    t.equal(
+      withRtk?.hooks?.PreToolUse,
+      [{ matcher: 'Bash', hooks: [{ type: 'command', command: '"C:/AgentData/tools/apps/rtk/rtk.exe" hook claude' }] }],
+      "rtk: its documented Bash PreToolUse hook goes into the sandbox's managed settings",
+    );
+    t.check(
+      claudeManagedSettings([], null) === null &&
+        gitOnly?.hooks === undefined &&
+        gitOnly?.permissions?.deny.length === 1 &&
+        both?.permissions?.deny.length === 1 &&
+        both.hooks?.PreToolUse.length === 1 &&
+        withRtk?.permissions === undefined,
+      'rtk: no hook when it is off; the git deny rules stay beside it; nothing to write when neither',
     );
   },
 };

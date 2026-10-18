@@ -669,6 +669,29 @@ export const appSuite: Suite = {
       'is not an app this scope can change',
       'apps: a project cannot change VS Code',
     );
+    await t.throws(
+      () => runDefinition('apps.toggle', appsCtx, { scope: 'project', id: 'rtk', on: true }, quiet),
+      'is not an app this scope can change',
+      'apps: a project cannot turn rtk on (it hooks every agent command)',
+    );
+    const projectApps = (await readQuery(listApps, appsCtx, { scope: 'project' })) as AppsList;
+    const userApps = (await readQuery(listApps, appsCtx, { scope: 'user' })) as AppsList;
+    const mem = userApps.apps.find((a) => a.id === 'claude-mem');
+    const addons = appsPage(userApps).sections.find((s) => s.id === 'agents');
+    t.check(
+      !projectApps.apps.some((a) => a.id === 'rtk' || a.id === 'claude-mem') &&
+        userApps.apps.find((a) => a.id === 'rtk')?.group === 'agents' &&
+        mem?.group === 'agents' &&
+        mem.setting === 'claudeProfile.syncClaudeMem' &&
+        mem.settingField?.kind === 'boolean' &&
+        mem.on === true &&
+        addons?.title === 'Agent add-ons' &&
+        (addons.items ?? []).some((i) => i.id === 'rtk') &&
+        (addons.items ?? []).some(
+          (i) => i.id === 'claude-mem' && !(i.details ?? []).some((d) => d.startsWith('Download')),
+        ),
+      'apps: an Agent add-ons section with rtk and claude-mem (its own setting, nothing to download); not in a project',
+    );
     const dataDir = t.dir('app-apps', 'data');
     fs.mkdirSync(path.join(dataDir, 'tools', 'apps', 'lazygit'), { recursive: true });
     fs.writeFileSync(path.join(dataDir, 'tools', 'apps', 'lazygit', '.agent-sandbox-app'), 'lazygit');

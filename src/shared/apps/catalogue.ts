@@ -1,9 +1,11 @@
 // The apps catalogue: desktop programs and command-line tools the sandbox can install on request (apps.install), each a
 // portable download kept in C:\AgentData\tools\apps\<id> (installers would be lost when the sandbox closes). Pure data,
 // shared by the menu on the PC (to list them) and the sandbox (to install them, guest/apps). VS Code and Windows
-// Terminal have settings of their own (toolchains.vscode, provisioning.terminal) and are listed here too.
+// Terminal have settings of their own (toolchains.vscode, provisioning.terminal) and are listed here too, like
+// claude-mem (claudeProfile.syncClaudeMem) among the agent add-ons.
 
 export type AppCategory =
+  | 'agents'
   | 'editors'
   | 'databases'
   | 'api'
@@ -18,6 +20,11 @@ export type AppCategory =
   | 'cli';
 
 export const APP_CATEGORIES: { id: AppCategory; label: string; description: string }[] = [
+  {
+    id: 'agents',
+    label: 'Agent add-ons',
+    description: 'Things that plug into the agents: token savers, memory, MCP servers.',
+  },
   {
     id: 'editors',
     label: 'Editors & IDEs',
@@ -65,7 +72,8 @@ export const APP_CATEGORIES: { id: AppCategory; label: string; description: stri
 ];
 
 /** Where a download comes from. Resolvers (sublime, kubectl ...) are code in guest/apps, named here by id. */
-export type AppSource = { github: string; asset: string } | { url: string } | { resolve: string } | { npm: string };
+export type AppSource =
+  { github: string; asset: string } | { url: string; sha256?: string } | { resolve: string } | { npm: string };
 
 export interface AppEntry {
   id: string;
@@ -91,11 +99,60 @@ export interface AppEntry {
   setting?: string;
   /** Only with full git access (it pushes on its own, past the sandbox's git guard). */
   fullGitOnly?: boolean;
+  /** Which agents it plugs into, and how (agent add-ons). */
+  plugsInto?: string;
+  /** Only in your own settings: a project's .sandbox-config.json cannot turn it on (it changes what the agents run). */
+  userOnly?: boolean;
 }
 
 const gh = (github: string, asset: string): AppSource => ({ github, asset });
 
+/** rtk (rtk-ai/rtk), pinned: the Apache-2.0 edition's Windows build. The checksum is the release's checksums.txt. */
+export const RTK_VERSION = '1.0.1';
+const RTK_URL =
+  'https://github.com/rtk-ai/rtk/releases/download/v' + RTK_VERSION + '/rtk-oss-x86_64-pc-windows-msvc.zip';
+const RTK_SHA256 = '0e53e2eca471e15fbd3636e64e6bc0b182cbc278ed0339c80450a2dd03f4cd6b';
+
 export const APPS: AppEntry[] = [
+  // ---- agent add-ons
+  {
+    id: 'rtk',
+    name: 'rtk (Rust Token Killer)',
+    category: 'agents',
+    about:
+      "Compacts the output of shell commands (git, tests, builds, ls ...) before the agent reads it, so it uses fewer tokens. Claude Code's Bash commands go through it on their own.",
+    size: '6 MB',
+    source: { url: RTK_URL, sha256: RTK_SHA256 },
+    exe: 'rtk.exe',
+    cli: true,
+    plugsInto: "Claude Code through a hook in the sandbox's managed settings; other agents are told to use it",
+    userOnly: true,
+  },
+  {
+    id: 'claude-mem',
+    name: 'claude-mem',
+    category: 'agents',
+    about:
+      'Persistent memory for Claude Code (a plugin you install on this PC): its database is brought into the sandbox.',
+    size: '',
+    source: { resolve: 'setting' },
+    exe: '',
+    setting: 'claudeProfile.syncClaudeMem',
+    plugsInto: 'Claude Code, with your Claude settings copied from this PC',
+    userOnly: true,
+  },
+  {
+    id: 'rea',
+    name: 'REA (Reverse Engineer Anything)',
+    category: 'agents',
+    about:
+      'Agent-driven reverse engineering (MCP server and CLI, by morluto). Run `rea setup` once to add it to Claude Code and Codex. Native binaries need Ghidra; needs Node 22.19+.',
+    size: '8 MB',
+    source: { npm: 'rea-agents' },
+    exe: 'rea.cmd',
+    cli: true,
+    plugsInto: 'Claude Code and Codex as an MCP server, after `rea setup`',
+  },
   // ---- editors
   {
     id: 'vscode',
@@ -557,17 +614,6 @@ export const APPS: AppEntry[] = [
     cli: true,
   },
   // ---- reverse engineering
-  {
-    id: 'rea',
-    name: 'REA (Reverse Engineer Anything)',
-    category: 'reversing',
-    about:
-      'Agent-driven reverse engineering (MCP server and CLI, by morluto). Run `rea setup` once to add it to Claude Code and Codex. Native binaries need Ghidra; needs Node 22.19+.',
-    size: '8 MB',
-    source: { npm: 'rea-agents' },
-    exe: 'rea.cmd',
-    cli: true,
-  },
   {
     id: 'ghidra',
     name: 'Ghidra',

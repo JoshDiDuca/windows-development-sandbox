@@ -852,13 +852,13 @@ export const menuSuite: Suite = {
     const groupIds = appsCategories(user2).map((c) => c.id);
     const appItems = appsItems(user2, t.dir('apps-groups'), new Draft()).filter((i) => i.value !== REQUEST_APP);
     t.check(
-      groupIds.length <= 6 &&
-        appsCategories(ConfigFile.project(t.dir('apps-groups', 'project'))).length <= 5 &&
+      groupIds.length <= 7 &&
+        appsCategories(ConfigFile.project(t.dir('apps-groups', 'project'))).length <= 6 &&
         APP_GROUPS.every((g) => appItems.some((i) => i.category === g.id)) &&
         appItems.every((i) => groupIds.includes(i.category ?? '')) &&
         appItems.length === appRows(user2, t.dir('apps-groups')).length &&
         APP_CATEGORIES.every((c) => APP_GROUPS.some((g) => (g.members as readonly string[]).includes(c.id))),
-      'the apps are in at most 6 groups; every catalogue category belongs to one and every app is listed',
+      'the apps are in at most 7 groups (with your own programs); every catalogue category belongs to one and every app is listed',
       groupIds.join(),
     );
 

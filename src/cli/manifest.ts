@@ -392,9 +392,11 @@ const COMMAND_LIST = [
     examples: [
       'sandbox engine                  the engine in use and what each can do',
       'sandbox engine check hcs        what this PC lacks for the HCS engine, and the commands that would fix it',
+      'sandbox engine leftovers        HCS systems a crashed command left running',
+      'sandbox engine clean            stop them (memory is freed; nothing is deleted)',
     ],
     args: [
-      { name: 'action', description: 'show or check', required: false, choices: ['show', 'check'] },
+      { name: 'action', description: 'show, check, leftovers or clean', required: false, choices: ['show', 'check'] },
       {
         name: 'engine',
         description: 'the engine to check',
@@ -403,7 +405,7 @@ const COMMAND_LIST = [
         when: 'check',
       },
     ],
-    options: [],
+    options: [bool('--yes', '(clean) do not ask before stopping', { short: '-y', when: 'clean', noMenu: true })],
     json,
   },
   { name: 'sync', summary: 'copy conversation history back to this PC now', group: 'Data', args: [], options: [] },

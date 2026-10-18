@@ -14,7 +14,7 @@ import {
 } from './accounts/accounts.def.js';
 import { appsView, listApps, requestApp, setCustomApps, toggleApp } from './apps/apps.def.js';
 import { browseFolder } from './files/files.def.js';
-import { checkEngine, engineStatus, engineView } from './engine/engine.def.js';
+import { checkEngine, cleanEngine, engineLeftovers, engineStatus, engineView } from './engine/engine.def.js';
 import { checkHealth, enableSandbox, healthView, lastHealth, repairHealth } from './health/health.def.js';
 import { cleanData, dataView, pruneStorage, showData } from './data/data.def.js';
 import {
@@ -66,6 +66,7 @@ export type { SettingRow, SettingsList } from './settings/settings.def.js';
 export type { VpnStatus } from './vpn/vpn.def.js';
 
 export const OPERATIONS = [
+  cleanEngine,
   showWindow,
   hideWindow,
   stopSandbox,
@@ -130,6 +131,7 @@ export const QUERIES = [
   updatesStatus,
   engineStatus,
   checkEngine,
+  engineLeftovers,
   webStatus,
   vpnStatus,
 ] as const;

@@ -17,6 +17,11 @@ const CALL_TIMEOUT_MS = 240000;
 /** Only ids this tool gives its compute systems (HcsHost.exe refuses any other, and checks the Owner too). */
 const SAFE_ID = /^agent-sandbox-[A-Za-z0-9._-]{1,100}$/;
 
+/** Whether an id has the shape of the ones this tool gives its compute systems. */
+export function isOurSystemId(id: string): boolean {
+  return SAFE_ID.test(id);
+}
+
 export const HcsReplySchema = z.object({
   ok: z.boolean(),
   hresult: z.string().max(16),
@@ -67,12 +72,24 @@ export function buildHcsHostTo(exe: string): boolean {
   return r.status === 0 && fs.existsSync(exe);
 }
 
+/** HcsHost.exe when it was built already (never builds it): a PC that never used HCS has none. */
+export function builtHcsHostExe(storageRoot: string): string | null {
+  const exe = hcsHostPath(storageRoot);
+  return exe && fs.existsSync(exe) ? exe : null;
+}
+
 /**
  * <storage>\bin\hcs\<hash of its sources>\HcsHost.exe, built the first time. Its own folder: HostTools' cleanup of old
  * builds only touches twelve-digit hash folders directly in bin. Null when it cannot be built.
  */
 export function hcsHostExe(storageRoot: string): string | null {
   refuseInSelfTest('build HcsHost.exe');
+  const exe = hcsHostPath(storageRoot);
+  return exe && (fs.existsSync(exe) || buildHcsHostTo(exe)) ? exe : null;
+}
+
+/** Where HcsHost.exe is (or would be built): named by the hash of its sources. Null without the sources. */
+function hcsHostPath(storageRoot: string): string | null {
   const dir = nativeFile('csharp', 'HcsHost');
   const hash = crypto.createHash('sha256');
   try {
@@ -84,8 +101,7 @@ export function hcsHostExe(storageRoot: string): string | null {
   } catch {
     return null; // no sources
   }
-  const exe = path.join(storageRoot, 'bin', 'hcs', hash.digest('hex').slice(0, 12), 'HcsHost.exe');
-  return fs.existsSync(exe) || buildHcsHostTo(exe) ? exe : null;
+  return path.join(storageRoot, 'bin', 'hcs', hash.digest('hex').slice(0, 12), 'HcsHost.exe');
 }
 
 /** A path argument: absolute, not an option. Nothing else reaches the helper's command line. */

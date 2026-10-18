@@ -62,7 +62,7 @@ import {
   setSettingRun,
 } from './features/settings/index.js';
 import { migrateSettingsRun, runUpdateRun, updatesStatusRun } from './features/updates/index.js';
-import { checkEngineRun, engineStatusRun } from './features/engine/index.js';
+import { checkEngineRun, cleanEngineRun, engineLeftoversRun, engineStatusRun } from './features/engine/index.js';
 import { openWebRun, startWebRun, stopWebRun, webStatusRun } from './features/web/index.js';
 import { vpnLoginRun, vpnLogoutRun, vpnStatusRun } from './features/vpn/index.js';
 
@@ -124,6 +124,8 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   updatesStatusRun,
   engineStatusRun,
   checkEngineRun,
+  engineLeftoversRun,
+  cleanEngineRun,
   startWebRun,
   openWebRun,
   stopWebRun,

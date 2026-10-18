@@ -2,7 +2,18 @@
 // says what this PC lacks, with the commands that would fix it as text to copy: nothing is run or changed. Pure: the
 // schemas, the words the check prints and the page. The checks run in engine.run.ts (Node side).
 import { z } from 'zod';
-import { defineQuery, defineView, type Fact, type Item, type Page, type Section } from '../../kernel/index.js';
+import {
+  action,
+  ago,
+  defineOperation,
+  defineQuery,
+  defineView,
+  plural,
+  type Fact,
+  type Item,
+  type Page,
+  type Section,
+} from '../../kernel/index.js';
 
 /** The label of each capability, in the order the page and the command line show them. */
 export const CAPABILITY_NAMES = {
@@ -106,6 +117,75 @@ export const checkEngine = defineQuery({
   },
 });
 
+export const LeftoverSystemSchema = z.object({
+  id: z.string().describe('The compute system'),
+  kind: z.string().describe('Container or VirtualMachine (the utility VM)'),
+  state: z.string().describe('What it is doing'),
+  since: z.string().nullable().describe('When it was created (ISO time), when HCS says'),
+});
+export type LeftoverRow = z.output<typeof LeftoverSystemSchema>;
+
+export const LeftoversSchema = z.object({
+  available: z.boolean().describe('HCS could be asked'),
+  message: z.string().describe('What was found, or why nothing is listed'),
+  systems: z.array(LeftoverSystemSchema).describe('Ours that are running now'),
+});
+export type Leftovers = z.output<typeof LeftoversSchema>;
+
+export const engineLeftovers = defineQuery({
+  id: 'engine.leftovers',
+  title: 'HCS systems left running',
+  summary: 'list the HCS compute systems this tool left running (a crashed command can leave one up)',
+  input: z.object({}),
+  output: LeftoversSchema,
+  cli: { name: 'engine', action: 'leftovers', json: true },
+});
+
+export const cleanEngine = defineOperation({
+  id: 'engine.clean',
+  title: 'Stop the leftover systems…',
+  summary: 'stop the HCS compute systems this tool left running (frees their memory; nothing else is touched)',
+  input: z.object({}),
+  output: z.object({
+    available: z.boolean().describe('HCS could be asked'),
+    stopped: z.number().describe('How many were stopped'),
+    failed: z.number().describe('How many could not be stopped'),
+    message: z.string().describe('What happened'),
+  }),
+  danger: true,
+  text: (o) => o.message,
+  cli: { name: 'engine', action: 'clean' },
+});
+
+function leftoverItem(s: LeftoverRow): Item {
+  return {
+    id: 'leftover:' + s.id,
+    label: s.id,
+    hint: s.state + (s.since ? '  started ' + ago(s.since) : ''),
+    tone: 'warn',
+    details: [
+      'System   ' + s.id,
+      'Kind     ' + s.kind,
+      'State    ' + s.state,
+      ...(s.since ? ['Created  ' + s.since] : []),
+    ],
+  };
+}
+
+/** The HCS systems left running (a section only when there are some). */
+function leftoversSection(o: Leftovers): Section[] {
+  if (!o.systems.length) return [];
+  return [
+    {
+      id: 'leftovers',
+      title: 'HCS systems left running',
+      summary: plural(o.systems.length, 'system') + ' (they hold memory; a sandbox running on purpose is listed too)',
+      items: o.systems.map(leftoverItem),
+      actions: [action(cleanEngine, {}, { key: 'x', verb: 'stop them', importance: 1 })],
+    },
+  ];
+}
+
 function engineSection(r: EngineReportRow): Section {
   const facts: Fact[] = CAPABILITY_KEYS.map((key) => {
     const yes = r.capabilities[key];
@@ -130,11 +210,11 @@ function engineSection(r: EngineReportRow): Section {
 }
 
 /** The engine page: the engine in use, then a card per engine with its capabilities, reasons and fixes. Pure. */
-export function enginePage(o: Engines): Page {
+export function enginePage(o: Engines, leftovers?: Leftovers): Page {
   return {
     title: 'Engine',
     notice: { text: 'Engine in use: ' + o.engine + '  (setting: sandbox.engine)' },
-    sections: o.engines.map(engineSection),
+    sections: [...o.engines.map(engineSection), ...(leftovers ? leftoversSection(leftovers) : [])],
   };
 }
 
@@ -142,7 +222,7 @@ export const engineView = defineView({
   id: 'engine',
   title: 'Engine',
   summary: 'What runs your sandbox, and what each engine can do on this PC.',
-  queries: { engines: engineStatus },
-  operations: [],
-  build: ({ engines }) => enginePage(engines),
+  queries: { engines: engineStatus, leftovers: engineLeftovers },
+  operations: [cleanEngine],
+  build: ({ engines, leftovers }) => enginePage(engines, leftovers),
 });

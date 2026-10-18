@@ -5,7 +5,13 @@ import { dataPage, showData, type DataShow } from '../../../app/features/data/in
 import type { Action } from '../../../app/kernel/index.js';
 import { readQuery } from '../../../app/registry.js';
 import { errMsg } from '../../../core/util/index.js';
-import { enginePage, engineStatus, type Engines } from '../../../app/features/engine/index.js';
+import {
+  enginePage,
+  engineLeftovers,
+  engineStatus,
+  type Engines,
+  type Leftovers,
+} from '../../../app/features/engine/index.js';
 import { healthPage, lastHealth, type HealthLast } from '../../../app/features/health/index.js';
 import {
   containedStatus,
@@ -46,6 +52,8 @@ export interface MaintenanceModel {
   readonly updates: { readonly status: UpdatesStatus; readonly latest: string | null };
   /** The Engine category: each engine and its check (null until read: the checks run programs, so not on open). */
   readonly engine: Engines | null;
+  /** HCS systems left running, read with the engines. */
+  readonly leftovers?: Leftovers | null;
   /** The web UI's server (the web feature's status): running or not, and its address. */
   readonly web: WebStatus;
   /** The commands listed under "More commands". */
@@ -211,7 +219,11 @@ function engineMenu(m: MaintenanceModel): MenuView {
     };
     return { items: [load], actions: [], enterLabel: () => 'check', resolve: () => undefined };
   }
-  return menuView(enginePage(m.engine), { category: 'engine', prefix: 'engine:', refresh: false });
+  return menuView(enginePage(m.engine, m.leftovers ?? undefined), {
+    category: 'engine',
+    prefix: 'engine:',
+    refresh: false,
+  });
 }
 
 /** The Health category: the health view's rows and keys, drawn only while that category is open. */
@@ -244,7 +256,7 @@ function maintenanceActions(m: MaintenanceModel): (category: string | undefined)
       case 'updates':
         return updatesMenu(m).actions;
       case 'engine':
-        return [{ key: 'l', label: m.engine ? 'check again' : 'check' }];
+        return [{ key: 'l', label: m.engine ? 'check again' : 'check' }, ...engineMenu(m).actions];
       case 'web':
         return webMenu(m).actions;
       default:
@@ -261,6 +273,7 @@ export class MaintenancePage extends ListPage<string> {
   private last: HealthLast | null = null;
   private updates: UpdatesStatus = NO_UPDATES;
   private engine: Engines | null = null;
+  private leftovers: Leftovers | null = null;
   private web: WebStatus = NO_WEB;
   private readonly operations: MenuOperations;
   /** The newer version the last check found (null: none, or not looked yet). */
@@ -282,6 +295,7 @@ export class MaintenancePage extends ListPage<string> {
       health: { last: this.last },
       updates: { status: this.updates, latest: this.latest },
       engine: this.engine,
+      leftovers: this.leftovers,
       web: this.web,
       more: MORE_COMMANDS.flatMap((name) => {
         const spec = commandSpec(name);
@@ -333,7 +347,16 @@ export class MaintenancePage extends ListPage<string> {
       if (this.category === 'engine' && ((result.kind === 'pick' && id === 'engine:load') || key === 'l')) {
         this.busy('Checking the engines…');
         this.engine = await readQuery(engineStatus, this.ctx);
+        this.leftovers = await readQuery(engineLeftovers, this.ctx);
         return {};
+      }
+      // Stopping the leftover HCS systems (x): the operation lists them and asks first, then they are looked up again.
+      if (this.category === 'engine') {
+        const chosen = engineMenu(this.model()).resolve(result);
+        if (chosen?.kind !== 'action') return {};
+        const done = await this.operations.perform(chosen.action, [this.label], (text) => this.busy(text));
+        this.leftovers = await readQuery(engineLeftovers, this.ctx);
+        return done;
       }
       // The Web UI's keys (s, o, x) only in its category; the operation reports and the page reloads its facts.
       if (this.category === 'web') {

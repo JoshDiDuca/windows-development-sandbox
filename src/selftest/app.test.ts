@@ -24,7 +24,7 @@ import { sandboxPage, type SandboxStatus } from '../app/features/sandbox/index.j
 import { sessionsPage, type SessionRow, type SessionsList } from '../app/features/sessions/index.js';
 import { APP_GROUPS, appsPage, listApps, type AppsList } from '../app/features/apps/index.js';
 import { settingsPage } from '../app/features/settings/index.js';
-import { checkEngine, checkText, enginePage } from '../app/features/engine/index.js';
+import { checkEngine, checkText, enginePage, type Leftovers } from '../app/features/engine/index.js';
 import { runUpdate, updatesPage, type UpdatesStatus } from '../app/features/updates/index.js';
 import { MenuOperations } from '../cli/menu/io-menu.js';
 import type { AppContext } from '../app/context.js';
@@ -1414,8 +1414,27 @@ export const appSuite: Suite = {
     t.check(
       definitionFor('engine', ['check'])?.id === 'engine.check' &&
         definitionFor('engine', []) === undefined &&
-        JSON.stringify(commandSpec('engine')?.args[0]?.choices) === '["show","check"]',
-      'engine and check are the actions of the engine command; a bare engine is not an action',
+        ['show', 'check', 'leftovers', 'clean'].every((a) => commandSpec('engine')?.args[0]?.choices?.includes(a)),
+      'engine, check, leftovers and clean are the actions of the engine command; a bare engine is not an action',
+    );
+    const left: Leftovers = {
+      available: true,
+      message: '2 HCS systems of ours left running.',
+      systems: [
+        { id: 'agent-sandbox-1', kind: 'VirtualMachine', state: 'Running', since: '2026-01-01T10:00:00Z' },
+        { id: 'agent-sandbox-1-c', kind: 'Container', state: 'Running', since: null },
+      ],
+    };
+    const leftPage = enginePage(enginesNow, left);
+    t.check(
+      ops(leftPage).join() === 'engine.clean' &&
+        pageActions(leftPage).some((a) => a.kind === 'operation' && a.danger) &&
+        pageLines(leftPage).some((l) => l.includes('agent-sandbox-1-c')) &&
+        ops(enginePage(enginesNow, { ...left, systems: [] })).length === 0 &&
+        menuView(leftPage).actions.some((a) => a.key === 'x') &&
+        definitionFor('engine', ['leftovers'])?.id === 'engine.leftovers' &&
+        definitionFor('engine', ['clean'])?.id === 'engine.clean',
+      'the engine page offers the (dangerous) clean action only when HCS systems of ours are left running',
     );
 
     t.section('web: CLI and menu only, never runnable from a browser');

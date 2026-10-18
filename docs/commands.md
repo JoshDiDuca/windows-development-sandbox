@@ -109,7 +109,7 @@ Changes to what is mapped apply from the next start.
 
 | | |
 |---|---|
-| `sandbox update` | install the newest version (never while a sandbox runs); `--check` only looks, `--rollback` goes back one version (names both versions and asks; `-y` skips) |
+| `sandbox update` | install the newest version, also while a sandbox runs (it keeps the version it started with until it restarts); `--check` only looks, `--rollback` goes back one version (names both versions and asks; `-y` skips) |
 | `sandbox update --auto on\|off` | install new versions by themselves; for everyone on the PC this needs an admin terminal |
 | `sandbox migrate` | bring your saved settings up to date after an upgrade (a backup is kept); `--dry-run` lists changes, `--restore <backup>` puts one back (asks first; `-y` skips) |
 

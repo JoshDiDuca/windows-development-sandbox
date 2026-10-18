@@ -154,7 +154,7 @@ export function updatesPage(s: UpdatesStatus, latest: string | null): Page {
               tone: s.autoUpdate ? 'ok' : 'muted',
               description: machine
                 ? 'For everyone: needs an admin terminal.'
-                : 'A new version installs when no sandbox runs.',
+                : 'A new version installs once a day, even while a sandbox runs (it keeps its version until it restarts).',
               keys: 'Enter switches them.',
               primary: action(
                 runUpdate,

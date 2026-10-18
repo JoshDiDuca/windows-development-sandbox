@@ -143,7 +143,7 @@ function projectItem(p: ProjectRow): Item {
     icon: 'project',
     hint: p.running ?? (p.root ? 'in a root' : p.excluded ? 'excluded' : p.mappedAtStart ? 'mapped' : '-'),
     description: p.here ? 'This is the folder you started the menu in.' : undefined,
-    details: ['At start   ' + atStart(p), 'In sandbox ' + (p.running ?? '-')],
+    details: ['At start: ' + atStart(p), 'In the sandbox: ' + (p.running ?? 'not open')],
     cells: { here: p.here ? '*' : '', folder: p.folder, atStart: atStart(p), running: p.running ?? '-' },
     actions: [
       action(removeProject, { projectFolder: p.folder }, { key: 'f', verb: 'forget project', importance: 1 }),

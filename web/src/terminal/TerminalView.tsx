@@ -31,6 +31,8 @@ const LIGHT = {
 export const FONT_SIZES = [11, 12, 13, 14, 15, 16, 18, 20] as const;
 /** A terminal in a hidden tab lets go of its session after this long. */
 const HIDDEN_RELEASE_MS = 2 * 60_000;
+/** Resizes are applied once the layout has been still this long. */
+const FIT_SETTLE_MS = 120;
 
 export interface TerminalHandle {
   /** Finds text in the scrollback, forwards or backwards; false when there is none. */
@@ -131,8 +133,23 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
     term.onData((text) => connection.send(encoder.encode(text)));
     term.onBinary((text) => connection.send(Uint8Array.from(text, (ch) => ch.charCodeAt(0))));
     term.onResize(({ cols, rows }) => connection.resize(cols, rows));
-    const observer = new ResizeObserver(() => fitter.fit());
+    // Layout settles in bursts (fonts loading, a toolbar wrapping, the find bar): fit once it has settled, and only
+    // when the size in cells really changes. Fitting on every notification sent a stream of resizes, and each one
+    // repainted the whole screen for every viewer (the terminal blinked and bounced).
+    let fitTimer: number | undefined;
+    const refit = (): void => {
+      window.clearTimeout(fitTimer);
+      fitTimer = window.setTimeout(() => {
+        const next = fitter.proposeDimensions();
+        if (next && (next.cols !== term.cols || next.rows !== term.rows)) fitter.fit();
+      }, FIT_SETTLE_MS);
+    };
+    const observer = new ResizeObserver(refit);
     observer.observe(element);
+    // The terminal you click into is the one you look at: it takes over the session's size (typing already did), so
+    // it is not left showing the screen at another viewer's size.
+    const claim = (): void => connection.claim(term.cols, term.rows);
+    term.textarea?.addEventListener('focus', claim);
     // A terminal nobody looks at lets go of the session after a while; it reconnects (and redraws) when shown again.
     // Closing the page closes it at once.
     let hiddenTimer: number | undefined;
@@ -150,6 +167,8 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
     term.focus();
     return () => {
       window.clearTimeout(hiddenTimer);
+      window.clearTimeout(fitTimer);
+      term.textarea?.removeEventListener('focus', claim);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onPageHide);
       observer.disconnect();

@@ -87,6 +87,12 @@ export class TerminalConnection {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ t: 'resize', cols, rows }));
   }
 
+  /** This terminal takes over the session's size (sent even when it has not changed: ptyhost gives the size to the last
+   * viewer that resized or typed). */
+  claim(cols: number, rows: number): void {
+    this.resize(cols, rows);
+  }
+
   /** A hidden page lets go of the session for now (no reconnect); resume() connects again and the screen comes back. */
   suspend(): void {
     if (this.closed || this.finished) return;

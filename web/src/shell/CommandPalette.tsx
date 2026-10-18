@@ -5,8 +5,7 @@ import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { Spotlight, type SpotlightActionData, type SpotlightActionGroupData } from '@mantine/spotlight';
 import { IconAdjustments, IconMoon, IconPlus, IconSearch, IconTerminal2 } from '@tabler/icons-react';
 import { useMemo } from 'react';
-import { NAV, queryById, type SessionsList, type SettingsList } from '../../../src/app/features/defs';
-import { openNewSession } from '../pages/NewSessionModal';
+import { NAV, navSections, queryById, type SessionsList, type SettingsList } from '../../../src/app/features/defs';
 import { AREA_ICONS, ItemIcon } from '../render/icons';
 import { itemAnchor } from '../render/CategoryPage';
 import { navigate, viewPath } from '../router';
@@ -22,23 +21,28 @@ export function CommandPalette() {
   const dark = useComputedColorScheme('light') === 'dark';
 
   const actions = useMemo((): (SpotlightActionGroupData | SpotlightActionData)[] => {
-    const pages: SpotlightActionData[] = NAV.filter((s) => s.view).map((s) => {
-      const Picture = AREA_ICONS[s.label] ?? IconSearch;
-      return {
-        id: 'view:' + s.view,
-        label: s.label,
-        description: 'Go to ' + s.label,
-        leftSection: <Picture size={18} stroke={1.6} />,
-        onClick: () => navigate(viewPath(s.view as string)),
-      };
-    });
+    // Every page, nested ones included ("Status" and "Projects" under Sandbox), named with their parent.
+    const pages: SpotlightActionData[] = navSections(NAV)
+      .filter((s) => s.view)
+      .map((s) => {
+        const parent = NAV.find((p) => p.children?.includes(s))?.label;
+        const Picture = AREA_ICONS[parent ?? s.label] ?? IconSearch;
+        const name = parent ? parent + ' · ' + s.label : s.label;
+        return {
+          id: 'view:' + s.view,
+          label: name,
+          description: 'Go to ' + name,
+          leftSection: <Picture size={18} stroke={1.6} />,
+          onClick: () => navigate(viewPath(s.view as string)),
+        };
+      });
     const commands: SpotlightActionData[] = [
       {
         id: 'new-session',
         label: 'New session',
         description: 'Start an agent in a project of the sandbox',
         leftSection: <IconPlus size={18} />,
-        onClick: () => openNewSession(),
+        onClick: () => navigate(viewPath('agents')),
       },
       {
         id: 'scheme',

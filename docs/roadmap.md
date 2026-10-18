@@ -21,7 +21,7 @@ switches them off again. Design: [design/hcs-backend.md](design/hcs-backend.md).
 | --- | --- |
 | An engine layer: today's Windows Sandbox launch behind one interface (unchanged behaviour on every Windows Sandbox version), so other engines can plug in | done (`sandbox engine`) |
 | Contained storage for Windows Sandbox (`storage.contained`): tools, logins and logs in one VHDX per data set, mounted on a private folder only while a sandbox runs and mapped in as folders today are; one admin prompt per launch; stale-mount repair in doctor | built (beta, `sandbox storage contained on`), tested only with a fake disk and the scripts' dry-run: first run `scripts/experiments/Test-ContainedStorage.ps1` and then the checklist in [design/engines.md](design/engines.md) on a PC |
-| An HCS engine (`sandbox.engine: hcs`, alpha): headless agents in a Hyper-V isolated Server Core container with the storage VHDX attached to the VM (never mounted on the PC) | built as an alpha (documents checked against Microsoft's schema, the check, HcsHost.exe with its safety guards); starting it stays disabled until the go/no-go test (Docker Desktop, Windows containers, Hyper-V isolation: the terminal bridge, Node and csc inside Server Core); `scripts/experiments/hcs/Test-Hcs.ps1` shows what this PC allows |
+| An HCS engine (`sandbox.engine: hcs`, alpha): headless agents in a Hyper-V isolated Server Core container with the storage VHDX attached to the VM (never mounted on the PC) | built as an alpha (documents checked against Microsoft's schema, the check, HcsHost.exe with its safety guards); starting it stays disabled until the go/no-go test (Docker Desktop, Windows containers, Hyper-V isolation: the terminal bridge, Node and csc inside Server Core); `scripts/experiments/hcs/Test-Hcs.ps1` shows what this PC allows; the manual workflow `.github/workflows/hcs-engine.yml` runs the checks and a create/start/terminate test on hosted runners ([development.md](development.md#hcs-engine-workflow)) |
 | A small helper installed by the all-users installer, so contained storage needs no admin prompt per launch | idea (after the above) |
 
 ## 2.0 — Web UI
@@ -33,7 +33,7 @@ Being built here, one area at a time. Design and security model: [web-ui.md](web
 | --- | --- |
 | Foundation: `sandbox web` (loopback only, token + cookie login), the terminal bridge, a React app with sessions, a live terminal and new sessions; off by default; starts with every sandbox when `web.enabled` is on | done (1.6.0, 1.10.0) |
 | Redesign: design system, sidebar with live state, Ctrl+K search, one renderer for every page, settings by category with controls in place, folder picker, terminal find / text size / full screen / phone key row | done |
-| Every area in the web UI through the shared core: agents, projects, accounts, data, storage, apps, health, updates, logs, VPN, engine, settings export / import | in progress (areas 1, 3 and 6 first) |
+| Every area in the web UI through the shared core | done: agents, accounts, apps; in progress: projects (with nested navigation); next: data, storage, health, updates, logs, VPN, engine, settings export / import |
 | Plain shell sessions through ptyhost, so terminals you open show up in the web UI too; closing a session | planned |
 | The sandbox's desktop in the browser (mouse and keyboard), for using it from another device | idea (needs a security review: [web-ui.md](web-ui.md#phases)) |
 | Other Windows users of the PC: their own `sandbox web` shows your sandbox when you share it, under the same rules as the CLI | planned |

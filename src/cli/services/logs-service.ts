@@ -42,6 +42,23 @@ export class LogsService {
     return _.orderBy(found, 'modified', 'desc');
   }
 
+  /** The folder the logs are in (whether or not it exists yet). */
+  folder(): string {
+    return hostDataFolder(this.ctx.dataPath, 'logs');
+  }
+
+  /**
+   * The path of the log called `name`: only an exact name from files() is accepted, so a name from outside (a browser)
+   * can never become a path of its own.
+   */
+  byName(name: string): string {
+    const found = this.files().find((f) => f.name === name);
+    return (
+      found?.path ??
+      fail('There is no log called ' + safeText(name) + '.', 'Pick one from: sandbox logs, or the Logs page.')
+    );
+  }
+
   /** The newest log, or a UserError when there is none yet. */
   newest(): string {
     return (

@@ -13,7 +13,8 @@ import {
   type MigrationContext,
 } from '../host/migrate/index.js';
 import { DEFAULTS_SNAPSHOTS } from '../host/migrate/snapshots.js';
-import { runMigrate } from '../cli/commands/index.js';
+import { migrateWith } from '../app/features/updates/updates.run.js';
+import { fakeIO } from '../app/kernel/index.js';
 import { autoMigrates, continuesAfterFailedMigration, MigrateService } from '../cli/services/index.js';
 import type { Suite } from './support/suite.js';
 
@@ -247,29 +248,30 @@ export const migrateSuite: Suite = {
       () => false,
     );
     const noticed = service.versionChanged();
-    const lines: string[] = [];
-    const say = (line: string): void => void lines.push(line);
-    await runMigrate(service, { dryRun: true }, say);
-    const dry = lines.join('\n');
+    // sandbox migrate's work through the feature: the logged lines, then the line it returns.
+    const runM = async (input: { dryRun: boolean; restore?: string; answers?: boolean[] }): Promise<string> => {
+      const { io, seen } = fakeIO(input.answers ?? []);
+      const restore = input.restore ? { restore: input.restore } : {};
+      const out = await migrateWith(service, { dryRun: input.dryRun, ...restore }, io);
+      return [...seen.logs.map((l) => l.text), out.line].join('\n');
+    };
+    const dry = await runM({ dryRun: true });
     const untouched = readText(cmdConfig).includes('"toolchains"');
-    lines.length = 0;
-    await runMigrate(service, { dryRun: false }, say);
-    const ran = lines.join('\n');
-    lines.length = 0;
-    await runMigrate(service, { dryRun: true }, say);
+    const ran = await runM({ dryRun: false });
+    const again = await runM({ dryRun: true });
     t.check(
       noticed &&
         dry.includes('2026-10-unpin-config-defaults') &&
         untouched &&
         ran.includes('Updated: 2026-10-unpin-config-defaults.') &&
         !service.versionChanged() &&
-        lines.join() === 'Nothing to update.',
+        again === 'Nothing to update.',
       'a dry run lists the pending change and changes nothing; a run applies it and moves the record on',
     );
     const backups = t.at('cmd-storage', 'backups');
     const made = fs.readdirSync(backups);
     fs.writeFileSync(cmdConfig, 'broken by hand');
-    await runMigrate(service, { dryRun: false, restore: path.join(backups, made[0]), yes: true }, say);
+    await runM({ dryRun: false, restore: path.join(backups, made[0]), answers: [true] });
     t.check(
       made.length === 1 && readText(cmdConfig).includes('"toolchains"'),
       'the run kept one backup and --restore puts the saved files back',

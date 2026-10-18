@@ -16,7 +16,7 @@ type SandboxSettings = Config['sandbox'];
 const MB = 1048576;
 const MIN_AUTO_MEMORY_MB = 4096;
 
-export type MemoryLimit = 'free' | 'share' | 'max' | 'commit';
+export type MemoryLimit = 'free' | 'share' | 'max' | 'commit' | 'resident';
 
 export interface MemoryDecision {
   readonly mb: number;
@@ -30,6 +30,39 @@ export interface MemoryDecision {
 }
 
 const roundDown = (mb: number): number => Math.floor(mb / 1024) * 1024;
+
+/** GPU-PV (vGPU) needs room of its own on this PC: memory the graphics driver pins for the sandbox. */
+const VGPU_RESERVE_MB = 2048;
+
+/**
+ * The most memory this PC can keep in RAM for the sandbox (pure): its RAM minus max(reserveHostMb, 25 %), and 2 GB
+ * more with vGPU. Windows Sandbox's memory is this PC's memory taken as needed; beyond what the PC can keep resident it
+ * is paged to this PC's disk while the sandbox pages to its own, and that is what can freeze the whole PC.
+ */
+export function residentCapMb(sandbox: SandboxSettings, totalMb: number): number {
+  const keep = Math.max(sandbox.reserveHostMb, Math.floor(totalMb / 4)) + (sandbox.vGpu ? VGPU_RESERVE_MB : 0);
+  return roundDown(totalMb - keep);
+}
+
+/** A fixed memoryMb above what this PC can keep resident is lowered to that (never below 4 GB). */
+export function cappedMemoryMb(memoryMb: number, sandbox: SandboxSettings, totalMb: number): number {
+  const cap = residentCapMb(sandbox, totalMb);
+  return cap >= MIN_AUTO_MEMORY_MB && memoryMb > cap ? cap : memoryMb;
+}
+
+/** The launch note when a fixed memoryMb was lowered. */
+export function residentNote(asked: number, given: number): string | null {
+  if (given >= asked) return null;
+  return (
+    'sandbox.memoryMb asks for ' +
+    asked +
+    ' MB; this PC can keep ' +
+    given +
+    ' MB in RAM for the sandbox (its RAM minus what it needs itself), so the sandbox gets ' +
+    given +
+    " MB. More would be paged to this PC's disk, which can freeze the whole PC."
+  );
+}
 
 /**
  * "auto" (pure): free RAM minus the reserve, never more than maxMemoryMb or maxMemoryPercent of the PC's total RAM,
@@ -50,24 +83,11 @@ export function decideMemory(
     ['share', shareMb],
     ['free', byFree],
     ['commit', byCommit],
+    ['resident', residentCapMb(sandbox, totalMb)],
   ];
   const lowest = candidates.reduce((a, b) => (b[1] < a[1] ? b : a));
-  const withoutCommit = roundDown(Math.min(sandbox.maxMemoryMb, shareMb, byFree));
+  const withoutCommit = roundDown(Math.min(sandbox.maxMemoryMb, shareMb, byFree, residentCapMb(sandbox, totalMb)));
   return { mb: roundDown(lowest[1]), limitedBy: lowest[0], withoutCommitMb: withoutCommit, freeMb, commitAvailableMb };
-}
-
-/**
- * The most memory everything the agents start may use together (pure): the sandbox's memory minus the headroom
- * ("auto" =
- * the larger of 2048 MB and 10 %), at least half of it so a tiny sandbox still works; null = no limit ("none").
- */
-export function agentMemoryLimitMb(
-  memoryMb: number,
-  headroom: SandboxSettings['agentMemoryHeadroomMb'],
-): number | null {
-  if (headroom === 'none') return null;
-  const keep = headroom === 'auto' ? Math.max(2048, Math.floor(memoryMb / 10)) : headroom;
-  return Math.max(Math.floor(memoryMb / 2), memoryMb - keep);
 }
 
 /** A plain-words note when the commit made the sandbox's memory much smaller (2 GB or more) than free RAM allowed. */

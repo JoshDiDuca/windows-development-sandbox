@@ -8,13 +8,16 @@ import {
   defineQuery,
   defineView,
   FieldSchema,
-  link,
+  fieldOf,
+  SchemaNode,
   valueText,
+  type Field,
   type Item,
   type Page,
   type Section,
 } from '../../kernel/index.js';
 import { browseFolder } from '../files/files.def.js';
+import { changeDataFolder } from '../storage/storage.def.js';
 
 export const ScopeSchema = z
   .enum(['user', 'project'])
@@ -58,6 +61,8 @@ export const SettingsListSchema = z.object({
   exists: z.boolean(),
   /** Your own settings: where the data folder is (it has its own flow; its setting is not listed). */
   dataFolder: z.string().optional(),
+  /** Where an export goes by default (full path; your own settings only). */
+  exportFile: z.string().optional().describe('Where an export goes by default (full path; your own settings only)'),
   categories: z.array(z.object({ id: z.string(), label: z.string(), description: z.string() })),
   rows: z.array(SettingRowSchema),
 });
@@ -106,6 +111,64 @@ export const resetSetting = defineOperation({
   text: (o) => o.message,
   cli: { name: 'config', action: 'reset', positional: ['key'] },
 });
+
+const JsonFileSchema = z
+  .string()
+  .max(2000)
+  .regex(/\.json$/i, 'The file name should end in .json.');
+
+export const exportConfig = defineOperation({
+  id: 'settings.export',
+  title: 'Export settings…',
+  summary: 'write the settings you changed to a .json file to share (no secrets, no data folder, no paths of this PC)',
+  input: z.object({
+    settingsFile: JsonFileSchema.optional().describe(
+      '(export, import) the .json file; default sandbox-settings.json in the current folder',
+    ),
+    withPaths: z.boolean().default(false).describe('(export) keep folders and files of this PC in the file'),
+  }),
+  output: z.object({
+    file: z.string().describe('The file written (full path)'),
+    leftOut: z.array(z.string()).describe('What was left out, one "<key> (<why>)" each'),
+    pathsLeftOut: z.boolean().describe('A folder or file of this PC was left out (and --with-paths was not given)'),
+  }),
+  text: (o) =>
+    [
+      'Wrote ' + o.file + ' (only what differs from the defaults).',
+      ...(o.leftOut.length ? ['Left out:', ...o.leftOut.map((l) => '  ' + l)] : []),
+      ...(o.pathsLeftOut ? ["Keep this PC's folders and files in the file with --with-paths."] : []),
+    ].join('\n'),
+  cli: {
+    name: 'config',
+    action: 'export',
+    positional: ['settingsFile'],
+    flags: { withPaths: { flag: '--with-paths' } },
+  },
+});
+
+export const importConfig = defineOperation({
+  id: 'settings.import',
+  title: 'Import settings…',
+  summary: 'read a shared settings file, show what it would change, and apply it after one yes',
+  input: z.object({
+    settingsFile: JsonFileSchema.optional().describe('(export, import) the .json file'),
+  }),
+  output: z.object({
+    changed: z.number().describe('How many settings changed'),
+    message: z.string().describe('What happened'),
+  }),
+  text: (o) => o.message,
+  cli: { name: 'config', action: 'import', positional: ['settingsFile'] },
+});
+
+/** A file field of an operation's input, asked for in the page (a path to a file). */
+function fileField(def: typeof exportConfig | typeof importConfig, label: string): Field {
+  return {
+    ...fieldOf(new SchemaNode(def.input).child('settingsFile')!, ['settingsFile']),
+    label,
+    optional: false,
+  };
+}
 
 /** The facts under a setting: its key, your value, the project's, the default, and the lock. */
 function details(row: SettingRow, scope: Scope): string[] {
@@ -159,7 +222,7 @@ function settingItem(row: SettingRow, scope: Scope): Item {
   };
 }
 
-/** The Data folder row: where the saved data is; moving it has a flow of its own (menu; sandbox storage move). */
+/** The Data folder row: where the saved data is; changing it asks for the folder, then moves or switches (storage). */
 function dataFolderItem(folder: string): Item {
   return {
     id: '@data-folder',
@@ -167,8 +230,8 @@ function dataFolderItem(folder: string): Item {
     hint: folder,
     cells: { setting: 'storage.root', value: folder },
     description:
-      'Where your tools, logins, history and logs are kept between sandboxes. Move it with the menu (Settings > Data folder) or sandbox storage move <folder>.',
-    primary: link({ kind: 'command', argv: ['storage'] }, 'Data folder', { verb: 'change' }),
+      'Where your tools, logins, history and logs are kept between sandboxes. Move it with sandbox storage move <folder>.',
+    primary: action(changeDataFolder, {}, { label: 'Data folder', verb: 'change' }),
   };
 }
 
@@ -200,6 +263,33 @@ export function settingsPage(o: SettingsList): Page {
       tone: o.scope === 'project' ? 'accent' : 'muted',
     },
     sections,
+    // Export and import are for your own settings only (never on the project tab).
+    actions:
+      o.scope === 'user'
+        ? [
+            action(
+              exportConfig,
+              {},
+              {
+                verb: 'export',
+                fields: [fileField(exportConfig, 'Where to write the settings file')],
+                initial: { settingsFile: o.exportFile },
+                description:
+                  'Write the settings you changed to a .json file you can share with a team. Secrets, the data folder and folders or files of this PC are left out.',
+              },
+            ),
+            action(
+              importConfig,
+              {},
+              {
+                verb: 'import',
+                fields: [fileField(importConfig, 'Which settings file')],
+                description:
+                  'Read a settings file someone shared, see what it would change, and apply it once you say yes. Secrets, the data folder and paths in it are never taken.',
+              },
+            ),
+          ]
+        : [],
   };
 }
 
@@ -208,7 +298,7 @@ export const settingsView = defineView({
   title: 'Settings',
   summary: 'Every setting, for all projects or just this project, with its value, default and description.',
   queries: { settings: listSettings },
-  operations: [setSetting, resetSetting],
+  operations: [setSetting, resetSetting, exportConfig, importConfig, changeDataFolder],
   pickers: [browseFolder],
   tabs: {
     param: 'scope',

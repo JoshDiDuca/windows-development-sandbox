@@ -2,14 +2,14 @@
 // user's sandbox is shown and used only as far as the sharing rules allow). Returns data, never prints.
 import path from 'node:path';
 import type { SessionStatus } from '../../core/types.js';
-import { fail, safeText } from '../../core/util/index.js';
-import { hostEndpoint, SandboxChannel } from '../../host/channel/index.js';
+import { safeText } from '../../core/util/index.js';
+import { hostEndpoint } from '../../host/channel/index.js';
 import { insideSandbox, isSandboxRunning } from '../../host/sandbox/index.js';
 import { ownerRule } from '../../host/sharing/index.js';
 import type { WebBackend } from '../../host/web/index.js';
 import type { Endpoint } from '../../shared/pty/index.js';
 import { RunDir } from '../../shared/channel/index.js';
-import type { NewSessionRequest, WebInfo, WebProject, WebSession } from '../../shared/web/index.js';
+import type { WebInfo, WebProject, WebSession } from '../../shared/web/index.js';
 import type { Context } from '../commands/context.js';
 import { lookAtSandbox, type SandboxView } from '../commands/shared-use.js';
 import { registryOf } from '../commands/projects/here.js';
@@ -17,7 +17,6 @@ import { SessionsService, type ListedSession } from './sessions-service.js';
 
 /** The owner is asked (a process listing) at most this often: the browser polls. */
 const VIEW_TTL_MS = 3000;
-const SESSION_START_MS = 15 * 60 * 1000;
 const MAX_SESSIONS = 50;
 
 /** A session as the browser may see it: no attach address or token, text made safe. */
@@ -33,6 +32,15 @@ export function webSession(s: SessionStatus | ListedSession, viewers: number | n
     viewers: viewers ?? null,
     canOpen: s.phase === 'running' && hostEndpoint(s) !== null,
   };
+}
+
+/** The projects of the running sandbox as the browser may see them (its guest folders made safe). */
+export function runningProjects(view: SandboxView): WebProject[] {
+  const known = registryOf(view.ctx).read()?.projects ?? [];
+  if (known.length) return known.map((p) => ({ name: p.name, guest: safeText(p.guest) }));
+  // A sandbox from before projects existed has only its launch folder.
+  const status = new RunDir(view.ctx.dataPath).readSandboxStatus();
+  return status ? [{ name: 'workspace', guest: safeText(status.guestWorkspace) }] : [];
 }
 
 export class WebService implements WebBackend {
@@ -54,14 +62,6 @@ export class WebService implements WebBackend {
     return !view.owner || ownerRule(view.owner, { kind: 'use' }).kind === 'allow';
   }
 
-  private projects(view: SandboxView): WebProject[] {
-    const known = registryOf(view.ctx).read()?.projects ?? [];
-    if (known.length) return known.map((p) => ({ name: p.name, guest: safeText(p.guest) }));
-    // A sandbox from before projects existed has only its launch folder.
-    const status = new RunDir(view.ctx.dataPath).readSandboxStatus();
-    return status ? [{ name: 'workspace', guest: safeText(status.guestWorkspace) }] : [];
-  }
-
   info(): Promise<WebInfo> {
     const config = this.ctx.loaded.config;
     const view = this.view();
@@ -71,7 +71,7 @@ export class WebService implements WebBackend {
       canUse: view !== null && this.mayUse(view),
       harnesses: Object.keys(config.harnesses),
       defaultHarness: config.defaultHarness,
-      projects: view && this.mayUse(view) ? this.projects(view) : [],
+      projects: view && this.mayUse(view) ? runningProjects(view) : [],
     });
   }
 
@@ -94,22 +94,5 @@ export class WebService implements WebBackend {
     const session = run.readSession(sessionId);
     if (!session || session.phase !== 'running' || session.launchId !== run.readSandboxStatus()?.launchId) return null;
     return hostEndpoint(session);
-  }
-
-  async create(request: NewSessionRequest): Promise<WebSession> {
-    const view = this.view();
-    if (!view) return fail('No Windows Sandbox is running.', 'Start one with sandbox claude, then try again.');
-    if (view.owner && view.owner.kind !== 'none' && view.owner.kind !== 'mine') {
-      const rule = ownerRule(view.owner, { kind: 'use' });
-      if (rule.kind === 'refuse') return fail(rule.reason, rule.fix);
-    }
-    const project = this.projects(view).find((p) => p.name === request.project);
-    if (!project) return fail('The running sandbox has no project "' + request.project + '".');
-    const harness = view.ctx.loaded.config.harnesses[request.harness];
-    if (!harness) return fail('There is no agent called "' + request.harness + '".');
-    const channel = new SandboxChannel(view.ctx.dataPath);
-    const id = channel.requestSession(request.harness, [], project.guest, { harnessSpec: harness });
-    const session = await channel.waitForSession(id, SESSION_START_MS, () => undefined);
-    return webSession(session, null);
   }
 }

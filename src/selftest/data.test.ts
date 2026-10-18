@@ -2,9 +2,8 @@
 // launch folders, logs and downloads are pruned.
 import fs from 'node:fs';
 import path from 'node:path';
-import { resolveCleanTargets } from '../cli/commands/data/clean.js';
-import { removeTree } from '../cli/commands/data/remove.js';
 import { findLinks } from '../cli/commands/repair/finders.js';
+import { removeTree, resolveCleanTargets } from '../cli/services/index.js';
 import { humanBytes, sizeOf } from '../core/disk.js';
 import { pruneStorage } from '../host/storage/index.js';
 import type { Suite } from './support/suite.js';

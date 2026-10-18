@@ -105,7 +105,7 @@
               "maximum": 9007199254740991
             }
           ],
-          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb."
+          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered."
         },
         "maxMemoryMb": {
           "type": "integer",
@@ -411,7 +411,7 @@
                   "maximum": 32
                 }
               ],
-              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 8 GB of sandbox memory, 2 to 4. Several agents linking big programs at once can take Windows down."
+              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 3 GB of sandbox memory after 6 GB, 2 to 8 (the memory governor slows links down too when memory runs short)."
             }
           },
           "additionalProperties": false

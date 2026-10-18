@@ -7,8 +7,8 @@ import { diskUsage, sizeOf, type DiskUsage } from '../../core/disk.js';
 import { assertNoLinks, errMsg, fail, isLink } from '../../core/util/index.js';
 import { isSandboxRunning } from '../../host/sandbox/index.js';
 import type { Context } from '../commands/context.js';
-import { collectDataEntries, type DataEntry } from '../commands/data/collect.js';
-import { removeTree } from '../commands/data/remove.js';
+import { collectDataEntries, type DataEntry } from './data-collect.js';
+import { removeTree } from './data-remove.js';
 import { resolveCleanTargets, type CleanTarget } from './data-targets.js';
 
 export interface DataReport {

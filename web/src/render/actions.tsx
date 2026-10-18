@@ -1,8 +1,13 @@
-// What a page's action does in the browser: an operation runs over RPC (its fields asked first), a terminal link opens
-// the session's terminal page, "start an agent" opens the new-session dialog, a view link goes there. Command links
-// belong to areas that are not features yet: the web does not offer them. Buttons get an icon from the action's verb.
+// What a page's action does in the browser: an operation runs over RPC (its fields asked first); a terminal link opens
+// the session's terminal page; "start an agent" runs agents.start and then opens the new session's terminal; a view
+// link goes there. Command links belong to areas that are not features yet: the web does not offer them. Buttons get an
+// icon from the action's verb.
 import { ActionIcon, Button, Menu, Tooltip, type ButtonProps } from '@mantine/core';
 import {
+  IconCheck,
+  IconCircleMinus,
+  IconCirclePlus,
+  IconDeviceFloppy,
   IconDots,
   IconEye,
   IconEyeOff,
@@ -12,13 +17,15 @@ import {
   IconPlus,
   IconRefresh,
   IconRestore,
+  IconListCheck,
+  IconStar,
   IconTerminal2,
   IconTrash,
+  IconX,
   type Icon,
 } from '@tabler/icons-react';
 import { useCallback } from 'react';
-import type { Action } from '../../../src/app/kernel/index';
-import { openNewSession } from '../pages/NewSessionModal';
+import type { Action, OperationAction } from '../../../src/app/kernel/index';
 import { navigate, viewPath } from '../router';
 import { useRunAction, type Outcome } from '../rpc/hooks';
 import { askFields } from './ActionForm';
@@ -32,6 +39,7 @@ const VERB_ICONS: Readonly<Record<string, Icon>> = {
   restart: IconRefresh,
   reopen: IconRefresh,
   reset: IconRestore,
+  make: IconStar,
   remove: IconTrash,
   delete: IconTrash,
   edit: IconPencil,
@@ -40,7 +48,20 @@ const VERB_ICONS: Readonly<Record<string, Icon>> = {
   hide: IconEyeOff,
   add: IconPlus,
   new: IconPlus,
+  forget: IconX,
+  include: IconCirclePlus,
+  exclude: IconCircleMinus,
+  rename: IconPencil,
+  use: IconCheck,
+  save: IconDeviceFloppy,
+  choose: IconListCheck,
 };
+
+/** The session a started agent runs in, from what agents.start returned. */
+function sessionOf(output: unknown): string | undefined {
+  const session = (output as { session?: unknown } | undefined)?.session;
+  return typeof session === 'string' ? session : undefined;
+}
 
 export function actionIcon(action: Action): Icon | undefined {
   const word = (action.verb ?? action.label).split(/\s+/)[0].toLowerCase();
@@ -67,8 +88,18 @@ export function useAct(): (action: Action) => Promise<Outcome | undefined> {
       }
       const target = action.target;
       if (target.kind === 'terminal') navigate('/s/' + target.session);
-      else if (target.kind === 'start-agent') openNewSession(target.agent);
-      else if (target.kind === 'view') navigate(viewPath(target.view));
+      else if (target.kind === 'start-agent') {
+        const start: OperationAction = {
+          kind: 'operation',
+          op: 'agents.start',
+          label: 'Start ' + target.agent,
+          input: { agent: target.agent },
+        };
+        const started = await run(start);
+        const session = started.ok ? sessionOf(started.output) : undefined;
+        if (session) navigate('/s/' + session);
+        return started;
+      } else if (target.kind === 'view') navigate(viewPath(target.view, target.params));
       return undefined;
     },
     [run],
@@ -107,7 +138,22 @@ export function ActionButton({ action, primary = false, ...props }: ActionButton
 export function ActionIconButton({ action }: { readonly action: Action }) {
   const act = useAct();
   if (!offered(action)) return null;
-  const Picture = actionIcon(action) ?? IconDots;
+  const Picture = actionIcon(action);
+  // Without a picture of its own, a few words say it better than a generic icon.
+  if (!Picture)
+    return (
+      <Button
+        size="compact-xs"
+        variant="subtle"
+        color={isDanger(action) ? 'red' : 'gray'}
+        onClick={(e) => {
+          e.stopPropagation();
+          void act(action);
+        }}
+      >
+        {action.label}
+      </Button>
+    );
   return (
     <Tooltip label={action.label}>
       <ActionIcon

@@ -7,9 +7,11 @@ import {
   Box,
   Button,
   Card,
+  Code,
   Collapse,
   Group,
   Progress,
+  ScrollArea,
   SimpleGrid,
   Stack,
   Table,
@@ -19,7 +21,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { IconChevronDown, IconChevronRight, IconInfoCircle, IconSearch } from '@tabler/icons-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   pageHasContent,
   type Action,
@@ -32,6 +34,7 @@ import {
 import { ActionButton, ActionIconButton, ActionMenu, offered, useAct } from './actions';
 import { CategoryPage } from './CategoryPage';
 import { ItemIcon } from './icons';
+import { InlineField } from './InlineField';
 import { EmptyState } from './states';
 import { toneColor } from './tones';
 
@@ -43,6 +46,19 @@ const DETAILS_SHOWN = 3;
 /** "claude  api" (columns in a terminal) as "claude · api". */
 export function tidy(text: string): string {
   return text.replace(/ +-> +/g, ' → ').replace(/\s{2,}/g, ' · ');
+}
+
+/**
+ * Does the item's hint add anything? The menu shows states as a hint ("in the sandbox · default"); the web shows them
+ * as badges, so a hint made only of the badges' words is left out.
+ */
+export function hintShown(item: Item): boolean {
+  if (!item.hint) return false;
+  const badges = new Set((item.badges ?? []).map((b) => b.text.toLowerCase()));
+  if (!badges.size) return true;
+  return !tidy(item.hint)
+    .split(' · ')
+    .every((part) => badges.has(part.trim().toLowerCase()));
 }
 
 /** The action a page leads with: starting something, else none. */
@@ -183,6 +199,38 @@ function primaryOf(item: Item): Action | undefined {
   return offered(item.primary) && !item.disabled ? item.primary : undefined;
 }
 
+/** An item's main action: its control in place when it changes one value (a switch, a choice), else a button. */
+function PrimaryControl({
+  action,
+  hint,
+  light,
+}: {
+  readonly action: Action;
+  readonly hint?: string;
+  readonly light?: boolean;
+}) {
+  if (action.kind === 'operation' && action.inline)
+    return (
+      <Box miw={160} maw={300} onClick={(e) => e.stopPropagation()}>
+        <InlineField action={action} summary={hint} />
+      </Box>
+    );
+  return <ActionButton action={action} size="xs" variant={light ? 'light' : 'default'} />;
+}
+
+/** Two actions that do the same thing (the same operation and input, or the same place). */
+function sameAction(a: Action, b: Action): boolean {
+  if (a.kind === 'operation' && b.kind === 'operation')
+    return a.op === b.op && JSON.stringify(a.input) === JSON.stringify(b.input);
+  if (a.kind === 'link' && b.kind === 'link') return JSON.stringify(a.target) === JSON.stringify(b.target);
+  return false;
+}
+
+/** An item's other actions, without the one its main button already does. */
+function othersThan(actions: readonly Action[] | undefined, primary: Action | undefined): Action[] {
+  return (actions ?? []).filter((a) => !primary || !sameAction(a, primary));
+}
+
 /** Secondary actions: one or two as icon buttons, more behind "…". */
 export function SecondaryActions({ actions }: { readonly actions: readonly Action[] }) {
   const shown = actions.filter(offered);
@@ -209,8 +257,8 @@ function ItemRow({ item }: { readonly item: Item }) {
       onKeyDown={clickable ? (e) => e.key === 'Enter' && void act(primary) : undefined}
       style={item.disabled ? { opacity: 0.65 } : undefined}
     >
-      <Group justify="space-between" wrap="nowrap" align="center" gap="md">
-        <Group gap="sm" wrap="nowrap" align="flex-start" style={{ minWidth: 0 }}>
+      <Group justify="space-between" wrap="wrap" align="center" gap="md">
+        <Group gap="sm" wrap="nowrap" align="flex-start" style={{ minWidth: 0, flex: '1 1 240px' }}>
           {item.icon && <ItemIcon name={item.icon} size={34} />}
           <Box style={{ minWidth: 0 }}>
             <Group gap={8} wrap="wrap">
@@ -224,9 +272,9 @@ function ItemRow({ item }: { readonly item: Item }) {
               )}
               <Badges item={item} />
             </Group>
-            {item.hint && (
+            {hintShown(item) && (
               <Text size="sm" c="dimmed" style={{ wordBreak: 'break-word' }}>
-                {tidy(item.hint)}
+                {tidy(item.hint ?? '')}
               </Text>
             )}
             {item.description && (
@@ -243,8 +291,8 @@ function ItemRow({ item }: { readonly item: Item }) {
           </Box>
         </Group>
         <Group gap={6} wrap="nowrap" className="row-actions" style={{ flex: 'none' }}>
-          <SecondaryActions actions={item.actions ?? []} />
-          {primary && <ActionButton action={primary} size="xs" variant={clickable ? 'light' : 'default'} />}
+          <SecondaryActions actions={othersThan(item.actions, primary)} />
+          {primary && <PrimaryControl action={primary} hint={item.hint} light={clickable} />}
         </Group>
       </Group>
     </div>
@@ -270,9 +318,9 @@ function ItemCard({ item }: { readonly item: Item }) {
               <Text fw={650} size="sm" truncate>
                 {tidy(item.label)}
               </Text>
-              {item.hint && (
+              {hintShown(item) && (
                 <Text size="xs" c="dimmed" truncate>
-                  {tidy(item.hint)}
+                  {tidy(item.hint ?? '')}
                 </Text>
               )}
             </Box>
@@ -294,8 +342,8 @@ function ItemCard({ item }: { readonly item: Item }) {
         )}
         {(primary || item.actions?.length) && (
           <Group justify="flex-end" gap={6} mt="auto">
-            <SecondaryActions actions={item.actions ?? []} />
-            {primary && <ActionButton action={primary} size="xs" variant="light" />}
+            <SecondaryActions actions={othersThan(item.actions, primary)} />
+            {primary && <PrimaryControl action={primary} hint={item.hint} light />}
           </Group>
         )}
       </Stack>
@@ -398,11 +446,29 @@ function SectionNotes({ notes }: { readonly notes: readonly Note[] }) {
   );
 }
 
+/** Preformatted lines (a log): a monospace box of its own height that keeps its end in view as the lines grow. */
+function TextBlock({ lines }: { readonly lines: readonly string[] }) {
+  const viewport = useRef<HTMLDivElement>(null);
+  const joined = lines.join('\n');
+  useEffect(() => {
+    const el = viewport.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [joined]);
+  return (
+    <Card>
+      <ScrollArea h={400} viewportRef={viewport} type="auto">
+        <Code block>{joined}</Code>
+      </ScrollArea>
+    </Card>
+  );
+}
+
 export function SectionBlock({ section }: { readonly section: Section }) {
   const items = section.items ?? [];
   const facts = section.facts ?? [];
   const actions = (section.actions ?? []).filter(offered);
-  if (!facts.length && !items.length && !actions.length && !section.summary) return null;
+  const text = section.text ?? [];
+  if (!facts.length && !items.length && !actions.length && !section.summary && !text.length) return null;
   const table = section.columns && section.columnsOn !== 'cli';
   return (
     <Stack gap="sm">
@@ -417,6 +483,7 @@ export function SectionBlock({ section }: { readonly section: Section }) {
           <Facts facts={facts} />
         </Card>
       )}
+      {text.length > 0 && <TextBlock lines={text} />}
       {items.length > 0 &&
         (section.cards ? (
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
@@ -442,7 +509,7 @@ export function filtered(page: Page, text: string): Page {
     ...page,
     sections: page.sections
       .map((s) => ({ ...s, facts: [], actions: [], items: (s.items ?? []).filter(hit) }))
-      .filter((s) => s.items.length > 0),
+      .filter((s) => s.items.length > 0 || (s.text?.length ?? 0) > 0),
   };
 }
 

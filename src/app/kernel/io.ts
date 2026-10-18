@@ -8,6 +8,8 @@ import type { Tone } from './view.js';
 const Lines = z.array(z.string()).optional();
 const ChoiceSchema = z.strictObject({ value: z.string(), label: z.string(), description: z.string().optional() });
 export type QuestionChoice = z.output<typeof ChoiceSchema>;
+/** What the CLI says and fixes when a question needs a terminal and there is none. */
+const NoTerminalSchema = z.strictObject({ message: z.string(), fix: z.string() });
 
 export const ConfirmQuestionSchema = z.strictObject({
   kind: z.literal('confirm'),
@@ -23,6 +25,8 @@ export const ConfirmQuestionSchema = z.strictObject({
    * asks on a terminal, takes --yes, and fails without a terminal (with `noTerminal`, or "Add --yes").
    */
   implied: z.boolean().optional(),
+  /** On the command line --yes answers no without asking: an extra step a script did not ask for (delete the image). */
+  skipWithYes: z.boolean().optional(),
   noTerminal: z.strictObject({ message: z.string(), fix: z.string() }).optional(),
 });
 
@@ -32,6 +36,8 @@ export const ChooseQuestionSchema = z.strictObject({
   lines: Lines,
   choices: z.array(ChoiceSchema).min(1),
   initial: z.string().optional(),
+  /** Without a terminal the CLI fails with this message and fix instead of its own (see confirm). */
+  noTerminal: NoTerminalSchema.optional(),
 });
 
 export const TextQuestionSchema = z.strictObject({
@@ -42,6 +48,7 @@ export const TextQuestionSchema = z.strictObject({
   allowEmpty: z.boolean().optional(),
   /** What was wrong with the last answer (asked again). */
   problem: z.string().optional(),
+  noTerminal: NoTerminalSchema.optional(),
 });
 
 export const SecretQuestionSchema = z.strictObject({
@@ -60,6 +67,7 @@ export const PathQuestionSchema = z.strictObject({
   /** Words allowed instead of a path ("auto"). */
   literals: z.array(z.string()).optional(),
   problem: z.string().optional(),
+  noTerminal: NoTerminalSchema.optional(),
 });
 
 export const ChecklistQuestionSchema = z.strictObject({
@@ -68,6 +76,7 @@ export const ChecklistQuestionSchema = z.strictObject({
   lines: Lines,
   choices: z.array(ChoiceSchema),
   checked: z.array(z.string()).optional(),
+  noTerminal: NoTerminalSchema.optional(),
 });
 
 export const QuestionSchema = z.discriminatedUnion('kind', [

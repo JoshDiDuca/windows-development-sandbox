@@ -8,7 +8,7 @@ import { COMMANDS } from '../cli/manifest.js';
 import { commandLine, readHistory, recordHistory } from '../cli/history.js';
 import { splitArgs } from '../cli/args.js';
 import { optionProblem } from '../cli/menu/index.js';
-import { cleanTargetOf, type DataEntry } from '../cli/commands/data/collect.js';
+import { cleanTargetOf, type DataEntry } from '../cli/services/index.js';
 import { ago, colorEnabled, shorten } from '../cli/output/index.js';
 import { versionText } from '../cli/version.js';
 import { hoistConfig, withoutConfig } from '../cli/argv.js';

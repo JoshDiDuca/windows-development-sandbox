@@ -17,9 +17,10 @@ import {
   StorageHistory,
   type MoveOffer,
 } from '../../../host/storage/index.js';
+import { humanBytes } from '../../../core/disk.js';
+import { StorageService } from '../../services/index.js';
 import { c, working } from '../../output/index.js';
 import { refreshStorage, type Context } from '../context.js';
-import { performMove } from './storage.js';
 
 /** Commands that do not touch the storage folder, or must work whatever state it is in. */
 const NO_STORAGE: readonly string[] = ['self-test', '_watch', '_web', 'update', 'storage', 'migrate', 'repair'];
@@ -74,7 +75,14 @@ async function offerMove(ctx: Context, history: StorageHistory): Promise<void> {
   if (answer === 'never') history.setDontAsk();
   else if (answer === 'later') history.setNotNow();
   if (answer !== 'now') return;
-  const result = await performMove({ ...ctx, storageRoot: offer.from }, offer.to, false);
+  let line = 'Moving your data';
+  const result = await working(
+    () => line,
+    () =>
+      new StorageService({ ...ctx, storageRoot: offer.from }).move(offer.to, false, (p) => {
+        line = 'Copying: ' + p.files.toLocaleString('en-US') + ' files, ' + humanBytes(p.bytes);
+      }),
+  );
   console.error('Moved. Your data is now in ' + result.to + '.');
   for (const note of result.notes) console.error(c.dim(note));
   refreshStorage(ctx);

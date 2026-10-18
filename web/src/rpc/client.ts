@@ -32,6 +32,8 @@ interface Subscription {
 }
 
 const WAITS_MS = [500, 1000, 2000, 4000, 8000];
+/** A tab hidden this long lets go of its socket (when no call is running); showing it again reconnects. */
+const HIDDEN_RELEASE_MS = 60_000;
 
 export class RpcClient {
   private socket: WebSocket | null = null;
@@ -41,6 +43,37 @@ export class RpcClient {
   private readonly calls = new Map<string, PendingCall>();
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly listeners = new Set<(connected: boolean) => void>();
+  private hidden = false;
+  private releaseTimer: number | undefined;
+
+  /**
+   * The tab was hidden or shown. Hidden: live queries stop (nothing is read for a page nobody sees) and after a minute
+   * the socket is let go. Shown: live queries start again, fresh.
+   */
+  setHidden(hidden: boolean): void {
+    if (hidden === this.hidden) return;
+    this.hidden = hidden;
+    window.clearTimeout(this.releaseTimer);
+    if (hidden) {
+      if (this.socket?.readyState === WebSocket.OPEN)
+        for (const id of this.subscriptions.keys()) this.send({ t: 'unsubscribe', id });
+      this.releaseTimer = window.setTimeout(() => {
+        if (this.hidden && this.calls.size === 0) this.release();
+      }, HIDDEN_RELEASE_MS);
+      return;
+    }
+    if (this.socket?.readyState === WebSocket.OPEN)
+      for (const [id, s] of this.subscriptions) this.send({ t: 'subscribe', id, query: s.query, input: s.input });
+    else if (this.subscriptions.size) this.connect();
+  }
+
+  /** Closes the socket without reconnecting (the page is going away, or a hidden tab lets go). */
+  release(): void {
+    const socket = this.socket;
+    this.socket = null;
+    socket?.close(1000);
+    this.listeners.forEach((l) => l(false));
+  }
 
   /** Called when the socket connects or drops (the shell shows it). */
   onConnection(listener: (connected: boolean) => void): () => void {
@@ -56,8 +89,9 @@ export class RpcClient {
     socket.onopen = () => {
       this.attempt = 0;
       this.listeners.forEach((l) => l(true));
-      // Live queries carry on where they were.
-      for (const [id, s] of this.subscriptions) this.send({ t: 'subscribe', id, query: s.query, input: s.input });
+      // Live queries carry on where they were (not while the tab is hidden).
+      if (!this.hidden)
+        for (const [id, s] of this.subscriptions) this.send({ t: 'subscribe', id, query: s.query, input: s.input });
       for (const text of this.queue.splice(0)) socket.send(text);
     };
     socket.onmessage = (event: MessageEvent<unknown>) => {
@@ -80,7 +114,7 @@ export class RpcClient {
         call.reject(new Error('The connection to the sandbox web server dropped.'));
       this.calls.clear();
       const wait = WAITS_MS[Math.min(this.attempt++, WAITS_MS.length - 1)];
-      if (this.subscriptions.size) window.setTimeout(() => this.connect(), wait);
+      if (this.subscriptions.size && !this.hidden) window.setTimeout(() => this.connect(), wait);
     };
     return socket;
   }
@@ -137,7 +171,7 @@ export class RpcClient {
   subscribe(query: string, input: unknown, data: (output: unknown) => void, error: (e: Error) => void): () => void {
     const id = 's' + this.next++;
     this.subscriptions.set(id, { query, input, data, error });
-    this.send({ t: 'subscribe', id, query, input });
+    if (!this.hidden) this.send({ t: 'subscribe', id, query, input });
     return () => {
       this.subscriptions.delete(id);
       if (this.socket?.readyState === WebSocket.OPEN) this.send({ t: 'unsubscribe', id });

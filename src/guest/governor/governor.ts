@@ -1,6 +1,6 @@
-// The memory governor: samples the sandbox's memory every 2 seconds (memgov.exe, sandbox/csharp/MemGov.cs) and, when it
-// runs low, slows the heaviest build programs the agents started down and, as a last resort, pauses the biggest
-// compiler for a few seconds (decide.ts). What it does goes to the memory log and run\pressure.json, for the host.
+// The memory governor: samples the sandbox's memory every 2 seconds (memgov.exe, sandbox/csharp/MemGov.cs) and turns
+// a dial as it fills: the build programs the agents started get lower priority, lower memory priority, less CPU, and
+// take turns (decide.ts). Builds slow down; nothing fails. What it does goes to the memory log and run\pressure.json.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,14 +10,14 @@ import { z } from 'zod';
 import type { PressureStatus } from '../../shared/channel/schema.js';
 import { now } from '../../shared/channel/run-dir.js';
 import { writeJsonAtomic } from '../../shared/io/json.js';
-import { GUEST_THRESHOLDS, maxCompilers, type LoadProfile } from '../../shared/memory/index.js';
+import { DIAL_STEPS, maxCompilers, type LoadProfile } from '../../shared/memory/index.js';
 import { ensureCompiled } from '../runtime/csc.js';
 import { dataDir } from '../runtime/paths.js';
 import { warn } from '../runtime/log.js';
 import { run } from '../runtime/paths.js';
 import { session } from '../runtime/session.js';
 import { errMsg } from '../../core/util/errors.js';
-import { decide, INITIAL_STATE, type Action, type GovernorState, type MemSample } from './decide.js';
+import { decide, HOLD_MS, INITIAL_STATE, type Action, type GovernorState, type MemSample } from './decide.js';
 
 const SampleSchema = z.object({
   ramTotalMb: z.number(),
@@ -39,7 +39,13 @@ const SampleSchema = z.object({
 /** What the governor needs from Windows (injectable: the tests use a fake). */
 export interface GovernorPort {
   setPriority(pid: number, to: 'idle' | 'below' | 'normal'): void;
-  pause(pid: number, ms: number): void;
+  /** Suspends for `ms`, then resumes (memgov resumes it even if the daemon goes away). */
+  hold(pid: number, ms: number): void;
+  setMemoryPriority(pid: number, low: boolean): void;
+  /** Into the throttle job (whose CPU cap setCpuRate sets). */
+  throttle(pid: number): void;
+  setCpuRate(percent: number): void;
+  trim(pid: number): void;
 }
 
 /** Everything a step changes outside the decision, behind injectable functions. */
@@ -55,25 +61,40 @@ export interface GovernorDeps {
   readonly saveStatus: (status: PressureStatus) => void;
 }
 
+const STEP_TEXT: readonly string[] = [
+  'builds back to normal',
+  'build programs at lower priority',
+  'builds get less CPU and take turns',
+  'builds take turns, waiting ones go to the paging file',
+  'one compiler at a time',
+];
+
 /** The governor's logic over a port: feed it samples; the host's "slow down" requests go to hostPressure. */
 export class GovernorCore {
   private state: GovernorState = INITIAL_STATE;
   private lastAction = '';
   private lastWrite = '';
   private lastWriteAt = 0;
-  private pausedName = '';
-  private pausedPid = 0;
-  private held = new Set<number>();
+  /** Compilers waiting their turn now, by pid (name), to log a hold once. */
+  private held = new Map<number, string>();
 
   constructor(private readonly deps: GovernorDeps) {}
 
-  hostPressure(seconds: number, reason: string): void {
-    const until = this.deps.now() + seconds * 1000;
-    if (until > this.state.hostUntil) {
-      if (this.state.hostUntil <= this.deps.now())
-        this.deps.logLine('governor: this PC is low (' + reason + '); slowing builds down');
-      this.state = { ...this.state, hostUntil: until };
-    }
+  hostPressure(seconds: number, reason: string, level: 'slow' | 'severe' = 'slow'): void {
+    const nowMs = this.deps.now();
+    const until = nowMs + seconds * 1000;
+    const active = this.state.hostUntil > nowMs;
+    const step = Math.max(level === 'severe' ? 4 : 2, active ? this.state.hostStep : 0);
+    if (!active || step > this.state.hostStep)
+      this.deps.logLine(
+        'governor: this PC is ' +
+          (level === 'severe' ? 'nearly out of memory' : 'low') +
+          ' (' +
+          reason +
+          '); builds to step ' +
+          step,
+      );
+    this.state = { ...this.state, hostUntil: Math.max(until, this.state.hostUntil), hostStep: step };
   }
 
   get current(): GovernorState {
@@ -82,46 +103,43 @@ export class GovernorCore {
 
   onSample(sample: MemSample): void {
     const nowMs = this.deps.now();
-    const before = this.state.pressure;
-    const seen = new Set(sample.procs.map((p) => p.pid));
-    for (const pid of this.held) if (!seen.has(pid)) this.held.delete(pid);
-    const d = decide(
-      this.state,
-      sample,
-      nowMs,
-      GUEST_THRESHOLDS[this.deps.profile],
-      this.deps.profile,
-      this.deps.maxCompilers ?? null,
-    );
+    const before = this.state.step;
+    const d = decide(this.state, sample, nowMs, this.deps.profile, this.deps.maxCompilers ?? null);
     this.state = d.state;
-    for (const action of d.actions) this.apply(action);
-    if (d.state.pressure !== before)
+    const holding = new Set<number>();
+    for (const action of d.actions) {
+      if (action.kind === 'hold') holding.add(action.pid);
+      this.apply(action);
+    }
+    for (const pid of [...this.held.keys()]) if (!holding.has(pid)) this.held.delete(pid);
+    if (d.state.step !== before)
       this.deps.logLine(
-        d.state.pressure
-          ? 'governor: memory is low (' +
-              d.ramFreePercent +
-              '% RAM free, commit ' +
-              d.commitPercent +
-              '% used): slowing builds down'
-          : 'governor: memory is fine again: builds back to normal',
+        'governor: step ' +
+          d.state.step +
+          ' (' +
+          d.ramFreePercent +
+          '% RAM free, commit ' +
+          d.commitPercent +
+          '% used): ' +
+          STEP_TEXT[d.state.step],
       );
-    const paused =
-      nowMs < d.state.pausedUntil && this.pausedPid
-        ? [{ name: this.pausedName, pid: this.pausedPid, seconds: Math.ceil((d.state.pausedUntil - nowMs) / 1000) }]
-        : [];
     const status: PressureStatus = {
       level: d.level,
+      step: d.state.step,
       profile: this.deps.profile,
       ramFreePercent: Math.max(0, Math.min(100, d.ramFreePercent)),
       commitPercent: Math.max(0, Math.min(100, d.commitPercent)),
       lowered: Object.keys(d.state.lowered).length,
-      paused,
+      paused: [...this.held]
+        .slice(0, 8)
+        .map(([pid, name]) => ({ name: name.slice(0, 64), pid, seconds: HOLD_MS / 1000 })),
+      cpuPercent: d.state.cpuRate,
       pcLow: nowMs < d.state.hostUntil,
-      lastAction: this.lastAction,
+      lastAction: this.lastAction.slice(0, 300),
       updatedAt: now(),
     };
     // Written when something changed, else once a minute (the host reads it, never polls it hard).
-    const shape = JSON.stringify({ ...status, updatedAt: '', paused: paused.map((p) => p.pid) });
+    const shape = JSON.stringify({ ...status, updatedAt: '', paused: status.paused.map((p) => p.pid) });
     if (shape !== this.lastWrite || nowMs - this.lastWriteAt > 60000) {
       this.lastWrite = shape;
       this.lastWriteAt = nowMs;
@@ -130,31 +148,42 @@ export class GovernorCore {
   }
 
   private apply(action: Action): void {
+    const port = this.deps.port;
     try {
-      if (action.kind === 'hold') {
-        this.deps.port.pause(action.pid, action.ms);
-        if (!this.held.has(action.pid)) {
-          this.held.add(action.pid);
-          this.lastAction = 'holding ' + action.name + ' (' + action.pid + ') until another compiler ends';
-          this.deps.logLine('governor: ' + this.lastAction);
-        }
-        return;
+      switch (action.kind) {
+        case 'hold':
+          port.hold(action.pid, action.ms);
+          if (!this.held.has(action.pid)) {
+            this.held.set(action.pid, action.name);
+            this.note(action.name + ' (' + action.pid + ') waits its turn');
+          }
+          return;
+        case 'priority':
+          port.setPriority(action.pid, action.to);
+          this.note(action.name + ' (' + action.pid + ') priority ' + action.to);
+          return;
+        case 'memory':
+          port.setMemoryPriority(action.pid, action.low);
+          return;
+        case 'throttle':
+          port.throttle(action.pid);
+          return;
+        case 'cpu':
+          port.setCpuRate(action.percent);
+          this.note(action.percent >= 100 ? 'compilers: no CPU cap' : 'compilers: at most ' + action.percent + '% CPU');
+          return;
+        case 'trim':
+          port.trim(action.pid);
+          return;
       }
-      if (action.kind === 'priority') {
-        this.deps.port.setPriority(action.pid, action.to);
-        this.lastAction = action.name + ' (' + action.pid + ') priority ' + action.to;
-      } else {
-        this.deps.port.pause(action.pid, action.ms);
-        this.pausedName = action.name;
-        this.pausedPid = action.pid;
-        this.lastAction = 'paused ' + action.name + ' (' + action.pid + ') for ' + action.ms / 1000 + ' s';
-        this.deps.logLine('governor: ' + this.lastAction);
-        return;
-      }
-      this.deps.logLine('governor: ' + this.lastAction);
     } catch (e) {
       warn('governor: ' + errMsg(e));
     }
+  }
+
+  private note(text: string): void {
+    this.lastAction = text;
+    this.deps.logLine('governor: ' + text);
   }
 }
 
@@ -190,11 +219,31 @@ class MemGovProcess implements GovernorPort {
   }
 
   setPriority(pid: number, to: 'idle' | 'below' | 'normal'): void {
-    this.child?.stdin?.write('priority ' + pid + ' ' + to + '\n');
+    this.send('priority ' + pid + ' ' + to);
   }
 
-  pause(pid: number, ms: number): void {
-    this.child?.stdin?.write('suspend ' + pid + ' ' + ms + '\n');
+  hold(pid: number, ms: number): void {
+    this.send('suspend ' + pid + ' ' + ms);
+  }
+
+  setMemoryPriority(pid: number, low: boolean): void {
+    this.send('memprio ' + pid + ' ' + (low ? 'low' : 'normal'));
+  }
+
+  throttle(pid: number): void {
+    this.send('throttle ' + pid);
+  }
+
+  setCpuRate(percent: number): void {
+    this.send('cpurate ' + Math.round(percent));
+  }
+
+  trim(pid: number): void {
+    this.send('trim ' + pid);
+  }
+
+  private send(line: string): void {
+    this.child?.stdin?.write(line + '\n');
   }
 }
 
@@ -222,15 +271,15 @@ export class Governor {
 
   describe(): string {
     const profile = session.loadProfile === 'gentle' ? 'gentle' : 'normal';
-    const t = GUEST_THRESHOLDS[profile];
+    const first = DIAL_STEPS[profile][0];
     return session.pressureResponse === false
       ? 'off (sandbox.pressureResponse)'
       : profile +
-          ' profile: slows builds down below ' +
-          t.enterAvailablePercent +
-          '% free RAM or above ' +
-          t.enterCommitPercent +
-          '% commit';
+          ' profile: slows builds down from ' +
+          first.availablePercent +
+          '% free RAM or ' +
+          first.commitPercent +
+          '% commit, in steps';
   }
 
   start(): void {
@@ -254,9 +303,9 @@ export class Governor {
     proc.start();
   }
 
-  /** The host's watchdog: this PC is low for a while. */
-  hostPressure(seconds: number, reason: string): void {
-    this.core?.hostPressure(seconds, reason);
+  /** The host's watchdog: this PC is low (or nearly out of memory) for a while. */
+  hostPressure(seconds: number, reason: string, level: 'slow' | 'severe' = 'slow'): void {
+    this.core?.hostPressure(seconds, reason, level);
   }
 }
 

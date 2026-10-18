@@ -6,8 +6,17 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import type { AppContext } from '../../app/context.js';
+import { listAgents } from '../../app/features/agents/index.js';
 import { sandboxStatus } from '../../app/features/sandbox/index.js';
 import { vpnStatus } from '../../app/features/vpn/index.js';
+import { listAccounts } from '../../app/features/accounts/index.js';
+import { engineStatus } from '../../app/features/engine/index.js';
+import { lastHealth } from '../../app/features/health/index.js';
+import { CRASH, listLogs, tailLog } from '../../app/features/logs/index.js';
+import { listProjects } from '../../app/features/projects/index.js';
+import { showData } from '../../app/features/data/index.js';
+import { updatesStatus } from '../../app/features/updates/index.js';
+import { containedStatus, showStorage } from '../../app/features/storage/index.js';
 import { listSessions } from '../../app/features/sessions/index.js';
 import { cancelled, type OperationIO, type RpcHost } from '../../app/kernel/index.js';
 import { runDefinition } from '../../app/registry.js';
@@ -148,6 +157,37 @@ function sampleStatus(running: boolean): unknown {
   });
 }
 
+/** Sample logins (names and emails only, no credentials): Claude with two, codex with one, opencode keeps none. */
+function sampleAccounts(): unknown {
+  return listAccounts.output.parse({
+    agent: 'claude',
+    agents: [
+      {
+        name: 'claude',
+        kept: true,
+        canSavePc: true,
+        accounts: [
+          {
+            name: 'work',
+            email: 'dev@example.com',
+            isDefault: true,
+            isActive: true,
+            savedAt: iso(3 * 24 * 60 * MINUTE),
+          },
+          { name: 'personal', email: null, isDefault: false, isActive: false, savedAt: iso(9 * 24 * 60 * MINUTE) },
+        ],
+      },
+      {
+        name: 'codex',
+        kept: true,
+        canSavePc: false,
+        accounts: [{ name: 'main', email: null, isDefault: true, isActive: false, savedAt: iso(2 * 24 * 60 * MINUTE) }],
+      },
+      { name: 'opencode', kept: false, canSavePc: false, accounts: [] },
+    ],
+  });
+}
+
 function sampleSessions(running: boolean): unknown {
   return listSessions.output.parse({
     sandboxRunning: running,
@@ -165,9 +205,346 @@ function sampleSessions(running: boolean): unknown {
   });
 }
 
+/** The program's updates: installed for you, one previous version, one failed update, one saved-settings change. */
+function sampleUpdates(): unknown {
+  return updatesStatus.output.parse({
+    managed: true,
+    version: '1.4.3',
+    scope: 'user',
+    autoUpdate: true,
+    autoOffText: null,
+    previous: '1.4.2',
+    failed: { version: '1.4.4', reason: 'it did not start' },
+    npmCommand: 'npm install -g windows-development-sandbox',
+    error: null,
+    settings: {
+      pending: ['2026-10-unpin-config-defaults: stop pinning old defaults in your config.json'],
+      error: null,
+    },
+  });
+}
+
+/** Where the saved data is (the storage area's query), parsed with its own output schema. */
+function sampleStorage(): unknown {
+  return showStorage.output.parse({
+    root: 'F:\\AgentSandbox',
+    exists: true,
+    holdsData: true,
+    measured: { bytes: 8.9e9, files: 41250, partial: false },
+    size: '8.9 GB',
+    defaultRoot: 'C:\\ProgramData\\AgentSandbox',
+    defaultInUse: false,
+    otherFoldersWithData: ['C:\\ProgramData\\AgentSandbox'],
+  });
+}
+
+/** Contained storage (beta): off, and this PC can use it. */
+function sampleContained(): unknown {
+  return containedStatus.output.parse({
+    setting: 'off',
+    maxGb: 60,
+    available: true,
+    reasons: [],
+    fixes: [],
+    image: 'F:\\AgentSandbox\\contained\\agent.vhdx',
+    imageExists: false,
+    imageBytes: null,
+    mountFolder: 'F:\\AgentSandbox\\mount',
+    recordedMounted: false,
+    holders: 0,
+    mountedNow: null,
+  });
+}
+
+/** What is stored: a toolchain, the agent's login folder, databases and logs, and what this PC keeps (sample sizes). */
+function sampleData(): unknown {
+  const GB = (n: number): string => (n / 1e9).toFixed(1) + ' GB';
+  const entry = (area: string, name: string, bytes: number, target: string | null) => ({
+    area,
+    name,
+    path: 'F:\\AgentData\\' + (area === 'host' ? name : area + '\\' + name),
+    bytes,
+    size: bytes < 1e6 ? (bytes / 1e3).toFixed(1) + ' KB' : GB(bytes),
+    target,
+  });
+  return showData.output.parse({
+    dataPath: 'F:\\AgentData',
+    storageRoot: 'F:\\',
+    totalBytes: 9.6e9,
+    total: '9.6 GB',
+    storageShare: '<- sandbox storage (9.6 GB of it)',
+    areaTotals: { tools: '6.4 GB', databases: '1.2 GB', state: '1.9 GB', logs: '48 KB', host: '4.1 KB' },
+    entries: [
+      entry('tools', 'rust', 4.6e9, 'tools/rust'),
+      entry('tools', 'node', 1.8e9, 'tools/node'),
+      entry('databases', 'postgres-18', 1.2e9, 'databases/postgres-18'),
+      entry('state', 'claude', 1.9e9, 'state/claude'),
+      entry('logs', 'logs', 48_000, 'logs'),
+      entry('host', 'accounts', 4096, null),
+    ],
+    disks: [
+      {
+        drive: 'C:\\',
+        totalBytes: 512e9,
+        freeBytes: 210e9,
+        usedBytes: 302e9,
+        holdsStorage: false,
+        used: '302 GB',
+        usedPercent: 59,
+        free: '210 GB',
+        total: '512 GB',
+      },
+      {
+        drive: 'F:\\',
+        totalBytes: 1000e9,
+        freeBytes: 620e9,
+        usedBytes: 380e9,
+        holdsStorage: true,
+        used: '380 GB',
+        usedPercent: 38,
+        free: '620 GB',
+        total: '1.0 TB',
+      },
+    ],
+  });
+}
+
+/** The agents as settings and the sandbox say them: two built in (one ready), two added (one ready). */
+function sampleAgents(): unknown {
+  return listAgents.output.parse({
+    folder: 'F:\\AgentProjects\\windows-sandbox',
+    defaultAgent: 'claude',
+    agents: [
+      { name: 'claude', ready: true, isDefault: true, removable: false },
+      { name: 'codex', ready: true, isDefault: false, removable: false },
+      { name: 'gemini', ready: false, isDefault: false, removable: true },
+      { name: 'aider', ready: false, isDefault: false, removable: true },
+    ],
+  });
+}
+
+/** Sample projects: this folder's project and a root's (mapped), one not mapped, and one excluded. */
+function sampleProjects(running: boolean): unknown {
+  const inSandbox = (name: string, how: string): string | null => (running ? name + ' (' + how + ')' : null);
+  return listProjects.output.parse({
+    all: false,
+    roots: ['F:\\AgentProjects'],
+    exclude: ['F:\\AgentProjects\\old-demo'],
+    projects: [
+      {
+        folder: 'F:\\AgentProjects\\windows-sandbox',
+        here: true,
+        known: true,
+        root: 'F:\\AgentProjects',
+        excluded: false,
+        mappedAtStart: true,
+        running: inSandbox('windows-sandbox', 'launch'),
+      },
+      {
+        folder: 'F:\\AgentProjects\\mw2-agent',
+        here: false,
+        known: true,
+        root: 'F:\\AgentProjects',
+        excluded: false,
+        mappedAtStart: true,
+        running: inSandbox('mw2-agent', 'root'),
+      },
+      {
+        folder: 'F:\\Code\\scratch',
+        here: false,
+        known: true,
+        root: null,
+        excluded: false,
+        mappedAtStart: false,
+        running: null,
+      },
+      {
+        folder: 'F:\\AgentProjects\\old-demo',
+        here: false,
+        known: true,
+        root: null,
+        excluded: true,
+        mappedAtStart: false,
+        running: null,
+      },
+    ],
+  });
+}
+
+/** The last check: a few results of each kind, the doctor rows, the setup and a log (nothing here is run). */
+function sampleHealth(): unknown {
+  const at = new Date(Date.now() - 3 * MINUTE).toISOString();
+  return lastHealth.output.parse({
+    last: {
+      at,
+      mode: 'repair',
+      checks: [
+        {
+          id: 'pc-edition',
+          group: 'This PC',
+          name: 'Windows edition',
+          status: 'ok',
+          detail: 'Windows 11 Pro',
+          fixable: false,
+        },
+        {
+          id: 'install-pointers',
+          group: 'Install',
+          name: 'Install pointers',
+          status: 'fixed',
+          detail: 'the command points at the new version',
+          applied: { done: 'pointed the command at 1.11.0', before: 'points at 1.9.2', after: 'points at 1.11.0' },
+          fixable: false,
+        },
+        {
+          id: 'stale-run',
+          group: 'Data folder',
+          name: 'Stale run folders',
+          status: 'needs-you',
+          detail: 'two folders from a sandbox that did not close',
+          means: 'they take space and can confuse the next start',
+          fix: 'stop the sandbox, then run sandbox repair again',
+          lines: ['run-20261012-0931', 'run-20261013-1744'],
+          fixable: false,
+        },
+        {
+          id: 'proxy',
+          group: 'Network',
+          name: 'GitHub',
+          status: 'warn',
+          detail: 'no answer within 20 seconds',
+          means: 'downloads of tools may fail',
+          fix: 'check your VPN or proxy',
+          fixable: false,
+        },
+      ],
+      summary: { total: 4, ok: 1, fixed: 1, warn: 1, needsYou: 1, skipped: 0, fixable: 0 },
+      details: [
+        ['Windows Sandbox', 'available'],
+        ['Config file', 'F:\\AgentProjects\\config.json'],
+        ['Projects running', 'windows-sandbox (launch)'],
+      ],
+      setup: {
+        checks: [
+          { name: 'Windows edition', status: 'ok', detail: 'Pro' },
+          { name: 'Windows Sandbox feature', status: 'action', detail: 'turned off' },
+          { name: 'Virtualization', status: 'ok', detail: 'on' },
+        ],
+        canEnable: true,
+        error: null,
+      },
+      log: 'C:\\AgentData\\logs\\repair-20261016-093012.log',
+    },
+  });
+}
+
+const LOG_DIR = 'C:\\AgentData\\logs';
+
+/** The engines and their checks (what engine.status returns): HCS is missing its features on this sample PC. */
+function sampleEngines(): unknown {
+  const capabilities = {
+    desktop: true,
+    gpu: true,
+    clipboard: true,
+    audio: true,
+    video: true,
+    printers: true,
+    liveFolderAdd: true,
+    attachedDisks: false,
+    multipleInstances: true,
+    hvsocket: false,
+  };
+  return engineStatus.output.parse({
+    engine: 'windows-sandbox',
+    engines: [
+      {
+        id: 'windows-sandbox',
+        inUse: true,
+        capabilities,
+        check: { available: true, reasons: [], fixes: [] },
+      },
+      {
+        id: 'hcs',
+        inUse: false,
+        capabilities: {
+          ...capabilities,
+          desktop: false,
+          gpu: false,
+          clipboard: false,
+          audio: false,
+          video: false,
+          printers: false,
+          liveFolderAdd: false,
+          multipleInstances: true,
+          hvsocket: true,
+        },
+        check: {
+          available: false,
+          reasons: ['The Containers feature is not turned on.', 'No Server Core image is on this PC.'],
+          fixes: [
+            'Enable-WindowsOptionalFeature -Online -FeatureName Containers -All',
+            'Pull the Server Core image with Docker Desktop, or set AGENT_SANDBOX_HCS_IMAGE to a folder with one.',
+          ],
+        },
+      },
+    ],
+  });
+}
+
+/** The sandbox's log files, newest first, and a crash report (what logs.list returns). */
+function sampleLogs(): unknown {
+  return listLogs.output.parse({
+    folder: LOG_DIR,
+    files: [
+      {
+        name: 'guest-2026-10-16.log',
+        path: LOG_DIR + '\\guest-2026-10-16.log',
+        bytes: 182400,
+        modified: Date.now() - MINUTE,
+      },
+      {
+        name: 'daemon-2026-10-16.log',
+        path: LOG_DIR + '\\daemon-2026-10-16.log',
+        bytes: 9216,
+        modified: Date.now() - 12 * MINUTE,
+      },
+      {
+        name: 'bootstrap-2026-10-14.log',
+        path: LOG_DIR + '\\bootstrap-2026-10-14.log',
+        bytes: 2048,
+        modified: Date.now() - 2 * 24 * 60 * MINUTE,
+      },
+    ],
+    crash: true,
+  });
+}
+
+/** The end of one log (what logs.tail returns): plausible sandbox lines, one of them very long. */
+function sampleLogTail(input: { readonly name?: string }): unknown {
+  const name = input.name ?? 'guest-2026-10-16.log';
+  if (name === CRASH)
+    return tailLog.output.parse({
+      name: CRASH,
+      file: LOG_DIR + '\\crashes\\crash-2026-10-14-0912.txt',
+      text: 'Crash report (preview)\nThis PC stopped responding at 09:02 and was restarted at 09:14.\n',
+      next: 0,
+    });
+  const lines = Array.from({ length: 40 }, (_, i) =>
+    i === 17
+      ? '16:02:11 [daemon] session claude-4f2 env ' + 'PATH=C:\\nvm;C:\\Program Files\\Git\\cmd;'.repeat(6)
+      : '16:' + String(i).padStart(2, '0') + ':11 [guest] ' + (i % 3 ? 'ok' : 'checked') + ' item ' + i,
+  );
+  return tailLog.output.parse({
+    name,
+    file: LOG_DIR + '\\' + name,
+    text: lines.join('\n') + '\n',
+    next: 0,
+  });
+}
+
 /** The real features where they only touch the temp folder, sample data for the rest. */
 function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none' | 'saved' }): RpcHost {
-  const sample = async (id: string, io: OperationIO): Promise<unknown> => {
+  const sample = async (id: string, input: unknown, io: OperationIO): Promise<unknown> => {
     switch (id) {
       case 'sandbox.status':
         return sampleStatus(state.running);
@@ -198,8 +575,65 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
         if (!(await io.confirm({ title: 'Delete the saved VPN login?', yes: 'Delete', danger: true }))) cancelled();
         state.vpnLogin = 'none';
         return { deleted: true, message: 'The saved VPN login is deleted.' };
+      case 'health.last':
+        return sampleHealth();
+      case 'health.check':
+        io.progress('Checking this PC');
+        return {
+          summary: { total: 4, ok: 1, fixed: 0, warn: 1, needsYou: 1, skipped: 0, fixable: 1 },
+          changed: false,
+          log: null,
+        };
+      case 'health.repair':
+        io.log('Repair will change:', 'accent');
+        io.log('  1. Install pointers: point the command at the new version');
+        if (!(await io.confirm({ title: 'Fix this problem?', yes: 'Fix', danger: true }))) cancelled();
+        return {
+          summary: { total: 4, ok: 2, fixed: 1, warn: 1, needsYou: 0, skipped: 0, fixable: 0 },
+          changed: false,
+          log: null,
+        };
+      case 'health.enableSandbox':
+        if (
+          !(await io.confirm({
+            title: 'Turn on Windows Sandbox?',
+            lines: ['Windows asks for admin permission, then you restart Windows to finish.'],
+            yes: 'Turn on',
+            danger: true,
+          }))
+        )
+          cancelled();
+        return { message: 'Done. Restart Windows to finish. (preview: nothing was changed)' };
+      case 'engine.status':
+        return sampleEngines();
+      case 'logs.list':
+        return sampleLogs();
+      case 'logs.tail':
+        return sampleLogTail(input as { readonly name?: string });
       case 'sessions.list':
         return sampleSessions(state.running);
+      case 'agents.list':
+        return sampleAgents();
+      case 'agents.start':
+        return { session: SESSIONS[0].id, message: 'Started claude in windows-sandbox (preview: nothing started).' };
+      case 'agents.makeDefault':
+        return { message: 'codex is the default agent (preview: nothing was changed).' };
+      case 'agents.remove':
+        if (!(await io.confirm({ title: 'Remove aider?', yes: 'Remove', danger: true, implied: true }))) cancelled();
+        return { message: 'Removed aider (preview: nothing was changed).' };
+      case 'agents.add':
+        return { name: 'preview', message: 'Added preview (preview: nothing was saved).' };
+      case 'accounts.list':
+        return sampleAccounts();
+      case 'accounts.remove':
+        if (!(await io.confirm({ title: 'Remove the saved account?', yes: 'Remove', danger: true }))) cancelled();
+        return { message: 'Removed account (preview: nothing was changed).' };
+      case 'accounts.use':
+        return { lines: ['Sandbox now uses "work" (dev@example.com) (preview: nothing was changed).'] };
+      case 'accounts.save':
+      case 'accounts.default':
+      case 'accounts.rename':
+        return { name: 'preview', message: 'Done (preview: nothing was changed).' };
       case 'sandbox.stop':
         if (!(await io.confirm({ title: 'Stop the sandbox?', yes: 'Stop', danger: true }))) cancelled();
         io.progress('Stopping the sandbox');
@@ -211,6 +645,114 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
         return { message: 'Done (preview: nothing was changed).' };
       case 'sessions.restart':
         return { message: 'Restarted (preview: nothing was changed).', restarted: 0 };
+      case 'projects.list':
+        return sampleProjects(state.running);
+      case 'projects.add':
+        return { message: 'Added F:\\Code\\scratch to your projects. (preview: nothing was saved)' };
+      case 'projects.remove':
+        if (!(await io.confirm({ title: 'Forget scratch?', yes: 'Forget', danger: true, implied: true }))) cancelled();
+        return { message: 'Removed F:\\Code\\scratch from your projects (preview: nothing was changed).' };
+      case 'projects.include':
+      case 'projects.exclude':
+        return { message: 'Excluded F:\\AgentProjects\\old-demo. (preview: nothing was changed)' };
+      case 'projects.all':
+        return { message: 'Mapping all projects at every start is on. (preview: nothing was changed)' };
+      case 'projects.roots':
+        if (
+          !(await io.confirm({ title: 'Remove the root AgentProjects?', yes: 'Remove', danger: true, implied: true }))
+        )
+          cancelled();
+        return { message: 'Removed the project root F:\\AgentProjects. (preview: nothing was changed)' };
+      case 'projects.choose': {
+        const picked = await io.checklist({
+          title: 'Projects mapped at every start, so they open without a restart:',
+          choices: [
+            { value: 'windows-sandbox', label: 'F:\\AgentProjects\\windows-sandbox  (this folder)' },
+            { value: 'mw2-agent', label: 'F:\\AgentProjects\\mw2-agent' },
+            { value: 'scratch', label: 'F:\\Code\\scratch' },
+          ],
+          checked: ['windows-sandbox', 'mw2-agent'],
+        });
+        if (picked === undefined) cancelled();
+        return { message: picked.length + ' project(s) mapped at every start (preview: nothing was changed).' };
+      }
+      case 'updates.status':
+        return sampleUpdates();
+      // Fakes only: the preview never checks GitHub, installs, or switches anything on this PC.
+      case 'updates.update': {
+        const u = input as { check?: boolean; rollback?: boolean; auto?: 'on' | 'off' };
+        if (u.rollback) {
+          if (
+            !(await io.confirm({
+              title: 'Go back from version 1.4.3 to version 1.4.2?',
+              lines: ['Takes effect the next time you start it.'],
+              yes: 'Go back',
+              danger: true,
+            }))
+          )
+            cancelled();
+          return { line: 'Went back to version 1.4.2. (preview: nothing was changed)', latest: null };
+        }
+        if (u.auto)
+          return { line: 'Automatic updates are ' + u.auto + '. (preview: nothing was changed)', latest: null };
+        if (u.check)
+          return { line: 'Version 1.5.0 is available (you have 1.4.3). Run: sandbox update', latest: '1.5.0' };
+        if (!(await io.confirm({ title: 'Install the newest version if there is one?', yes: 'Install', danger: true })))
+          cancelled();
+        return { line: 'You have the newest version (1.4.3). (preview: nothing was installed)', latest: null };
+      }
+      case 'updates.migrate':
+        return { line: 'Updated: 2026-10-unpin-config-defaults. (preview: nothing was changed)' };
+      case 'data.show':
+        return sampleData();
+      case 'storage.show':
+        return sampleStorage();
+      case 'storage.containedStatus':
+        return sampleContained();
+      case 'storage.change': {
+        // The real flow asks for the folder (the browser), then move or switch; the preview asks the same questions.
+        const picked = await io.path({
+          title: 'Choose the folder for your saved data',
+          lines: ['Now: F:\\AgentSandbox (8.9 GB).'],
+          pathKind: 'dir',
+          initial: 'F:\\',
+        });
+        if (picked === undefined) cancelled();
+        const how = await io.choose({
+          title: 'Move your data to ' + picked + '?',
+          lines: ['From: F:\\AgentSandbox', 'Size: 8.9 GB', 'Time: a few seconds (same drive, nothing is copied)'],
+          choices: [
+            { value: 'move', label: 'Move data' },
+            { value: 'use', label: 'Switch without moving' },
+            { value: 'cancel', label: 'Cancel' },
+          ],
+        });
+        if (how === undefined || how === 'cancel') cancelled();
+        return { message: 'Done (preview: nothing was moved or switched).' };
+      }
+      case 'storage.move':
+        if (!(await io.confirm({ title: 'Move your data to F:\\Sandbox?', yes: 'Move' }))) cancelled();
+        return { message: 'Moved (preview: nothing was moved).' };
+      case 'storage.use':
+        if (!(await io.confirm({ title: 'Use F:\\Sandbox from now on, without moving your data?', yes: 'Use' })))
+          cancelled();
+        return { message: 'Your data is now looked for in F:\\Sandbox (preview: nothing was changed).' };
+      case 'storage.containedOn':
+        if (!(await io.confirm({ title: 'Turn contained storage on?', yes: 'Turn on' }))) cancelled();
+        return { message: 'Contained storage is on (preview: nothing was changed).' };
+      case 'storage.containedOff':
+        if (!(await io.confirm({ title: 'Turn contained storage off?', yes: 'Turn off', danger: true }))) cancelled();
+        return { message: 'Contained storage is off (preview: nothing was changed).' };
+      case 'data.clean':
+      case 'data.prune':
+        if (!(await io.confirm({ title: 'Delete the chosen data?', yes: 'Delete', danger: true, implied: true })))
+          cancelled();
+        return { message: 'Removed (preview: nothing was deleted).', freedBytes: 0, removed: true };
+      case 'apps.request':
+        // The real operation opens a browser on this PC; the preview only shows the address it would open.
+        return {
+          url: 'https://github.com/JoshDiDuca/windows-development-sandbox/issues/new (preview: nothing opened)',
+        };
       default:
         return undefined;
     }
@@ -226,17 +768,60 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
     'sandbox.show': 'operation',
     'sandbox.hide': 'operation',
     'sessions.restart': 'operation',
+    'agents.list': 'query',
+    'agents.start': 'operation',
+    'agents.makeDefault': 'operation',
+    'agents.remove': 'operation',
+    'agents.add': 'operation',
+    'accounts.list': 'query',
+    'accounts.save': 'operation',
+    'accounts.use': 'operation',
+    'accounts.default': 'operation',
+    'accounts.rename': 'operation',
+    'accounts.remove': 'operation',
     'settings.set': 'operation',
     'settings.reset': 'operation',
     'files.browse': 'query',
+    'apps.list': 'query',
+    'apps.toggle': 'operation',
+    'apps.setCustom': 'operation',
+    'apps.request': 'operation',
+    'projects.list': 'query',
+    'projects.add': 'operation',
+    'projects.remove': 'operation',
+    'projects.include': 'operation',
+    'projects.exclude': 'operation',
+    'projects.all': 'operation',
+    'projects.roots': 'operation',
+    'projects.choose': 'operation',
+    'health.last': 'query',
+    'health.check': 'operation',
+    'health.repair': 'operation',
+    'health.enableSandbox': 'operation',
+    'data.show': 'query',
+    'updates.status': 'query',
+    'updates.update': 'operation',
+    'updates.migrate': 'operation',
+    'storage.show': 'query',
+    'storage.containedStatus': 'query',
+    'storage.change': 'operation',
+    'storage.move': 'operation',
+    'storage.use': 'operation',
+    'storage.containedOn': 'operation',
+    'storage.containedOff': 'operation',
+    'data.clean': 'operation',
+    'data.prune': 'operation',
+    'logs.list': 'query',
+    'logs.tail': 'query',
+    'engine.status': 'query',
   };
   return {
     kind: (id) => kinds[id],
-    liveMs: (id) => (id === 'sandbox.status' || id === 'sessions.list' ? 2500 : undefined),
+    liveMs: (id) => (id === 'sandbox.status' || id === 'sessions.list' ? 2500 : id === 'logs.tail' ? 1000 : undefined),
     run: async (id, input, io) =>
-      id.startsWith('settings.') || id === 'files.browse'
+      id !== 'apps.request' && (id.startsWith('settings.') || id.startsWith('apps.') || id === 'files.browse')
         ? runDefinition(id, ctx, input, io)
-        : ((await sample(id, io)) ?? {}),
+        : ((await sample(id, input, io)) ?? {}),
   };
 }
 
@@ -251,11 +836,26 @@ async function main(): Promise<void> {
   const project = path.join(temp, 'project');
   fs.mkdirSync(project);
   const configPath = path.join(temp, 'config.json');
-  fs.writeFileSync(configPath, JSON.stringify({ sandbox: { memoryMb: 16384, vGpu: true }, web: { enabled: true } }));
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify({
+      sandbox: { memoryMb: 16384, vGpu: true },
+      web: { enabled: true },
+      apps: { install: ['lazygit', 'bruno', 'chrome'] },
+    }),
+  );
+  // Apps: three of the catalogue are downloaded already (the marker a finished download leaves in the data folder).
+  const dataPath = path.join(temp, 'data');
+  for (const id of ['lazygit', 'bruno', 'sysinternals']) {
+    const marker = path.join(dataPath, 'tools', 'apps', id);
+    fs.mkdirSync(marker, { recursive: true });
+    fs.writeFileSync(path.join(marker, '.agent-sandbox-app'), id);
+  }
   const ctx = {
     loaded: { configPath },
     options: { workspace: project },
     storageRoot: path.join(temp, 'storage'),
+    dataPath,
   } as unknown as AppContext;
   const state: { running: boolean; vpnLogin: 'none' | 'saved' } = { running: true, vpnLogin: 'none' };
   const ptyPort = await startFakePty();
@@ -275,7 +875,6 @@ async function main(): Promise<void> {
     sessions: () => Promise.resolve(state.running ? SESSIONS.map((s, i) => webSession(s, i)) : []),
     endpoint: (id) =>
       SESSIONS.some((s) => s.id === id) ? { addresses: ['127.0.0.1'], port: ptyPort, token: 'preview' } : null,
-    create: () => Promise.resolve(webSession(SESSIONS[0], 0)),
   };
   const server = new WebServer({
     port,

@@ -29,6 +29,8 @@ const LIGHT = {
 };
 
 export const FONT_SIZES = [11, 12, 13, 14, 15, 16, 18, 20] as const;
+/** A terminal in a hidden tab lets go of its session after this long. */
+const HIDDEN_RELEASE_MS = 2 * 60_000;
 
 export interface TerminalHandle {
   /** Finds text in the scrollback, forwards or backwards; false when there is none. */
@@ -123,11 +125,25 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
     term.onResize(({ cols, rows }) => connection.resize(cols, rows));
     const observer = new ResizeObserver(() => fitter.fit());
     observer.observe(element);
+    // A terminal nobody looks at lets go of the session after a while; it reconnects (and redraws) when shown again.
+    // Closing the page closes it at once.
+    let hiddenTimer: number | undefined;
+    const onVisibility = (): void => {
+      window.clearTimeout(hiddenTimer);
+      if (document.hidden) hiddenTimer = window.setTimeout(() => connection.suspend(), HIDDEN_RELEASE_MS);
+      else connection.resume();
+    };
+    const onPageHide = (): void => connection.close();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
 
     onReady(() => connection.close());
     connection.open(term.cols, term.rows);
     term.focus();
     return () => {
+      window.clearTimeout(hiddenTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
       observer.disconnect();
       connection.close();
       term.dispose();

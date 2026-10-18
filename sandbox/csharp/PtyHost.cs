@@ -1113,6 +1113,10 @@ static class Native
     private const string AgentJobName = "Local\\AgentSandboxAgentsJob";
     private const int JobObjectExtendedLimitInformation = 9;
     private const uint JobObjectLimitJobMemory = 0x00000200;
+    private const int ErrorAlreadyExists = 183;
+    /// <summary>The backstop's headroom for "auto": this much of the commit limit, at least MinHeadroomMb.</summary>
+    private const int HeadroomPercent = 3;
+    private const long MinHeadroomMb = 1536;
     private const long BytesPerMb = 1024L * 1024L;
     private const int UseStdHandles = 0x00000100;
     private static readonly IntPtr PseudoConsoleAttribute = (IntPtr)0x00020016;
@@ -1178,6 +1182,21 @@ static class Native
         public ulong ReadTransferCount;
         public ulong WriteTransferCount;
         public ulong OtherTransferCount;
+    }
+
+    // MEMORYSTATUSEX: ullTotalPageFile is the commit limit (RAM plus paging files).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MemoryStatus
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -1252,6 +1271,9 @@ static class Native
         public static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
 
         [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref JobExtendedLimit info, int length);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -1323,10 +1345,12 @@ static class Native
     private static bool agentJobTried;
 
     /// <summary>
-    /// The shared job of everything the agents start, with a memory limit for all of it together (PTYHOST_JOB_MB, set
-    /// by the daemon from sandbox.agentMemoryHeadroomMb): a runaway build then gets out-of-memory errors in its own
-    /// session instead of using up the whole sandbox. Zero when no limit is asked for or the job cannot be made; ptyhost
-    /// itself is never in it. The handle stays open for ptyhost's whole life (the job lives while a handle is open).
+    /// The shared job of everything the agents start (the governor reads it to slow builds down). Its only limit is a
+    /// last-resort backstop: the sandbox's commit limit minus a small headroom (PTYHOST_BACKSTOP_MB: "auto", a number
+    /// of MB, or "none"). The job's committed memory is part of the whole sandbox's, so it can reach the backstop only
+    /// when Windows inside the sandbox is about to refuse memory to everyone; then a build is refused instead of
+    /// Windows' own processes. Only the ptyhost that creates the job sets it: one that joins it never changes it.
+    /// ptyhost itself is never in it; the handle stays open for ptyhost's whole life.
     /// </summary>
     private static IntPtr AgentJob(Log log)
     {
@@ -1335,29 +1359,71 @@ static class Native
             return agentJob;
         }
         agentJobTried = true;
-        long limitMb;
-        if (!long.TryParse(Environment.GetEnvironmentVariable("PTYHOST_JOB_MB"), out limitMb) || limitMb < 512)
+        string setting = Environment.GetEnvironmentVariable("PTYHOST_BACKSTOP_MB");
+        if (string.IsNullOrEmpty(setting))
         {
             return IntPtr.Zero;
         }
-        IntPtr job = NativeMethods.CreateJobObjectW(IntPtr.Zero, AgentJobName);
+        // The self-test uses a job of its own (a name in the same family), never the agents' real one.
+        string name = Environment.GetEnvironmentVariable("PTYHOST_JOB_NAME");
+        if (string.IsNullOrEmpty(name) || !name.StartsWith(AgentJobName + "Test", StringComparison.Ordinal))
+        {
+            name = AgentJobName;
+        }
+        IntPtr job = NativeMethods.CreateJobObjectW(IntPtr.Zero, name);
+        int error = Marshal.GetLastWin32Error();
         if (job == IntPtr.Zero)
         {
-            log.Write("agent job: CreateJobObject failed (" + Marshal.GetLastWin32Error() + "); no memory limit");
+            log.Write("agent job: CreateJobObject failed (" + error + "); agents run outside it");
             return IntPtr.Zero;
+        }
+        agentJob = job;
+        if (error == ErrorAlreadyExists)
+        {
+            log.Write("agent job: joined the existing one (its backstop stays as it was set)");
+            return job;
+        }
+        if (setting == "none")
+        {
+            log.Write("agent job: no backstop (sandbox.agentMemoryHeadroomMb is none)");
+            return job;
+        }
+        long commitMb;
+        long limitMb = BackstopMb(setting, out commitMb);
+        if (limitMb <= 0)
+        {
+            log.Write("agent job: the commit limit cannot be read; no backstop");
+            return job;
         }
         JobExtendedLimit info = new JobExtendedLimit();
         info.BasicLimitInformation.LimitFlags = JobObjectLimitJobMemory;
         info.JobMemoryLimit = new UIntPtr((ulong)(limitMb * BytesPerMb));
         if (!NativeMethods.SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref info, Marshal.SizeOf(typeof(JobExtendedLimit))))
         {
-            log.Write("agent job: setting the limit failed (" + Marshal.GetLastWin32Error() + "); no memory limit");
-            NativeMethods.CloseHandle(job);
-            return IntPtr.Zero;
+            log.Write("agent job: setting the backstop failed (" + Marshal.GetLastWin32Error() + "); no backstop");
+            return job;
         }
-        log.Write("agent job: everything the agent starts may use " + limitMb + " MB together");
-        agentJob = job;
+        log.Write("agent job: last-resort backstop at " + limitMb + " MB committed (the sandbox's commit limit is " + commitMb + " MB)");
         return job;
+    }
+
+    /// <summary>The commit limit minus the headroom ("auto" or MB), at least half of it; 0 when it cannot be read.</summary>
+    private static long BackstopMb(string setting, out long commitMb)
+    {
+        commitMb = 0;
+        MemoryStatus status = new MemoryStatus();
+        status.Length = (uint)Marshal.SizeOf(typeof(MemoryStatus));
+        if (!NativeMethods.GlobalMemoryStatusEx(ref status))
+        {
+            return 0;
+        }
+        commitMb = (long)(status.TotalPageFile / (ulong)BytesPerMb);
+        long headroom;
+        if (setting == "auto" || !long.TryParse(setting, out headroom) || headroom < 0)
+        {
+            headroom = Math.Max(MinHeadroomMb, commitMb * HeadroomPercent / 100);
+        }
+        return Math.Max(commitMb / 2, commitMb - headroom);
     }
 
     /// <summary>Starts `commandLine` attached to the pseudo console. Null std handles: never leak our own stdio into the child.</summary>

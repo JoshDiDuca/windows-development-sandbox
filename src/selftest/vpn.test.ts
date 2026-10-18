@@ -716,7 +716,7 @@ export const vpnSuite: Suite = {
     );
     t.check(loginSeen.questions.length === 0, 'a login passed on the command line asks nothing');
 
-    // The on-PC guard: only testable inside a sandbox (it refuses there) or on a PC where it passes (nothing to assert).
+    // The on-PC guard only refuses inside a sandbox, so it is tested there; elsewhere there is nothing to assert.
     if (insideSandbox()) {
       const { io, seen } = fakeIO();
       await t.throws(

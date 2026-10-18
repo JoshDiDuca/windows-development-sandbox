@@ -17,12 +17,12 @@ export interface Badge {
 export type Target =
   /** A running session's terminal: the menu attaches, the web opens its terminal page. */
   | { readonly kind: 'terminal'; readonly session: string }
-  /** Start an agent: the menu runs `launch`, the web opens its new-session dialog. */
+  /** Start an agent: the menu runs `launch`, the web runs agents.start and opens the session's terminal. */
   | { readonly kind: 'start-agent'; readonly agent: string }
   /** A command line of an area that is not a feature yet: the menu runs it, the web does not offer it. */
   | { readonly kind: 'command'; readonly argv: readonly string[] }
   /** Another view. */
-  | { readonly kind: 'view'; readonly view: string };
+  | { readonly kind: 'view'; readonly view: string; readonly params?: Readonly<Record<string, string>> };
 
 interface ActionBase {
   /** The words on a button or a row ("Stop the sandbox…"). */
@@ -87,6 +87,8 @@ export interface Item {
   readonly tone?: Tone;
   readonly badges?: readonly Badge[];
   readonly description?: string;
+  /** Words about the menu's keys ("x deletes it."): the menu shows them after the description; the web does not. */
+  readonly keys?: string;
   /** Extra lines (the menu's details pane, the CLI's indented lines, the web's card body). */
   readonly details?: readonly string[];
   /** A heading inside the section ("This folder's project"). */
@@ -129,6 +131,8 @@ export interface Section {
   readonly cards?: boolean;
   readonly actions?: readonly Action[];
   readonly notes?: readonly Note[];
+  /** Preformatted lines (a log): monospace, shown as they are. */
+  readonly text?: readonly string[];
 }
 
 /** What a page shows when it has nothing: the text and the next step (the CLI prints `cliText`, naming a command). */
@@ -182,7 +186,9 @@ export function link(
 
 /** Does the page show anything besides its empty state? */
 export function pageHasContent(page: Page): boolean {
-  return page.sections.some((s) => (s.facts?.length ?? 0) > 0 || (s.items?.length ?? 0) > 0);
+  return page.sections.some(
+    (s) => (s.facts?.length ?? 0) > 0 || (s.items?.length ?? 0) > 0 || (s.text?.length ?? 0) > 0,
+  );
 }
 
 /** Every action a page offers, wherever it sits (for parity checks and key bars). */

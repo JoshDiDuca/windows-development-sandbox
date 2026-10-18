@@ -113,7 +113,7 @@ Changes to what is mapped apply from the next start.
 | `sandbox update --auto on\|off` | install new versions by themselves; for everyone on the PC this needs an admin terminal |
 | `sandbox migrate` | bring your saved settings up to date after an upgrade (a backup is kept); `--dry-run` lists changes, `--restore <backup>` puts one back (asks first; `-y` skips) |
 
-An npm install is updated with `npm install -g windows-development-sandbox`; `sandbox update` says so.
+An npm install is updated with `npm install -g windows-development-sandbox`; `sandbox update` says so. A failed update, or one that waits for a running sandbox, prints `Error: ...` on stderr and exits 1.
 
 With an all-users install, a sandbox another user started shows in `status` and `sessions` as "started by <name>". When
 they share it, `attach`, `exec`, `db` and `stop` work (stop asks you to type their name; `--yes` in scripts); otherwise
@@ -162,7 +162,7 @@ and for `restart`, `show`, `hide` and starting your own, you are told whose it i
 | `sandbox config show` / `path` / `init` / `schema` | all settings with defaults filled in as JSON / the file / create it (when it exists: open, overwrite or cancel) / editor schemas |
 | `sandbox config get <setting>` / `set <setting> <value>` / `reset <setting>` | read, change or put back to its default one setting, e.g. `sandbox config set sandbox.memoryMb 8192`; a wrong value lists what is allowed; secrets show as `***` |
 | `sandbox config list [--json]` | every setting with its value, by category (the same rows as the menu's and the web's Settings) |
-| `sandbox config export [file] [--with-paths]` / `import <file> [-y]` | write the settings you changed (only what differs from the defaults) to a shareable `.json` (default `sandbox-settings.json`; never overwrites), or read one: it shows each change as `setting: old -> new`, asks once (`-y` skips it) and writes through your settings file, keeping its comments. Secrets (API keys), the data folder (`storage.root`) and folders or files of this PC (unless `--with-paths` on export) are never written to a file and never taken from one; both commands list what they left out. Menu: Settings > General > Export settings… / Import settings… |
+| `sandbox config export [file] [--with-paths]` / `import <file> [-y]` | write the settings you changed (only what differs from the defaults) to a shareable `.json` (default `sandbox-settings.json`; asks before replacing a file that is there, `-y` replaces it), or read one: it shows each change as `setting: old -> new`, asks once (`-y` skips it) and writes through your settings file, keeping its comments. Secrets (API keys), the data folder (`storage.root`) and folders or files of this PC (unless `--with-paths` on export) are never written to a file and never taken from one; both commands list what they left out. Menu: Settings > General > Export settings… / Import settings… |
 | `sandbox config check [--workspace <dir>]` | check a project's `.sandbox-config.json` and list what it changes, without starting anything |
 | `sandbox agent-commands [status\|on\|off]` | **(Beta)** typing an agent's own command on this PC (`claude`, `codex` ...) starts it in a hidden sandbox for the folder you are in and attaches that terminal. See [agent commands](configuration.md#agent-commands-beta) |
 | `sandbox vpn [status\|login\|logout]` | **(Alpha)** the VPN login (typed hidden, kept encrypted, never printed) and whether the VPN is on. `login` first prints the steps to find NordVPN's service credentials. See [vpn](vpn.md) |

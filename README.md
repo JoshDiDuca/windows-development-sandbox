@@ -62,19 +62,27 @@ The first start downloads what the project needs (a few minutes, once). After th
 | **Picks up where you left off** | After a crash or a restart, `sandbox resume` reopens the last sessions; `sandbox restart` restarts the agents in place and they continue their conversation |
 | **Feels like home** | Your desktop look, Claude settings, MCP servers and conversation history come along; history syncs back. Logins you save (`sandbox account`) are kept encrypted for your Windows user |
 
-## Your PC stays responsive
+## Built for heavy workloads
 
-Heavy builds slow down instead of freezing the PC, with nothing to set up:
+The sandbox behaves like a well-run PC of its own size: under load it slows down, it does not fail, and it never takes
+your PC down with it. Nothing needs setting up.
 
-- The sandbox's memory is sized from what your PC can really spare, and a part of it is kept free from the agents, so
-  a runaway parallel build gets out-of-memory errors in its own session instead of taking everything down.
-- A governor lowers the priority of compilers when memory runs low, and briefly pauses the biggest one if it must.
-  It always resumes them, also after a crash.
-- A watchdog on your PC watches memory, CPU and disk, and asks the sandbox to slow down before your desktop does.
-- With vGPU on, a gentler profile is used automatically. `sandbox doctor` checks the paging file, and after a freeze
-  `sandbox logs --crash` says what happened (freeze gap, blue screens, hardware and memory events, vGPU).
+- **Sized to what your PC can hold.** The sandbox gets only the memory your PC can keep in RAM for it, with room kept
+  for your PC itself (and more with vGPU on).
+- **Builds within a budget.** Agents see the processors and memory they may really use, and every session gets a
+  matching number of build jobs and links, written to `run\budget.json` for agents to plan with.
+- **Graduated throttling.** As memory fills, a governor in the sandbox turns one dial in steps: build programs get
+  lower CPU and memory priority, then a smaller share of the CPU, then compilers take turns while the waiting ones move
+  to the paging file. Builds get slower; nothing is stopped or killed, and agents, shells and Windows are never touched.
+- **Your PC has a say.** A watchdog on your PC watches its memory, CPU and disks and asks the sandbox to ease off, at
+  once and all the way when your PC is nearly out of memory.
+- **A last resort that only protects.** Only at the very edge of the sandbox's own memory limit, where Windows inside
+  it would otherwise start failing, is a build refused memory so that the sandbox stays up.
+- **Answers after the fact.** `sandbox doctor` checks your paging file, and `sandbox logs --crash` explains a past
+  freeze or crash: the gap, blue screens, hardware and memory events, and whether vGPU was on.
 
-The settings are in the menu (Settings > Sandbox machine) and in [configuration](docs/configuration.md#cpu-ram-and-gpu).
+Details and settings: [troubleshooting](docs/troubleshooting.md#the-sandbox-closes-under-heavy-load) and
+[configuration](docs/configuration.md#cpu-ram-and-gpu).
 
 ## Commands
 
@@ -106,7 +114,7 @@ keeps every feature it has.
 
 | Feature | Status | |
 |---|---|---|
-| **Web UI** (`sandbox web`, `web.enabled`) | Beta | Sessions with live terminals, the sandbox's status and every setting in your browser, on this PC only (loopback, signed in with a token). `web.openOnLaunch` opens it with every sandbox. [web-ui.md](docs/web-ui.md) |
+| **Web UI** (`sandbox web`, `web.enabled`) | Beta | Agents, sessions with live terminals, the sandbox's status, apps, accounts and every setting in your browser, with search (Ctrl+K) and a folder picker; on this PC only (loopback, signed in with a token). `web.openOnLaunch` opens it with every sandbox. [web-ui.md](docs/web-ui.md) |
 | **Agent commands** (`sandbox agent-commands on`) | Beta | Typing `claude`, `codex` ... in any folder starts it in a hidden sandbox and attaches your terminal |
 | **Contained storage** (`sandbox storage contained on`) | Beta | Tools, logins and logs in one disk image per data set, mounted only while a sandbox runs. One admin prompt per launch. [engines](docs/design/engines.md) |
 | **VPN** (`sandbox vpn`, `vpn.enabled`) | Alpha | The sandbox's traffic through NordVPN, your own OpenVPN profile or a WireGuard config, with a kill switch. Not yet tried on a real PC: read [vpn.md](docs/vpn.md) first |

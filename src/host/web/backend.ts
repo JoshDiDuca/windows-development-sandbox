@@ -1,7 +1,7 @@
 // What the web server needs from the rest of the program, so the server stays free of the CLI and testable with a
 // fake. The real one (cli/services/web-service.ts) applies the sharing rules and talks to the running sandbox.
 import type { Endpoint } from '../../shared/pty/index.js';
-import type { NewSessionRequest, WebInfo, WebSession } from '../../shared/web/index.js';
+import type { WebInfo, WebSession } from '../../shared/web/index.js';
 
 export interface WebBackend {
   info(): Promise<WebInfo>;
@@ -12,6 +12,4 @@ export interface WebBackend {
    * running session, the sandbox is not shared with this user, or it has no address on this PC's sandbox network.
    */
   endpoint(sessionId: string): Endpoint | null;
-  /** Starts an agent in a project of the running sandbox and waits until it runs. */
-  create(request: NewSessionRequest): Promise<WebSession>;
 }

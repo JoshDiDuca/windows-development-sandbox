@@ -13,12 +13,20 @@ interface ViewPageProps {
   readonly params: Readonly<Record<string, string>>;
 }
 
-/** The view's parameters: the tab chosen (or its first), from the address. */
+/** A parameter taken from the address as it is: strings only, at most 200 characters. */
+const MAX_PARAM = 200;
+
+/** The view's parameters: the tab chosen (or its first), and the ones it takes from the address, from the address. */
 function paramsOf(view: AnyView, given: Readonly<Record<string, string>>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const name of (view.params as readonly string[] | undefined) ?? []) {
+    const value = given[name];
+    if (typeof value === 'string' && value.length <= MAX_PARAM) out[name] = value;
+  }
   const tabs = view.tabs;
-  if (!tabs) return {};
+  if (!tabs) return out;
   const chosen = given[tabs.param];
-  return { [tabs.param]: tabs.choices.some((c) => c.value === chosen) ? chosen : tabs.choices[0].value };
+  return { ...out, [tabs.param]: tabs.choices.some((c) => c.value === chosen) ? chosen : tabs.choices[0].value };
 }
 
 function LoadedView({ view, params }: { readonly view: AnyView; readonly params: Record<string, string> }) {

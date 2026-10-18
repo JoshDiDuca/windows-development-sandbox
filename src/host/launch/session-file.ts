@@ -15,7 +15,6 @@ import { hubName, PROJECTS_GUEST, substDrives } from '../../shared/paths/index.j
 import { hostClaudeDir } from '../profile/index.js';
 import type { BootProjects } from './boot-projects.js';
 import { databaseCatalog } from './database-plan.js';
-import { agentMemoryLimitMb } from './wsb-file.js';
 import { effectiveCpuLimit } from '../../shared/memory/index.js';
 import { loadProfileOf } from './risk-notes.js';
 
@@ -91,7 +90,7 @@ export function guestSession(o: GenerateOptions, parts: SessionParts): GuestSess
     cpuLimitPercent: effectiveCpuLimit(config.sandbox.cpuLimit, loadProfileOf(config)),
     loadProfile: loadProfileOf(config),
     pageFileMb: config.sandbox.pageFileMb,
-    agentMemoryLimitMb: agentMemoryLimitMb(parts.memoryMb, config.sandbox.agentMemoryHeadroomMb),
+    agentBackstop: config.sandbox.agentMemoryHeadroomMb,
     pressureResponse: config.sandbox.pressureResponse,
     apps: config.apps,
     auditProcesses: config.audit.enabled && config.audit.processes,

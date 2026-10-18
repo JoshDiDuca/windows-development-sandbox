@@ -11,7 +11,7 @@ import type { Config } from '../core/types.js';
 import { isWin } from '../core/util/index.js';
 import { CONTAINED_CHECKS } from '../cli/commands/repair/checks/contained.js';
 import type { RepairEnv } from '../cli/commands/repair/types.js';
-import { storageBusy } from '../cli/commands/storage/storage.js';
+import { storageBusy } from '../cli/services/index.js';
 import { generateSandbox, GUEST } from '../host/launch/index.js';
 import { currentUserSid } from '../host/sharing/index.js';
 import {

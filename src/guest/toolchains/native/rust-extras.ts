@@ -8,7 +8,7 @@ import { execOutput } from '../../runtime/process.js';
 import { ensureCompiled } from '../../runtime/csc.js';
 import { arch, tool, type ToolEnv } from '../tool-env.js';
 import { wanted } from '../detect.js';
-import { cargoJobs } from '../../../shared/memory/index.js';
+import { cargoJobs, linkSlotsFor } from '../../../shared/memory/index.js';
 
 /**
  * Where cargo builds: shared with the PC's target\, one on the sandbox's disk, or a path. "separate" sets no variable:
@@ -41,7 +41,7 @@ export function linkGate(env: ToolEnv, rust: Toolchains['rust'], host: string): 
   const gate = path.join(mkdirp(tool('shims')), 'linkgate.exe');
   fs.copyFileSync(ensureCompiled('linkgate'), gate);
   const memoryGb = os.totalmem() / 1024 ** 3;
-  const slots = rust.linkSlots === 'auto' ? Math.max(2, Math.min(4, Math.floor(memoryGb / 8))) : rust.linkSlots;
+  const slots = rust.linkSlots === 'auto' ? linkSlotsFor(memoryGb) : rust.linkSlots;
   env.vars.AGENT_LINK_SLOTS = String(slots);
   env.vars.AGENT_REAL_LINKER = gcc;
   env.vars.CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = gate;

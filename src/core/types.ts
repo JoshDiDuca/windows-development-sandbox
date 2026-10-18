@@ -262,10 +262,11 @@ export interface GuestSession {
   /** sandbox.pageFileMb (0 = Windows' own); sandbox\scripts\set-page-file.ps1 applies it at logon. */
   pageFileMb?: number;
   /**
-   * sandbox.agentMemoryHeadroomMb as a limit: the most memory (MB) everything the agents start may use together
-   * (the sandbox's memory minus the headroom); null = no limit. ptyhost puts each agent in a job object with it.
+   * sandbox.agentMemoryHeadroomMb: how far below the sandbox's commit limit the last-resort backstop of the agents'
+   * job sits ("auto", MB, or "none"). ptyhost reads the commit limit in the sandbox and sets it once, on the job it
+   * creates.
    */
-  agentMemoryLimitMb?: number | null;
+  agentBackstop?: 'auto' | 'none' | number;
   /** "gentle" when vGPU is on: the governor and the watchdog act earlier, compilers run below normal. */
   loadProfile?: 'normal' | 'gentle';
   /** sandbox.pressureResponse: the daemon slows builds down when memory runs low. */

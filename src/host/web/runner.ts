@@ -13,6 +13,10 @@ export interface WebRunOptions {
   readonly backend: WebBackend;
   readonly rpc?: RpcHost;
   readonly staticRoot: string;
+  /** This program's version, kept in the state file. */
+  readonly version: string;
+  /** End after this long unused while no sandbox runs (WebServerOptions.idleExitMs). */
+  readonly idleExitMs?: number;
 }
 
 export class WebRunner {
@@ -33,6 +37,7 @@ export class WebRunner {
       backend: this.options.backend,
       rpc: this.options.rpc,
       staticRoot: this.options.staticRoot,
+      idleExitMs: this.options.idleExitMs,
       onStop: stop,
     });
     try {
@@ -45,7 +50,13 @@ export class WebRunner {
         );
       throw e;
     }
-    this.store.write({ pid: process.pid, port: server.port, token, startedAt: new Date().toISOString() });
+    this.store.write({
+      pid: process.pid,
+      port: server.port,
+      token,
+      startedAt: new Date().toISOString(),
+      version: this.options.version,
+    });
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);
     try {

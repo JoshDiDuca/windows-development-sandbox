@@ -16,6 +16,12 @@ import './app.css';
 
 const queries = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 const rpc = new RpcClient();
+// A hidden tab reads nothing and lets go of its connection; a closed one closes it at once (the server frees it).
+document.addEventListener('visibilitychange', () => rpc.setHidden(document.hidden));
+window.addEventListener('pagehide', () => rpc.release());
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) rpc.setHidden(false);
+});
 
 const root = document.getElementById('root');
 if (root)

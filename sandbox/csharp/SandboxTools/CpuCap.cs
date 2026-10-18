@@ -1,12 +1,18 @@
 // Caps a process and everything it starts at a share of the PC's CPU (SandboxTools cpu-cap). Windows Sandbox has no
-// CPU setting and gets every processor; a job object with a hard CPU-rate cap holds logon.cmd and all it starts. C# 5.
+// CPU setting and gets every processor; a job object with a hard CPU-rate cap holds logon.cmd and all it starts, and
+// limits them to as many processors as the cap allows, so programs that count processors (cargo, .NET, ninja, nproc)
+// plan for what they may use, as on a PC of that size. C# 5.
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 public static class SandboxCpuCap
 {
+    private const int JobObjectBasicLimitInformation = 2;
     private const int JobObjectCpuRateControlInformation = 15;
+    private const uint LimitAffinity = 0x00000010;
+    /// <summary>Affinity masks hold 64 processors; with more, only the rate cap applies.</summary>
+    private const int MaxMaskProcessors = 64;
     private const uint CpuRateEnable = 0x1;
     private const uint CpuRateHardCap = 0x4;
     // What AssignProcessToJobObject needs.
@@ -21,6 +27,21 @@ public static class SandboxCpuCap
     {
         public uint ControlFlags;
         public uint Rate;
+    }
+
+    // JOBOBJECT_BASIC_LIMIT_INFORMATION.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BasicLimit
+    {
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public uint LimitFlags;
+        public UIntPtr MinimumWorkingSetSize;
+        public UIntPtr MaximumWorkingSetSize;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint PriorityClass;
+        public uint SchedulingClass;
     }
 
     private const uint SnapshotProcesses = 0x2;
@@ -60,6 +81,9 @@ public static class SandboxCpuCap
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref CpuRate info, int length);
 
+        [DllImport("kernel32.dll", SetLastError = true, EntryPoint = "SetInformationJobObject")]
+        public static extern bool SetBasicLimit(IntPtr job, int infoClass, ref BasicLimit info, int length);
+
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
 
@@ -98,6 +122,30 @@ public static class SandboxCpuCap
         throw new InvalidOperationException("the parent process was not found.");
     }
 
+    /// <summary>
+    /// How many processors a cap of percent % allows (at least 2), the same count the daemon gives NUMBER_OF_PROCESSORS.
+    /// </summary>
+    public static int UsableProcessors(int processors, int percent)
+    {
+        return Math.Max(2, Math.Min(processors, processors * percent / 100));
+    }
+
+    /// <summary>The job's processes run on the first UsableProcessors processors; nothing changes when that is all.</summary>
+    private static void LimitProcessors(IntPtr job, int percent)
+    {
+        int processors = Environment.ProcessorCount;
+        int usable = UsableProcessors(processors, percent);
+        if (processors > MaxMaskProcessors || usable >= processors)
+        {
+            return;
+        }
+        BasicLimit limit = new BasicLimit();
+        limit.LimitFlags = LimitAffinity;
+        limit.Affinity = new UIntPtr((1UL << usable) - 1);
+        // Best effort: without it the rate cap still holds, programs only count more processors than they get.
+        NativeMethods.SetBasicLimit(job, JobObjectBasicLimitInformation, ref limit, Marshal.SizeOf(typeof(BasicLimit)));
+    }
+
     /// <summary>Puts process pid in a new job with a hard cap of percent % of all processors. Throws on failure.</summary>
     public static void Apply(int pid, int percent)
     {
@@ -113,6 +161,7 @@ public static class SandboxCpuCap
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
+        LimitProcessors(job, percent);
         IntPtr process = NativeMethods.OpenProcess(ProcessSetQuota | ProcessTerminate, false, pid);
         if (process == IntPtr.Zero)
         {

@@ -15,7 +15,7 @@ import {
   otherDataFolders,
   sharedDefaultRoot,
 } from '../../../../host/storage/index.js';
-import { removeTree } from '../../data/remove.js';
+import { removeTree } from '../../../services/data-remove.js';
 import { findHalfInstalled, findLinks, findStagingLeftovers, resolvedVersionsValid } from '../finders.js';
 import type { Check, Finding, FixOutcome, RepairEnv } from '../types.js';
 import { guard, ok, plural, rel } from './common.js';

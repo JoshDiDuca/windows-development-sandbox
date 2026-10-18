@@ -5,7 +5,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ALL_CHECKS } from '../cli/commands/repair/checks/index.js';
 import { proxyProblem } from '../cli/commands/repair/checks/network.js';
+import type { AppContext } from '../app/context.js';
+import {
+  healthPage,
+  ioEvents,
+  summaryText as featureSummaryText,
+  type HealthLast,
+} from '../app/features/health/index.js';
+import { fakeIO } from '../app/kernel/index.js';
+import { runDefinition } from '../app/registry.js';
 import type { Context } from '../cli/commands/context.js';
+import { menuView } from '../cli/menu/render-view.js';
 import { HealthRun, summarize } from '../cli/commands/repair/engine.js';
 import { logText, writeRepairLog } from '../cli/commands/repair/log.js';
 import { HealthPrinter, summaryText } from '../cli/commands/repair/printer.js';
@@ -700,6 +710,102 @@ function backups(t: Harness): void {
   );
 }
 
+/** The shared core: the same run as the menu and the web use, the saved results, and the health page. */
+async function sharedCore(t: Harness): Promise<void> {
+  t.section('the shared core');
+  const bad = (plan: string | undefined, over: Partial<Finding> = {}): Finding => ({
+    status: 'needs-you',
+    detail: 'broken',
+    plan,
+    means: 'it hurts',
+    ...over,
+  });
+  const cracks: string[] = [];
+  const three: Check[] = [
+    check('p1', 'This PC', { name: 'Windows' }),
+    check('p2', 'Data folder', {
+      name: 'Cracks',
+      run: () => (cracks.length ? { status: 'ok', detail: 'whole' } : bad('mend the cracks', { fix: undefined })),
+      fix: () => {
+        cracks.push('mended');
+        return { done: 'mended the cracks' };
+      },
+    }),
+    check('p3', 'Network', {
+      name: 'GitHub',
+      run: () => ({ status: 'warn', detail: 'no answer', fix: 'check your VPN' }),
+    }),
+  ];
+  const fake = fakeIO();
+  await runHealth(fakeEnv(t, 'events'), ioEvents(fake.io), { yes: true, ask: false, question: () => '' }, three, () =>
+    Promise.resolve(true),
+  );
+  const logged = fake.seen.logs.map((l) => l.text).join('\n');
+  t.includes(logged, '  [ok] Windows: p1 is fine', 'ioEvents writes a line per result, like the printer');
+  t.includes(logged, 'What it means: it hurts', 'ioEvents says what a problem means');
+  t.includes(logged, 'Fix: sandbox repair will mend the cracks', 'ioEvents says what repair would do');
+  t.includes(logged, 'Repair will change:', 'ioEvents lists the changes before they are made');
+  t.includes(logged, '[fixed] Cracks: mended the cracks', 'ioEvents reports a fix on its own line');
+
+  t.equal(
+    featureSummaryText({ total: 9, ok: 6, fixed: 1, warn: 1, needsYou: 1, skipped: 0, fixable: 0 }),
+    '6 ok, 1 fixed, 1 needs you, 1 warning',
+    'summaryText moved to the feature and reads the same',
+  );
+  t.equal(
+    featureSummaryText({ total: 3, ok: 0, fixed: 0, warn: 0, needsYou: 2, skipped: 1, fixable: 0 }),
+    '0 ok, 2 need you, 1 skipped',
+    'summaryText plurals (feature)',
+  );
+
+  const saved: HealthLast = {
+    at: '2026-10-15T09:30:12.000Z',
+    mode: 'check',
+    checks: [{ id: 'p1', group: 'This PC', name: 'Windows', status: 'ok', detail: 'fine', fixable: false }],
+    summary: { total: 1, ok: 1, fixed: 0, warn: 0, needsYou: 0, skipped: 0, fixable: 0 },
+    details: [['Config file', 'valid']],
+    setup: { checks: [{ name: 'Edition', status: 'ok', detail: 'Pro' }], canEnable: false, error: null },
+    log: null,
+  };
+  const storage = t.dir('health', 'saved', 'storage');
+  const ctx = { storageRoot: storage } as unknown as AppContext;
+  const none = await runDefinition('health.last', ctx, {}, fakeIO().io);
+  t.equal(none, { last: null }, 'nothing saved yet: no results');
+  t.writeJson(path.join(storage, 'health', 'last.json'), saved);
+  const read = await runDefinition('health.last', ctx, {}, fakeIO().io);
+  t.equal(read, { last: saved }, 'a check is saved and read back by health.last');
+  t.write(path.join(storage, 'health', 'last.json'), '{ this is not json');
+  t.equal(
+    await runDefinition('health.last', ctx, {}, fakeIO().io),
+    { last: null },
+    'a damaged results file reads as nothing saved',
+  );
+
+  const empty = healthPage({ last: null });
+  const emptyIds = empty.sections.flatMap((s) => (s.items ?? []).map((i) => i.id));
+  t.equal(emptyIds, ['health:check', 'repair:run'], 'before any check the page offers the check and the repair');
+  t.equal(
+    menuView(empty, { category: 'health', refresh: false }).enterLabel('health', 'repair:run'),
+    'check and fix',
+    'Enter on the repair row says check and fix',
+  );
+  const page = healthPage({ last: saved });
+  const ids = page.sections.flatMap((s) => (s.items ?? []).map((i) => i.id));
+  t.check(
+    ['doctor:0', 'repair:0', 'setup:0'].every((id) => ids.includes(id)),
+    'with results the page lists the doctor, repair and setup rows',
+    ids.join(', '),
+  );
+  const keys = menuView(page, { category: 'health', refresh: false }).actions.map((a) => a.key);
+  t.equal(keys, ['f', 'l'], 'the health keys are f and l (e only when Windows Sandbox can be turned on)');
+  const canEnable = healthPage({ last: { ...saved, setup: { ...saved.setup!, canEnable: true } } });
+  t.equal(
+    menuView(canEnable, { category: 'health', refresh: false }).actions.map((a) => a.key),
+    ['f', 'l', 'e'],
+    'e turns Windows Sandbox on when the setup says it can be',
+  );
+}
+
 export const healthSuite: Suite = {
   name: 'health',
   title: 'doctor and repair (engine, printer, log, the install, stale state, permissions, settings backups)',
@@ -711,5 +817,6 @@ export const healthSuite: Suite = {
     await staleState(t);
     parsing(t);
     backups(t);
+    await sharedCore(t);
   },
 };

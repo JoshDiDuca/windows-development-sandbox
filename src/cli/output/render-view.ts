@@ -26,6 +26,7 @@ function sectionLines(section: Section): string[] {
   const lines: string[] = [];
   if (section.title) lines.push(c.bold(section.title) + (section.summary ? '  ' + section.summary : ''));
   if (section.facts?.length) lines.push(...tableLines(section.facts.map((f) => [f.label, f.value])));
+  if (section.text?.length) lines.push(...section.text);
   if (section.columns && items.length) {
     const columns = section.columns;
     lines.push(

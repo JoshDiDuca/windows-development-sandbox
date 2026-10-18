@@ -100,13 +100,18 @@ export class MenuOperations {
   ) {}
 
   /** Does what an action of a page says: follows a link, or asks for its fields and runs its operation. */
-  async perform(action: Action, where: Where, busy?: ShowBusy): Promise<Performed> {
+  async perform(
+    action: Action,
+    where: Where,
+    busy?: ShowBusy,
+    onOutput?: (output: unknown) => void,
+  ): Promise<Performed> {
     if (action.kind === 'link') return follow(action.target);
     const def = operationById(action.op);
     if (!def) return { notice: Theme.error(Theme.glyph.cross + ' Unknown operation ' + action.op + '.') };
     const answers = await this.fields(action, def, where);
     if (!answers) return {};
-    return { reload: true, notice: await this.run(def, { ...action.input, ...answers }, where, busy) };
+    return { reload: true, notice: await this.run(def, { ...action.input, ...answers }, where, busy, onOutput) };
   }
 
   /** The values of an action's fields, from the editors that fit them (undefined: one was backed out of). */
@@ -136,6 +141,7 @@ export class MenuOperations {
     input: unknown,
     where: Where,
     busy: ShowBusy = () => undefined,
+    onOutput?: (output: unknown) => void,
   ): Promise<string | undefined> {
     const said: string[] = [];
     const asker: Asker = async (q) => (await ask(this.app, where, q, said.splice(0))) as never;
@@ -145,7 +151,9 @@ export class MenuOperations {
     });
     try {
       const output = await runDefinition(def.id, this.ctx, input, io);
-      const text = def.text?.(output);
+      onOutput?.(output);
+      // The notice is one line: an operation that says several lines (accounts use) runs them together.
+      const text = def.text?.(output)?.replace(/\n+/g, ' ');
       return text ? Theme.ok(Theme.glyph.ok + ' ' + text) : undefined;
     } catch (e) {
       if (e instanceof Cancelled) return undefined;

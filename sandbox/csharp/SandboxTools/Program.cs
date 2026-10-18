@@ -61,7 +61,7 @@ static class Program
                 pid = SandboxCpuCap.ParentProcessId();
             }
             SandboxCpuCap.Apply(pid, percent);
-            Log("CPU capped at " + percent + "% of the PC (sandbox.cpuLimit).");
+            Log("CPU capped at " + percent + "% of the PC (sandbox.cpuLimit): programs see " + SandboxCpuCap.UsableProcessors(Environment.ProcessorCount, percent) + " of " + Environment.ProcessorCount + " processors.");
         }
         catch (Exception e)
         {

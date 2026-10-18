@@ -107,6 +107,8 @@ export const GuestRequestSchema = z.discriminatedUnion('kind', [
     id: IdSchema,
     reason: Text(300),
     seconds: z.number().int().min(10).max(300),
+    /** "severe": the PC is nearly out of memory; builds go to the governor's last step at once. */
+    level: z.enum(['slow', 'severe']).optional(),
     createdAt: TimeSchema,
   }),
 ]);
@@ -114,14 +116,18 @@ export const GuestRequestSchema = z.discriminatedUnion('kind', [
 /** C:\AgentData\run\pressure.json: what the memory governor in the sandbox is doing (guest-written, capped). */
 export const PressureStatusSchema = z.object({
   level: z.enum(['ok', 'throttled', 'suspending']),
+  /** The governor's dial, 0 (nothing wrong) to 4 (one compiler at a time). */
+  step: z.number().int().min(0).max(4).optional(),
   profile: z.enum(['normal', 'gentle']),
   /** Share of the sandbox's RAM still free and of its commit limit in use (percent). */
   ramFreePercent: z.number().int().min(0).max(100),
   commitPercent: z.number().int().min(0).max(100),
   /** Programs running at lower priority because of it. */
   lowered: z.number().int().min(0).max(1024),
-  /** Programs paused right now (name, process id, seconds left). */
+  /** Compilers waiting their turn right now (name, process id, seconds until they may go on). */
   paused: z.array(z.object({ name: Text(64), pid: z.number().int(), seconds: z.number().int().min(0).max(60) })).max(8),
+  /** The CPU share the compilers get together (percent; 100 = no cap). */
+  cpuPercent: z.number().int().min(0).max(100).optional(),
   /** The PC itself asked for slowing down (its memory or CPU is low). */
   pcLow: z.boolean(),
   lastAction: Text(300),

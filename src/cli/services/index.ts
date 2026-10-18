@@ -1,6 +1,8 @@
 export { AccountsService, type AccountRef, type AccountsContext, type AgentAccounts } from './accounts-service.js';
 export { AgentCommandsService, type AgentCommand, type AgentCommandsStatus } from './agent-commands-service.js';
 export { DataService, type CleanOutcome, type CleanPlan, type DataReport, type SizedTarget } from './data-service.js';
+export { cleanTargetOf, collectDataEntries, type DataArea, type DataEntry } from './data-collect.js';
+export { removeTree } from './data-remove.js';
 export { resolveCleanTargets, type CleanTarget } from './data-targets.js';
 export { DatabasesService, parseDatabaseList, type DatabaseAction, type DatabaseRow } from './databases-service.js';
 export {
@@ -33,3 +35,4 @@ export {
   type StopPlan,
 } from './sandbox-service.js';
 export { SessionsService, projectOf, viewerText, type ListedSession, type RestartScope } from './sessions-service.js';
+export { StorageService, storageBusy } from './storage-service.js';

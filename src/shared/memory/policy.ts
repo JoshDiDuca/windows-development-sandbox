@@ -4,34 +4,48 @@
 
 export type LoadProfile = 'normal' | 'gentle';
 
-/** The guest governor: when memory inside the sandbox counts as under pressure, and when it has recovered. */
-export interface GuestThresholds {
-  /** Pressure starts when available RAM is below this share of the sandbox's RAM (percent)... */
-  readonly enterAvailablePercent: number;
-  /** ...or commit is above this share of its limit. */
-  readonly enterCommitPercent: number;
-  /** Pressure ends only when available RAM is above this and commit is below the next, for `calmSamples` in a row. */
-  readonly exitAvailablePercent: number;
-  readonly exitCommitPercent: number;
-  readonly calmSamples: number;
+/**
+ * One step of the guest governor's dial. It turns up when available RAM falls below `availablePercent` of the
+ * sandbox's RAM, commit rises above `commitPercent` of its limit, or (from step 3) the commit would reach its limit
+ * within `secondsToLimit` at the rate it is growing. It turns down one step after `calmSamples` samples in a row that
+ * are clear of the step by the margins below.
+ */
+export interface DialStep {
+  readonly availablePercent: number;
+  readonly commitPercent: number;
+  readonly secondsToLimit?: number;
 }
 
-export const GUEST_THRESHOLDS: Readonly<Record<LoadProfile, GuestThresholds>> = {
-  normal: {
-    enterAvailablePercent: 8,
-    enterCommitPercent: 92,
-    exitAvailablePercent: 12,
-    exitCommitPercent: 88,
-    calmSamples: 3,
-  },
-  gentle: {
-    enterAvailablePercent: 15,
-    enterCommitPercent: 85,
-    exitAvailablePercent: 20,
-    exitCommitPercent: 80,
-    calmSamples: 3,
-  },
+/** Steps 1 to 4 of the dial, per profile (index 0 is step 1). The gentle profile (vGPU on) turns earlier. */
+export const DIAL_STEPS: Readonly<Record<LoadProfile, readonly DialStep[]>> = {
+  normal: [
+    { availablePercent: 15, commitPercent: 80 },
+    { availablePercent: 10, commitPercent: 88 },
+    { availablePercent: 6, commitPercent: 94, secondsToLimit: 20 },
+    { availablePercent: 4, commitPercent: 97, secondsToLimit: 8 },
+  ],
+  gentle: [
+    { availablePercent: 20, commitPercent: 75 },
+    { availablePercent: 15, commitPercent: 85 },
+    { availablePercent: 8, commitPercent: 92, secondsToLimit: 25 },
+    { availablePercent: 5, commitPercent: 96, secondsToLimit: 10 },
+  ],
 };
+
+/** How clear of a step a sample must be to count as calm: this much more RAM free and this much less commit. */
+export const DIAL_EXIT_MARGIN = { availablePercent: 5, commitPercent: 4 } as const;
+export const DIAL_CALM_SAMPLES = 3;
+
+/** The CPU share (percent of the sandbox) the compilers get together at each step; 100 = no cap. */
+export const DIAL_CPU_RATE: readonly number[] = [100, 100, 60, 35, 15];
+
+/** How many of the compilers running may go on at each step (the rest wait their turn), as a share of them. */
+export function compilersAllowed(step: number, running: number): number {
+  if (step <= 1 || running <= 1) return running;
+  if (step === 2) return Math.max(1, Math.ceil(running * 0.6));
+  if (step === 3) return Math.max(1, Math.ceil(running / 3));
+  return 1;
+}
 
 /** The PC watchdog: when this PC itself is low. */
 export interface HostThresholds {
@@ -84,13 +98,32 @@ export function effectiveCpuLimit(cpuLimit: 'none' | number, profile: LoadProfil
   return cpuLimit === 'none' ? null : cpuLimit;
 }
 
-/** Cargo jobs that fit the memory (about 4 GB per rustc) and the CPUs, fewer when several agent sessions build. */
+/**
+ * The build budget of the whole sandbox: how many compile jobs fit together (about 3 GB each after 6 GB for Windows,
+ * the agents and their tools), never more than the processors the sandbox may use. The governor slows them down when
+ * memory runs short anyway; this keeps builds from starting far more than fits.
+ */
+export function buildJobs(cpus: number, memoryGb: number): number {
+  return Math.max(2, Math.min(cpus, Math.floor((memoryGb - 6) / 3)));
+}
+
+/** Links that may run at once in the whole sandbox ("auto"): one per 3 GB after 6 GB, 2 to 8. */
+export function linkSlotsFor(memoryGb: number): number {
+  return Math.max(2, Math.min(8, Math.floor((memoryGb - 6) / 3)));
+}
+
+/** The processors the sandbox's programs may use with a CPU cap of `percent` (affinity): at least 2. */
+export function usableCpus(cpus: number, percent: number | null): number {
+  if (percent === null || percent >= 100) return cpus;
+  return Math.max(2, Math.min(cpus, Math.floor((cpus * percent) / 100)));
+}
+
+/** Cargo jobs for one more agent session: what fits the memory and CPUs, shared with the sessions already building. */
 export function cargoJobs(cpus: number, memoryGb: number, sessions: number): number {
-  const byCpu = Math.max(2, Math.min(4, Math.floor(cpus / 4)));
+  const byCpu = Math.max(2, Math.min(8, Math.floor(cpus / 4)));
   const byMemory = Math.max(1, Math.floor(memoryGb / 4));
   const jobs = Math.min(byCpu, byMemory);
-  // All the agents' builds share the sandbox: about 8 jobs in total however many sessions there are.
-  return Math.max(1, Math.min(jobs, Math.floor(8 / Math.max(1, sessions))));
+  return Math.max(1, Math.min(jobs, Math.floor(buildJobs(cpus, memoryGb) / Math.max(1, sessions))));
 }
 
 /** The most heavy compilers (rustc, clippy-driver, link ...) that run at once in the agents' job: only with vGPU on. */

@@ -13,7 +13,7 @@ import { assertTestWritable, refuseInSelfTest } from '../../../../host/test-guar
 import { conptyDir, terminalDir, terminalExe } from '../../../../host/tools/index.js';
 import { RunDir } from '../../../../shared/channel/index.js';
 import { safeRemove } from '../../../../shared/io/index.js';
-import { removeTree } from '../../data/remove.js';
+import { removeTree } from '../../../services/data-remove.js';
 import { deadPidFiles } from '../finders.js';
 import type { Check, Finding, FixOutcome, RepairEnv } from '../types.js';
 import { fromFacts } from './pc.js';

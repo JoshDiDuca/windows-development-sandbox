@@ -55,8 +55,8 @@ publishes a Windows build, else compiled once.
 project sets `SCCACHE_DIR`.
 
 The first time, `C:\AgentData\tools\rust\cargo\config.toml` gets Windows-friendly defaults: a quarter of the CPUs
-as build jobs (2 to 4: several agents often build at once, and many parallel rustc processes ran out of memory and
-crashed Windows inside the sandbox) and, for the GNU host, `debug =
+as build jobs (2 to 8, within the sandbox's build budget: several agents often build at once, and the memory
+governor slows them down when memory runs short) and, for the GNU host, `debug =
 "line-tables-only"` (full debug info made test executables bigger than the 2 GB Windows allows). It is never
 overwritten; edit it freely.
 

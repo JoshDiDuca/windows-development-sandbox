@@ -23,12 +23,12 @@ export interface SetupReport {
 export class HealthService {
   constructor(private readonly ctx: Context) {}
 
-  /** The table `doctor` shows: [name, detail] rows. */
-  doctor(): string[][] {
+  /** The table `doctor` shows: [name, detail] rows (for the agent given, default: this folder's or the default one). */
+  doctor(harness: string | undefined = this.ctx.options.harness): string[][] {
     const { ctx } = this;
     const rows = doctorRows(
       ctx.loaded.config,
-      ctx.options.harness ?? ctx.loaded.config.defaultHarness,
+      harness ?? ctx.loaded.config.defaultHarness,
       ctx.storageRoot,
       ctx.loaded.configPath,
     );
@@ -92,16 +92,18 @@ export class HealthService {
     return { facts, checks: buildChecks(facts), canEnable: canEnableFeature(facts) };
   }
 
-  /** Runs the enable command in an elevated PowerShell (Windows asks for permission); true if it worked. */
-  enableFeature(): boolean {
+  /**
+   * Runs the enable command in an elevated PowerShell (Windows asks for permission); true if it worked. The helper
+   * reads no input and writes nothing to the console (its exit code is the result), so 'ignore' is safe where there is
+   * no terminal to give the prompt (the menu and the web).
+   */
+  enableFeature(stdio: 'inherit' | 'ignore' = 'inherit'): boolean {
     refuseInSelfTest('turn on Windows features');
     return (
       spawnSync(
         SYSTEM.powershell(),
         nativeScript('scripts/run-elevated.ps1', ['-Command', ENABLE_COMMAND + ' | Out-Null']),
-        {
-          stdio: 'inherit',
-        },
+        { stdio },
       ).status === 0
     );
   }

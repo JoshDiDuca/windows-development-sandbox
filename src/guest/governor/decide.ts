@@ -1,6 +1,16 @@
-// The memory governor's decisions (pure): given a memory sample and what it did before, which programs in the agents'
-// job to slow down or pause. Nothing here touches Windows; governor.ts carries the actions out through a port.
-import type { GuestThresholds, LoadProfile } from '../../shared/memory/index.js';
+// The memory governor's decisions (pure): given a memory sample and what it did before, how far to turn the dial and
+// what that means for the build programs in the agents' job. Like a PC that gets slower instead of failing: lower
+// priority, lower memory priority (their pages are trimmed first), less CPU, fewer compilers at a time (the others wait
+// their turn, suspended and always resumed), waiting compilers trimmed to the paging file. Agents, shells and Windows
+// are never touched. Nothing here touches Windows; governor.ts carries the actions out through a port.
+import {
+  compilersAllowed,
+  DIAL_CALM_SAMPLES,
+  DIAL_CPU_RATE,
+  DIAL_EXIT_MARGIN,
+  DIAL_STEPS,
+  type LoadProfile,
+} from '../../shared/memory/index.js';
 
 export type Priority = 'idle' | 'below' | 'normal';
 
@@ -48,8 +58,8 @@ const COMPILERS = new Set([
   'javac',
 ]);
 /** Build tools and workers: slowed down but never paused (a node process may be a dev server or an agent). */
+// Not node: agents such as Codex and Gemini run as node.exe, and the agents are never slowed down.
 const BUILD_TOOLS = new Set([
-  'node',
   'dotnet',
   'msbuild',
   'vbcscompiler',
@@ -126,39 +136,58 @@ export const canPause = (name: string): boolean => !isNeverTouched(name) && COMP
 export type Level = 'ok' | 'throttled' | 'suspending';
 
 export interface GovernorState {
-  /** Under pressure now (with hysteresis). */
-  readonly pressure: boolean;
-  /** Samples in a row that looked calm while under pressure. */
+  /** The dial: 0 nothing wrong, 1 lower priority, 2 less CPU and fewer compilers, 3 and 4 harder. */
+  readonly step: number;
+  /** Samples in a row clear of the current step (it turns down after DIAL_CALM_SAMPLES). */
   readonly calm: number;
-  /** Samples under pressure so far (resets when it ends). */
-  readonly samples: number;
   /** What was lowered and to what, by pid. */
   readonly lowered: Readonly<Record<number, Priority>>;
-  /** Until when (ms) the last pause lasts, and when another may start. */
-  readonly pausedUntil: number;
-  readonly nextPauseAt: number;
-  /** The PC asked for slowing down until this time (ms). */
+  /** Pids whose memory priority is low. */
+  readonly memLow: readonly number[];
+  /** Pids put in the throttle job (its CPU cap follows the step). */
+  readonly throttled: readonly number[];
+  /** Pids whose working set was trimmed while they waited. */
+  readonly trimmed: readonly number[];
+  /** The CPU cap last set on the throttle job (percent; 100 = none). */
+  readonly cpuRate: number;
+  /** Used commit (MB) and when, at the last sample: how fast it grows. */
+  readonly lastCommitMb: number;
+  readonly lastAt: number;
+  /** The PC asked for slowing down until this time (ms): the dial is at least at `hostStep` until then. */
   readonly hostUntil: number;
+  /** 2 when the PC is low, 4 when it is nearly out of memory. */
+  readonly hostStep: number;
 }
 
 export const INITIAL_STATE: GovernorState = {
-  pressure: false,
+  step: 0,
   calm: 0,
-  samples: 0,
   lowered: {},
-  pausedUntil: 0,
-  nextPauseAt: 0,
+  memLow: [],
+  throttled: [],
+  trimmed: [],
+  cpuRate: 100,
+  lastCommitMb: 0,
+  lastAt: 0,
   hostUntil: 0,
+  hostStep: 0,
 };
 
 export type Action =
   | { readonly kind: 'priority'; readonly pid: number; readonly name: string; readonly to: Priority }
-  | { readonly kind: 'pause'; readonly pid: number; readonly name: string; readonly ms: number }
-  /** Waits (suspended) because more compilers run than the cap allows; repeated while it is over, never killed. */
-  | { readonly kind: 'hold'; readonly pid: number; readonly name: string; readonly ms: number };
+  | { readonly kind: 'memory'; readonly pid: number; readonly name: string; readonly low: boolean }
+  /** Into the throttle job, whose CPU cap follows the dial. */
+  | { readonly kind: 'throttle'; readonly pid: number; readonly name: string }
+  | { readonly kind: 'cpu'; readonly percent: number }
+  /** Waits (suspended) for its turn; repeated while it waits, always resumed, never killed. */
+  | { readonly kind: 'hold'; readonly pid: number; readonly name: string; readonly ms: number }
+  /** Its pages go to the paging file while it waits, so the compilers that run have the RAM. */
+  | { readonly kind: 'trim'; readonly pid: number; readonly name: string };
 
-/** How long a held compiler waits before it gets a turn again (the governor repeats the hold while over the cap). */
+/** How long a held compiler waits before it may get a turn again (the governor repeats the hold while it waits). */
 export const HOLD_MS = 3000;
+/** Which compilers wait their turn changes this often, so none waits for ever. */
+export const ROTATE_MS = 20000;
 
 export interface Decision {
   readonly state: GovernorState;
@@ -168,108 +197,131 @@ export interface Decision {
   readonly commitPercent: number;
 }
 
-export const PAUSE_MS = 5000;
-const PAUSE_COOLDOWN_MS = 10000;
-/** Samples under pressure before programs go from below-normal to idle, and before one is paused. */
-const IDLE_AFTER = 3;
-const PAUSE_AFTER = 4;
-/** Only a program this big is worth pausing. */
-const PAUSE_MIN_MB = 300;
+/** The step a sample calls for on its own: the highest step whose threshold it crosses. */
+export function stepFor(ramFree: number, commit: number, secondsToLimit: number, profile: LoadProfile): number {
+  let step = 0;
+  DIAL_STEPS[profile].forEach((t, i) => {
+    const soon = t.secondsToLimit !== undefined && secondsToLimit < t.secondsToLimit;
+    if (ramFree < t.availablePercent || commit > t.commitPercent || soon) step = i + 1;
+  });
+  return step;
+}
+
+/** Is the sample clear of `step` by the exit margins (so the dial may turn down from it)? */
+function clearOf(step: number, ramFree: number, commit: number, profile: LoadProfile): boolean {
+  if (step === 0) return true;
+  const t = DIAL_STEPS[profile][step - 1];
+  return (
+    ramFree > t.availablePercent + DIAL_EXIT_MARGIN.availablePercent &&
+    commit < t.commitPercent - DIAL_EXIT_MARGIN.commitPercent
+  );
+}
 
 /**
- * One step. `gentle` (vGPU on): compilers start below normal even without pressure. Programs go back to their normal
- * priority only when pressure ends (several calm samples in a row).
+ * One step of the governor. The dial turns up at once and down one step at a time after calm samples. `gentle` (vGPU
+ * on): compilers rest below normal priority, and `maxCompilers` caps how many heavy compilers run at any step.
  */
 export function decide(
   prev: GovernorState,
   sample: MemSample,
   nowMs: number,
-  thresholds: GuestThresholds,
   profile: LoadProfile,
   maxCompilers: number | null = null,
 ): Decision {
   const ramFree = (sample.ramAvailMb / Math.max(1, sample.ramTotalMb)) * 100;
-  const commit = ((sample.commitLimitMb - sample.commitAvailMb) / Math.max(1, sample.commitLimitMb)) * 100;
+  const usedMb = sample.commitLimitMb - sample.commitAvailMb;
+  const commit = (usedMb / Math.max(1, sample.commitLimitMb)) * 100;
+  const seconds = (nowMs - prev.lastAt) / 1000;
+  const growth = prev.lastAt > 0 && seconds > 0 ? (usedMb - prev.lastCommitMb) / seconds : 0;
+  const secondsToLimit = growth > 0 ? sample.commitAvailMb / growth : Number.POSITIVE_INFINITY;
   const pcLow = nowMs < prev.hostUntil;
-  const low = ramFree < thresholds.enterAvailablePercent || commit > thresholds.enterCommitPercent || pcLow;
-  const recovered = ramFree > thresholds.exitAvailablePercent && commit < thresholds.exitCommitPercent && !pcLow;
+  const wanted = Math.max(stepFor(ramFree, commit, secondsToLimit, profile), pcLow ? prev.hostStep : 0);
 
-  let pressure = prev.pressure;
-  let calm = prev.calm;
-  let samples = prev.samples;
-  if (low) {
-    pressure = true;
-    calm = 0;
-    samples = prev.samples + 1;
-  } else if (prev.pressure) {
-    calm = recovered ? prev.calm + 1 : 0;
-    if (calm >= thresholds.calmSamples) {
-      pressure = false;
+  let step = prev.step;
+  let calm = 0;
+  if (wanted > prev.step) step = wanted;
+  else if (prev.step > 0 && wanted < prev.step && clearOf(prev.step, ramFree, commit, profile)) {
+    calm = prev.calm + 1;
+    if (calm >= DIAL_CALM_SAMPLES) {
+      step = prev.step - 1;
       calm = 0;
-      samples = 0;
     }
   }
 
   const actions: Action[] = [];
   const present = new Set(sample.procs.map((p) => p.pid));
+  const keep = (pids: readonly number[]): number[] => pids.filter((pid) => present.has(pid));
   const lowered: Record<number, Priority> = {};
   for (const [pid, to] of Object.entries(prev.lowered)) if (present.has(Number(pid))) lowered[Number(pid)] = to;
+  const memLow = new Set(keep(prev.memLow));
+  const throttled = new Set(keep(prev.throttled));
+  const trimmed = new Set(keep(prev.trimmed));
 
-  if (pressure) {
-    const target: Priority = samples > IDLE_AFTER ? 'idle' : 'below';
-    for (const p of sample.procs) {
-      if (!canLower(p.name) || lowered[p.pid] === target) continue;
-      // Already as low as asked (or lower): only remember it.
-      if (p.prio !== target && !(target === 'below' && p.prio === 'idle'))
-        actions.push({ kind: 'priority', pid: p.pid, name: p.name, to: target });
-      lowered[p.pid] = target;
-    }
-  } else {
-    for (const p of sample.procs) {
-      if (!canLower(p.name)) continue;
-      // Where a program rests when nothing is wrong: compilers below normal in the gentle profile.
-      const base: Priority = profile === 'gentle' && canPause(p.name) ? 'below' : 'normal';
-      const was = lowered[p.pid];
-      if (prev.pressure && was !== undefined && was !== base) {
-        if (p.prio !== base) actions.push({ kind: 'priority', pid: p.pid, name: p.name, to: base });
-        if (base === 'normal') delete lowered[p.pid];
-        else lowered[p.pid] = base;
-      } else if (!prev.pressure && base === 'below' && was === undefined) {
-        if (p.prio === 'normal') actions.push({ kind: 'priority', pid: p.pid, name: p.name, to: 'below' });
-        lowered[p.pid] = 'below';
+  // CPU priority: where a program rests (normal; compilers below in the gentle profile), below from step 1, idle
+  // from step 2. Only changes are sent.
+  for (const p of sample.procs) {
+    if (!canLower(p.name)) continue;
+    const rest: Priority = profile === 'gentle' && canPause(p.name) ? 'below' : 'normal';
+    const target: Priority = step >= 2 ? 'idle' : step === 1 ? 'below' : rest;
+    const was = lowered[p.pid];
+    const touched = was !== undefined || target !== 'normal';
+    if (touched && was !== target && p.prio !== target)
+      actions.push({ kind: 'priority', pid: p.pid, name: p.name, to: target });
+    if (target === 'normal') delete lowered[p.pid];
+    else lowered[p.pid] = target;
+  }
+
+  // Memory priority: low from step 1, so Windows trims the builds' pages before the agents'.
+  const lowMemory = step >= 1;
+  for (const p of sample.procs) {
+    if (!canLower(p.name) || lowMemory === memLow.has(p.pid)) continue;
+    actions.push({ kind: 'memory', pid: p.pid, name: p.name, low: lowMemory });
+    if (lowMemory) memLow.add(p.pid);
+    else memLow.delete(p.pid);
+  }
+
+  // CPU share of the compilers: they join the throttle job once (from step 2); its cap follows the dial.
+  if (step >= 2)
+    for (const p of sample.procs)
+      if (canPause(p.name) && !throttled.has(p.pid)) {
+        actions.push({ kind: 'throttle', pid: p.pid, name: p.name });
+        throttled.add(p.pid);
+      }
+  const cpuRate = DIAL_CPU_RATE[step] ?? 100;
+  if (cpuRate !== prev.cpuRate) actions.push({ kind: 'cpu', percent: cpuRate });
+
+  // Turns: of the heavy compilers only so many go on; the rest wait, and who waits changes every ROTATE_MS.
+  const heavy = sample.procs.filter((p) => isHeavyCompiler(p.name)).sort((a, b) => a.pid - b.pid);
+  let allowed = compilersAllowed(step, heavy.length);
+  if (maxCompilers !== null) allowed = Math.min(allowed, Math.max(1, maxCompilers));
+  if (allowed < heavy.length) {
+    const turn = Math.floor(nowMs / ROTATE_MS) % heavy.length;
+    const order = [...heavy.slice(turn), ...heavy.slice(0, turn)];
+    for (const p of order.slice(allowed)) {
+      actions.push({ kind: 'hold', pid: p.pid, name: p.name, ms: HOLD_MS });
+      if (step >= 3 && !trimmed.has(p.pid)) {
+        actions.push({ kind: 'trim', pid: p.pid, name: p.name });
+        trimmed.add(p.pid);
       }
     }
-  }
+    for (const p of order.slice(0, allowed)) trimmed.delete(p.pid);
+  } else trimmed.clear();
 
-  let pausedUntil = prev.pausedUntil;
-  let nextPauseAt = prev.nextPauseAt;
-  if (pressure && samples >= PAUSE_AFTER && nowMs >= prev.nextPauseAt && nowMs >= prev.pausedUntil) {
-    const victim = [...sample.procs]
-      .filter((p) => canPause(p.name) && p.mb >= PAUSE_MIN_MB)
-      .sort((a, b) => b.mb - a.mb)[0];
-    if (victim) {
-      actions.push({ kind: 'pause', pid: victim.pid, name: victim.name, ms: PAUSE_MS });
-      pausedUntil = nowMs + PAUSE_MS;
-      nextPauseAt = pausedUntil + PAUSE_COOLDOWN_MS;
-    }
-  }
-
-  // Concurrency cap (vGPU profile): the oldest N heavy compilers run, the newer ones wait a few seconds at a time.
-  if (maxCompilers !== null) {
-    const heavy = sample.procs
-      .filter(
-        (p) =>
-          isHeavyCompiler(p.name) &&
-          !(nowMs < pausedUntil && actions.some((a) => a.kind === 'pause' && a.pid === p.pid)),
-      )
-      .sort((a, b) => a.pid - b.pid);
-    for (const p of heavy.slice(Math.max(1, maxCompilers)))
-      actions.push({ kind: 'hold', pid: p.pid, name: p.name, ms: HOLD_MS });
-  }
-
-  const level: Level = nowMs < pausedUntil ? 'suspending' : pressure ? 'throttled' : 'ok';
+  const level: Level = step >= 3 ? 'suspending' : step >= 1 ? 'throttled' : 'ok';
   return {
-    state: { pressure, calm, samples, lowered, pausedUntil, nextPauseAt, hostUntil: prev.hostUntil },
+    state: {
+      step,
+      calm,
+      lowered,
+      memLow: [...memLow],
+      throttled: [...throttled],
+      trimmed: [...trimmed],
+      cpuRate,
+      lastCommitMb: usedMb,
+      lastAt: nowMs,
+      hostUntil: prev.hostUntil,
+      hostStep: prev.hostStep,
+    },
     actions,
     level,
     ramFreePercent: Math.round(ramFree),

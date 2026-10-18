@@ -20,7 +20,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { spotlight } from '@mantine/spotlight';
 import { IconBox, IconMoon, IconSearch, IconSun } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import { NAV } from '../../../src/app/features/defs';
+import { NAV, navViews, type NavSection, type ViewId } from '../../../src/app/features/defs';
 import { navigate, viewPath } from '../router';
 import { AREA_ICONS } from '../render/icons';
 import { CommandPalette } from './CommandPalette';
@@ -90,30 +90,49 @@ function SearchButton() {
 }
 
 function Navigation({ active, onPick }: { readonly active?: string; readonly onPick: () => void }) {
-  const here = NAV.filter((s) => s.view);
-  const later = NAV.filter((s) => !s.view);
+  const here = NAV.filter((s) => s.view || s.children?.length);
+  const later = NAV.filter((s) => !s.view && !s.children?.length);
+  /**
+   * One entry: a link to its view, or a parent whose children are links under it (open when one of them is shown).
+   * Areas have an icon; the entries under a parent do not (the parent's icon is their group).
+   */
+  const renderSection = (section: NavSection, nested = false): ReactNode => {
+    const Picture = AREA_ICONS[section.label] ?? IconBox;
+    const icon = nested ? undefined : <Picture size={18} stroke={1.6} />;
+    if (section.children?.length)
+      return (
+        <NavLink
+          key={section.label}
+          label={section.label}
+          leftSection={icon}
+          childrenOffset={28}
+          defaultOpened={navViews(section.children).includes(active as ViewId)}
+          style={{ borderRadius: 'var(--mantine-radius-md)' }}
+        >
+          {section.children.map((child) => renderSection(child, true))}
+        </NavLink>
+      );
+    const view = section.view as string;
+    return (
+      <NavLink
+        key={section.label}
+        label={section.label}
+        leftSection={icon}
+        active={view === active}
+        href={viewPath(view)}
+        style={{ borderRadius: 'var(--mantine-radius-md)' }}
+        onClick={(e) => {
+          e.preventDefault();
+          onPick();
+          navigate(viewPath(view));
+        }}
+      />
+    );
+  };
   return (
     <Stack gap={2}>
       <div className="nav-group-label">Workspace</div>
-      {here.map((section) => {
-        const Picture = AREA_ICONS[section.label] ?? IconBox;
-        const view = section.view as string;
-        return (
-          <NavLink
-            key={section.label}
-            label={section.label}
-            leftSection={<Picture size={18} stroke={1.6} />}
-            active={view === active}
-            href={viewPath(view)}
-            style={{ borderRadius: 'var(--mantine-radius-md)' }}
-            onClick={(e) => {
-              e.preventDefault();
-              onPick();
-              navigate(viewPath(view));
-            }}
-          />
-        );
-      })}
+      {here.map((section) => renderSection(section))}
       {later.length > 0 && (
         <>
           <div className="nav-group-label">In the terminal menu</div>

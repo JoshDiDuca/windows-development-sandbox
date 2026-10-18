@@ -21,10 +21,11 @@ special-case a view id in `web/`.
 | `Section.facts` | a status: label and value | tiles; a `tone` adds a coloured dot | label: value lines |
 | `Fact.meter` | how full something is (memory, disk) | a bar under the value | the value text |
 | `Item.icon` | an agent's name (`claude`), or `project`, `folder`, `database`, `session` | an avatar or icon | nothing |
+| `Item.keys` | words about the menu's keys ("x deletes it.", "Enter shows ...") | nothing (the web has buttons) | after the description |
 | `Item.code` | the name in files and commands (a setting's key) | small monospace under the label | nothing |
 | `Item.badges` | short states (`running`, `changed`, `beta`) | pills | the hint says it |
 | `Item.marked` | "the one this is about" (this folder's project) | a "this folder" badge | `*` |
-| `OperationAction.inline` | an action with ONE field that is a value to change (a setting) | the control in the row, saved at once | its editor |
+| `OperationAction.inline` | an action with ONE field that is a value to change (a setting, an app on or off) | the control in place (rows, cards and category pages), saved at once | its editor |
 | `Action.verb` | the first word picks the button's icon (start, stop, restart, open, edit, reset, remove, show, hide, add, new) | an icon | the key bar word |
 | `Action.description` | what a button does, when the label is not enough | a tooltip | the details pane |
 | `Page.empty` | what the page shows with nothing in it, and the next step | a centred card with a button | text and the command |

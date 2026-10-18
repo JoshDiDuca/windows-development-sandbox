@@ -60,7 +60,11 @@ export function useQueryData(def: QueryDef, input: unknown): QueryData {
 
 /** How an action ended: done (with the operation's words), or failed (with what to do), or backed out of. */
 export type Outcome =
-  | { readonly ok: true; readonly text: string }
+  | {
+      readonly ok: true;
+      readonly text: string;
+      /** What the operation returned (checked by its output schema). */ readonly output: unknown;
+    }
   | { readonly ok: false; readonly message: string; readonly fix?: string }
   | { readonly ok: false; readonly cancelled: true; readonly message: string };
 
@@ -109,7 +113,7 @@ export function useRunAction(): (
         };
         if (shown) notifications.update(result);
         else notifications.show(result);
-        return { ok: true, text };
+        return { ok: true, text, output };
       } catch (e) {
         if (shown) notifications.hide(id);
         if (e instanceof Cancelled) return { ok: false, cancelled: true, message: 'Cancelled.' };

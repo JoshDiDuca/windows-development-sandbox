@@ -171,10 +171,48 @@ export const githubSuite: Suite = {
       pcLanguages: [],
       githubToken: FINE,
     });
-    const strictHanded = f.readJson(runDir.secretFile(strictLaunch.launchId)) as SecretsFile;
+    const handedTo = (id: string): SecretsFile =>
+      fs.existsSync(runDir.secretFile(id)) ? (f.readJson(runDir.secretFile(id)) as SecretsFile) : {};
     t.check(
-      strictHanded.githubToken === undefined,
+      handedTo(strictLaunch.launchId).githubToken === undefined,
       'generateSandbox checks again: a readonly sandbox never gets it, whatever it was given',
+    );
+    clearSecrets(config.storage.root, run.dataPath);
+    const plain = generateSandbox({
+      packageRoot: t.packageRoot,
+      run: await f.run({ noAgent: true }, config),
+      harnessArgs: [],
+      probe: f.probe,
+      pcLanguages: [],
+      githubToken: FINE,
+    });
+    t.check(
+      handedTo(plain.launchId).githubToken === FINE,
+      'a sandbox without an agent (no other secret to hand over) still gets the one-shot file with the token',
+    );
+    clearSecrets(config.storage.root, run.dataPath);
+    const strictOther = structuredClone(config);
+    strictOther.provisioning.git.access = 'readonly';
+    const others = [{ name: 'other-project', config: strictOther }];
+    const held = prepareGithubToken(config, config.storage.root, tokens, others);
+    t.check(
+      held.token === undefined &&
+        !githubTokenAllowed(config, others) &&
+        held.notes.some((n) => n.includes('other-project')),
+      'another project mapped at boot with readonly git access holds the token back, and the note names it',
+    );
+    const withOther = generateSandbox({
+      packageRoot: t.packageRoot,
+      run: await f.run({ noAgent: true }, config),
+      harnessArgs: [],
+      probe: f.probe,
+      pcLanguages: [],
+      githubToken: FINE,
+      bootWants: { projects: others, keepOff: [] },
+    });
+    t.check(
+      handedTo(withOther.launchId).githubToken === undefined,
+      'and generateSandbox checks the projects at boot again',
     );
     clearSecrets(config.storage.root, run.dataPath);
 

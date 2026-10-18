@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { ghLoginCommand, ghOutputText, ghSetupGitCommand, type GhCommand } from '../../shared/github/index.js';
-import { deliveredGhConfigDir, ghExePath } from '../toolchains/tools/cli.js';
+import { deliveredGhConfigDir, ghConfigDir, ghExePath } from '../toolchains/tools/cli.js';
+import { addMachineEnvironment } from './environment.js';
 import { dryRun } from '../runtime/paths.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log } from '../runtime/log.js';
@@ -48,10 +49,20 @@ export function loginGithub(token: string, env: NodeJS.ProcessEnv): void {
   const gh = ghExePath();
   const dir = deliveredGhConfigDir();
   if (!exists(gh) || env.GH_CONFIG_DIR !== dir) {
+    // Gone again, so gh set up later (a project added afterwards) keeps the login you make in the sandbox.
+    fs.rmSync(dir, { recursive: true, force: true });
     log('A GitHub token arrived, but gh is not set up in this sandbox (toolchains.cli.gh), so it is not used.');
     return;
   }
-  runGh(ghLoginCommand(gh, dir, token, env), token, 'gh auth login');
-  runGh(ghSetupGitCommand(gh, dir, env), token, 'gh auth setup-git');
+  try {
+    runGh(ghLoginCommand(gh, dir, token, env), token, 'gh auth login');
+    runGh(ghSetupGitCommand(gh, dir, env), token, 'gh auth setup-git');
+  } catch (e) {
+    // gh goes back to the persistent folder (and a `gh auth login` you make inside is kept), for every session.
+    fs.rmSync(dir, { recursive: true, force: true });
+    env.GH_CONFIG_DIR = mkdirp(ghConfigDir());
+    addMachineEnvironment({ GH_CONFIG_DIR: env.GH_CONFIG_DIR }, []);
+    throw e;
+  }
   log('gh and https git to github.com use the GitHub token from your PC (github.shareToken); the agent can read it.');
 }

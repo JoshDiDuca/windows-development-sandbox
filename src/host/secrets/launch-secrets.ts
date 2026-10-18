@@ -15,7 +15,8 @@ export function writeSecrets(dataPath: string, id: string, secrets: SecretsFile)
     !Object.keys(secrets.projectHarnessEnvironment ?? {}).length &&
     !secrets.claudeCredentials &&
     !secrets.vpn &&
-    !secrets.wireguardConfig;
+    !secrets.wireguardConfig &&
+    !secrets.githubToken;
   if (empty) return null;
   const run = new RunDir(dataPath);
   assertNoLinks(dataPath, run.secretsDir);
@@ -26,7 +27,8 @@ export function writeSecrets(dataPath: string, id: string, secrets: SecretsFile)
 
 /**
  * Removes whatever one-shot files are left (the sandbox did not start, or did not get to read them) and, from older
- * versions, a login copy in a launch folder. Called before a launch writes new ones and when the sandbox stops.
+ * versions, a login copy in a launch folder. Called before a launch writes new ones, and when a launch fails before
+ * its sandbox starts.
  */
 export function clearSecrets(storageRoot: string, dataPath: string): number {
   let removed = 0;

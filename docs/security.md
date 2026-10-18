@@ -173,8 +173,13 @@ turn on `github.shareToken`. What is shared, and how:
 - In the sandbox `gh auth login --with-token` reads it on stdin, into a gh folder on the sandbox's own disk (wiped with
   the sandbox; not the persistent `C:\AgentData\state\gh` other sandboxes and projects share), and `gh auth setup-git`
   makes https git use it.
+  It is also held back when any other project mapped into the sandbox at boot has git access `readonly` or `none`.
 - **The agent can read it** (it can run `gh auth token`) and use it for everything the token allows, as long as the
   token is valid. Revoke it on GitHub when you no longer need it; `sandbox github logout` deletes it from this PC.
+- If you share your running sandbox with another Windows user, their sessions in it can use your token too. Their own
+  launches never get it.
+- gh itself lives in the shared tools folder (`C:\AgentData\tools`), which sandboxes using the same data folder can
+  write, like the node and git that already see the Claude login. Keep untrusted projects in a data folder of their own.
 
 `ssh` comes with Git, but no keys are copied in and your LAN is blocked, so deploys stay on your PC.
 

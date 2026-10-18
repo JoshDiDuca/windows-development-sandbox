@@ -16,6 +16,7 @@ import { findSecretFiles } from '../../../host/profile/index.js';
 import { RepoGuardStore } from '../../../host/guard/index.js';
 import { hostPublicIp, prepareVpn, readVpnLine, vpnNotes } from '../../../host/vpn/index.js';
 import { prepareGithubToken } from '../../../host/github/index.js';
+import { clearSecrets } from '../../../host/secrets/index.js';
 import {
   assertCanLaunch,
   isSandboxRunning,
@@ -222,7 +223,9 @@ class Launcher {
           base: run.workspaceHost,
         });
     // github.shareToken: the saved token, read only for this launch's one-shot file (a note says when it is not).
-    const github = generateOnly ? null : prepareGithubToken(config, ctx.storageRoot);
+    const github = generateOnly
+      ? null
+      : prepareGithubToken(config, ctx.storageRoot, undefined, bootWants.wants.projects);
     // This PC's commit (RAM plus paging file) bounds the sandbox's memory as much as free RAM does.
     const hostMemory = generateOnly ? null : readHostMemory(ctx.storageRoot);
     const generated: GeneratedSandbox = generateSandbox(
@@ -255,10 +258,17 @@ class Launcher {
     table(launchSummary(run, generated, prepared));
     if (generateOnly) return 0;
     // A restart or sandbox resume reopens sessions itself (they pass the projects they keep).
-    const reopen = extras.extraProjects ? [] : await sessionsToResume(ctx, run);
-    this.record(run, generated);
-    this.share(generated);
-    await engine.start(generated.enginePlan);
+    let reopen: Awaited<ReturnType<typeof sessionsToResume>>;
+    try {
+      reopen = extras.extraProjects ? [] : await sessionsToResume(ctx, run);
+      this.record(run, generated);
+      this.share(generated);
+      await engine.start(generated.enginePlan);
+    } catch (e) {
+      // No sandbox will read the one-shot file (logins, the GitHub token): it does not wait for the next launch.
+      clearSecrets(ctx.storageRoot, run.dataPath);
+      throw e;
+    }
     this.startWatcher();
     await startWebOnLaunch(this.ctx);
     if (reopen.length) await this.reopenAfterBoot(generated.launchId, reopen);

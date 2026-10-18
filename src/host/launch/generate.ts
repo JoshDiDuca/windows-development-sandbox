@@ -123,8 +123,8 @@ export function generateSandbox(
     ...(claudeCredentials ? { claudeCredentials } : {}),
     ...(o.vpn?.credentials ? { vpn: o.vpn.credentials } : {}),
     ...(o.vpn?.wireguardConfig ? { wireguardConfig: o.vpn.wireguardConfig } : {}),
-    // Checked again on the config the sandbox boots with: never to a sandbox whose git access is not "full".
-    ...(o.githubToken && githubTokenAllowed(config) ? { githubToken: o.githubToken } : {}),
+    // Checked again on the configs the sandbox boots with: never when a project in it has git access below "full".
+    ...(o.githubToken && githubTokenAllowed(config, others) ? { githubToken: o.githubToken } : {}),
   });
   fs.writeFileSync(path.join(launchPath, 'env.cmd'), logonEnv(session.workspace), 'utf8');
   copyRuntime(o.packageRoot, launchPath);

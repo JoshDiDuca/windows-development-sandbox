@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.11.5
 
 - **Nothing is left running.** When an agent session ends (it exits, or is restarted), everything it started that is
   still running ends with it, including background programs whose parent had already exited (shared services such as

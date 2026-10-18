@@ -13,5 +13,6 @@ export {
 export { type Endpoint, connect, sendControl, type Viewers, queryViewers } from './client.js';
 export { type ClientResult, MOUSE_OFF, fixWindowsKeys, runTerminalClient } from './terminal.js';
 export { JOIN_MS, InputJoiner } from './input-joiner.js';
+export { CTRL_C_CONFIRM_MS, CTRL_C_HINT, CtrlCGuard } from './ctrl-c.js';
 export { type VtInput, enableVtInput } from './console-input.js';
 export { OutputFilter } from './output-filter.js';

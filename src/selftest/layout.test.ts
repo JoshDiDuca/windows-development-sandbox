@@ -32,6 +32,8 @@ const PURE_GUEST = [
   'guest/setup/path-plan.js',
   'guest/toolchains/catalogue.js',
   'guest/toolchains/tools/vscode-profile.js',
+  'guest/governor/decide.js',
+  'guest/governor/core.js',
 ];
 const SIDE_EFFECTS = ['guest/runtime/session.js', 'guest/runtime/log.js'];
 
@@ -128,6 +130,17 @@ export const layoutSuite: Suite = {
         .map((d) => f + ' -> ' + d),
     );
     t.check(!intoGuest.length, 'host, cli, core, sync and shared import no guest file', list(intoGuest));
+
+    // The self-test runs outside a sandbox too (GitHub Actions): no test may load the guest runtime, which reads
+    // C:\AgentLaunch\session.json and creates the log folder on import.
+    const testsIntoRuntime = files
+      .filter((f) => area(f) === 'selftest')
+      .flatMap((f) => [...closure(modules, f)].filter((d) => SIDE_EFFECTS.includes(d)).map((d) => f + ' -> ' + d));
+    t.check(
+      !testsIntoRuntime.length,
+      'no test loads the guest runtime (session.json, log folder), so the self-test runs outside a sandbox',
+      list(testsIntoRuntime),
+    );
 
     t.section('pure guest files');
     for (const pure of PURE_GUEST) {

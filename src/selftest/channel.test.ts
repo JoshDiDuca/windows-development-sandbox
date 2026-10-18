@@ -4,6 +4,9 @@ import { safeId } from '../shared/channel/index.js';
 import { GuestRequestSchema, SandboxStatusSchema, SessionStatusSchema } from '../shared/channel/index.js';
 import { bootLine, firstStartNotice, pendingDownloads, readyIn, stillWorking } from '../cli/commands/launch/index.js';
 import {
+  CTRL_C_CONFIRM_MS,
+  CTRL_C_HINT,
+  CtrlCGuard,
   encodeFrame,
   FrameReader,
   FrameType,
@@ -201,6 +204,30 @@ export const channelSuite: Suite = {
       fixWindowsKeys(Buffer.from([0x61, 0x08, 0x7f, 0x1b])),
       Buffer.from([0x61, 0x7f, 0x08, 0x1b]),
       'Windows console Backspace (^H) reaches the agent as DEL, so it deletes one character, not a word',
+    );
+
+    t.section('Ctrl+C meant as "copy" does not reach the agent');
+    const ctrlC = Buffer.from([3]);
+    const g = new CtrlCGuard();
+    const first = g.push(ctrlC, 1000);
+    const second = g.push(ctrlC, 1000 + CTRL_C_CONFIRM_MS - 1);
+    const third = g.push(ctrlC, 5000);
+    const late = g.push(ctrlC, 5000 + CTRL_C_CONFIRM_MS + 1);
+    t.check(
+      first.held &&
+        first.send.length === 0 &&
+        !second.held &&
+        second.send.equals(ctrlC) &&
+        third.held &&
+        late.held &&
+        !g.push(Buffer.from('a\x03'), 6000).held &&
+        !g.push(Buffer.from('x'), 6000).held,
+      'a lone Ctrl+C is held back, a second one soon after is sent, a late second one is held again, other input passes',
+    );
+    g.watchOutput('\x1b]0;claude: working\x07more \x1b]2;\u0001evil\x07');
+    t.check(
+      g.hintTitle().includes(CTRL_C_HINT) && g.restoreTitle() === '\x1b]0;evil\x07',
+      "the hint shows in the title, and the program's last title comes back without control characters",
     );
 
     t.section('typed input keeps escape sequences whole');

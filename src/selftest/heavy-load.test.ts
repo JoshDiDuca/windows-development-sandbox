@@ -48,18 +48,18 @@ import {
   type HostMemory,
   type StopEvent,
 } from '../host/life/index.js';
+// The pure governor files only: governor.ts loads the guest runtime (session.json), which exists only in a sandbox.
 import {
   canLower,
   canPause,
   decide,
-  GovernorCore,
   INITIAL_STATE,
   ROTATE_MS,
   type Action,
-  type GovernorPort,
   type MemSample,
   type ProcSample,
-} from '../guest/governor/index.js';
+} from '../guest/governor/decide.js';
+import { GovernorCore, type GovernorPort } from '../guest/governor/core.js';
 import type { Suite } from './support/suite.js';
 
 const GB = 1024;
@@ -397,6 +397,7 @@ export const heavyLoadSuite: Suite = {
       now: () => clock,
       logLine: (l) => logs.push(l),
       saveStatus: (s) => statuses.push(s),
+      warn: (line) => logs.push(line),
     });
     for (let i = 0; i < 4; i++) {
       clock = i * 2000;

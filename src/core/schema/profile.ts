@@ -37,6 +37,11 @@ export const AttachSchema = z.strictObject({
     .describe(
       'Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (sandbox show brings it back).',
     ),
+  confirmCtrlC: z
+    .boolean()
+    .describe(
+      'In an attached terminal and the sandbox window, a single Ctrl+C is held back (the title says so) and only a second one within 1.5 seconds reaches the agent: a Ctrl+C meant as "copy" no longer stops it. Esc still stops an agent.',
+    ),
 });
 export const AgentCommandsSchema = z.strictObject({
   enabled: z

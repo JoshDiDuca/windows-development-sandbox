@@ -70,7 +70,10 @@ export async function findUnwatchedSession(
 }
 
 /** Bridges this terminal to a session. Returns the agent's exit code, or 0 when the user detaches. */
-export async function attachTerminal(session: SessionStatus, o: { clipboardWrites?: boolean } = {}): Promise<number> {
+export async function attachTerminal(
+  session: SessionStatus,
+  o: { clipboardWrites?: boolean; confirmCtrlC?: boolean } = {},
+): Promise<number> {
   if (!process.stdin.isTTY || !process.stdout.isTTY)
     fail(
       '--terminal / attach needs an interactive terminal.',
@@ -103,6 +106,7 @@ export async function attachTerminal(session: SessionStatus, o: { clipboardWrite
   const result = await runTerminalClient(socket, session.attach.token, {
     detachKey: DETACH_KEY,
     clipboardWrites: o.clipboardWrites,
+    confirmCtrlC: o.confirmCtrlC,
   });
   switch (result.reason) {
     case 'detach':

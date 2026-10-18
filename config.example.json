@@ -218,7 +218,8 @@
     "enabled": true,
     "reuseSession": true,
     "auto": false,
-    "autoHide": false
+    "autoHide": false,
+    "confirmCtrlC": true
   },
   "web": {
     "enabled": false,

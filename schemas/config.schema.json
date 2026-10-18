@@ -1227,6 +1227,10 @@
         "autoHide": {
           "type": "boolean",
           "description": "Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (sandbox show brings it back)."
+        },
+        "confirmCtrlC": {
+          "type": "boolean",
+          "description": "In an attached terminal and the sandbox window, a single Ctrl+C is held back (the title says so) and only a second one within 1.5 seconds reaches the agent: a Ctrl+C meant as \"copy\" no longer stops it. Esc still stops an agent."
         }
       },
       "additionalProperties": false

@@ -11,6 +11,7 @@ import {
 import { OutputFilter } from './output-filter.js';
 import { enableVtInput } from './console-input.js';
 import { InputJoiner, JOIN_MS } from './input-joiner.js';
+import { CTRL_C_CONFIRM_MS, CtrlCGuard } from './ctrl-c.js';
 
 export type ClientResult =
   { reason: 'exit'; exitCode: number } | { reason: 'detach' | 'closed' } | { reason: 'error'; message: string };
@@ -38,7 +39,8 @@ export function runTerminalClient(
   socket: net.Socket,
   token: string,
   /** clipboardWrites: the agent's "copy" (OSC 52) reaches the clipboard; see OutputFilterOptions. */
-  options: { detachKey?: number; clipboardWrites?: boolean } = {},
+  /** confirmCtrlC: a lone Ctrl+C is held back until it is pressed again (CtrlCGuard, attach.confirmCtrlC). */
+  options: { detachKey?: number; clipboardWrites?: boolean; confirmCtrlC?: boolean } = {},
 ): Promise<ClientResult> {
   const stdin = process.stdin;
   const stdout = process.stdout;
@@ -67,6 +69,7 @@ export function runTerminalClient(
       clearInterval(heartbeat);
       clearInterval(sizeWatch);
       clearTimeout(joinTimer);
+      clearTimeout(hintTimer);
       socket.destroy();
       // The agent's mouse tracking ends with it: your terminal's wheel scrolls again (and clicks select text).
       stdout.write('\x1b[0m\x1b[?25h' + MOUSE_OFF + '\r\n');
@@ -82,10 +85,22 @@ export function runTerminalClient(
     const sendInput = (data: Buffer): void => {
       if (data.length && !done) socket.write(encodeFrame(FrameType.Input, swapKeys ? fixWindowsKeys(data) : data));
     };
+    const guard = options.confirmCtrlC ? new CtrlCGuard() : null;
+    let hintTimer: NodeJS.Timeout | undefined;
     const onInput = (chunk: Buffer): void => {
       if (options.detachKey !== undefined && chunk.includes(options.detachKey)) {
         finish({ reason: 'detach' });
         return;
+      }
+      if (guard) {
+        const decided = guard.push(chunk, Date.now());
+        clearTimeout(hintTimer);
+        if (decided.held) {
+          stdout.write(guard.hintTitle());
+          hintTimer = setTimeout(() => stdout.write(guard.restoreTitle()), CTRL_C_CONFIRM_MS);
+          return;
+        }
+        if (decided.send.length === 1 && decided.send[0] === 0x03) stdout.write(guard.restoreTitle());
       }
       clearTimeout(joinTimer);
       sendInput(joiner.push(chunk));
@@ -126,8 +141,11 @@ export function runTerminalClient(
         return;
       }
       for (const frame of frames) {
-        if (frame.type === FrameType.Output) stdout.write(filter.push(frame.payload));
-        else if (frame.type === FrameType.Console) passthrough = frame.payload.toString('latin1') === 'conpty.dll';
+        if (frame.type === FrameType.Output) {
+          const out = filter.push(frame.payload);
+          guard?.watchOutput(out.toString('latin1'));
+          stdout.write(out);
+        } else if (frame.type === FrameType.Console) passthrough = frame.payload.toString('latin1') === 'conpty.dll';
         else if (frame.type === FrameType.Restarting) stdout.write(MOUSE_OFF + '\x1b[2J\x1b[3J\x1b[H');
         else if (frame.type === FrameType.Exit)
           finish({ reason: 'exit', exitCode: frame.payload.length >= 4 ? frame.payload.readInt32LE(0) : 1 });

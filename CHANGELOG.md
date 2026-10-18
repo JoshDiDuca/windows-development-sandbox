@@ -7,6 +7,14 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.11.2
+
+- Ctrl+C meant as "copy" no longer stops the agent: in an attached terminal and the sandbox window a single Ctrl+C is
+  held back (the window title says so) and a second one within 1.5 seconds sends it. Esc still stops an agent. Turn it
+  off with `attach.confirmCtrlC: false`. In the web terminal, Ctrl+C with text selected copies it.
+- The self-test runs outside a sandbox again (the GitHub Actions HCS test failed at its first step): no test loads the
+  sandbox's own runtime any more, and the `layout` suite checks it.
+
 ## 1.11.1
 
 - The menu no longer closes when an action fails: the problem is shown where you chose it (for example when an option

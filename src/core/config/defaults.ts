@@ -95,7 +95,7 @@ export const DEFAULTS: Config = {
     dynamodb: { enabled: 'auto', port: 8000, adminPort: 8001, admin: true },
     sqlserver: { enabled: 'auto' },
   },
-  attach: { enabled: true, reuseSession: true, auto: false, autoHide: false },
+  attach: { enabled: true, reuseSession: true, auto: false, autoHide: false, confirmCtrlC: true },
   web: { enabled: false, port: 47800, openOnLaunch: false },
   agentCommands: { enabled: false, agents: 'auto' },
   secrets: { strip: true, allow: [], patterns: [], warnFiles: true },

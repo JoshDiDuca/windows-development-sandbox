@@ -108,6 +108,14 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = '11';
     term.open(element);
+    // Ctrl+C with text selected copies it, as everywhere else; without a selection it reaches the program.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown' || !e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'c') return true;
+      if (!term.hasSelection()) return true;
+      void navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined);
+      term.clearSelection();
+      return false;
+    });
     terminal.current = term;
     search.current = finder;
     fit.current = fitter;

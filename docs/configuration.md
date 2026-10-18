@@ -44,6 +44,7 @@ Commonly changed:
 | `agentCommands.agents` | `"auto"` = every agent installed on this PC, or a list such as `["claude", "codex"]` |
 | `web.enabled`, `web.port`, `web.openOnLaunch` | **(Beta)** the web UI ([web-ui.md](web-ui.md)) on `127.0.0.1:<port>` (default `47800`, this PC only); off by default and not settable from a project. With `web.enabled` on, every sandbox start also starts it in the background (it keeps running until `sandbox web stop`); with `web.openOnLaunch` on too, your browser opens it already signed in. `sandbox web start` / `open` work either way. The address alone does not sign you in: open it with `sandbox web open` (or `web.openOnLaunch`) |
 | `attach.autoHide` | the sandbox window hides whenever this terminal attaches (`sandbox show` brings it back) |
+| `attach.confirmCtrlC` | on (default): a single Ctrl+C in an attached terminal or the sandbox window is held back (the title says so) and only a second one within 1.5 s reaches the agent, so a Ctrl+C meant as "copy" no longer stops it; Esc still stops an agent. In the web terminal, Ctrl+C with text selected copies it |
 | `provisioning.git.access` | `full`, `readonly` or `none` |
 | `secrets.allow`, `secrets.patterns` | let named variables through, or strip more |
 | `downloads.requireChecksum` | `true` refuses toolchain, database and tool downloads that have no published checksum (default `false`; downloads that have one are always verified) |

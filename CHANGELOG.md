@@ -7,6 +7,15 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.11.6
+
+- **Web terminal: no more blinking and bouncing.** It resizes once the window has settled instead of on every layout
+  change (each resize repainted the screen for every viewer), and it takes over the session's size when you come back
+  to it, so it is no longer drawn at the sandbox window's size.
+- **Web UI redesign, first steps:** a compact, calmer look (smaller type, quieter colours, 32 px controls), status facts
+  in one divided card, one navigation style for the sidebar and Settings, add buttons beside their section title.
+- Fixed: pages could fail with "That id is in use" when they opened (the Sandbox page did every time).
+
 ## 1.11.5
 
 - **Nothing is left running.** When an agent session ends (it exits, or is restarted), everything it started that is

@@ -189,7 +189,7 @@ jobs:
           $md.Add('')
           $md.Add('| Step | Result | Notes |')
           $md.Add('| --- | --- | --- |')
-          foreach ($r in $rows) { $md.Add('| {0} | {1} | {2} |' -f $r[0], (Mark (Outcome $r[1])), $r[2]) }
+          foreach ($r in $rows) { $md.Add(('| {0} | {1} | {2} |' -f $r[0], (Mark (Outcome $r[1])), $r[2])) }
           $md.Add('')
           $md.Add('### Isolation tested')
           $hv = Outcome 'lifecycle'
@@ -209,7 +209,7 @@ jobs:
             foreach ($step in @(Get-Content -Raw "$env:LOGS\lifecycle.json" | ConvertFrom-Json)) {
               $msg = ([string]$step.message -replace '[|\r\n]', ' ')
               if ($msg.Length -gt 300) { $msg = $msg.Substring(0, 300) }
-              $md.Add('| {0} | {1} | {2} | {3} |' -f $step.name, $(if ($step.ok) { 'PASS' } else { 'FAIL' }), $step.required, $msg)
+              $md.Add(('| {0} | {1} | {2} | {3} |' -f $step.name, $(if ($step.ok) { 'PASS' } else { 'FAIL' }), $step.required, $msg))
             }
           }
           $md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY

@@ -64,7 +64,13 @@ export const theme = createTheme({
     Badge: Badge.extend({ defaultProps: { radius: 'sm', variant: 'light', tt: 'none', fw: 600 } }),
     Tooltip: Tooltip.extend({ defaultProps: { withArrow: true, openDelay: 300, multiline: true, maw: 320 } }),
     Modal: Modal.extend({
-      defaultProps: { radius: 'lg', centered: true, overlayProps: { blur: 2, backgroundOpacity: 0.45 } },
+      defaultProps: {
+        radius: 'lg',
+        centered: true,
+        padding: 'lg',
+        overlayProps: { blur: 2, backgroundOpacity: 0.45 },
+        styles: { title: { fontWeight: 650, fontSize: 'var(--mantine-font-size-md)' } },
+      },
     }),
     Menu: Menu.extend({ defaultProps: { radius: 'md', shadow: 'md', withinPortal: true } }),
     NavLink: NavLink.extend({ defaultProps: { variant: 'light' } }),

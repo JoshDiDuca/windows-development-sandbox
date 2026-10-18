@@ -3,6 +3,8 @@
 // menu's editors read (app/kernel/fields.ts).
 import {
   ActionIcon,
+  Button,
+  Card,
   Group,
   JsonInput,
   MultiSelect,
@@ -12,10 +14,11 @@ import {
   Stack,
   Switch,
   TagsInput,
+  Text,
   TextInput,
   Tooltip,
 } from '@mantine/core';
-import { IconFolderOpen } from '@tabler/icons-react';
+import { IconFolderOpen, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useState } from 'react';
 import type { ChoiceValue, Field } from '../../../src/app/kernel/index';
 import { pickPath } from './FolderPicker';
@@ -82,13 +85,94 @@ export function BrowseButton({
     <Tooltip label={kind === 'file' ? 'Choose a file' : 'Choose a folder'}>
       <ActionIcon
         variant="default"
-        size={36}
+        size={32}
         aria-label="Browse"
         onClick={() => void pickPath(kind, value, field.label).then((picked) => picked && onPick(picked))}
       >
         <IconFolderOpen size={18} stroke={1.6} />
       </ActionIcon>
     </Tooltip>
+  );
+}
+
+/** An object's fields, one input each (an entry of a list, or a setting made of a few values). */
+function ObjectFields({ field, value, onChange }: FieldInputProps) {
+  const current = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  return (
+    <Stack gap="xs">
+      {(field.fields ?? []).map((sub) => (
+        <FieldInput
+          key={sub.name}
+          field={sub}
+          value={current[sub.name]}
+          onChange={(next) => {
+            const copy = { ...current };
+            if (next === undefined || next === '') delete copy[sub.name];
+            else copy[sub.name] = next;
+            onChange(copy);
+          }}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+/** A list of objects (extra folders: a folder, where it appears, read-only): each entry a small card, Add and Remove. */
+function ObjectListInput({ field, value, onChange, error }: FieldInputProps) {
+  const entries = Array.isArray(value) ? (value as unknown[]) : [];
+  const element = field.element!;
+  const set = (next: unknown[]): void => onChange(next);
+  return (
+    <Stack gap="xs">
+      <div>
+        <Text size="sm" fw={500}>
+          {field.label}
+        </Text>
+        {field.help && (
+          <Text size="xs" c="dimmed">
+            {field.help}
+          </Text>
+        )}
+      </div>
+      {entries.length === 0 && (
+        <Text size="sm" c="dimmed" fs="italic">
+          None yet.
+        </Text>
+      )}
+      {entries.map((entry, i) => (
+        <Card key={i} padding="sm" withBorder>
+          <Group justify="space-between" align="center" mb={6}>
+            <Text size="xs" c="dimmed" fw={500}>
+              {element.label} {i + 1}
+            </Text>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              color="red"
+              leftSection={<IconTrash size={13} />}
+              onClick={() => set(entries.filter((_, j) => j !== i))}
+            >
+              Remove
+            </Button>
+          </Group>
+          <ObjectFields
+            field={element}
+            value={entry}
+            onChange={(next) => set(entries.map((e, j) => (j === i ? next : e)))}
+          />
+        </Card>
+      ))}
+      <Group>
+        <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => set([...entries, {}])}>
+          Add
+        </Button>
+      </Group>
+      {error && (
+        <Text size="xs" c="red">
+          {error}
+        </Text>
+      )}
+    </Stack>
   );
 }
 
@@ -162,7 +246,7 @@ export function FieldInput(props: FieldInputProps) {
           <TextInput
             {...common}
             style={{ flex: 1 }}
-            ff="monospace"
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
             placeholder={field.literals?.length ? field.literals.join(' or ') + ', or a path' : 'C:\\…'}
             value={typeof value === 'string' ? value : ''}
             onChange={(e) => onChange(e.currentTarget.value)}
@@ -201,8 +285,11 @@ export function FieldInput(props: FieldInputProps) {
           </Group>
         );
       if (field.element?.kind === 'text') return <TagsInput {...common} value={items} onChange={onChange} clearable />;
+      if (field.element?.kind === 'object' && field.element.fields?.length) return <ObjectListInput {...props} />;
       return <JsonFieldInput {...props} />;
     }
+    case 'object':
+      return field.fields?.length ? <ObjectFields {...props} /> : <JsonFieldInput {...props} />;
     default:
       return <JsonFieldInput {...props} />;
   }

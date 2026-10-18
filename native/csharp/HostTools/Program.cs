@@ -1,7 +1,8 @@
 // HostTools.exe: what the host side asks of Windows without PowerShell. Built on first use by host/native.ts (csc).
 //   keep-awake --owner-pid N    this PC stays awake until process N ends (sandbox.keepAwake)
 //   stop-events --since <iso>   the Windows events since then that can end a sandbox, as JSON (host/life)
-//   memory-status               this PC's RAM and commit (what a sandbox's memory is charged against), as JSON
+//   memory-status [--serve S]   this PC's RAM and commit (what a sandbox's memory is charged against), as JSON; with
+//                               --serve one line every S seconds until stdin closes
 //   hide-window --wait S        hides the sandbox window once it appears; prints the hidden handles as JSON
 //   show-window --handles a,b   shows those windows (else any sandbox window); prints how many
 //   user-path --add|--remove D  D first on, or off, your PATH; exit 3 when PATH would be too long
@@ -42,6 +43,11 @@ static class Program
                 Console.Out.Write(StopEventsJson(since));
                 return 0;
             case "memory-status":
+                int every;
+                if (args.Length >= 3 && args[1] == "--serve" && int.TryParse(args[2], out every) && every >= 1 && every <= 3600)
+                {
+                    return AgentSandbox.HostMemory.Serve(every);
+                }
                 try
                 {
                     Console.Out.Write(AgentSandbox.HostMemory.Json());

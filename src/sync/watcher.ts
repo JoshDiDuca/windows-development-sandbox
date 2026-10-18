@@ -20,6 +20,7 @@ import {
   cpuPercentBetween,
   KeepAwake,
   LifeRecord,
+  HostMemoryStream,
   readHostMemoryAsync,
   readLoadSettings,
   REQUEST_SECONDS,
@@ -111,6 +112,8 @@ export class Watcher {
   private views: ViewOptions[] = [];
   private stops: (() => void)[] = [];
   private watchdogTimer: NodeJS.Timeout | null = null;
+  /** This PC's memory, read by one long-running HostTools instead of a program per sample. */
+  private memoryStream: HostMemoryStream | null = null;
   private watchdog: WatchdogState = WATCHDOG_START;
   private watchdogBusy = false;
   private lastCpu: os.CpuInfo[] = os.cpus();
@@ -240,6 +243,8 @@ export class Watcher {
     });
     this.stops = [...viewStops, stopForwards, stopMarking];
     // Memory and CPU of this PC: when low, the sandbox is asked to slow its builds down (host/life/watchdog.ts).
+    this.memoryStream = new HostMemoryStream(storageRoot, WATCHDOG_MS / 1000);
+    this.memoryStream.start();
     this.watchdogTimer = setInterval(() => void this.watchHost(), WATCHDOG_MS);
     this.watchdogTimer.unref();
     // sandbox.keepAwake, and the life record that tells the next launch how this run ended (host/life).
@@ -252,7 +257,7 @@ export class Watcher {
     this.watchdogBusy = true;
     try {
       const settings = readLoadSettings(this.storageRoot, this.dataPath);
-      const memory = await readHostMemoryAsync(this.storageRoot);
+      const memory = this.memoryStream?.latest() ?? (await readHostMemoryAsync(this.storageRoot));
       const cpus = os.cpus();
       const cpuPercent = cpuPercentBetween(this.lastCpu, cpus);
       this.lastCpu = cpus;
@@ -361,6 +366,7 @@ export class Watcher {
   private stop(): void {
     this.awake?.stop();
     if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+    this.memoryStream?.stop();
     this.stops.forEach((stop) => stop());
     if (this.auditTimer) clearInterval(this.auditTimer);
     try {

@@ -2,7 +2,7 @@
 // memory-status reads it (built in <storage>\bin), else native\scripts\memory-status.ps1. Windows Sandbox takes its
 // memory from this PC as it goes (the setting is a ceiling, not a reservation), so what decides "slow or closed" is the
 // PC's commit limit (RAM plus paging files), not only free RAM.
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -50,6 +50,71 @@ export function readHostMemory(storageRoot: string): HostMemory | null {
   const { file, args } = command(storageRoot);
   const result = spawnSync(file, args, { encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS });
   return parseHostMemory(result.stdout || '');
+}
+
+/** A reading older than this is not used (the stream stopped answering): the watcher asks once instead. */
+const STREAM_FRESH_MS = 30000;
+/** A stream that ended is started again at most this often. */
+const STREAM_RESTART_MS = 60000;
+
+/**
+ * One long-running `HostTools memory-status --serve` for the watcher: a reading every `seconds`, instead of starting a
+ * program (and building a disk counter) for each one. Without HostTools.exe it does nothing and `latest()` stays null.
+ */
+export class HostMemoryStream {
+  private child: ChildProcess | null = null;
+  private last: { readonly at: number; readonly memory: HostMemory } | null = null;
+  private startedAt = 0;
+  private stopped = false;
+
+  constructor(
+    private readonly storageRoot: string,
+    private readonly seconds: number,
+  ) {}
+
+  start(): void {
+    if (!isWin || selfTestRunning() || this.stopped || this.child) return;
+    const tools = hostToolsExe(this.storageRoot);
+    if (!tools) return;
+    this.startedAt = Date.now();
+    try {
+      const child = spawn(tools, ['memory-status', '--serve', String(this.seconds)], {
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'ignore'],
+      });
+      this.child = child;
+      let buffer = '';
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        buffer = (buffer + chunk).slice(-16384);
+        let end: number;
+        while ((end = buffer.indexOf('\n')) >= 0) {
+          const memory = parseHostMemory(buffer.slice(0, end).trim());
+          buffer = buffer.slice(end + 1);
+          if (memory) this.last = { at: Date.now(), memory };
+        }
+      });
+      child.stdin.on('error', () => undefined);
+      child.on('error', () => (this.child = null));
+      child.on('exit', () => (this.child = null));
+    } catch {
+      // Could not start it: the watcher asks the old way.
+      this.child = null;
+    }
+  }
+
+  /** The newest reading while it is fresh; starts the stream again when it ended (at most once a minute). */
+  latest(): HostMemory | null {
+    if (!this.child && Date.now() - this.startedAt >= STREAM_RESTART_MS) this.start();
+    return this.last && Date.now() - this.last.at < STREAM_FRESH_MS ? this.last.memory : null;
+  }
+
+  /** Ends it (closing its input ends HostTools). */
+  stop(): void {
+    this.stopped = true;
+    this.child?.stdin?.end();
+    this.child = null;
+  }
 }
 
 /** The same without blocking: for the watcher, which must never wait on it. */

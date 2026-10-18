@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace AgentSandbox
@@ -108,16 +109,71 @@ namespace AgentSandbox
         {
             try
             {
-                using (PerformanceCounter counter = new PerformanceCounter("PhysicalDisk", "Current Disk Queue Length", "_Total", true))
+                // Made once and kept: creating a performance counter costs far more than reading one.
+                if (diskCounter == null && !noDiskCounter)
                 {
-                    return ",\"diskQueue\":" + Math.Round(counter.NextValue()).ToString("0", CultureInfo.InvariantCulture);
+                    diskCounter = new PerformanceCounter("PhysicalDisk", "Current Disk Queue Length", "_Total", true);
                 }
+                if (diskCounter == null)
+                {
+                    return "";
+                }
+                return ",\"diskQueue\":" + Math.Round(diskCounter.NextValue()).ToString("0", CultureInfo.InvariantCulture);
             }
             catch (Exception)
             {
                 // No performance counters on this PC: the watchdog then looks at memory and CPU only.
+                noDiskCounter = true;
+                diskCounter = null;
                 return "";
             }
+        }
+
+        private static PerformanceCounter diskCounter;
+        private static bool noDiskCounter;
+        private static volatile bool inputClosed;
+
+        /// <summary>
+        /// memory-status --serve S: one JSON line every S seconds until stdin closes (the watcher keeps one of these
+        /// instead of starting a program every few seconds). Returns the exit code.
+        /// </summary>
+        public static int Serve(int seconds)
+        {
+            Thread reader = new Thread(WaitForInputToClose);
+            reader.IsBackground = true;
+            reader.Start();
+            while (!inputClosed)
+            {
+                try
+                {
+                    Console.Out.WriteLine(Json());
+                    Console.Out.Flush();
+                }
+                catch (Exception)
+                {
+                    // One reading that fails is skipped; the next one tries again.
+                }
+                for (int waited = 0; waited < seconds * 10 && !inputClosed; waited++)
+                {
+                    Thread.Sleep(100);
+                }
+            }
+            return 0;
+        }
+
+        private static void WaitForInputToClose()
+        {
+            try
+            {
+                while (Console.In.ReadLine() != null)
+                {
+                }
+            }
+            catch (Exception)
+            {
+                // A broken input counts as closed.
+            }
+            inputClosed = true;
         }
 
         private static string Mb(ulong bytes)

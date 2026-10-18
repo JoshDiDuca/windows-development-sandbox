@@ -151,17 +151,63 @@ export function Facts({ facts }: { readonly facts: readonly Fact[] }) {
   );
 }
 
+/** Two texts say the same thing (case and surrounding spaces ignored). */
+function same(a: string | undefined, b: string | undefined): boolean {
+  return !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** An item's description and details as the web shows them: lines that repeat the hint are left out. */
+export function linesShown(item: Item): { readonly description?: string; readonly details: readonly string[] } {
+  return {
+    description: item.description && !same(item.description, item.hint) ? item.description : undefined,
+    details: (item.details ?? []).filter((d) => !same(d, item.hint) && !same(d, item.description)),
+  };
+}
+
+/** "Label: value" (or "Label   value", as the cards write it) with a short capitalised label. */
+const KEY_COLON = /^([A-Z][A-Za-z ]{1,24}):\s+(.+)$/;
+const KEY_GAP = /^([A-Z][A-Za-z]*(?: [A-Za-z]+){0,3}) {2,}(.+)$/;
+/** A value that is a path or a command is shown in monospace. */
+const CODE_VALUE = /[\\/]|^(sandbox|npm) /;
+
+export function splitDetail(line: string): { readonly label: string; readonly value: string } | undefined {
+  const m = KEY_COLON.exec(line) ?? KEY_GAP.exec(line);
+  if (!m) return undefined;
+  return { label: m[1].trim(), value: m[2].trim() };
+}
+
+/** One detail line: a label in dimmed text and the value beside it (under it on a phone), or the plain line. */
+function DetailLine({ line }: { readonly line: string }) {
+  const kv = splitDetail(line);
+  if (!kv)
+    return (
+      <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+        {line}
+      </Text>
+    );
+  return (
+    <Group gap={8} wrap="wrap" align="flex-start" mt={2}>
+      <Text size="xs" c="dimmed" miw={110} style={{ flex: 'none' }}>
+        {kv.label}
+      </Text>
+      <Text
+        size="xs"
+        ff={CODE_VALUE.test(kv.value) ? 'monospace' : undefined}
+        style={{ flex: '1 1 120px', minWidth: 0, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+      >
+        {kv.value}
+      </Text>
+    </Group>
+  );
+}
+
 /** An item's extra lines: the first few, the rest behind "more". */
 export function Details({ lines }: { readonly lines: readonly string[] }) {
   const [open, setOpen] = useState(false);
   if (!lines.length) return null;
   const head = lines.slice(0, DETAILS_SHOWN);
   const rest = lines.slice(DETAILS_SHOWN);
-  const line = (d: string, i: number): ReactNode => (
-    <Text key={i} size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-      {d}
-    </Text>
-  );
+  const line = (d: string, i: number): ReactNode => <DetailLine key={i} line={d} />;
   return (
     <Box mt={4}>
       {head.map(line)}
@@ -191,6 +237,19 @@ export function Badges({ item }: { readonly item: Item }) {
         </Badge>
       ))}
     </>
+  );
+}
+
+/** An item's status as a coloured dot before its label (muted items keep a dimmed label instead). */
+function ToneDot({ tone }: { readonly tone: Item['tone'] }) {
+  const color = tone && tone !== 'muted' ? toneColor(tone) : undefined;
+  if (!color) return null;
+  return (
+    <span
+      className="status-dot"
+      aria-hidden="true"
+      style={{ ['--dot' as string]: `var(--mantine-color-${color}-6)` }}
+    />
   );
 }
 
@@ -248,6 +307,7 @@ function ItemRow({ item }: { readonly item: Item }) {
   const act = useAct();
   const primary = primaryOf(item);
   const clickable = primary?.kind === 'link';
+  const { description, details } = linesShown(item);
   return (
     <div
       className={'item-row' + (clickable ? ' clickable' : '')}
@@ -262,7 +322,8 @@ function ItemRow({ item }: { readonly item: Item }) {
           {item.icon && <ItemIcon name={item.icon} size={34} />}
           <Box style={{ minWidth: 0 }}>
             <Group gap={8} wrap="wrap">
-              <Text fw={600} size="sm" c={toneColor(item.tone)}>
+              {item.tone !== 'muted' && <ToneDot tone={item.tone} />}
+              <Text fw={600} size="sm" c={item.tone === 'muted' ? toneColor(item.tone) : undefined}>
                 {tidy(item.label)}
               </Text>
               {item.marked && (
@@ -277,12 +338,12 @@ function ItemRow({ item }: { readonly item: Item }) {
                 {tidy(item.hint ?? '')}
               </Text>
             )}
-            {item.description && (
+            {description && (
               <Text size="xs" c="dimmed" mt={2}>
-                {item.description}
+                {description}
               </Text>
             )}
-            <Details lines={item.details ?? []} />
+            <Details lines={details} />
             {item.disabled && (
               <Text size="xs" c="dimmed" fs="italic" mt={2}>
                 {item.disabled}
@@ -299,10 +360,32 @@ function ItemRow({ item }: { readonly item: Item }) {
   );
 }
 
+/**
+ * An item that only does something ("Save this PC's login..."): no state, no details, no icon. Its description (what
+ * the action does) is kept as the card's tooltip rather than shown.
+ */
+function isAddItem(item: Item): boolean {
+  return !!primaryOf(item) && !item.hint && !item.details?.length && !item.badges?.length && !item.marked && !item.icon;
+}
+
 function ItemCard({ item }: { readonly item: Item }) {
   const act = useAct();
   const primary = primaryOf(item);
   const clickable = primary?.kind === 'link';
+  if (primary && isAddItem(item))
+    return (
+      <Card
+        padding="md"
+        title={item.description}
+        style={{ alignSelf: 'start', borderStyle: 'dashed', background: 'transparent' }}
+      >
+        <Group justify="center" gap={6}>
+          <SecondaryActions actions={othersThan(item.actions, primary)} />
+          <PrimaryControl action={primary} light />
+        </Group>
+      </Card>
+    );
+  const { details } = linesShown(item);
   return (
     <Card
       className={'item-card' + (clickable ? ' clickable' : '')}
@@ -311,30 +394,30 @@ function ItemCard({ item }: { readonly item: Item }) {
       style={item.disabled ? { opacity: 0.7 } : undefined}
     >
       <Stack gap="sm" h="100%">
-        <Group justify="space-between" wrap="nowrap" align="flex-start">
-          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-            {item.icon && <ItemIcon name={item.icon} />}
-            <Box style={{ minWidth: 0 }}>
-              <Text fw={650} size="sm" truncate>
-                {tidy(item.label)}
-              </Text>
-              {hintShown(item) && (
-                <Text size="xs" c="dimmed" truncate>
-                  {tidy(item.hint ?? '')}
-                </Text>
-              )}
-            </Box>
-          </Group>
-          <Group gap={4} wrap="nowrap" style={{ flex: 'none' }}>
-            {item.marked && (
-              <Badge size="sm" variant="dot" color="indigo">
-                this folder
-              </Badge>
+        <Group gap="sm" wrap="nowrap" align="flex-start">
+          {item.icon && <ItemIcon name={item.icon} />}
+          <Box style={{ minWidth: 0, flex: 1 }}>
+            <Text fw={650} size="sm" style={{ overflowWrap: 'anywhere' }}>
+              {tidy(item.label)}
+            </Text>
+            {(item.marked || !!item.badges?.length) && (
+              <Group gap={4} mt={4} wrap="wrap">
+                {item.marked && (
+                  <Badge size="sm" variant="dot" color="indigo">
+                    this folder
+                  </Badge>
+                )}
+                <Badges item={item} />
+              </Group>
             )}
-            <Badges item={item} />
-          </Group>
+            {hintShown(item) && (
+              <Text size="xs" c="dimmed" truncate mt={4}>
+                {tidy(item.hint ?? '')}
+              </Text>
+            )}
+          </Box>
         </Group>
-        <Details lines={item.details ?? []} />
+        <Details lines={details} />
         {item.disabled && (
           <Text size="xs" c="dimmed" fs="italic">
             {item.disabled}

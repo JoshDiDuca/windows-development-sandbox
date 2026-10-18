@@ -4,6 +4,9 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { AppContext } from '../app/context.js';
+import { cleanEngineRun, engineLeftoversRun } from '../app/features/engine/index.js';
+import { fakeIO } from '../app/kernel/index.js';
 import { DEFAULTS } from '../core/config/index.js';
 import type { Config } from '../core/types.js';
 import { isWin } from '../core/util/index.js';
@@ -14,7 +17,10 @@ import {
   engineFor,
   HCS_CAPABILITIES,
   HcsEngine,
+  LEFTOVER_DEPS,
+  lookForLeftovers,
   openEngine,
+  stopLeftovers,
   type EnginePlan,
   type LaunchPlan,
 } from '../host/engines/index.js';
@@ -613,6 +619,145 @@ export const hcsSuite: Suite = {
       'the row says what is missing and the command, and repair has no automatic fix for it',
     );
     t.check(row.fix === undefined, 'repair never fixes HCS prerequisites (they change Windows)');
+
+    t.section('HCS systems left running: only ours are listed and stopped (fake helper)');
+    const systems = [
+      {
+        Id: 'agent-sandbox-1',
+        SystemType: 'VirtualMachine',
+        Owner: 'agent-sandbox',
+        State: 'Running',
+        CreateTimestamp: '2026-01-01T10:00:00Z',
+      },
+      { Id: 'agent-sandbox-1-c', SystemType: 'Container', Owner: 'agent-sandbox', State: 'Running' },
+      { Id: 'WindowsSandbox-9', SystemType: 'VirtualMachine', Owner: 'agent-sandbox', State: 'Running' },
+      { Id: 'agent-sandbox-evil', SystemType: 'VirtualMachine', Owner: 'docker', State: 'Running' },
+      { Id: 'docker-1', SystemType: 'Container', Owner: 'docker', State: 'Running' },
+    ];
+    const calls: string[] = [];
+    let present = [...systems];
+    const leftoverRun: HelperRunner = (_exe, args) => {
+      const verb = args[0];
+      calls.push(args.slice(0, args.indexOf('--out')).join(' '));
+      if (verb === 'terminate') present = present.filter((s) => s.Id !== args[1]);
+      const json = verb === 'enumerate' ? JSON.stringify(present) : '';
+      fs.writeFileSync(
+        args[args.indexOf('--out') + 1],
+        JSON.stringify({ ok: true, hresult: '0x0', message: 'ok', json, values: {} }),
+        'utf8',
+      );
+      return { status: 0 };
+    };
+    const leftoverTemp = t.dir('hcs-leftovers-temp');
+    const helperCalls: boolean[] = [];
+    const useLeftovers = (probes = fakeProbes()): void => {
+      LEFTOVER_DEPS.current = {
+        probes,
+        helper: (_root, quiet) => {
+          helperCalls.push(quiet);
+          return new HcsHelper(() => 'C:\\fake\\HcsHost.exe', leftoverRun, leftoverTemp);
+        },
+      };
+    };
+    const ctx = { loaded: { config: hcsConfig } } as unknown as AppContext;
+    try {
+      useLeftovers();
+      const look = lookForLeftovers('C:\\S');
+      t.check(
+        look.available &&
+          look.systems.map((s) => s.id).join() === 'agent-sandbox-1,agent-sandbox-1-c' &&
+          look.systems[0].kind === 'VirtualMachine' &&
+          look.systems[0].since === '2026-01-01T10:00:00Z' &&
+          look.systems[1].since === null,
+        'only systems with our id prefix and our Owner are listed (not Windows Sandbox, Docker, or a foreign owner)',
+        JSON.stringify(look),
+      );
+      const query = await engineLeftoversRun.run(ctx, {}, fakeIO().io);
+      t.check(
+        query.available && query.systems.length === 2 && /2 HCS systems/.test(query.message),
+        'engine.leftovers returns them with a plain message',
+      );
+
+      calls.length = 0;
+      const outcome = stopLeftovers('C:\\S', [
+        'agent-sandbox-1',
+        'agent-sandbox-1-c',
+        'WindowsSandbox-9',
+        'docker-1',
+        '--evil',
+      ]);
+      t.equal(
+        calls.filter((c) => c.startsWith('terminate')),
+        ['terminate agent-sandbox-1-c', 'terminate agent-sandbox-1'],
+        'only ours reach terminate, the container before its utility VM',
+      );
+      t.check(
+        outcome.filter((o) => o.stopped).length === 2 && outcome.filter((o) => !o.stopped).length === 3,
+        'ids that are not ours (or not running) are reported, never terminated',
+      );
+
+      present = [...systems];
+      calls.length = 0;
+      const declined = fakeIO([false]);
+      await t.throws(
+        () => cleanEngineRun.run(ctx, {}, declined.io),
+        'Nothing changed',
+        'declining the question stops cleanly',
+      );
+      t.check(!calls.some((c) => c.startsWith('terminate')), 'declining terminates nothing');
+      calls.length = 0;
+      const yes = fakeIO([true]);
+      const cleaned = await cleanEngineRun.run(ctx, {}, yes.io);
+      t.check(
+        cleaned.stopped === 2 &&
+          cleaned.failed === 0 &&
+          yes.seen.questions.length === 1 &&
+          yes.seen.questions[0].kind === 'confirm' &&
+          calls.filter((c) => c.startsWith('terminate')).length === 2,
+        'engine.clean asks once, then stops what is ours',
+      );
+      const again = await cleanEngineRun.run(ctx, {}, fakeIO().io);
+      t.check(
+        again.stopped === 0 && /Nothing to clean/.test(again.message),
+        'with none left it asks nothing and says so',
+      );
+
+      calls.length = 0;
+      helperCalls.length = 0;
+      useLeftovers(fakeProbes({ computecore: false }));
+      const missing = await cleanEngineRun.run(ctx, {}, fakeIO().io);
+      t.check(
+        !missing.available && /not on this PC/.test(missing.message) && calls.length === 0 && helperCalls.length === 0,
+        'HCS missing: a plain message, the helper is never started, nothing to clean',
+      );
+
+      t.section('doctor row: HCS systems left running');
+      present = [...systems];
+      useLeftovers();
+      const leftoverRow = HCS_CHECKS[1];
+      t.check(
+        leftoverRow.name === 'HCS systems left running' &&
+          leftoverRow.applies?.(rowEnv(f.baseConfig)) === true &&
+          helperCalls.every((quiet) => quiet),
+        'shown on any engine when one of ours is found, and the doctor never builds HcsHost.exe to look',
+      );
+      const warn = await leftoverRow.run(rowEnv(f.baseConfig));
+      t.check(
+        warn.status === 'warn' && warn.fix === 'sandbox engine clean' && /agent-sandbox-1/.test(warn.detail),
+        'a warning with the fix "sandbox engine clean"',
+      );
+      present = [];
+      t.check(
+        leftoverRow.applies?.(rowEnv(f.baseConfig)) === false &&
+          leftoverRow.applies?.(rowEnv(hcsConfig)) === true &&
+          (await leftoverRow.run(rowEnv(hcsConfig))).status === 'ok',
+        'hidden when none is left (unless the engine is hcs, where it says none is running)',
+      );
+      useLeftovers(fakeProbes({ computecore: false }));
+      t.check(leftoverRow.applies?.(rowEnv(f.baseConfig)) === false, 'hidden on a PC without HCS');
+    } finally {
+      LEFTOVER_DEPS.current = null;
+    }
 
     t.section('sandbox engine check hcs');
     const out = await f.runBin(

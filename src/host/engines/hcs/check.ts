@@ -87,7 +87,7 @@ export function checkHcs(p: HcsProbes): EngineCheck {
   return { available: reasons.length === 0, reasons, fixes };
 }
 
-function system32Dir(): string {
+export function system32Dir(): string {
   return path.dirname(system32('x'));
 }
 

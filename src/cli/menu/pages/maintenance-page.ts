@@ -32,8 +32,12 @@ import {
   type ListOptions,
   type ListResult,
 } from '../../tui/index.js';
+import { engineLeftovers, engineLeftoversPage, type Leftovers } from '../../../app/features/engine/index.js';
+import { readQuery } from '../../../app/registry.js';
 import { CommandForm } from '../command-form.js';
 import { DataFolderFlow, dataFolderRow } from '../data-folder.js';
+import { MenuOperations } from '../io-menu.js';
+import { menuView, type MenuView } from '../render-view.js';
 import { ListPage, type Outcome } from './list-page.js';
 
 export interface MaintenanceModel {
@@ -53,6 +57,8 @@ export interface MaintenanceModel {
   readonly latest: string | null;
   /** The commands listed under "More commands". */
   readonly more: readonly { name: string; summary: string }[];
+  /** HCS systems left running; null until looked at (looking runs Windows tools, so it waits for Enter). */
+  readonly engine?: Leftovers | null;
 }
 
 const CATEGORIES = [
@@ -72,6 +78,11 @@ const CATEGORIES = [
     description: 'Checks this PC and your settings, repairs problems, and sets up Windows Sandbox.',
   },
   { id: 'logs', label: 'Logs', description: "The sandbox's own logs." },
+  {
+    id: 'engine',
+    label: 'Engine',
+    description: 'HCS systems a crashed command left running (they hold memory), and stopping them.',
+  },
   { id: 'more', label: 'More commands', description: 'Less common commands.' },
 ];
 
@@ -103,6 +114,27 @@ const AREA_LABEL: Record<DataEntry['area'], string> = {
   data: 'Other',
   host: 'On this PC',
 };
+
+/** The engine category: the leftovers page's rows (prefixed), or null until they were looked up. */
+function engineView(m: MaintenanceModel): MenuView | null {
+  return m.engine
+    ? menuView(engineLeftoversPage(m.engine), { category: 'engine', prefix: 'engine:', refresh: false })
+    : null;
+}
+
+function engineItems(m: MaintenanceModel): ListItem<string>[] {
+  return (
+    engineView(m)?.items ?? [
+      {
+        value: 'engine:load',
+        label: 'Look for HCS systems left running',
+        category: 'engine',
+        section: 'HCS',
+        description: 'Asks Windows which HCS systems of ours are running. It only runs when you ask.',
+      },
+    ]
+  );
+}
 
 function dataItems(m: MaintenanceModel): ListItem<string>[] {
   const folder: ListItem<string> = { value: 'data:folder', category: 'data', section: 'Data folder', ...m.dataFolder };
@@ -307,7 +339,18 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   return {
     path: [],
     categories: CATEGORIES,
-    items: [...updates, ...settings, ...dataItems(m), ...check, ...doctor, ...repair, ...setup, ...logs, ...more],
+    items: [
+      ...updates,
+      ...settings,
+      ...dataItems(m),
+      ...check,
+      ...doctor,
+      ...repair,
+      ...setup,
+      ...logs,
+      ...engineItems(m),
+      ...more,
+    ],
     empty: 'Nothing here yet.',
     actions: maintenanceActions(m),
     enterLabel: (_category, id) => enterLabel(id ?? '', m),
@@ -321,6 +364,8 @@ function enterLabel(id: string, m: MaintenanceModel): string {
   if (id === 'data:clean') return 'choose what';
   if (id === 'repair:run') return 'check and fix';
   if (id === 'health:check') return 'check';
+  if (id === 'engine:load') return 'look';
+  if (id.startsWith('engine:')) return engineView(m)?.enterLabel('engine', id) ?? '';
   if (id === 'updates:latest') return m.latest ? 'install' : 'look';
   if (id === 'updates:auto') return 'switch';
   if (id === 'updates:previous') return 'go back';
@@ -342,6 +387,8 @@ function maintenanceActions(m: MaintenanceModel): (category: string | undefined)
       }
       case 'logs':
         return [{ key: 'f', label: 'follow in the terminal' }];
+      case 'engine':
+        return [{ key: 'l', label: m.engine ? 'look again' : 'look' }, ...(engineView(m)?.actions ?? [])];
       case 'health': {
         const canEnable = m.setup !== null && !('error' in m.setup) && m.setup.canEnable;
         return [
@@ -394,12 +441,15 @@ export class MaintenancePage extends ListPage<string> {
   private readonly dataService: DataService;
   private readonly updateService: UpdateService;
   private latest: string | null = null;
+  private engine: Leftovers | null = null;
+  private readonly operations: MenuOperations;
 
   constructor(
     app: App,
     private readonly ctx: Context,
   ) {
     super(app);
+    this.operations = new MenuOperations(app, ctx);
     this.updateService = UpdateService.forPackage(ctx.packageRoot, undefined, { userDir: userDir() });
     this.health = new HealthService(ctx);
     this.migrate = new MigrateService({
@@ -421,6 +471,7 @@ export class MaintenancePage extends ListPage<string> {
       settings: this.settings,
       updates: this.updateStatus(),
       latest: this.latest,
+      engine: this.engine,
       more: MORE_COMMANDS.flatMap((name) => {
         const spec = commandSpec(name);
         return spec ? [{ name, summary: spec.summary }] : [];
@@ -567,6 +618,7 @@ export class MaintenancePage extends ListPage<string> {
         }
         if (key === 'e') return await this.enable();
       }
+      if (this.category === 'engine') return await this.engineAct(result);
       if (id?.startsWith('more:') && result.kind === 'pick') {
         const spec = commandSpec(id.slice(5)) as CommandSpec;
         const argv = await new CommandForm(this.app, this.ctx, spec).run();
@@ -576,6 +628,24 @@ export class MaintenancePage extends ListPage<string> {
       return { notice: Theme.error(Theme.glyph.cross + ' ' + errMsg(e)) };
     }
     return {};
+  }
+
+  /** The Engine category: look (Enter on the first row, or l), and stop what was found (x, a shared-core operation). */
+  private async engineAct(result: ListResult<string>): Promise<Outcome<string>> {
+    const id = result.kind === 'pick' || result.kind === 'action' ? result.value : undefined;
+    const look = async (): Promise<void> => {
+      this.busy('Looking for HCS systems…');
+      this.engine = await readQuery(engineLeftovers, this.ctx);
+    };
+    if ((result.kind === 'action' && result.key === 'l') || id === 'engine:load') {
+      await look();
+      return {};
+    }
+    const chosen = this.engine ? engineView(this.model())?.resolve(result) : undefined;
+    if (chosen?.kind !== 'action') return {};
+    const done = await this.operations.perform(chosen.action, [this.label], (text) => this.busy(text, id));
+    await look();
+    return { notice: done.notice };
   }
 
   /** The key an Enter on an Updates row stands for. */

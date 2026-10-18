@@ -3,12 +3,21 @@
 // side. A new feature adds its definitions here and its implementations there.
 import type { AnyDefinition, AnyView, OperationDef, QueryDef } from '../kernel/index.js';
 import { hideWindow, sandboxStatus, sandboxView, showWindow, stopSandbox } from './sandbox/sandbox.def.js';
+import { cleanEngine, engineLeftovers, engineView } from './engine/engine.def.js';
 import { listSessions, restartSessions, sessionsView } from './sessions/sessions.def.js';
 import { getSetting, listSettings, resetSetting, setSetting, settingsView } from './settings/settings.def.js';
 
-export const OPERATIONS = [showWindow, hideWindow, stopSandbox, restartSessions, setSetting, resetSetting] as const;
-export const QUERIES = [sandboxStatus, listSessions, listSettings, getSetting] as const;
-export const VIEWS = [sandboxView, sessionsView, settingsView] as const;
+export const OPERATIONS = [
+  showWindow,
+  hideWindow,
+  stopSandbox,
+  restartSessions,
+  setSetting,
+  resetSetting,
+  cleanEngine,
+] as const;
+export const QUERIES = [sandboxStatus, listSessions, listSettings, getSetting, engineLeftovers] as const;
+export const VIEWS = [sandboxView, sessionsView, settingsView, engineView] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
 export type Query = (typeof QUERIES)[number];
@@ -54,4 +63,5 @@ export const NAV: readonly NavSection[] = [
   { label: 'Settings', view: 'settings' },
   { label: 'Accounts', elsewhere: 'Manage logins in the menu (sandbox > Accounts) or with sandbox account.' },
   { label: 'Maintenance', elsewhere: 'Doctor, repair, data and updates are in the menu (sandbox > Maintenance).' },
+  { label: 'Engine', view: 'engine' },
 ];

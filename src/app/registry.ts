@@ -13,6 +13,7 @@ import {
   type RpcHost,
 } from './kernel/index.js';
 import { hideWindowRun, sandboxStatusRun, showWindowRun, stopSandboxRun } from './features/sandbox/index.js';
+import { cleanEngineRun, engineLeftoversRun } from './features/engine/index.js';
 import { listSessionsRun, restartSessionsRun } from './features/sessions/index.js';
 import { getSettingRun, listSettingsRun, resetSettingRun, setSettingRun } from './features/settings/index.js';
 
@@ -27,6 +28,8 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   getSettingRun,
   setSettingRun,
   resetSettingRun,
+  engineLeftoversRun,
+  cleanEngineRun,
 ];
 
 export function implementationOf(id: string): Implementation<AnyDefinition, AppContext> | undefined {

@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import { z } from 'zod';
 import { DEFINITIONS, NAV, QUERIES, VIEWS, viewById } from '../app/features/defs.js';
+import { engineLeftoversPage, type Leftovers } from '../app/features/engine/index.js';
 import { sandboxPage, type SandboxStatus } from '../app/features/sandbox/index.js';
 import { sessionsPage, type SessionRow, type SessionsList } from '../app/features/sessions/index.js';
 import { settingsPage } from '../app/features/settings/index.js';
@@ -404,6 +405,42 @@ export const appSuite: Suite = {
       menuStatus.items.every((i) => i.category === 'status' && i.value.startsWith('status:')) &&
         menuStatus.actions.some((a) => a.key === 'x' && a.label === 'stop'),
       'a view inside one category of a page: rows in it, prefixed, with the keys of its actions',
+    );
+
+    t.section('engine: HCS systems left running');
+    const left: Leftovers = {
+      available: true,
+      message: '2 HCS systems of ours left running.',
+      systems: [
+        { id: 'agent-sandbox-1', kind: 'VirtualMachine', state: 'Running', since: '2026-01-01T10:00:00Z' },
+        { id: 'agent-sandbox-1-c', kind: 'Container', state: 'Running', since: null },
+      ],
+    };
+    const leftPage = engineLeftoversPage(left);
+    const leftMenu = menuView(leftPage);
+    const nonePage = engineLeftoversPage({
+      available: false,
+      message: 'The Host Compute Service is not on this PC.',
+      systems: [],
+    });
+    t.check(
+      ops(leftPage).join() === 'engine.clean' &&
+        pageActions(leftPage).some((a) => a.kind === 'operation' && a.danger) &&
+        leftMenu.items.length === 2 &&
+        leftMenu.actions.some((a) => a.key === 'x') &&
+        pageLines(leftPage).some((l) => l.includes('agent-sandbox-1-c')) &&
+        ops(nonePage).length === 0 &&
+        pageLines(nonePage).at(-1) === 'The Host Compute Service is not on this PC.',
+      'the leftovers page lists each system with the (dangerous) clean action; with none it only says why',
+      pageLines(nonePage).join('\n'),
+    );
+    t.check(
+      definitionFor('engine', ['leftovers'])?.id === 'engine.leftovers' &&
+        definitionFor('engine', ['clean'])?.id === 'engine.clean' &&
+        definitionFor('engine', []) === undefined &&
+        MENU_VIEWS.some((m) => m.view.id === 'engine') &&
+        NAV.some((n) => n.view === 'engine'),
+      'leftovers and clean are actions of `sandbox engine`, shown in the menu (Maintenance) and the web',
     );
 
     t.section('settings, run against a config file');

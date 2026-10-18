@@ -13,3 +13,12 @@ export { WindowsSandboxEngine } from './windows-sandbox/engine.js';
 export { wsbText } from './windows-sandbox/wsb-text.js';
 export { HcsEngine, HCS_CAPABILITIES, hcsStartEnabled } from './hcs/engine.js';
 export { checkHcs, realHcsProbes, type HcsProbes } from './hcs/check.js';
+export {
+  lookForLeftovers,
+  stopLeftovers,
+  LEFTOVER_DEPS,
+  type LeftoverDeps,
+  type LeftoverLook,
+  type LeftoverOutcome,
+  type LeftoverSystem,
+} from './hcs/leftovers.js';

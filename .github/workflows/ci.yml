@@ -1,9 +1,9 @@
 name: CI
 
+# Run by hand (Actions > CI > Run workflow): the build and self-test on Node 22.0.0 outside a sandbox. Not on every
+# push; releases run on their own (release.yml).
 on:
-  push:
-    branches: [master, main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,7 +17,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci   # also builds (prepare)
+      - run: npm ci
+      - run: npm run build
       - name: Self-test (informational)
         # The live tests drive ConPTY, csc.exe and real file links; hosted runners differ from a real Windows
         # desktop, so a failure here is reported but does not fail the build.

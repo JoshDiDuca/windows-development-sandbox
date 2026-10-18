@@ -1,10 +1,11 @@
 # One core for the CLI, the menu and the web UI (design and plan)
 
-Status: **phases 1 and 2 built** (the kernel, the three surfaces' renderers and IO, the RPC endpoint and the Mantine
-web shell; the reference features sandbox, sessions and settings). Next: feature-by-feature parity
-([web-ui-tasks.md](web-ui-tasks.md)), then the web UI grows to everything the menu does. This document is the contract
-every contributor (human or agent) follows; [As built](#as-built-phases-1-and-2) says where the code differs from the
-sketches below and why, and [How to add a feature](#how-to-add-a-feature-walkthrough) walks through one.
+Status: **built**. The kernel, the three surfaces' renderers and IO, the RPC endpoint and the Mantine web shell are in,
+and every area of the tool (agents, projects, accounts, data, storage, apps, health, updates, logs, VPN, engine, web,
+settings export and import) is a feature in `src/app/features/`, shown by the command line, the menu and the web UI
+(1.11.0 and 1.11.1). This document is the contract every contributor (human or agent) follows; [As built](#as-built)
+says where the code differs from the sketches below and why, and [How to add a feature](#how-to-add-a-feature-walkthrough)
+walks through one.
 
 ## The rule
 
@@ -172,15 +173,16 @@ One WebSocket per page session on the existing server, after the existing cookie
 2. **Reference features** (built), end to end on all three surfaces: `sandbox.status` + `sandbox.stop` + window show/hide,
    `sessions.list` + `sessions.restart` (+ the terminal page), `settings` (view + get/set/reset via Fields). These are
    the examples every later feature copies.
-3. **Parity, area by area** (spec in [web-ui-tasks.md](web-ui-tasks.md)): agents, projects, accounts, data, storage,
-   apps, health (doctor/repair streaming), updates, logs, vpn, engine, web. Each: move the logic behind the menu page
-   and the CLI command into the feature, then delete the duplicated menu/CLI code.
-4. **Web UI completion**: every view works in the browser; phone layout; the on-screen key row for the terminal.
+3. **Parity, area by area** (built): agents, projects, accounts, data, storage, apps, health, updates, logs, vpn, engine,
+   web, settings export and import. Each moved the logic behind the menu page and the CLI command into its feature, and
+   the duplicated menu and CLI code was deleted.
+4. **Web UI completion** (built): every view works in the browser; the phone layout; the key row for the terminal.
 
-Acceptance for 1:1: every menu page is a view; every CLI command is an operation or query; the parity test lists no
-gaps; `npm test` passes; the menu looks and behaves as before (the existing menu tests and overflow checks pass).
+Acceptance for 1:1 (met): every menu page is a view; every CLI command is an operation or query, or a command of an
+area that is not a feature (see [Deviations](#deviations-and-why)); the parity test (`npm test app`) lists no gaps; the
+menu looks and behaves as before.
 
-## As built (phases 1 and 2)
+## As built
 
 Where the code differs from the sketches above, and why. The code is the reference; these notes say where to look.
 
@@ -244,7 +246,7 @@ web/src/             rpc/ (client, typed run(), hooks), render/ (PageView, Field
   allowed: `"auto"` or a number), `number`, `text`, `secret`, `path`, `list`, `map`, `object`, `json`. The menu's
   `ValueEditor` dispatches on the Field's kind and keeps the SchemaNode for checking as you type; the web's
   `FieldInput` renders the Field and `ActionForm` checks with the operation's input schema (zod resolver) plus
-  `fieldProblem`. The web's path question is a text field for now (no folder browser on the server yet).
+  `fieldProblem`. On the web a `path` question opens the folder picker (`files.browse`, `web/src/render/FolderPicker.tsx`).
 
 ### Deviations and why
 
@@ -253,8 +255,8 @@ web/src/             rpc/ (client, typed run(), hooks), render/ (PageView, Field
   which settings exist, labels, sections, Fields, values with secrets as `***`. The web and the CLI write at once
   through `settings.set`/`settings.reset`. Moving the draft model into the core is not worth it until another surface
   wants staging.
-- **The Sandbox page in the menu** shows the sandbox view as its Status category (rows prefixed `status:`); Projects and
-  Databases stay the page's own until those areas are features (tasks 2 and later).
+- **The Sandbox page in the menu** shows the sandbox view as its Status category (rows prefixed `status:`); Projects is a
+  feature and its category renders the projects view; Databases stays the page's own (no feature yet).
 - **Text output changed a little** where a page is now shared: `status` lists a Sessions row and the repo guard also
   when no sandbox runs, other projects' sessions under their own heading; `show` prints "Sandbox window shown.";
   the menu's Status rows use the CLI's words (Running, Phase, Uptime, Helper ...). `--json`, flags, names, exit codes

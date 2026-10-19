@@ -28,7 +28,8 @@ Removed:
 - values that look like keys, whatever they're called
 
 `secrets.allow` lets named variables through, and `secrets.patterns` adds more to strip. A project file cannot weaken
-these settings. The launch output lists what was kept back, and warns about files like `.env` or `*.pem` that the agent
+these settings, cannot set variables that redirect an agent's API or carry logins (`*_BASE_URL`, `ANTHROPIC_*`,
+proxies ...) in `toolchains.environment`, and its `scripts` must be files inside the project. The launch output lists what was kept back, and warns about files like `.env` or `*.pem` that the agent
 can read because the whole folder is mapped.
 
 ### Your own logins and keys
@@ -133,8 +134,11 @@ PC.** What it does and does not do:
   yourself on your PC while a sandbox runs get it too; `Unblock-File` or the file's Properties removes it.
 - What the sandbox adds to a project that tools on your PC would run by themselves is moved to
   `agent-sandbox-quarantine`: git hooks and program-running git config (also in submodules and nested repositories),
-  commands planted in the project root, Claude Code hooks, helper commands and MCP servers (`.claude/settings*.json`,
-  `.mcp.json`), VS Code folder-open tasks and program paths, and `.envrc`. Ordinary edits to those files stay.
+  hooks in a `core.hooksPath` folder inside the project that the repo already used (husky), commands planted in the
+  project root, Claude Code hooks, helper commands, MCP servers, plugins and whole-tool permissions such as `"Bash"`
+  (`.claude/settings*.json`, `.mcp.json`), VS Code folder-open tasks and program paths, and `.envrc`. Ordinary edits to
+  those files stay. Scripts that a hook, task or MCP server names elsewhere in the project are not compared: review them
+  like any other change.
 - Links the sandbox plants are never followed.
 - Files it writes are read with bounded effort.
 - Attaching from your terminal connects only into the sandbox's Hyper-V network, with a per-session token.
@@ -216,7 +220,9 @@ projects are in [projects](projects.md#security).
 ## Several users on one PC
 
 With an all-users install, each user keeps a private storage folder under `%ProgramData%\AgentSandbox\users\<name>`
-(accounts, logins, history, approvals): only that user, SYSTEM and administrators can open it. Windows runs one sandbox
+(accounts, logins, history, approvals): only that user, SYSTEM and administrators can open it. An empty storage folder
+that belongs to another account (someone made it before you first ran the tool) is refused rather than used; an
+administrator must delete it. Windows runs one sandbox
 per PC and its window belongs to the user who started it, so other users can only use it when its owner turned on
 `sharing.otherUsers`.
 

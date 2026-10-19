@@ -50,6 +50,17 @@ try {
                     $who, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
             }
             $have = Get-Acl -LiteralPath $e.path
+            # A folder someone else owns is never made "private" for you: under an all-users install another member of
+            # the group could have made %ProgramData%\AgentSandbox\users\<you> first, and as its owner can give
+            # themselves access to every file you write later. Administrators own what an elevated you creates.
+            $owner = $have.GetOwner([System.Security.Principal.SecurityIdentifier])
+            $adminsSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+            $elevated = (New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole($adminsSid)
+            if (-not ($owner -eq $me -or ($owner -eq $adminsSid -and $elevated))) {
+                $ownerName = $owner.Value
+                try { $ownerName = $owner.Translate([System.Security.Principal.NTAccount]).Value } catch { $ownerName = $owner.Value }
+                throw "$($e.path) belongs to $ownerName, not to you (someone else may have created it). An administrator must delete it before you use it."
+            }
             if ($have.GetSecurityDescriptorSddlForm('Access') -eq $want.GetSecurityDescriptorSddlForm('Access')) { continue }
             $children = @(Get-ChildItem -LiteralPath $e.path -Force | Select-Object -First 1)
             if ($children.Count -eq 0) { Set-OwnDacl $e.path $want } else { Set-Acl -LiteralPath $e.path -AclObject $want }

@@ -26,6 +26,25 @@ export async function fileExistsAsync(p: string): Promise<boolean> {
     return false;
   }
 }
+/**
+ * A file the sandbox or a repo may have written, read through one handle and only if that handle is a regular file of
+ * at most `maxBytes` (null otherwise): a multi-gigabyte .nvmrc must not stop a launch.
+ */
+export function readSmallFile(file: string, maxBytes = 256 * 1024): string | null {
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(file, 'r');
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > maxBytes) return null;
+    const buffer = Buffer.alloc(stat.size);
+    fs.readSync(fd, buffer, 0, stat.size, 0);
+    return buffer.toString('utf8');
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
 export function readJson<T>(p: string): T {
   return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '')) as T;
 }

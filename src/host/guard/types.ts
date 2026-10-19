@@ -9,6 +9,8 @@ export interface GitState {
   readonly config: string[];
   readonly hooks: Record<string, string>;
   readonly redirects: string[];
+  /** Hooks in a core.hooksPath folder inside the project, by relative path (missing in older snapshots). */
+  readonly pathHooks?: Record<string, string>;
 }
 export interface RepoSnapshot extends GitState {
   readonly gitDir: boolean;

@@ -14,6 +14,11 @@ export function normalizeOverrides(data: unknown, dir: string, source: string): 
   const scripts = overrides.scripts?.map((s) => expandPath(s, dir));
   const missing = scripts?.filter((s) => !fileExists(s)) ?? [];
   if (missing.length) fail(source + ' is not valid:\n  - scripts: file not found: ' + missing.join(', '));
+  // A repo ships this file: a script path outside the project (%USERPROFILE%\.ssh\id_ed25519, ..\..) would copy that
+  // file of this PC into the launch folder, which the sandbox reads.
+  const outside = scripts?.filter((s) => !insideProject(dir, s)) ?? [];
+  if (outside.length)
+    fail(source + ' is not valid:\n  - scripts: only files inside the project can be used: ' + outside.join(', '));
   const mappings = overrides.mappings?.map((m) => ({ ...m, host: expandPath(m.host, dir) }));
   return { ...overrides, scripts, mappings };
 }
@@ -64,6 +69,8 @@ export const OFF_IS_SAFER = [
   'claudeProfile.enabled',
   'claudeProfile.syncHistory',
   'claudeProfile.syncClaudeMem',
+  // Maps this PC's Node, Git, nvm and agent folders into the sandbox.
+  'provisioning.copyFromHost',
 ];
 export const GIT_STRICTNESS: Record<string, number> = { full: 0, readonly: 1, none: 2 };
 export const NEVER_LOOSER = [...ON_IS_SAFER, ...OFF_IS_SAFER, 'provisioning.git.access'];

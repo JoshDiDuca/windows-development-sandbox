@@ -26,6 +26,44 @@ import { WebSchema } from './web.js';
 import { VpnSchema } from './vpn.js';
 import { GithubSchema } from './github.js';
 
+const RESERVED_ENV_PREFIX =
+  /^(AGENT_|GIT_|GH_|GITHUB_|NODE_|NPM_CONFIG_(USERCONFIG|GLOBALCONFIG|PREFIX|SCRIPT_SHELL)|SSL_|CLAUDE|ANTHROPIC_|OPENAI_|CODEX_|GEMINI_|GOOGLE_|COPILOT_|AWS_|AZURE_)/i;
+const RESERVED_ENV_SUFFIX = /(_PROXY|_BASE_URL|_ENDPOINT|_CA_BUNDLE|_CA_CERTS)$/i;
+const RESERVED_ENV_NAMES = new Set(
+  [
+    'PATH',
+    'PATHEXT',
+    'BASH_ENV',
+    'ENV',
+    'COMSPEC',
+    'PSMODULEPATH',
+    'PYTHONPATH',
+    'PYTHONSTARTUP',
+    'PERL5OPT',
+    'RUBYOPT',
+    'JAVA_TOOL_OPTIONS',
+    'LD_PRELOAD',
+    'SYSTEMROOT',
+    'WINDIR',
+    'HOME',
+    'USERPROFILE',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'PROGRAMDATA',
+    'TEMP',
+    'TMP',
+  ].map((n) => n.toUpperCase()),
+);
+
+/**
+ * An environment variable a repo's .sandbox-config.json may not set: the git guard's and the sandbox's own (setting
+ * AGENT_GIT_ACCESS or GIT_CONFIG_COUNT would undo provisioning.git.access), interpreter hooks (NODE_OPTIONS reaches the
+ * git guard's node), proxies and API endpoints (ANTHROPIC_BASE_URL would send your API key to the repo's server).
+ */
+export function reservedEnvName(name: string): boolean {
+  return RESERVED_ENV_PREFIX.test(name) || RESERVED_ENV_SUFFIX.test(name) || RESERVED_ENV_NAMES.has(name.toUpperCase());
+}
+
 export const ConfigSchema = z
   .strictObject({
     $schema: SchemaRefSchema.optional(),
@@ -117,10 +155,14 @@ export const LocalOverridesSchema = z
     scripts: StringsSchema.describe(
       'Scripts (.ps1 / .mjs / .cmd, relative to this file) run inside the sandbox before the agent.',
     ),
-    // This PC's resources are yours to share: CPU and paging file (this PC's disk) are not a project's to set.
+    // This PC's resources are yours to share: CPU, paging file (this PC's disk) and the RAM kept for this PC are not a
+    // project's to set.
     sandbox: SandboxSchema.omit({
       cpuLimit: true,
       pageFileMb: true,
+      reserveHostMb: true,
+      maxMemoryPercent: true,
+      maxMemoryMb: true,
       engine: true,
       agentMemoryHeadroomMb: true,
       pressureResponse: true,
@@ -137,7 +179,10 @@ export const LocalOverridesSchema = z
     toolchains: z
       .strictObject({
         ..._.mapValues(_.omit(ToolchainsSchema.shape, 'environment'), (shape) => shape.partial()),
-        environment: ToolchainsSchema.shape.environment,
+        environment: ToolchainsSchema.shape.environment.refine(
+          (env) => !Object.keys(env).some(reservedEnvName),
+          'names the sandbox sets or that carry logins (AGENT_*, GIT_*, PATH, BASH_ENV, NODE_*, proxies, ANTHROPIC_*, CLAUDE_* ...) cannot be set by a project',
+        ),
       })
       .partial(),
     databases: z.strictObject(_.mapValues(DatabasesSchema.shape, (shape) => shape.partial())).partial(),

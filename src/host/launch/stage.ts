@@ -19,11 +19,16 @@ export function stageHooks(packageRoot: string, launchPath: string, scripts: rea
   stageScripts(path.join(launchPath, 'hooks', 'pre-agent'), scripts);
 }
 
+const MAX_SCRIPT_BYTES = 4 * 1024 * 1024;
+
 /** --script / "scripts" files, run before the agent in this order. */
 export function stageScripts(target: string, scripts: readonly string[]): void {
   ensureDir(target);
   scripts.forEach((script: string, index: number) => {
     if (!fileExists(script)) fail('Script file not found: ' + script, 'Check the --script path.');
+    const stat = fs.statSync(script);
+    if (!stat.isFile() || stat.size > MAX_SCRIPT_BYTES)
+      fail('Script ' + script + ' is not a plain file of at most 4 MB.', 'Check the --script path.');
     fs.copyFileSync(script, path.join(target, '90-extra-' + index + '-' + path.basename(script)));
   });
 }

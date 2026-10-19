@@ -18,6 +18,7 @@ import {
 import { dataMapping } from '../storage/providers/index.js';
 import { GUEST } from './wsb-file.js';
 import { guestGitDir, planView } from '../workspace-view/index.js';
+import { insideProject } from '../../core/local-config/index.js';
 
 /**
  * Every mapping, placed. An extra folder appears at its `guest` path, or at the same path as on this PC when it has
@@ -89,6 +90,17 @@ export function collectMappings(
       );
       continue;
     }
+    // A second mapping of (part of) the project would show it without the filter (the git-ignored .env files) and
+    // writable when the project is read-only: a repo's .sandbox-config.json must not undo either.
+    const inProject = insideProject(workspaceHost, host);
+    if (inProject && view) {
+      problems.push(
+        host +
+          ': it is inside the project, and workspaceFilter.enabled keeps git-ignored files out of the sandbox. Fix: remove the mapping, or turn the filter off in your own settings.',
+      );
+      continue;
+    }
+    const readOnly = m.readOnly || (inProject && config.readOnly);
     const wanted = tidyGuestPath(m.guest ?? deriveGuest(host, workspaceHost, config.guestWorkspace));
     // The same folder at the same place twice (your settings and the project file): once is enough.
     if (
@@ -101,7 +113,7 @@ export function collectMappings(
       continue;
     }
     const label = outside.has(path.resolve(host).toLowerCase()) ? 'outside the project, allowed' : undefined;
-    extra.push({ host, guest: wanted, readOnly: m.readOnly, ...(label ? { label } : {}) });
+    extra.push({ host, guest: wanted, readOnly, ...(label ? { label } : {}) });
   }
   if (problems.length)
     fail(

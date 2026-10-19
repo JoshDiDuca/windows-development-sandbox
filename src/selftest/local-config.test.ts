@@ -106,6 +106,54 @@ export const localConfigSuite: Suite = {
       'sandbox.memoryMb:',
       'values are type-checked (memory too small)',
     );
+    // Security review 2026-10: what a repo could reach through fields that looked harmless.
+    const secretFile = path.join(f.shared, 'id_ed25519');
+    fs.writeFileSync(secretFile, 'PRIVATE KEY');
+    await rejectedBecause(
+      { scripts: [secretFile] },
+      'only files inside the project',
+      'a project file cannot name a script outside the project (it would copy that PC file into the launch folder)',
+    );
+    await rejectedBecause(
+      { scripts: [path.relative(dirC, secretFile)] },
+      'only files inside the project',
+      'a relative ..\\ script path outside the project is refused too',
+    );
+    fs.symlinkSync(f.shared, path.join(dirC, 'linked'), 'junction');
+    await rejectedBecause(
+      { scripts: ['./linked/id_ed25519'] },
+      'only files inside the project',
+      'a script reached through a link to a folder outside the project is refused',
+    );
+    fs.rmSync(path.join(dirC, 'linked'));
+    for (const name of ['AGENT_GIT_ACCESS', 'GIT_CONFIG_COUNT', 'ANTHROPIC_BASE_URL', 'NODE_OPTIONS', 'Path', 'https_proxy'])
+      await rejectedBecause(
+        { toolchains: { environment: { [name]: 'x' } } },
+        'cannot be set by a project',
+        'a project file cannot set ' + name + ' in toolchains.environment',
+      );
+    await rejectedBecause(
+      { sandbox: { reserveHostMb: 0 } },
+      'sandbox.reserveHostMb is not allowed',
+      'a project file cannot lower the RAM kept for this PC',
+    );
+    f.writeLocal(dirC, { toolchains: { environment: { NPM_CONFIG_REGISTRY: 'https://registry.example' } } });
+    t.equal(
+      (await f.run({ cwd: dirC, trustConfig: true })).config.toolchains.environment.NPM_CONFIG_REGISTRY,
+      'https://registry.example',
+      'a registry mirror in toolchains.environment is still fine',
+    );
+    f.writeLocal(dirC, { provisioning: { copyFromHost: true } });
+    t.equal(
+      (
+        await f.run(
+          { cwd: dirC, trustConfig: true },
+          { ...f.baseConfig, provisioning: { ...f.baseConfig.provisioning, copyFromHost: false } },
+        )
+      ).config.provisioning.copyFromHost,
+      false,
+      'a project file cannot turn on copying Node, Git and the agent from this PC when you turned it off',
+    );
     await rejectedBecause('{\n  // a comment\n  "readOnly": tru\n}', 'line 3', 'broken JSON is reported with its line');
     await rejectedBecause({ _comment: 'old style' }, '_comment is not allowed', 'unknown keys are rejected');
     f.writeLocal(dirC, '// comments and trailing commas are fine\n{\n  "readOnly": true, /* inline */\n}\n');
@@ -187,6 +235,26 @@ export const localConfigSuite: Suite = {
         ),
       'outside means where the folder really is (%VAR% expanded, links followed); a folder inside needs no permission',
     );
+
+    // A second mapping of part of the project must not undo readOnly or the workspace filter.
+    fs.mkdirSync(path.join(dirD, 'assets'), { recursive: true });
+    f.writeLocal(dirD, { mappings: [{ host: '.', guest: 'C:\\Data', readOnly: false }] });
+    const readOnlyUser: Config = { ...f.baseConfig, readOnly: true };
+    const remapped = (await f.launch({ cwd: dirD, trustConfig: true }, { config: readOnlyUser })).mappings.find(
+      (m) => m.guest.toLowerCase() === 'c:\\data',
+    );
+    const filtered = await t.thrownMessage(() =>
+      f.launch(
+        { cwd: dirD, trustConfig: true },
+        { config: { ...f.baseConfig, workspaceFilter: { ...f.baseConfig.workspaceFilter, enabled: true } } },
+      ),
+    );
+    t.check(
+      remapped?.readOnly === true && filtered.includes('workspaceFilter.enabled'),
+      'a project folder mapped again is read-only when the project is, and refused while the workspace filter is on',
+      JSON.stringify(remapped) + ' / ' + filtered,
+    );
+    fs.rmSync(path.join(dirD, '.sandbox-config.json'));
 
     t.section('a project can only tighten protections');
     // Settings that would loosen a protection are listed before approval, then ignored.

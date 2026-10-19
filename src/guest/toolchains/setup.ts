@@ -33,6 +33,8 @@ export async function setupToolchains(
     env.summary.push(...part.summary);
   }
   Object.assign(env.vars, config.environment);
+  // The git guard's variables (AGENT_GIT_ACCESS, GIT_DIR, GIT_CONFIG_*, BASH_ENV) always win over toolchains.environment.
+  Object.assign(env.vars, envs.get('Git')?.vars);
   log('Set up ' + steps.length + ' toolchains and databases.');
   return env;
 }

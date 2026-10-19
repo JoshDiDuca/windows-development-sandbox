@@ -283,11 +283,20 @@ A repo can ship this file, so it is treated as untrusted:
   will appear; a yes is kept in `<storage>\allowed-requests.json` (a no is not, so you are asked again). `true` allows
   them (still flagged "outside the project" when you approve the file), `false` refuses them. Without a terminal,
   `"ask"` stops the launch and says how to allow them; `--trust-config` never does. The launch table marks them
-  "(outside the project, allowed)".
+  "(outside the project, allowed)". A folder inside the project mapped a second time is read-only when the project is,
+  and is refused while `workspaceFilter.enabled` is on (it would show the git-ignored files the filter keeps out).
+- Its `scripts` must be files inside the project (after `%VARIABLES%` and links): they are copied into the launch
+  folder, which the sandbox reads.
+- Its `toolchains.environment` cannot set variables the sandbox sets or that carry logins or reach a server: `AGENT_*`,
+  `GIT_*`, `GH_*`, `NODE_*`, `PATH`, `BASH_ENV`, proxies (`*_PROXY`), `*_BASE_URL` / `*_ENDPOINT`, certificate
+  bundles, `ANTHROPIC_*`, `CLAUDE*`, `OPENAI_*` and other agent and cloud prefixes. Registry mirrors such as
+  `NPM_CONFIG_REGISTRY` or `PIP_INDEX_URL` are fine.
+- It cannot set the RAM kept for this PC (`sandbox.reserveHostMb`, `maxMemoryPercent`, `maxMemoryMb`), CPU or the
+  paging file.
 - It may add apps from the catalogue (`apps.install`, added to yours), never programs of its own (`apps.custom`) and
   never `rtk` (an agent add-on that hooks every agent command: only your own settings turn it on).
 - It can only make protections **stricter**: read-only, git `readonly`/`none`, the LAN block, protected client, and
-  turning off network, clipboard, microphone, camera, printers, vGPU, login copying and history / claude-mem sync, and
+  turning off network, clipboard, microphone, camera, printers, vGPU, login copying, copying tools from this PC (`provisioning.copyFromHost`) and history / claude-mem sync, and
   turning on `downloads.requireChecksum`. A looser value is used only if you allow it: starting the project from an
   interactive terminal asks once, in the same question as any folders outside the project ("Allow these for this
   project?"). Your answer is kept on this PC

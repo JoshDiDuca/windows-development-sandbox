@@ -160,9 +160,14 @@ export const AuditSchema = z.strictObject({
   enabled: z
     .boolean()
     .describe(
-      'Keep an audit log on this PC of what happened in your sandboxes: programs started (with their command lines), files changed in the project, sessions, and what the repo guard caught. The sandbox cannot change it. Read it with sandbox audit.',
+      'Keep an audit log on this PC of what your agents did: programs started (with their command lines, secrets hidden), files changed in the projects, git commits, sessions, and what the repo guard caught, each linked to the agent session that did it where that can be known. The sandbox cannot change it. Read it with sandbox audit or on the Activity page.',
     ),
-  days: z.number().int().min(1).max(365).describe('Days the audit log is kept.'),
+  days: z
+    .number()
+    .int()
+    .min(1)
+    .max(30)
+    .describe('Days the audit log is kept (1 to 30); older days are deleted when a sandbox starts and once a day.'),
   maxMb: z
     .number()
     .int()
@@ -174,7 +179,12 @@ export const AuditSchema = z.strictObject({
     .describe(
       'Record every program started in the sandbox with its command line (Windows process auditing; repeated runs are counted, not listed).',
     ),
-  files: z.boolean().describe('Record the files changed in the project while the sandbox runs.'),
+  files: z.boolean().describe('Record the files changed in the projects while the sandbox runs.'),
+  commits: z
+    .boolean()
+    .describe(
+      "Record the git commits made in the projects while the sandbox runs (read from each project's .git folder on this PC).",
+    ),
 });
 
 export const WorkspaceFilterSchema = z.strictObject({

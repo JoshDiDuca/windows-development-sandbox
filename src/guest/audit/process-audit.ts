@@ -1,12 +1,13 @@
 // audit.processes, sandbox side: Windows records every program started (Security log, event 4688, with its command
-// line); the daemon reads the new events every 15 s and leaves them in run\audit\ as small .jsonl files, which the
-// host takes into its own log (and deletes). Windows' own background programs are left out. The host treats all of it
-// as untrusted (it is checked line by line there).
+// line and process ids); the daemon reads the new events every 15 s, links each to the agent session whose ptyhost
+// started it (directly or further down), and leaves them in run\audit\ as small .jsonl files, which the host takes
+// into its own log (and deletes). Windows' own background programs are left out. The host treats all of it as
+// untrusted (it is checked line by line there, and a session it does not know is dropped).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { SYSTEM } from '../../shared/system.js';
-import { parseProcessEvents } from './parse.js';
+import { Attributor, parseProcessEvents, type SessionRoot } from './parse.js';
 import { dryRun, isWin, run } from '../runtime/paths.js';
 import { log, warn } from '../runtime/log.js';
 import { mkdirp } from '../runtime/fs.js';
@@ -56,10 +57,12 @@ const newestRecord = (): number => {
 
 /**
  * Reads new process events every 15 s for the daemon's life (from the moment it started: older ones are boot noise).
+ * `roots` gives the sessions' ptyhosts, so each program is linked to the session that started it (parse.ts).
  */
-export function startProcessCollector(): void {
+export function startProcessCollector(roots: () => readonly SessionRoot[] = () => []): void {
   if (!auditOn()) return;
   let last = newestRecord();
+  const attributor = new Attributor();
   const pass = (): void => {
     try {
       const r = spawnSync(
@@ -73,7 +76,7 @@ export function startProcessCollector(): void {
         ],
         { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 },
       );
-      const { lines, last: newest } = parseProcessEvents(r.stdout ?? '');
+      const { lines, last: newest } = parseProcessEvents(r.stdout ?? '', { attributor, roots: roots() });
       if (newest) last = newest;
       if (lines.length)
         fs.writeFileSync(

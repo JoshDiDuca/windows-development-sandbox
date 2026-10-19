@@ -52,9 +52,6 @@ export interface CliOptions {
   all: boolean;
   /** launch --session <agent>@<folder> (repeatable): several sessions at once, folders made absolute. */
   sessions: SessionWant[];
-  /** audit: only events of this kind, and containing this text. */
-  kind?: string;
-  grep?: string;
   /** migrate --dry-run, and --restore <backup folder>. */
   dryRun: boolean;
   /** doctor --fix: repair what it finds without asking. */
@@ -308,11 +305,10 @@ export function parseCli(argv: string[], wrapper = false): CliOptions {
     keepOld: Boolean(o.keepOld),
     withPaths: Boolean(o.withPaths),
     all: Boolean(o.all),
-    sessions: ((o.session as string[] | undefined) ?? []).map((s) => parseSessionWant(s)),
+    // launch --session is repeatable (a list); `audit --session <id>` is one id, which its definition reads.
+    sessions: (Array.isArray(o.session) ? (o.session as string[]) : []).map((s) => parseSessionWant(s)),
     timeout: (o.timeout as number | undefined) ?? 600,
-    days: (o.days as number | undefined) ?? (name === 'audit' ? 1 : 7),
-    kind: o.kind as string | undefined,
-    grep: o.grep as string | undefined,
+    days: (o.days as number | undefined) ?? 7,
     dryRun: Boolean(o.dryRun),
     fix: Boolean(o.fix),
     auto: o.auto === true,

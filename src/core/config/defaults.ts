@@ -5,7 +5,7 @@ export const DEFAULTS: Config = {
   guestWorkspace: 'auto',
   readOnly: false,
   workspaceFilter: { enabled: false, exclude: [], include: [] },
-  audit: { enabled: false, days: 14, maxMb: 100, processes: true, files: true },
+  audit: { enabled: true, days: 7, maxMb: 100, processes: true, files: true, commits: true },
   mappings: [],
   sandbox: {
     engine: 'windows-sandbox',

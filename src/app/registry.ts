@@ -52,6 +52,7 @@ import {
 import { checkHealthRun, enableSandboxRun, lastHealthRun, repairHealthRun } from './features/health/index.js';
 import { hideWindowRun, sandboxStatusRun, showWindowRun, stopSandboxRun } from './features/sandbox/index.js';
 import { listLogsRun, tailLogRun } from './features/logs/index.js';
+import { listAuditRun } from './features/audit/index.js';
 import { listSessionsRun, restartSessionsRun } from './features/sessions/index.js';
 import {
   exportConfigRun,
@@ -120,6 +121,7 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   containedOffRun,
   listLogsRun,
   tailLogRun,
+  listAuditRun,
   runUpdateRun,
   migrateSettingsRun,
   updatesStatusRun,

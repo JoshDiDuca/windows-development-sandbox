@@ -1,8 +1,9 @@
 // A page that is a view: its queries read over RPC (live ones kept fresh), its Page built in the browser by the view's
-// own pure build() and drawn by PageView. A view with tabs (Settings: all projects / this project) gets them above it.
+// own pure build() and drawn by PageView. A view with tabs (Settings: all projects / this project) gets them above it,
+// and a view with filters (what kind, which period) a small choice for each.
 // Views a navigation entry embeds (Settings: VPN, GitHub) are more categories of that entry's page; their own address
 // opens that page at their category.
-import { SegmentedControl } from '@mantine/core';
+import { SegmentedControl, Select } from '@mantine/core';
 import { useEffect, type ReactNode } from 'react';
 import { embeddingOf, NAV, navSections, viewById } from '../../../src/app/features/defs';
 import { viewInputs, type AnyView } from '../../../src/app/kernel/index';
@@ -26,10 +27,36 @@ function paramsOf(view: AnyView, given: Readonly<Record<string, string>>): Recor
     const value = given[name];
     if (typeof value === 'string' && value.length <= MAX_PARAM) out[name] = value;
   }
+  // A filter's value is one of its choices (else its first), like a tab's.
+  for (const filter of view.filters ?? []) {
+    const chosen = given[filter.param];
+    out[filter.param] = filter.choices.some((c) => c.value === chosen) ? chosen : filter.choices[0].value;
+  }
   const tabs = view.tabs;
   if (!tabs) return out;
   const chosen = given[tabs.param];
   return { ...out, [tabs.param]: tabs.choices.some((c) => c.value === chosen) ? chosen : tabs.choices[0].value };
+}
+
+/** The view's filters as small choices; picking one keeps the view's other parameters. */
+function FilterChoices({ view, params }: { readonly view: AnyView; readonly params: Record<string, string> }) {
+  return (
+    <>
+      {(view.filters ?? []).map((f) => (
+        <Select
+          key={f.param}
+          size="sm"
+          w={150}
+          aria-label={f.label}
+          allowDeselect={false}
+          comboboxProps={{ withinPortal: true }}
+          data={f.choices.map((c) => ({ value: c.value, label: c.label }))}
+          value={params[f.param]}
+          onChange={(value) => value && navigate(viewPath(view.id, { ...params, [f.param]: value }))}
+        />
+      ))}
+    </>
+  );
 }
 
 interface LoadedViewProps {
@@ -52,14 +79,21 @@ function LoadedView({ view, params, extras }: LoadedViewProps) {
   if (results.some(([, r]) => r.pending)) return <PageSkeleton />;
   const page = view.build(Object.fromEntries(results.map(([name, r]) => [name, r.data])) as never, params as never);
   const tabs = view.tabs;
-  const toolbar = tabs ? (
-    <SegmentedControl
-      size="sm"
-      data={tabs.choices.map((c) => ({ value: c.value, label: c.label }))}
-      value={params[tabs.param]}
-      onChange={(value) => navigate(viewPath(view.id, { [tabs.param]: value }))}
-    />
-  ) : undefined;
+  const filters = view.filters?.length ? <FilterChoices view={view} params={params} /> : null;
+  const toolbar =
+    tabs || filters ? (
+      <>
+        {filters}
+        {tabs && (
+          <SegmentedControl
+            size="sm"
+            data={tabs.choices.map((c) => ({ value: c.value, label: c.label }))}
+            value={params[tabs.param]}
+            onChange={(value) => navigate(viewPath(view.id, { [tabs.param]: value }))}
+          />
+        )}
+      </>
+    ) : undefined;
   return <PageView page={page} summary={view.summary} toolbar={toolbar} extras={extras} />;
 }
 

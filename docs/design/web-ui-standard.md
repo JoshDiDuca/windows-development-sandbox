@@ -19,6 +19,7 @@ special-case a view id in `web/`.
 | `Section.cards` | things you pick from: sessions, agents, apps, accounts | a grid of cards (icon, name, badges, details, actions) | rows / table |
 | `Section.columns` + `columnsOn: 'all'` | data people compare across rows: logs, audit, sizes | a table | a table |
 | `Section.facts` | a status: label and value | tiles; a `tone` adds a coloured dot | label: value lines |
+| `ViewDef.filters` | a parameter picked from fixed values (Activity: kind, period); `params` for free ones (a session) | a small choice per filter above the page; changing one keeps the other parameters | the query's flags; the menu shows the first value |
 | `Fact.meter` | how full something is (memory, disk) | a bar under the value | the value text |
 | `Item.icon` | an agent's name (`claude`), or `project`, `folder`, `database`, `session` | an avatar or icon | nothing |
 | `Item.keys` | words about the menu's keys ("x deletes it.", "Enter shows ...") | nothing (the web has buttons) | after the description |

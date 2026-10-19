@@ -18,6 +18,8 @@ import { showData } from '../../app/features/data/index.js';
 import { updatesStatus } from '../../app/features/updates/index.js';
 import { containedStatus, showStorage } from '../../app/features/storage/index.js';
 import { listSessions } from '../../app/features/sessions/index.js';
+import { auditListing, listAudit } from '../../app/features/audit/index.js';
+import { AuditLog, type AuditEvent } from '../../host/audit/index.js';
 import { cancelled, type OperationIO, type RpcHost } from '../../app/kernel/index.js';
 import { runDefinition } from '../../app/registry.js';
 import { webSession } from '../../cli/services/index.js';
@@ -542,10 +544,107 @@ function sampleLogTail(input: { readonly name?: string }): unknown {
   });
 }
 
+/** A plausible audit log: two agents' sessions, the sandbox's own setup, a commit each, a guard finding. */
+function sampleAuditLog(dir: string): AuditLog {
+  const log = new AuditLog(dir, { days: 7, maxMb: 100 });
+  const at = (minutesAgo: number): string => new Date(Date.now() - minutesAgo * MINUTE).toISOString();
+  const claude = { s: SESSIONS[0].id, ag: 'claude', pj: 'windows-sandbox', sv: 'p' as const };
+  const codex = { s: 'mva7codex2k91x', ag: 'codex', pj: 'mw2-agent', sv: 'p' as const };
+  const git = 'C:\\AgentData\\tools\\git\\cmd\\git.exe';
+  const node = 'C:\\nvm\\nodejs\\node.exe';
+  const ws = 'F:\\AgentProjects\\windows-sandbox';
+  const mw = 'F:\\AgentProjects\\mw2-agent';
+  const proc = (m: number, p: string, c: string, who: object, n?: number): AuditEvent => ({
+    t: at(m),
+    k: 'proc',
+    p,
+    c,
+    pp: node,
+    ...who,
+    ...(n ? { n } : {}),
+  });
+  const file = (m: number, p: string, w: string, who: object): AuditEvent => ({
+    t: at(m),
+    k: 'file',
+    a: 'change',
+    p,
+    w,
+    ...who,
+  });
+  log.append([
+    { t: at(95), k: 'note', p: 'sandbox started; audit: programs, files, commits, sessions' },
+    proc(94, 'C:\\AgentData\\tools\\uv\\uv.exe', 'uv tool install aider-chat', {}),
+    { t: at(90), k: 'session', a: 'start', p: 'claude', w: SESSIONS[0].cwd, c: claude.s, ...claude, sv: undefined },
+    proc(88, git, 'git status --short', claude),
+    proc(87, node, 'node dist/bin/agent-sandbox.js self-test audit', claude, 2),
+    file(80, 'src/host/audit/collect.ts', ws, claude),
+    file(79, 'src/app/features/audit/audit.def.ts', ws, claude),
+    proc(70, 'C:\\nvm\\nodejs\\npm.cmd', 'npm run build', claude),
+    {
+      t: at(66),
+      k: 'session',
+      a: 'start',
+      p: 'codex',
+      w: 'C:\\Projects\\mw2-agent',
+      c: codex.s,
+      ...codex,
+      sv: undefined,
+    },
+    proc(64, 'C:\\Users\\WDAGUtilityAccount\\.cargo\\bin\\cargo.exe', 'cargo build --release', codex, 3),
+    file(60, 'src/main.rs', mw, { ...codex, sv: 't' }),
+    proc(52, git, 'git commit -m "Audit: link programs to their session"', claude),
+    {
+      t: at(52),
+      k: 'commit',
+      a: 'commit',
+      p: 'Audit: link programs to their session',
+      h: 'a3f9c2e81b7d4c60a1e2f3b4c5d6e7f8a9b0c1d2',
+      au: 'Josh <josh@example.com>',
+      w: ws,
+      ...claude,
+    },
+    proc(40, git, 'git push --set-upstream origin https://***@github.com/example/mw2-agent.git', codex),
+    { t: at(38), k: 'guard', p: 'hook: a pre-push hook added inside the sandbox was neutralised' },
+    proc(30, 'C:\\Users\\WDAGUtilityAccount\\.cargo\\bin\\cargo.exe', 'cargo test', codex, 4),
+    {
+      t: at(28),
+      k: 'commit',
+      a: 'commit',
+      p: 'Fix the map loader',
+      h: '7be0d41c9a2f4e3b8c1d0e9f8a7b6c5d4e3f2a1b',
+      au: 'Josh <josh@example.com>',
+      w: mw,
+      ...codex,
+    },
+    {
+      t: at(20),
+      k: 'session',
+      a: 'end',
+      p: 'codex',
+      w: 'C:\\Projects\\mw2-agent',
+      c: codex.s + ' exit 0',
+      ...codex,
+      sv: undefined,
+    },
+    proc(5, node, 'node dist/bin/agent-sandbox.js self-test app', claude),
+  ]);
+  return log;
+}
+
 /** The real features where they only touch the temp folder, sample data for the rest. */
 function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none' | 'saved' }): RpcHost {
+  const auditDir = path.join(ctx.storageRoot, 'audit', 'preview');
+  const audit = sampleAuditLog(auditDir);
   const sample = async (id: string, input: unknown, io: OperationIO): Promise<unknown> => {
     switch (id) {
+      case 'audit.list':
+        // The real listing over a sample log in the temp folder.
+        return auditListing(
+          audit,
+          { enabled: true, days: 7, maxMb: 100 },
+          listAudit.input.parse(input ?? {}),
+          auditDir,
+        );
       case 'sandbox.status':
         return sampleStatus(state.running);
       case 'vpn.status':
@@ -817,6 +916,7 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
     'logs.tail': 'query',
     'engine.status': 'query',
     'engine.leftovers': 'query',
+    'audit.list': 'query',
   };
   return {
     kind: (id) => kinds[id],

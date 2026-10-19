@@ -19,6 +19,19 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   six signing secrets exist; until then it skips signing and the release is unchanged. The files this PC builds
   (HostTools.exe, HcsHost.exe, memgov.exe) stay unsigned. How to set it up and check a signature:
   [development.md](docs/development.md#signing-releases).
+- **The audit log is now on by default** and kept for 7 days (`audit.days`, now 1 to 30; a config with more than 30
+  must be lowered). It stays on your PC, out of the sandbox's reach; turn it off with
+  `sandbox config set audit.enabled false`. Old days are deleted when a sandbox starts and once a day.
+- **See what each agent did:** every program is linked to the agent session that started it; file changes and commits
+  are linked when only one session ran in that project (shown as likely) or when that session's git command made the
+  commit. Nothing is guessed: the rest is "not linked to a session".
+- **Git commits are recorded** (`audit.commits`): id, message and author, read from each project's reflog on your PC.
+- **Secrets are hidden** in recorded command lines and commit messages (tokens, keys, passwords in URLs, auth headers,
+  `--password`/`--token`/`API_KEY=` values).
+- **Activity page** in the web UI (and Maintenance > Activity in the menu): totals, per agent, each session as a card
+  that opens its own events, filters for kind and period. `sandbox audit` shows the same, with new `--session`,
+  `--agent`, `--project`, `--limit` and `--kind commit`; `--days 1` now means the last 24 hours. Its `--json` now prints
+  readable field names (`time`, `kind`, `what`, `command`, `session`, `agent` ...).
 
 ## 1.11.7
 

@@ -584,8 +584,8 @@ export const menuSuite: Suite = {
       typedDays?.value === 30 &&
         numberOptions.accept?.test('7') === true &&
         numberOptions.accept?.test('a') === false &&
-        numberOptions.hint?.includes('1 to 365') === true &&
-        numberOptions.validate?.('400') === 'Use 1 to 365.' &&
+        numberOptions.hint?.includes('1 to 30') === true &&
+        numberOptions.validate?.('40') === 'Use 1 to 30.' &&
         numberOptions.validate?.('30') === true &&
         numberOptions.initial === '7',
       'a number setting takes digits only, shows its range, and refuses a value outside it as you type',

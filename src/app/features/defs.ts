@@ -40,6 +40,7 @@ import {
   removeProject,
 } from './projects/projects.def.js';
 import { listLogs, logsView, tailLog } from './logs/logs.def.js';
+import { auditView, listAudit } from './audit/audit.def.js';
 import { listSessions, restartSessions, sessionsView } from './sessions/sessions.def.js';
 import { vpnLogin, vpnLogout, vpnStatus, vpnView } from './vpn/vpn.def.js';
 import { githubLogin, githubLogout, githubStatus, githubView } from './github/github.def.js';
@@ -60,6 +61,7 @@ export type { AccountRow, AccountsList, AgentAccounts } from './accounts/account
 export type { AppRow, AppsList, CustomAppRow } from './apps/apps.def.js';
 export type { FolderEntry, FolderListing } from './files/files.def.js';
 export type { LogFileRow, LogFiles, LogTail } from './logs/logs.def.js';
+export type { AuditList, AuditRow, AuditSession } from './audit/audit.def.js';
 export type { ProjectRow, ProjectsList } from './projects/projects.def.js';
 export type { SandboxStatus } from './sandbox/sandbox.def.js';
 export type { SessionRow, SessionsList } from './sessions/sessions.def.js';
@@ -132,6 +134,7 @@ export const QUERIES = [
   containedStatus,
   listLogs,
   tailLog,
+  listAudit,
   updatesStatus,
   engineStatus,
   checkEngine,
@@ -152,6 +155,7 @@ export const VIEWS = [
   dataView,
   storageView,
   logsView,
+  auditView,
   updatesView,
   engineView,
   webView,
@@ -218,6 +222,7 @@ export function embeddingOf(nav: readonly NavSection[], view: string): NavSectio
 export const NAV: readonly NavSection[] = [
   { label: 'Agents', view: 'agents' },
   { label: 'Sessions', view: 'sessions' },
+  { label: 'Activity', view: 'audit' },
   {
     label: 'Sandbox',
     children: [

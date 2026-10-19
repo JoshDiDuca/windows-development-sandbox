@@ -10,7 +10,7 @@ import { RepoGuardStore } from '../host/guard/index.js';
 import { isSandboxRunning, realContainedDeps, spawnDetached } from '../host/sandbox/index.js';
 import { readActiveViews, WorkspaceView, type ViewOptions } from '../host/workspace-view/index.js';
 import { readForwards, sandboxAddress, startPortForwards } from '../host/network/index.js';
-import { AuditCollector, readAuditSettings } from '../host/audit/collect.js';
+import { AuditCollector, AuditLog, readAuditSettings } from '../host/audit/index.js';
 import { readMarkedProjects, saveDataSize, watchAndMark } from '../host/guard/index.js';
 import { sizeWithin } from '../core/disk.js';
 import {
@@ -214,6 +214,13 @@ export class Watcher {
     const audit = auditSettings?.enabled ? new AuditCollector(dataPath, storageRoot, auditSettings) : null;
     this.audit = audit;
     audit?.start();
+    // Off now, but kept before: its old days still go.
+    if (auditSettings && !audit)
+      try {
+        new AuditLog(AuditLog.dirFor(storageRoot, dataPath), auditSettings).maintain();
+      } catch (e) {
+        this.note('audit: ' + errMsg(e));
+      }
     this.auditTimer = audit
       ? setInterval(() => {
           try {

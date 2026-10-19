@@ -410,21 +410,6 @@ const COMMAND_LIST = [
   },
   { name: 'sync', summary: 'copy conversation history back to this PC now', group: 'Data', args: [], options: [] },
   {
-    name: 'audit',
-    summary:
-      'what happened in your sandboxes: programs started, files changed, sessions, repo guard (turn it on: sandbox config set audit.enabled true)',
-    group: 'Health',
-    json,
-    args: [],
-    options: [
-      { flag: '--days', type: 'number', value: 'n', description: 'the last n days (default: today)', default: 1 },
-      text('--kind', 'kind', 'only proc, file, session or guard events', {
-        choices: ['proc', 'file', 'session', 'guard'],
-      }),
-      text('--grep', 'text', 'only events containing this text'),
-    ],
-  },
-  {
     name: 'logs',
     summary: 'print the newest sandbox log',
     group: 'Health',

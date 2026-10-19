@@ -7,6 +7,7 @@ import { accountsView } from '../../app/features/accounts/index.js';
 import { appsView } from '../../app/features/apps/index.js';
 import { healthView } from '../../app/features/health/index.js';
 import { logsView } from '../../app/features/logs/index.js';
+import { auditView } from '../../app/features/audit/index.js';
 import { projectsView } from '../../app/features/projects/index.js';
 import { sandboxView } from '../../app/features/sandbox/index.js';
 import { sessionsView } from '../../app/features/sessions/index.js';
@@ -37,6 +38,7 @@ export const MENU_VIEWS: readonly MenuViewPlace[] = [
   { view: dataView, section: 'Maintenance' },
   { view: storageView, section: 'Maintenance' },
   { view: logsView, section: 'Maintenance' },
+  { view: auditView, section: 'Maintenance' },
   { view: updatesView, section: 'Maintenance' },
   { view: engineView, section: 'Maintenance' },
   { view: webView, section: 'Maintenance' },

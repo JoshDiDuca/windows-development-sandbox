@@ -9,6 +9,7 @@ import { log, warn } from '../runtime/log.js';
 import { adoptBootSecrets } from '../runtime/secrets.js';
 import { errMsg } from '../../core/util/errors.js';
 import { Daemon } from '../daemon/daemon.js';
+import { sessions } from '../daemon/sessions.js';
 import { governor } from '../governor/index.js';
 
 process.on('uncaughtException', (e) => warn('daemon: unexpected error (continuing): ' + (e.stack ?? errMsg(e))));
@@ -17,7 +18,7 @@ process.on('unhandledRejection', (e) => warn('daemon: unexpected error (continui
 adoptBootSecrets();
 log('Session daemon started (pid ' + process.pid + ').');
 safely('port forwards', startRelays);
-safely('audit', startProcessCollector);
+safely('audit', () => startProcessCollector(() => sessions.roots()));
 safely('memory governor', () => governor.start());
 log('Memory governor: ' + governor.describe());
 new Daemon().start();

@@ -118,6 +118,16 @@ export interface ViewTabs<P> {
   readonly choices: readonly { readonly value: string; readonly label: string }[];
 }
 
+/**
+ * A filter of a view: one parameter picked from fixed values (the audit's kind and period). The web shows a small
+ * choice per filter above the page (changing one keeps the view's other parameters); the command line has the query's
+ * flags for the same thing, and the menu shows the first value. The first value is the default.
+ */
+export interface ViewFilter<P> extends ViewTabs<P> {
+  /** What the choice is about ("Period"), for its label. */
+  readonly label: string;
+}
+
 export interface ViewDef<Q extends QueryMap = QueryMap, P = Record<string, never>, Id extends string = string> {
   readonly kind: 'view';
   readonly id: Id;
@@ -130,7 +140,9 @@ export interface ViewDef<Q extends QueryMap = QueryMap, P = Record<string, never
   readonly pickers?: readonly QueryDef[];
   /** A parameter switched with tabs above the page (Settings: all projects or this project), first choice default. */
   readonly tabs?: ViewTabs<P>;
-  /** Parameters taken from the address as they are (the log shown), besides the tabs' one. */
+  /** Parameters picked from fixed values above the page (the audit's kind and period), first value default. */
+  readonly filters?: readonly ViewFilter<P>[];
+  /** Parameters taken from the address as they are (the log shown), besides the tabs' and filters' ones. */
   readonly params?: readonly (keyof P & string)[];
   /** The input of each query for these view parameters (default: each query's defaults). */
   inputs?(params: P): ViewInputs<Q>;

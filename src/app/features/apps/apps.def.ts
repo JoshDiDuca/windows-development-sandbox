@@ -35,7 +35,7 @@ export const APP_GROUPS: readonly AppGroup[] = [
     id: 'agents',
     label: 'Agent add-ons',
     description:
-      'Plug-ins for the agents: rtk shortens command output (fewer tokens), claude-mem gives Claude a memory, REA adds an MCP server. A project cannot turn on rtk or claude-mem.',
+      'Plug-ins for the agents: rtk and Headroom save tokens, claude-mem gives Claude a memory, ccusage reports token use, Playwright, Context7 and REA add MCP servers. Only your own settings turn them on (except REA).',
     members: ['agents'],
   },
   {
@@ -114,6 +114,7 @@ export const AppRowSchema = z.object({
   mesa: z.boolean().describe('Needs OpenGL on the CPU (Mesa)'),
   fullGitOnly: z.boolean().describe('Only with full git access'),
   plugsInto: z.string().optional().describe('Which agents an add-on plugs into, and how'),
+  service: z.boolean().optional().describe('Started by the sandbox or the agent (a proxy, an MCP server)'),
   setting: z.string().optional().describe('The setting it stands for (VS Code, Windows Terminal)'),
   /** That setting's own Field and value (on, off or auto), so it is changed with its own control. */
   settingField: FieldSchema.optional(),
@@ -217,7 +218,11 @@ export function appDetails(row: AppRow): AppDetail[] {
           },
           {
             label: 'Starts',
-            text: row.cli ? 'from a terminal (on PATH)' : 'from the desktop or Start > Sandbox apps',
+            text: row.service
+              ? 'by the sandbox or the agent (no shortcut, not on PATH)'
+              : row.cli
+                ? 'from a terminal (on PATH)'
+                : 'from the desktop or Start > Sandbox apps',
           },
         ]
       : []),

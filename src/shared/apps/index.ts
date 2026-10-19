@@ -1,11 +1,33 @@
 export {
+  type AddonMcp,
   type AppCategory,
   APP_CATEGORIES,
   type AppSource,
   type AppEntry,
   APPS,
   appById,
+  CCUSAGE_VERSION,
+  CONTEXT7_MCP_VERSION,
+  HEADROOM_VERSION,
+  PLAYWRIGHT_MCP_VERSION,
   RTK_VERSION,
 } from './catalogue.js';
-export { exeMatcher, appsToInstall, appsNeedMesa } from './selection.js';
-export { claudeManagedSettings, type ManagedSettings, rtkHookCommand, RTK_GUIDE_LINE } from './agent-addons.js';
+export { exeMatcher, appsToInstall, appsNeedMesa, appsNeedUv } from './selection.js';
+export {
+  ADDON_MCP_PREFIX,
+  addonGuideLine,
+  addonMcpServer,
+  claudeManagedSettings,
+  HEADROOM_ENV,
+  HEADROOM_PORT,
+  HEADROOM_UPSTREAM,
+  headroomArgs,
+  headroomEnv,
+  headroomGuideLine,
+  headroomUrl,
+  type ManagedSettings,
+  type McpServerConfig,
+  rtkHookCommand,
+  RTK_GUIDE_LINE,
+  withAddonMcpServers,
+} from './agent-addons.js';

@@ -1112,7 +1112,7 @@
               "rust-analyzer"
             ]
           },
-          "description": "Apps from the catalogue this project adds to yours (agent add-ons such as rtk are set in your own settings only)."
+          "description": "Apps from the catalogue this project adds to yours (agent add-ons such as rtk, Headroom and the MCP servers are set in your own settings only)."
         }
       },
       "additionalProperties": false

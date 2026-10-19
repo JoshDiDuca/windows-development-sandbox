@@ -6,12 +6,13 @@ import type { Config, GitAccess } from '../../core/types.js';
 import { appsToInstall, type AppEntry } from '../../shared/apps/index.js';
 import { downloader, moveIntoPlace, stagingFolder } from '../../shared/download/index.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
-import { dryRun } from '../runtime/paths.js';
+import { dryRun, launchDir } from '../runtime/paths.js';
 import { execAsync } from '../runtime/process.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log, warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
 import { tool, type ToolEnv } from '../toolchains/tool-env.js';
+import { uvVars } from '../toolchains/runtimes.js';
 import { afterInstall } from './after-install.js';
 import { findExe } from './find-exe.js';
 import { shortcuts, type Shortcut } from './shortcuts.js';
@@ -65,8 +66,9 @@ export class AppInstaller {
       const exe = findExe(dest, entry.exe);
       if (!exe) throw new Error(entry.exe + ' not found in the download');
       await afterInstall(entry, exe);
-      if (entry.cli || entry.id === 'sysinternals') this.env.prepend.push(path.dirname(exe));
-      if (!entry.cli) this.gui.push({ name: entry.name, exe });
+      // A proxy or MCP server (agent add-ons) is started by the sandbox or the agent: no PATH entry, no shortcut.
+      if (!entry.service && (entry.cli || entry.id === 'sysinternals')) this.env.prepend.push(path.dirname(exe));
+      if (!entry.cli && !entry.service) this.gui.push({ name: entry.name, exe });
       this.installed.push(entry.name);
     } catch (e) {
       warn(
@@ -81,7 +83,10 @@ export class AppInstaller {
     const work = stagingFolder(dest);
     const out = path.join(work, 'out');
     try {
-      if ('npm' in entry.source) {
+      if ('locked' in entry.source) {
+        log('Installing ' + entry.name + ' ' + entry.source.version + ' (pinned, every file checked) ...');
+        await installLocked(entry.id, entry.source.locked, mkdirp(out));
+      } else if ('npm' in entry.source) {
         const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
         log('Installing ' + entry.name + ' (npm) ...');
         await execAsync(process.execPath, [
@@ -107,6 +112,58 @@ export class AppInstaller {
       safeRemove(work, path.dirname(work));
     }
   }
+}
+
+/** The Python the uv lock files were made for (sandbox\addons\<id>\requirements.txt). */
+const LOCKED_PYTHON = '3.13';
+
+/**
+ * Installs a pinned package from its lock file in the launch folder (sandbox\addons\<id>) into `out`. npm: `npm ci`
+ * checks every tarball against the lock file's integrity, and runs no install scripts. uv: a relocatable venv (the
+ * folder moves into place afterwards) and `--require-hashes`, so every wheel must match its SHA-256 in the file; no
+ * source builds.
+ */
+async function installLocked(id: string, kind: 'npm' | 'uv', out: string): Promise<void> {
+  const lock = path.join(launchDir, 'sandbox', 'addons', id);
+  if (kind === 'npm') {
+    for (const f of ['package.json', 'package-lock.json']) fs.copyFileSync(path.join(lock, f), path.join(out, f));
+    const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    await execAsync(
+      process.execPath,
+      [npmCli, 'ci', '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error'],
+      { cwd: out },
+    );
+    return;
+  }
+  const uv = findExe(tool('uv'), 'uv.exe');
+  if (!uv) throw new Error('uv is not installed (the uv step failed)');
+  const env = { ...process.env, ...uvVars() };
+  const venv = path.join(out, 'venv');
+  await execAsync(
+    uv,
+    ['venv', '--relocatable', '--python', LOCKED_PYTHON, '--python-preference', 'only-managed', venv],
+    {
+      env,
+    },
+  );
+  await execAsync(
+    uv,
+    [
+      'pip',
+      'install',
+      '--python',
+      path.join(venv, 'Scripts', 'python.exe'),
+      '--require-hashes',
+      '--no-deps',
+      '--only-binary',
+      ':all:',
+      '--link-mode',
+      'copy',
+      '-r',
+      path.join(lock, 'requirements.txt'),
+    ],
+    { env },
+  );
 }
 
 /** Installs apps.install and apps.custom (skipped ones are listed in the summary). */

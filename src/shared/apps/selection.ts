@@ -42,6 +42,16 @@ export function appsToInstall(apps: Config['apps'], gitAccess: GitAccess): { ent
   return { entries: [...(needs7zip ? [appById('7zip')!] : []), ...allowed], skipped };
 }
 
+/** Does any chosen app install with uv (Headroom), so the uv step must run first? */
+export function appsNeedUv(apps: Config['apps'] | undefined): boolean {
+  return Boolean(
+    apps?.install.some((id) => {
+      const source = appById(id)?.source;
+      return source !== undefined && 'locked' in source && source.locked === 'uv';
+    }),
+  );
+}
+
 /** Does any chosen app draw with OpenGL (so the Mesa step must run first)? */
 export function appsNeedMesa(apps: Config['apps'] | undefined): boolean {
   return Boolean(apps?.install.some((id) => appById(id)?.needs?.includes('mesa')));

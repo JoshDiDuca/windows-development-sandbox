@@ -674,6 +674,12 @@ export const appSuite: Suite = {
       'is not an app this scope can change',
       'apps: a project cannot turn rtk on (it hooks every agent command)',
     );
+    for (const id of ['headroom', 'ccusage', 'playwright-mcp', 'context7'])
+      await t.throws(
+        () => runDefinition('apps.toggle', appsCtx, { scope: 'project', id, on: true }, quiet),
+        'is not an app this scope can change',
+        'apps: a project cannot turn ' + id + ' on (an agent add-on: your own settings only)',
+      );
     const projectApps = (await readQuery(listApps, appsCtx, { scope: 'project' })) as AppsList;
     const userApps = (await readQuery(listApps, appsCtx, { scope: 'user' })) as AppsList;
     const mem = userApps.apps.find((a) => a.id === 'claude-mem');
@@ -691,6 +697,18 @@ export const appSuite: Suite = {
           (i) => i.id === 'claude-mem' && !(i.details ?? []).some((d) => d.startsWith('Download')),
         ),
       'apps: an Agent add-ons section with rtk and claude-mem (its own setting, nothing to download); not in a project',
+    );
+    const headroomItem = (addons?.items ?? []).find((i) => i.id === 'headroom');
+    t.check(
+      ['headroom', 'ccusage', 'playwright-mcp', 'context7'].every(
+        (id) =>
+          (addons?.items ?? []).some((i) => i.id === id) &&
+          !projectApps.apps.some((a) => a.id === id) &&
+          userApps.apps.find((a) => a.id === id)?.on === false,
+      ) &&
+        (headroomItem?.details ?? []).some((d) => d.includes('no shortcut, not on PATH')) &&
+        (headroomItem?.details ?? []).some((d) => d.startsWith('Plugs in')),
+      'apps: Headroom, ccusage, Playwright MCP and Context7 are agent add-ons, off by default, not in a project',
     );
     const dataDir = t.dir('app-apps', 'data');
     fs.mkdirSync(path.join(dataDir, 'tools', 'apps', 'lazygit'), { recursive: true });

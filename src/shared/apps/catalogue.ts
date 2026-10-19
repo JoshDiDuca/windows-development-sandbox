@@ -71,9 +71,25 @@ export const APP_CATEGORIES: { id: AppCategory; label: string; description: stri
   },
 ];
 
-/** Where a download comes from. Resolvers (sublime, kubectl ...) are code in guest/apps, named here by id. */
+/**
+ * Where a download comes from. Resolvers (sublime, kubectl ...) are code in guest/apps, named here by id. `locked`: a
+ * pinned package installed from the lock file in sandbox\addons\<id> (npm: package.json + package-lock.json, every
+ * tarball checked against its integrity; uv: requirements.txt, every wheel checked against its SHA-256).
+ */
 export type AppSource =
-  { github: string; asset: string } | { url: string; sha256?: string } | { resolve: string } | { npm: string };
+  | { github: string; asset: string }
+  | { url: string; sha256?: string }
+  | { resolve: string }
+  | { npm: string }
+  | { locked: 'npm' | 'uv'; package: string; version: string };
+
+/** An MCP server an add-on adds to the sandbox's Claude Code: `node <its folder>\<script> <args>`. */
+export interface AddonMcp {
+  /** The server's name in Claude Code (sbx-...: the sandbox removes its own names again when the add-on is off). */
+  readonly name: string;
+  readonly script: string;
+  readonly args?: readonly string[];
+}
 
 export interface AppEntry {
   id: string;
@@ -103,6 +119,10 @@ export interface AppEntry {
   plugsInto?: string;
   /** Only in your own settings: a project's .sandbox-config.json cannot turn it on (it changes what the agents run). */
   userOnly?: boolean;
+  /** Started by the sandbox or the agent (a proxy, an MCP server): not on PATH and no shortcut. */
+  service?: boolean;
+  /** The MCP server it adds to the sandbox's Claude Code while it is on. */
+  mcp?: AddonMcp;
 }
 
 const gh = (github: string, asset: string): AppSource => ({ github, asset });
@@ -112,6 +132,11 @@ export const RTK_VERSION = '1.0.1';
 const RTK_URL =
   'https://github.com/rtk-ai/rtk/releases/download/v' + RTK_VERSION + '/rtk-oss-x86_64-pc-windows-msvc.zip';
 const RTK_SHA256 = '0e53e2eca471e15fbd3636e64e6bc0b182cbc278ed0339c80450a2dd03f4cd6b';
+/** Pinned agent add-ons, installed from the lock files in sandbox\addons\<id> (renewing them: docs/toolchains.md). */
+export const HEADROOM_VERSION = '0.41.0';
+export const CCUSAGE_VERSION = '20.0.36';
+export const PLAYWRIGHT_MCP_VERSION = '0.0.83';
+export const CONTEXT7_MCP_VERSION = '4.4.2';
 
 export const APPS: AppEntry[] = [
   // ---- agent add-ons
@@ -126,6 +151,60 @@ export const APPS: AppEntry[] = [
     exe: 'rtk.exe',
     cli: true,
     plugsInto: "Claude Code through a hook in the sandbox's managed settings; other agents are told to use it",
+    userOnly: true,
+  },
+  {
+    id: 'headroom',
+    name: 'Headroom',
+    category: 'agents',
+    about:
+      "Compresses what Claude Code sends to the model (tool output, logs, files) so it uses fewer tokens: a local proxy on 127.0.0.1:8787 that sits in Claude Code's API path, offline apart from forwarding to api.anthropic.com.",
+    size: '150 MB',
+    source: { locked: 'uv', package: 'headroom-ai', version: HEADROOM_VERSION },
+    exe: 'headroom.exe',
+    service: true,
+    plugsInto: 'Claude Code: the sandbox starts the proxy and points Claude Code at it (managed settings)',
+    userOnly: true,
+  },
+  {
+    id: 'ccusage',
+    name: 'ccusage',
+    category: 'agents',
+    about:
+      "Reports the agents' token use and cost by day, month or session from their logs in the sandbox (`ccusage daily`; add --offline to skip fetching prices).",
+    size: '5 MB',
+    source: { locked: 'npm', package: 'ccusage', version: CCUSAGE_VERSION },
+    exe: 'ccusage.cmd',
+    cli: true,
+    plugsInto: "Reads Claude Code's session logs in the sandbox; changes nothing",
+    userOnly: true,
+  },
+  {
+    id: 'playwright-mcp',
+    name: 'Playwright MCP',
+    category: 'agents',
+    about:
+      'Lets Claude Code drive a browser (Microsoft Edge, already in the sandbox) to open pages, click, fill forms and take screenshots: the MCP server of microsoft/playwright-mcp.',
+    size: '20 MB',
+    source: { locked: 'npm', package: '@playwright/mcp', version: PLAYWRIGHT_MCP_VERSION },
+    exe: 'playwright-mcp.cmd',
+    service: true,
+    mcp: { name: 'sbx-playwright', script: 'node_modules/@playwright/mcp/cli.js', args: ['--browser', 'msedge'] },
+    plugsInto: "Claude Code as the MCP server sbx-playwright (the sandbox's Claude settings)",
+    userOnly: true,
+  },
+  {
+    id: 'context7',
+    name: 'Context7 MCP',
+    category: 'agents',
+    about:
+      "Up-to-date documentation and code examples for libraries, looked up by Claude Code while it works (upstash/context7). The library names and questions go to Upstash's context7.com.",
+    size: '55 MB',
+    source: { locked: 'npm', package: '@upstash/context7-mcp', version: CONTEXT7_MCP_VERSION },
+    exe: 'context7-mcp.cmd',
+    service: true,
+    mcp: { name: 'sbx-context7', script: 'node_modules/@upstash/context7-mcp/dist/index.js' },
+    plugsInto: "Claude Code as the MCP server sbx-context7 (the sandbox's Claude settings)",
     userOnly: true,
   },
   {

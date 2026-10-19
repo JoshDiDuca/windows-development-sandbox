@@ -1,5 +1,6 @@
 // Picking tool versions and release assets: Node/Go/Python/Java version rules, GitHub release pages, PowerShell 7,
-// cargo-binstall, the small CLI tools (gh, zstd, openssl), and when PowerShell 7 is wanted.
+// cargo-binstall, the small CLI tools (gh, zstd, openssl), when PowerShell 7 is wanted, and the apps' agent add-ons.
+import fs from 'node:fs';
 import path from 'node:path';
 import {
   javaMajorFrom,
@@ -15,13 +16,24 @@ import { decidePwsh, pcHasPwsh, PWSH_MAX_BYTES, readPwshScripts, usesPwsh } from
 import { binstallAsset, CLI_TOOLS, decideCli, pwshAsset, type CliSettings } from '../guest/toolchains/catalogue.js';
 import { missingExtensions, vscodeExtensions, vscodeSettings } from '../guest/toolchains/tools/vscode-profile.js';
 import {
+  addonGuideLine,
+  addonMcpServer,
   APP_CATEGORIES,
   APPS,
   appsNeedMesa,
+  appsNeedUv,
   appsToInstall,
+  CCUSAGE_VERSION,
   claudeManagedSettings,
+  CONTEXT7_MCP_VERSION,
   exeMatcher,
+  HEADROOM_VERSION,
+  headroomArgs,
+  headroomEnv,
+  headroomUrl,
+  PLAYWRIGHT_MCP_VERSION,
   RTK_VERSION,
+  withAddonMcpServers,
 } from '../shared/apps/index.js';
 import { ConfigSchema, LocalOverridesSchema } from '../core/schema/index.js';
 import type { Suite } from './support/suite.js';
@@ -405,6 +417,162 @@ export const toolchainsSuite: Suite = {
         both.hooks?.PreToolUse.length === 1 &&
         withRtk?.permissions === undefined,
       'rtk: no hook when it is off; the git deny rules stay beside it; nothing to write when neither',
+    );
+
+    t.section('agent add-ons: Headroom, ccusage, Playwright MCP, Context7 MCP');
+    const pinned = {
+      headroom: ['uv', 'headroom-ai', HEADROOM_VERSION],
+      ccusage: ['npm', 'ccusage', CCUSAGE_VERSION],
+      'playwright-mcp': ['npm', '@playwright/mcp', PLAYWRIGHT_MCP_VERSION],
+      context7: ['npm', '@upstash/context7-mcp', CONTEXT7_MCP_VERSION],
+    } as const;
+    for (const [id, [kind, pkg, version]] of Object.entries(pinned)) {
+      const entry = APPS.find((a) => a.id === id);
+      const source = entry?.source;
+      t.check(
+        entry?.category === 'agents' &&
+          entry.userOnly === true &&
+          source !== undefined &&
+          'locked' in source &&
+          source.locked === kind &&
+          source.package === pkg &&
+          source.version === version &&
+          /^\d+\.\d+\.\d+$/.test(version) &&
+          !LocalOverridesSchema.safeParse({ apps: { install: [id] } }).success &&
+          ConfigSchema.shape.apps.shape.install.safeParse([id]).success,
+        id + ': in Agent add-ons, a pinned ' + kind + ' package (' + pkg + ' ' + version + '), your own settings only',
+      );
+      const lockDir = path.join(t.packageRoot, 'sandbox', 'addons', id);
+      if (kind === 'npm') {
+        const manifest = JSON.parse(fs.readFileSync(path.join(lockDir, 'package.json'), 'utf8')) as {
+          dependencies: Record<string, string>;
+        };
+        const lock = JSON.parse(fs.readFileSync(path.join(lockDir, 'package-lock.json'), 'utf8')) as {
+          lockfileVersion: number;
+          packages: Record<string, { version?: string; resolved?: string; integrity?: string; link?: boolean }>;
+        };
+        const deps = Object.entries(lock.packages).filter(([key]) => key !== '');
+        t.check(
+          manifest.dependencies[pkg] === version &&
+            Object.keys(manifest.dependencies).length === 1 &&
+            lock.lockfileVersion === 3 &&
+            lock.packages['node_modules/' + pkg]?.version === version &&
+            deps.length > 0 &&
+            deps.every(
+              ([, p]) =>
+                !p.link &&
+                (p.resolved ?? '').startsWith('https://registry.npmjs.org/') &&
+                /^sha512-[A-Za-z0-9+/]+=*$/.test(p.integrity ?? ''),
+            ),
+          id + ': its lock file pins ' + pkg + ' ' + version + '; every package comes from npm with a sha512 integrity',
+        );
+      } else {
+        const lines = fs.readFileSync(path.join(lockDir, 'requirements.txt'), 'utf8').split(/\r?\n/);
+        const requirements = lines.filter((l) => /^[A-Za-z0-9]/.test(l));
+        const blocks = lines
+          .join('\n')
+          .split(/\n(?=[A-Za-z0-9])/)
+          .slice(1);
+        t.check(
+          requirements.includes(pkg + '==' + version + ' \\') &&
+            requirements.length > 10 &&
+            requirements.every((l) => /^[A-Za-z0-9._-]+(\[[^\]]+\])?==[^\s]+ \\$/.test(l)) &&
+            blocks.every((b) => /--hash=sha256:[0-9a-f]{64}/.test(b)) &&
+            !lines.some((l) => /^\s*(-e|--index-url|--extra-index-url|-f|--find-links|git\+|https?:)/.test(l.trim())),
+          id + ': its requirements.txt pins every package to one version with SHA-256 hashes, from PyPI only',
+        );
+      }
+    }
+    t.check(
+      appsNeedUv({ install: ['headroom'], custom: {} }) &&
+        !appsNeedUv({ install: ['ccusage', 'rtk'], custom: {} }) &&
+        !appsNeedUv(undefined),
+      'headroom: choosing it brings the uv step (it installs with uv)',
+    );
+    const services = APPS.filter((a) => a.service).map((a) => a.id);
+    t.check(
+      ['headroom', 'playwright-mcp', 'context7'].every((id) => services.includes(id)) &&
+        APPS.find((a) => a.id === 'ccusage')?.cli === true &&
+        !services.includes('ccusage'),
+      'add-ons: the proxy and MCP servers get no shortcut and no PATH entry; ccusage is a command on PATH',
+    );
+
+    // Headroom: loopback only, Anthropic only, no telemetry, and none of the agents' secrets in its environment.
+    const args = headroomArgs();
+    t.check(
+      args[0] === 'proxy' &&
+        args[args.indexOf('--host') + 1] === '127.0.0.1' &&
+        args[args.indexOf('--port') + 1] === '8787' &&
+        args[args.indexOf('--anthropic-api-url') + 1] === 'https://api.anthropic.com' &&
+        args.includes('--no-telemetry') &&
+        headroomUrl() === 'http://127.0.0.1:8787',
+      'headroom: the proxy listens on 127.0.0.1 only and forwards only to api.anthropic.com, telemetry off',
+    );
+    const proxyEnv = headroomEnv({
+      PATH: 'C:\\Windows',
+      ANTHROPIC_API_KEY: 'sk-ant-x',
+      CLAUDE_CODE_OAUTH_TOKEN: 'oauth',
+      GITHUB_TOKEN: 'ghp',
+      OPENAI_API_KEY: 'sk',
+      DB_PASSWORD: 'pw',
+      HTTPS_PROXY: 'http://127.0.0.1:3128',
+      HEADROOM_OFFLINE: '0',
+    });
+    t.check(
+      proxyEnv.PATH === 'C:\\Windows' &&
+        proxyEnv.HTTPS_PROXY === 'http://127.0.0.1:3128' &&
+        !Object.values(proxyEnv).some((v) => ['sk-ant-x', 'oauth', 'ghp', 'sk', 'pw'].includes(v)) &&
+        proxyEnv.HEADROOM_OFFLINE === '1' &&
+        proxyEnv.HEADROOM_TELEMETRY === 'off' &&
+        proxyEnv.HEADROOM_UPDATE_CHECK === 'off',
+      'headroom: starts without keys or tokens, offline apart from forwarding (no telemetry, updates or downloads)',
+    );
+    const routed = claudeManagedSettings([], null, headroomUrl());
+    t.check(
+      routed?.env?.ANTHROPIC_BASE_URL === 'http://127.0.0.1:8787' &&
+        claudeManagedSettings([], exe)?.env === undefined &&
+        claudeManagedSettings(['Bash(git push:*)'], null)?.env === undefined &&
+        claudeManagedSettings(['Bash(git push:*)'], exe, headroomUrl())?.hooks?.PreToolUse.length === 1,
+      "headroom: Claude Code is pointed at the proxy only while it runs (the sandbox's managed settings env)",
+    );
+
+    // MCP servers: set while on, removed when off, your own servers never touched.
+    const playwright = APPS.find((a) => a.id === 'playwright-mcp')?.mcp;
+    const context7 = APPS.find((a) => a.id === 'context7')?.mcp;
+    const known = APPS.flatMap((a) => (a.mcp ? [a.mcp.name] : []));
+    const pw = playwright ? addonMcpServer('C:\\AgentData\\tools\\apps\\playwright-mcp', playwright) : null;
+    t.equal(
+      pw,
+      {
+        type: 'stdio',
+        command: 'node',
+        args: [
+          'C:\\AgentData\\tools\\apps\\playwright-mcp\\node_modules\\@playwright\\mcp\\cli.js',
+          '--browser',
+          'msedge',
+        ],
+        env: {},
+      },
+      'playwright-mcp: a stdio MCP server run by node from its own folder, with Edge',
+    );
+    const mine = { playwright: { type: 'stdio', command: 'npx', args: ['@playwright/mcp'] } };
+    const on = withAddonMcpServers(mine, pw ? { 'sbx-playwright': pw } : {}, known);
+    const off = withAddonMcpServers({ ...on, 'sbx-context7': {} }, {}, known);
+    t.check(
+      known.length === 2 &&
+        known.every((n) => n.startsWith('sbx-')) &&
+        context7?.name === 'sbx-context7' &&
+        'sbx-playwright' in on &&
+        'playwright' in on &&
+        Object.keys(off).join() === 'playwright' &&
+        withAddonMcpServers({ 'sbx-other': 1 }, {}, known)['sbx-other'] === 1,
+      'add-ons: their sbx-... MCP servers are set while on and removed when off; servers of your own stay',
+    );
+    t.check(
+      addonGuideLine([], false).length === 0 &&
+        addonGuideLine(['sbx-playwright'], true).length === 2 &&
+        addonGuideLine(['sbx-playwright'], false)[0].includes('sbx-playwright'),
+      'add-ons: the agent guide names the MCP servers and ccusage only when they are on',
     );
   },
 };

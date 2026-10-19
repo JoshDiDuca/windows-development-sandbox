@@ -125,7 +125,7 @@ sizes and what is installed already) or in `apps.install`:
 
 | Category | Apps |
 | --- | --- |
-| Agent add-ons | rtk (compacts command output for the agents), claude-mem (its own setting, see below), REA (reverse-engineering MCP server) |
+| Agent add-ons | rtk (compacts command output for the agents), Headroom (compresses Claude Code's requests), ccusage (token use and cost reports), Playwright MCP (browser automation with Edge), Context7 MCP (library docs), claude-mem (its own setting, see below), REA (reverse-engineering MCP server) |
 | Editors | Notepad++, Sublime Text, Neovim (VS Code: see [VS Code](#vs-code) above) |
 | Database clients | DBeaver, pgAdmin 4, HeidiSQL, DB Browser for SQLite, MongoDB Compass, Redis Insight, DbGate, Beekeeper Studio, dynamodb-admin |
 | API clients | Bruno, Insomnia |
@@ -157,6 +157,43 @@ Things that plug into the agents, in the **Agent add-ons** category of Apps:
   other agents get a line in their sandbox guide telling them to put `rtk` in front of shell commands. Claude's own
   Read, Grep and Glob tools do not go through it. Only your own settings can turn it on: a project's
   `.sandbox-config.json` cannot.
+- **Headroom** ([headroomlabs-ai/headroom](https://github.com/headroomlabs-ai/headroom), Apache-2.0, `"headroom"`,
+  off by default) compresses what Claude Code sends to the model (tool output, logs, files, older turns), so a session
+  uses fewer tokens. It is a proxy that **sits in Claude Code's API path**: it sees your prompts and the login or API
+  key Claude Code sends with them. So the sandbox keeps it tight:
+  - It runs only inside the sandbox, listening on `127.0.0.1:8787` (never on the network), and forwards only to
+    `https://api.anthropic.com` (fixed on its command line).
+  - It starts with `HEADROOM_OFFLINE=1` and telemetry off: no telemetry, update checks, model downloads or usage
+    polling, only the forwarding of Claude Code's own requests. Its environment has none of the agents' keys or
+    tokens, and its log (`C:\AgentData\logs\headroom.log`) shows keys and tokens as `[REDACTED]`.
+  - Claude Code is pointed at it (`ANTHROPIC_BASE_URL` in the sandbox's managed settings) only once the proxy answers
+    as Headroom at boot. When your agent environment sets `ANTHROPIC_BASE_URL` itself (a gateway of your own), Headroom
+    is left out. If the proxy stops during the session, Claude Code cannot reach the API until the next sandbox, or
+    until you turn Headroom off.
+  - It installs pinned: headroom-ai 0.41.0 with its `proxy` extra, with uv into a Python 3.13 venv in
+    `C:\AgentData\tools\apps\headroom`, from `sandbox\addons\headroom\requirements.txt`. That file lists every
+    package (95) at one version with its SHA-256, and uv installs with `--require-hashes` and wheels only (about 150 MB
+    of downloads the first time; the uv step runs for it). Without its optional ML model (offline), it uses its
+    built-in compressors only. It works with Claude Code only.
+- **ccusage** ([ryoppippi/ccusage](https://github.com/ryoppippi/ccusage), MIT, `"ccusage"`) reports token use and cost
+  by day, month or session from the agents' logs in the sandbox: `ccusage daily`. It fetches current prices unless you
+  add `--offline`. On PATH.
+- **Playwright MCP** ([microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp), Apache-2.0,
+  `"playwright-mcp"`) lets Claude Code drive Microsoft Edge (already in the sandbox) as the MCP server
+  `sbx-playwright`.
+- **Context7 MCP** ([upstash/context7](https://github.com/upstash/context7), MIT, `"context7"`) gives Claude Code
+  up-to-date library documentation as the MCP server `sbx-context7`. The library names and questions go to Upstash's
+  context7.com.
+
+  ccusage 20.0.36, Playwright MCP 0.0.83 and Context7 MCP 4.4.2 install with `npm ci --ignore-scripts` from the
+  `package-lock.json` in `sandbox\addons\<id>`, which checks every package against its sha512 integrity. The MCP
+  servers go into the sandbox's own Claude Code (user scope in its `.claude.json`, under names starting `sbx-`): they
+  are set every boot while on and removed when off. Your own servers, from this PC or added in the sandbox, are left
+  alone. Like rtk, these add-ons are off by default and only your own settings turn them on.
+
+  To move an add-on to a newer version, change its version in `src/shared/apps/catalogue.ts` and renew its lock file.
+  For npm: the version in `package.json`, then `npm install --package-lock-only --ignore-scripts`. For Headroom: the
+  version in `requirements.in`, then the `uv pip compile` command at the top of `requirements.txt`.
 - **claude-mem** is the `claudeProfile.syncClaudeMem` setting (on by default): it brings the database of the
   claude-mem plugin you use on this PC into the sandbox. The switch in Apps changes that setting.
 - **REA** (Reverse Engineer Anything) installs from npm; run `rea setup` once to add its MCP server to Claude Code and

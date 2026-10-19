@@ -32,6 +32,15 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   that opens its own events, filters for kind and period. `sandbox audit` shows the same, with new `--session`,
   `--agent`, `--project`, `--limit` and `--kind commit`; `--days 1` now means the last 24 hours. Its `--json` now prints
   readable field names (`time`, `kind`, `what`, `command`, `session`, `agent` ...).
+- **More agent add-ons: Headroom, ccusage, Playwright MCP, Context7 MCP.** All are off by default, only your own
+  settings turn them on, and each installs pinned from a lock file that ships with the tool, every package checked
+  against its hash.
+  - **Headroom** 0.41.0 compresses what Claude Code sends to the model. It installs with uv (`--require-hashes`). The
+    sandbox starts its proxy on 127.0.0.1:8787, offline apart from forwarding to api.anthropic.com, with no
+    telemetry and none of the agents' keys in its environment, and points Claude Code at it only once it answers.
+  - **ccusage** 20.0.36 reports token use and cost.
+  - **Playwright MCP** 0.0.83 (with Edge) and **Context7 MCP** 4.4.2 become the MCP servers `sbx-playwright` and
+    `sbx-context7` in the sandbox's own Claude Code, and are removed again when you turn them off.
 
 ## 1.11.7
 

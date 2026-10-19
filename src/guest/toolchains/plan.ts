@@ -1,7 +1,7 @@
 // Which toolchain and database steps this sandbox runs, in the order their PATH entries are listed, and what each
 // step depends on. The scheduler (scheduler.ts) runs them.
 import type { Toolchains, ToolVersions } from '../../core/types.js';
-import { appsNeedMesa, setupApps } from '../apps/index.js';
+import { appsNeedMesa, appsNeedUv, setupApps } from '../apps/index.js';
 import { dryRun } from '../runtime/paths.js';
 import { wanted } from './detect.js';
 import { DATABASE_NAMES, setupDatabase } from '../databases/index.js';
@@ -90,7 +90,12 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
     },
     { name: 'Deno', enabled: wanted(config.deno.enabled, 'deno'), install: (env) => setupDeno(env) },
     { name: 'Bun', enabled: wanted(config.bun.enabled, 'bun'), install: (env) => setupBun(env) },
-    { name: 'uv', enabled: wanted(config.uv.enabled, 'uv'), install: (env) => setupUv(env) },
+    // Headroom (an agent add-on) installs with uv: the uv step runs for it too, before the apps.
+    {
+      name: 'uv',
+      enabled: wanted(config.uv.enabled, 'uv') || appsNeedUv(o.apps),
+      install: (env) => setupUv(env),
+    },
     { name: 'PowerShell 7', enabled: wanted(config.pwsh.enabled, 'pwsh'), install: (env) => setupPwsh(env, o.refresh) },
     // The openssl tool comes from Git's install: after Git.
     {
@@ -116,7 +121,7 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       name: 'Apps',
       enabled: apps,
       shared: true,
-      after: ['Mesa 3D', 'Visual C++ runtime'],
+      after: ['Mesa 3D', 'Visual C++ runtime', 'uv'],
       install: (env) => setupApps(env, o.apps!, { gitAccess: o.gitAccess, refresh: o.refresh }),
     },
     {

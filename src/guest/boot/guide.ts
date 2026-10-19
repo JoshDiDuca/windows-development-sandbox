@@ -3,9 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { claudeDir, session, stateDir, workspace } from '../runtime/session.js';
-import { dataDir, launchDir, toolsDir } from '../runtime/paths.js';
-import { RTK_GUIDE_LINE } from '../../shared/apps/index.js';
-import { installedRtk } from '../setup/agent-addons.js';
+import { dataDir, launchDir, logsDir, toolsDir } from '../runtime/paths.js';
+import { addonGuideLine, APPS, headroomGuideLine, RTK_GUIDE_LINE } from '../../shared/apps/index.js';
+import { installedAddon, installedRtk } from '../setup/agent-addons.js';
 
 const BEGIN = '<!-- agent-sandbox:begin (generated every boot, do not edit) -->';
 const END = '<!-- agent-sandbox:end -->';
@@ -63,7 +63,7 @@ export function sandboxGuide(
     '- RO: `' + launchDir + "` (this boot's scripts) · lost on close: everything else, incl. `C:\\nvm` (Node symlink)",
     ...mirrorLine(),
     '- Tools: ' + toolSummary.join(' · '),
-    // Agent add-ons that change how the agent should work (rtk).
+    // Agent add-ons that change how the agent works (rtk, Headroom, MCP servers, ccusage).
     ...addons,
     '- Persistent installs: `npm i -g` (per nvm version), `pip`, `cargo install`, `dotnet tool -g`, `uv tool`, `bun add -g`. Real installers must re-run each boot via a hook (ask the user).',
     '- Mapped folders (workspace, C:\\AgentData) allow NO symlinks or junctions: pnpm runs hoisted (set), npm workspaces / `file:` deps and deno node_modules dirs fail there (use a folder on C:\\ outside them), bun cannot save its lockfile there (`bun install --no-save`).',
@@ -101,12 +101,33 @@ export function managedClaudeMd(): string {
   );
 }
 
+/** Whether the managed settings point Claude Code at the Headroom proxy (written just before the guide). */
+const headroomRuns = (): boolean => {
+  try {
+    const file = path.join(path.dirname(managedClaudeMd()), 'managed-settings.json');
+    const settings = JSON.parse(fs.readFileSync(file, 'utf8')) as { env?: { ANTHROPIC_BASE_URL?: unknown } };
+    return typeof settings.env?.ANTHROPIC_BASE_URL === 'string';
+  } catch {
+    return false; // no managed settings: nothing points at the proxy
+  }
+};
+
+/** The lines for the agent add-ons that are on and installed (rtk, Headroom, MCP servers, ccusage). */
+function addonLines(): string[] {
+  const mcp = APPS.flatMap((a) => (a.mcp && installedAddon(a.id) ? [a.mcp.name] : []));
+  return [
+    ...(installedRtk() ? [RTK_GUIDE_LINE] : []),
+    ...(installedAddon('headroom') && headroomRuns() ? [headroomGuideLine(path.join(logsDir, 'headroom.log'))] : []),
+    ...addonGuideLine(mcp, Boolean(installedAddon('ccusage'))),
+  ];
+}
+
 export function writeGuides(
   toolSummary: string[],
   lan: 'blocked' | 'open' | 'offline',
   projects: GuideProject[] = [],
 ): string {
-  const guide = sandboxGuide(toolSummary, lan, projects, installedRtk() ? [RTK_GUIDE_LINE] : []);
+  const guide = sandboxGuide(toolSummary, lan, projects, addonLines());
   const managed = managedClaudeMd();
   fs.mkdirSync(path.dirname(managed), { recursive: true });
   fs.writeFileSync(managed, guide + '\n', 'utf8');

@@ -1338,6 +1338,10 @@
             "type": "string",
             "enum": [
               "rtk",
+              "headroom",
+              "ccusage",
+              "playwright-mcp",
+              "context7",
               "rea",
               "notepadpp",
               "sublime",

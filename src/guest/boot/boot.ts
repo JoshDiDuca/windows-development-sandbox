@@ -16,6 +16,8 @@ import { runHooks } from '../setup/hooks.js';
 import { applyAllowOnly, proxyEnv } from '../network/allow-only.js';
 import { applyNetworkPolicy, networkProblems, type LanState } from '../network/firewall.js';
 import { writeManagedSettings } from '../setup/managed-policy.js';
+import { writeAddonMcpServers } from '../setup/addon-mcp.js';
+import { startHeadroom } from '../setup/headroom.js';
 import { applyPersonalization } from '../setup/desktop.js';
 import { setupGitConfig } from '../setup/git-identity.js';
 import { loginGithub, prepareGithubFolder } from '../setup/github-token.js';
@@ -158,7 +160,7 @@ export class Boot {
     const { tools, env } = await this.developerTools();
     await this.vpn();
     await this.gitIdentity(env);
-    await this.claude(tools);
+    await this.claude(tools, env);
     await this.agent(env);
     this.preAgentHooks(env);
     await this.start(env);
@@ -248,15 +250,22 @@ export class Boot {
     }
   }
 
-  private async claude(tools: ToolchainResult): Promise<void> {
+  private async claude(tools: ToolchainResult, env: NodeJS.ProcessEnv): Promise<void> {
     step(6, 'Claude settings, history and claude-mem');
     if (session.harnessName === 'claude')
       await soft('Claude settings', () => syncClaudeProfile(this.secrets.claudeCredentials));
     await soft('claude-mem restore', restoreClaudeMem);
     await soft('Agent files of the last sandbox', resetMachineBound);
     await soft('Agent databases restore', restoreLocalState);
+    // Agent add-ons: MCP servers in the sandbox's Claude Code, and the Headroom proxy before the managed settings point
+    // Claude Code at it (the guide reads them back, so it comes last).
+    let headroom: string | null = null;
+    await soft('MCP servers from Apps', writeAddonMcpServers);
+    await soft('Headroom proxy', async () => {
+      headroom = await startHeadroom(env);
+    });
+    await soft('Claude managed settings', () => writeManagedSettings(this.gitAccess, headroom));
     await soft('Sandbox guide for the agent', () => writeGuides(tools.summary, this.lan));
-    await soft('Claude managed settings', () => writeManagedSettings(this.gitAccess));
   }
 
   private async agent(env: NodeJS.ProcessEnv): Promise<void> {

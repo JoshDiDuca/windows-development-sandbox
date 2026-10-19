@@ -85,6 +85,7 @@ export function appRows(file: ConfigFile, dataPath: string, source: AppsSource =
     mesa: entry.needs?.includes('mesa') ?? false,
     fullGitOnly: Boolean(entry.fullGitOnly),
     ...(entry.plugsInto ? { plugsInto: entry.plugsInto } : {}),
+    ...(entry.service ? { service: true } : {}),
     ...settingParts(entry, file, source),
     installed: installed(entry, dataPath),
     on: appIsOn(entry, file, source),

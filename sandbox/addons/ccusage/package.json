@@ -1,0 +1,7 @@
+{
+  "name": "sandbox-addon-ccusage",
+  "private": true,
+  "dependencies": {
+    "ccusage": "20.0.36"
+  }
+}

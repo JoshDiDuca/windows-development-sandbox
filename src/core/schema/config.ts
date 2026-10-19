@@ -144,7 +144,7 @@ export const LocalOverridesSchema = z
     attach: AttachSchema.partial(),
     personalization: toggle('Copy your desktop look into the sandbox.').partial(),
     // Catalogue apps only (a vetted list): your own programs (apps.custom) download anything, so a repo cannot add
-    // them, nor agent add-ons that are yours only (rtk adds a hook to every agent command).
+    // them, nor agent add-ons that are yours only (rtk hooks every agent command, Headroom sits in its API path).
     apps: ProjectAppsSchema.partial(),
     claudeProfile: ClaudeProfileSchema.pick({
       enabled: true,

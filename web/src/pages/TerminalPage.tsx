@@ -1,5 +1,6 @@
-// A session's terminal inside the shell: a toolbar (back, which agent in which project, the connection's state, search,
-// text size, full screen, detach) over xterm.js, and on touch screens a row of the keys a phone keyboard lacks.
+// A session's terminal inside the shell: a toolbar (back, which agent or shell in which project, the connection's state,
+// search, text size, full screen, close the session, detach) over xterm.js, and on touch screens a row of the keys a
+// phone keyboard lacks.
 import {
   ActionIcon,
   Badge,
@@ -26,6 +27,8 @@ import {
 } from '@tabler/icons-react';
 import { useCallback, useRef, useState } from 'react';
 import { queryById, type SessionsList } from '../../../src/app/features/defs';
+import type { OperationAction } from '../../../src/app/kernel/index';
+import { ActionButton } from '../render/actions';
 import { ItemIcon } from '../render/icons';
 import { navigate, viewPath } from '../router';
 import { useQueryData } from '../rpc/hooks';
@@ -127,6 +130,16 @@ export function TerminalPage({ id }: { readonly id: string }) {
   useHotkeys([['mod+shift+F', () => setSearching(true)]], [], true);
 
   const shown = STATE_TEXT[state];
+  // Ends the session and what it started (sessions.close asks first); hidden for a role that may not.
+  const close: OperationAction = {
+    kind: 'operation',
+    op: 'sessions.close',
+    label: 'Close',
+    verb: 'close',
+    input: { session: id },
+    danger: true,
+    description: 'End this session and every program it started',
+  };
   const leave = (): void => {
     detach.current();
     navigate(viewPath('sessions'));
@@ -180,6 +193,7 @@ export function TerminalPage({ id }: { readonly id: string }) {
               {fullscreen ? <IconMinimize size={18} /> : <IconMaximize size={18} />}
             </ActionIcon>
           </Tooltip>
+          {session?.phase === 'running' && <ActionButton action={close} size="xs" ml={6} />}
           <Tooltip label="Close this view; the session keeps running">
             <Button size="xs" variant="default" ml={6} onClick={leave}>
               Detach

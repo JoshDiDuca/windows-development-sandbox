@@ -1,9 +1,11 @@
 // Runs a definition as a command: its input from the command line, its questions on the terminal, and its output as
 // --json, as the definition's one-line text, or as the page of the view that shows it. A declined question prints
-// "Nothing changed." and exits 1, as the commands always have.
+// "Nothing changed." and exits 1, as the commands always have. An operation that opens a session's terminal (a new
+// shell) attaches this terminal to it afterwards.
 import { VIEWS } from '../../app/features/defs.js';
 import { runDefinition } from '../../app/registry.js';
 import { Cancelled, type AnyDefinition, type AnyView } from '../../app/kernel/index.js';
+import type { Context } from '../commands/context.js';
 import type { Handler } from '../commands/registry.js';
 import { nextStep, printJson, printPage } from '../output/index.js';
 import { cliInput, definitionFor } from './input.js';
@@ -32,6 +34,17 @@ function printOutput(def: AnyDefinition, output: unknown, input: Record<string, 
   else console.log(JSON.stringify(output, null, 2));
 }
 
+/** Attaches this terminal to the session an operation opened (in a script: says how to). */
+async function attachOpened(ctx: Context, session: string): Promise<number> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    nextStep('sandbox attach ' + session);
+    return 0;
+  }
+  // Loaded when needed: attach reaches the launch commands, which reach this handler (no import cycle).
+  const { attach } = await import('../commands/sessions/attach.js');
+  return attach({ ...ctx, options: { ...ctx.options, positionals: [session] } });
+}
+
 /** The command for a definition. */
 export function definitionHandler(def: AnyDefinition): Handler {
   return async (ctx) => {
@@ -46,6 +59,8 @@ export function definitionHandler(def: AnyDefinition): Handler {
         return code;
       }
       printOutput(def, output, def.input.parse(input) as Record<string, unknown>);
+      const opened = def.kind === 'operation' ? def.opens?.(output) : undefined;
+      if (opened?.kind === 'terminal') return attachOpened(ctx, opened.session);
       return code;
     } catch (e) {
       close();

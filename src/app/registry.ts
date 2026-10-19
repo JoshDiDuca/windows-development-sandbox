@@ -59,7 +59,7 @@ import { checkHealthRun, enableSandboxRun, lastHealthRun, repairHealthRun } from
 import { hideWindowRun, sandboxStatusRun, showWindowRun, stopSandboxRun } from './features/sandbox/index.js';
 import { listLogsRun, tailLogRun } from './features/logs/index.js';
 import { listAuditRun } from './features/audit/index.js';
-import { listSessionsRun, restartSessionsRun } from './features/sessions/index.js';
+import { closeSessionRun, listSessionsRun, restartSessionsRun, startShellRun } from './features/sessions/index.js';
 import {
   exportConfigRun,
   getSettingRun,
@@ -89,6 +89,8 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   stopSandboxRun,
   listSessionsRun,
   restartSessionsRun,
+  startShellRun,
+  closeSessionRun,
   startAgentRun,
   addAgentRun,
   makeDefaultAgentRun,

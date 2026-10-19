@@ -25,6 +25,7 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import { useCallback } from 'react';
+import { operationById } from '../../../src/app/features/defs';
 import type { Action, OperationAction } from '../../../src/app/kernel/index';
 import { mayRun } from '../access';
 import { navigate, viewPath } from '../router';
@@ -56,6 +57,7 @@ const VERB_ICONS: Readonly<Record<string, Icon>> = {
   use: IconCheck,
   save: IconDeviceFloppy,
   choose: IconListCheck,
+  close: IconX,
 };
 
 /** The session a started agent runs in, from what agents.start returned. */
@@ -85,7 +87,12 @@ export function useAct(): (action: Action) => Promise<Outcome | undefined> {
     async (action) => {
       if (action.kind === 'operation') {
         const values = action.fields?.length ? await askFields(action) : {};
-        return values ? run(action, values) : undefined;
+        if (!values) return undefined;
+        const done = await run(action, values);
+        // An operation that opens a session (a new shell) shows its terminal.
+        const opened = done.ok ? operationById(action.op)?.opens?.(done.output) : undefined;
+        if (opened?.kind === 'terminal') navigate('/s/' + opened.session);
+        return done;
       }
       const target = action.target;
       if (target.kind === 'terminal') navigate('/s/' + target.session);

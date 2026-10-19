@@ -1,6 +1,6 @@
-// The agent sessions of the running sandbox: the list (live) and restarting the agents. Pure: schemas, labels and the
-// view; sessions.run.ts does the work. A running session links to its terminal (attach in the menu, the terminal page
-// in the web UI).
+// The sessions of the running sandbox, agents and plain shells: the list (live), restarting the agents, opening a shell
+// and closing a session. Pure: schemas, labels and the view; sessions.run.ts does the work. A running session links to
+// its terminal (attach in the menu and on the command line, the terminal page in the web UI).
 import { z } from 'zod';
 import {
   action,
@@ -20,7 +20,9 @@ const ViewersSchema = z.object({ viewers: z.number(), remote: z.number() });
 export const SessionRowSchema = z.object({
   id: z.string().describe('The session'),
   launchId: z.string(),
-  harness: z.string().describe('The agent'),
+  harness: z.string().describe('The agent, or the shell (pwsh, powershell, cmd)'),
+  /** A plain shell rather than an agent (absent: an agent). */
+  kind: z.enum(['agent', 'shell']).optional(),
   cwd: z.string().describe('Its folder in the sandbox'),
   project: z.string().optional(),
   phase: z.enum(['starting', 'running', 'exited', 'failed']).describe('What it is doing'),
@@ -68,7 +70,7 @@ export function orderedSessions(list: readonly SessionRow[]): SessionRow[] {
 export const listSessions = defineQuery({
   id: 'sessions.list',
   title: 'Sessions',
-  summary: 'list agent sessions and who is attached',
+  summary: 'list sessions (agents and shells) and who is attached',
   input: z.object({ wide: z.boolean().default(false).describe("also show each session's folder") }),
   output: SessionsListSchema,
   live: { everyMs: 2500 },
@@ -103,19 +105,76 @@ export const restartSessions = defineOperation({
   },
 });
 
+/** Agent and project names as the web UI has always accepted them. */
+const NameText = z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/);
+const SessionId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+/** The shells a shell session can run; auto: PowerShell 7 when the sandbox has it, else Windows PowerShell. */
+export const SHELL_CHOICES = ['auto', 'pwsh', 'powershell', 'cmd'] as const;
+
+/** The session the operation opened, as a link to its terminal. */
+function openedSession(o: { readonly session: string }): { readonly kind: 'terminal'; readonly session: string } {
+  return { kind: 'terminal', session: o.session };
+}
+
+export const startShell = defineOperation({
+  id: 'sessions.shell',
+  title: 'New shell',
+  summary: 'open PowerShell or cmd in a project of the running sandbox, as a session you can attach to',
+  input: z.object({
+    project: NameText.optional().describe("The project of the running sandbox (default: this folder's, else asked)"),
+    shell: z
+      .enum(SHELL_CHOICES)
+      .default('auto')
+      .describe('The shell: pwsh, powershell or cmd (default: pwsh if present)'),
+  }),
+  output: z.object({
+    session: z.string().describe('The new session'),
+    shell: z.string().describe('The shell it runs'),
+    message: z.string().describe('What happened'),
+  }),
+  // A shell runs anything as you: someone you let in remotely may type into one you opened, never open one.
+  access: 'owner',
+  text: (o) => o.message,
+  opens: openedSession,
+  cli: {
+    name: 'shell',
+    group: 'Sessions',
+    positional: ['project'],
+    flags: { shell: { flag: '--shell', value: 'name', choices: ['pwsh', 'powershell', 'cmd'] } },
+    json: true,
+    examples: [
+      "sandbox shell                      PowerShell in this folder's project, in this terminal (Ctrl+] detaches)",
+      'sandbox shell api --shell cmd      cmd in the project api',
+    ],
+  },
+});
+
+export const closeSession = defineOperation({
+  id: 'sessions.close',
+  title: 'Close',
+  summary: 'end a running session (an agent or a shell) and every program it started',
+  input: z.object({ session: SessionId.describe('The session to close') }),
+  output: z.object({ message: z.string().describe("The sandbox's answer") }),
+  access: 'control',
+  danger: true,
+  text: (o) => o.message,
+  cli: { name: 'close', group: 'Sessions', positional: ['session'], examples: ['sandbox close 4f2c9a'] },
+});
+
 function sessionItem(s: SessionRow, wide: boolean): Item {
   const state = s.phase + (s.exitCode !== undefined ? ' (' + s.exitCode + ')' : '');
   const running = s.phase === 'running';
   return {
     id: s.id,
-    label: s.harness + '  ' + (s.projectName ?? '-'),
+    label: (s.kind === 'shell' ? s.harness + ' (shell)' : s.harness) + '  ' + (s.projectName ?? '-'),
     hint: state + '  ' + ago(s.startedAt),
     badges: [{ text: s.phase, tone: running ? 'ok' : s.phase === 'failed' ? 'danger' : 'muted' }],
     group: s.here ? "This folder's project" : 'Other sessions',
     marked: s.here,
     icon: s.harness,
     description: running
-      ? "Opens this session's terminal (in a terminal, Ctrl+] detaches; the session keeps running)."
+      ? "Opens this session's terminal (in a terminal, Ctrl+] detaches; the session keeps running). x closes it."
       : undefined,
     details: ['Session   ' + s.id, 'Folder    ' + s.cwd, 'Attached  ' + viewerText(s.viewers)],
     cells: {
@@ -129,6 +188,9 @@ function sessionItem(s: SessionRow, wide: boolean): Item {
       started: ago(s.startedAt),
     },
     ...(running && s.canOpen ? { primary: link({ kind: 'terminal', session: s.id }, 'Open', { verb: 'attach' }) } : {}),
+    ...(running
+      ? { actions: [action(closeSession, { session: s.id }, { key: 'x', verb: 'close', importance: 1 })] }
+      : {}),
     ...(running ? {} : { disabled: 'This session has ended.' }),
     ...(running && !s.canOpen ? { disabled: 'Not reachable from this PC.' } : {}),
   };
@@ -173,6 +235,20 @@ export function sessionsPage(o: SessionsList): Page {
     ],
     actions: [
       ...(o.sandboxRunning ? [{ ...start, label: 'New session', key: 'n', verb: 'new session', importance: 1 }] : []),
+      ...(o.sandboxRunning
+        ? [
+            action(
+              startShell,
+              { shell: 'auto' },
+              {
+                key: 's',
+                verb: 'new shell',
+                importance: 1,
+                description: 'Opens PowerShell in a project of the sandbox, as a session like the agents.',
+              },
+            ),
+          ]
+        : []),
       ...(sessions.length
         ? [action(restartSessions, { all: false }, { key: 'r', verb: 'restart agents', importance: 1 })]
         : []),
@@ -196,8 +272,8 @@ export function sessionsPage(o: SessionsList): Page {
 export const sessionsView = defineView({
   id: 'sessions',
   title: 'Sessions',
-  summary: 'The agent sessions of the running sandbox: open one, restart the agents.',
+  summary: 'The sessions of the running sandbox: open one, restart the agents, open a shell, close one.',
   queries: { sessions: listSessions },
-  operations: [restartSessions],
+  operations: [restartSessions, startShell, closeSession],
   build: ({ sessions }) => sessionsPage(sessions),
 });

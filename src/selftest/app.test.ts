@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { agentsPage, agentsView } from '../app/features/agents/index.js';
+import { agentNameProblem, agentsPage, agentsView } from '../app/features/agents/index.js';
 import { DEFINITIONS, NAV, navSections, navViews, QUERIES, VIEWS, viewById } from '../app/features/defs.js';
 import { accountsPage, agentPage, listAccounts, type AgentAccounts } from '../app/features/accounts/index.js';
 import { addProject, projectRoots, projectsPage } from '../app/features/projects/index.js';
@@ -21,7 +21,13 @@ import { insideSandbox, isSandboxRunning } from '../host/sandbox/index.js';
 import { CRASH, listLogs, logsPage, tailLog } from '../app/features/logs/index.js';
 import { DEFAULTS } from '../core/config/index.js';
 import { sandboxPage, type SandboxStatus } from '../app/features/sandbox/index.js';
-import { sessionsPage, type SessionRow, type SessionsList } from '../app/features/sessions/index.js';
+import {
+  closeSession,
+  sessionsPage,
+  startShell,
+  type SessionRow,
+  type SessionsList,
+} from '../app/features/sessions/index.js';
 import { APP_GROUPS, appsPage, listApps, type AppsList } from '../app/features/apps/index.js';
 import { keepShownSecrets, settingsPage } from '../app/features/settings/index.js';
 import { checkEngine, checkText, enginePage, type Leftovers } from '../app/features/engine/index.js';
@@ -29,7 +35,9 @@ import { runUpdate, updatesPage, type UpdatesStatus } from '../app/features/upda
 import { MenuOperations } from '../cli/menu/io-menu.js';
 import type { AppContext } from '../app/context.js';
 import {
+  accessNeeded,
   ago,
+  allows,
   bytesText,
   Cancelled,
   ClientMessageSchema,
@@ -50,7 +58,9 @@ import {
   SURFACE_NAMES,
   toWireError,
   valueText,
+  OWNER,
   type AnyDefinition,
+  type Caller,
   type Page,
   type SurfaceName,
   type AnyView,
@@ -470,13 +480,75 @@ export const appSuite: Suite = {
     const chosen = menu.resolve({ kind: 'pick', value: 'new' });
     t.check(
       menu.items.length === 2 &&
-        menu.actions.map((a) => a.key).join() === 'n,r,o,l' &&
+        menu.actions.map((a) => a.key).join() === 'n,s,r,o,x,l' &&
         menu.enterLabel(undefined, 'new') === 'attach' &&
         chosen?.kind === 'action' &&
         chosen.action.kind === 'link' &&
         menu.resolve({ kind: 'action', key: 'l', value: undefined })?.kind === 'refresh',
-      'sessions in the menu: rows, the n/r/o/l keys, Enter attaches',
+      'sessions in the menu: rows, the n/s/r/o/x/l keys, Enter attaches',
     );
+
+    t.section('plain shell sessions');
+    const shellRow: SessionRow = { ...running('sh1', true), harness: 'pwsh', kind: 'shell' };
+    const shellPage = sessionsPage({ ...list, sessions: [shellRow] });
+    const shellItem = shellPage.sections[0].items?.[0];
+    const closeAction = shellItem?.actions?.[0];
+    t.check(
+      shellItem?.label === 'pwsh (shell)  api' &&
+        closeAction?.kind === 'operation' &&
+        closeAction.op === 'sessions.close' &&
+        closeAction.key === 'x' &&
+        closeAction.danger === true &&
+        JSON.stringify(closeAction.input) === '{"session":"sh1"}',
+      'a shell is listed by its name, marked as a shell, and can be closed (x)',
+      JSON.stringify(shellItem),
+    );
+    const newShell = shellPage.actions?.find((a) => a.kind === 'operation' && a.op === 'sessions.shell');
+    t.check(
+      newShell?.kind === 'operation' && newShell.key === 's' && JSON.stringify(newShell.input) === '{"shell":"auto"}',
+      'the sessions page offers New shell (s) next to New session',
+    );
+    t.check(
+      !sessionsPage({ ...list, sandboxRunning: false, sessions: [] }).actions?.some(
+        (a) => a.kind === 'operation' && a.op === 'sessions.shell',
+      ),
+      'no New shell without a running sandbox',
+    );
+    t.equal(
+      startShell.opens?.({ session: 'sh1', shell: 'pwsh', message: '' }),
+      { kind: 'terminal', session: 'sh1' },
+      'a new shell opens its terminal on every surface',
+    );
+    const controlCaller: Caller = { kind: 'windows', user: 'bob', role: 'control' };
+    const viewCaller: Caller = { kind: 'device', id: 'd', name: 'phone', role: 'view' };
+    t.check(
+      accessNeeded(startShell, {}) === 'owner' &&
+        !allows(controlCaller, accessNeeded(startShell, {})) &&
+        allows(OWNER, accessNeeded(startShell, {})) &&
+        accessNeeded(closeSession, { session: 'x' }) === 'control' &&
+        allows(controlCaller, accessNeeded(closeSession, { session: 'x' })) &&
+        !allows(viewCaller, accessNeeded(closeSession, { session: 'x' })),
+      'only the owner opens a shell; control may close a session, view may not',
+    );
+    t.equal(
+      [
+        cliInput(definitionFor('shell', [])!, parseCli(['shell', 'api', '--shell', 'cmd'])),
+        cliInput(definitionFor('close', [])!, parseCli(['close', 'sh1'])),
+      ],
+      [{ project: 'api', shell: 'cmd' }, { session: 'sh1' }],
+      'sandbox shell [project] --shell and sandbox close <id> become the input',
+    );
+    t.check(
+      agentNameProblem('pwsh', []) !== true && agentNameProblem('Shell', []) !== true,
+      'an agent cannot be named after a shell or the shell command',
+    );
+    if (insideSandbox())
+      await t.throws(
+        () => runDefinition('sessions.shell', {} as unknown as AppContext, {}, fakeIO([]).io),
+        'has nothing to control',
+        'sandbox shell refuses inside the sandbox',
+      );
+    else t.skip('sandbox shell refuses inside the sandbox (this PC is not a sandbox)');
     const menuStatus = menuView(statusPage, { category: 'status', prefix: 'status:' });
     t.check(
       menuStatus.items.every((i) => i.category === 'status' && i.value.startsWith('status:')) &&

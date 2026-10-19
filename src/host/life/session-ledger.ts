@@ -129,7 +129,8 @@ export class SessionLedger {
     const mapped = [...registry.projects, ...registry.roots];
     const before = new Map(ledger.sessions.map((s) => [key(s), s]));
     const noted = sessions
-      .filter((s) => s.phase === 'running')
+      // A shell is not reopened: what it was doing is gone with the sandbox.
+      .filter((s) => s.phase === 'running' && s.kind !== 'shell')
       .flatMap((s): LedgerSession[] => {
         const project = projectForGuestDir(mapped, s.cwd);
         if (!project) return [];

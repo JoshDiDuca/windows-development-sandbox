@@ -1,4 +1,5 @@
-// A headless sandbox with nothing running (or starting) only wastes RAM, so it shuts itself down.
+// A headless sandbox with nothing running (or starting) only wastes RAM, so it shuts itself down. Every open session
+// counts, a plain shell as much as an agent: whether it is busy cannot be told from outside, and closing it says so.
 import { spawnSync } from 'node:child_process';
 import { SYSTEM } from '../../shared/system.js';
 import { saveClaudeMem } from '../setup/claude-mem.js';

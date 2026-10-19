@@ -77,6 +77,7 @@ export const resumeSuite: Suite = {
         status({ id: 's2', harness: 'codex', cwd: 'C:\\Workspace\\web\\src', startedAt: minutes(20) }),
         status({ id: 's3', phase: 'exited' }),
         status({ id: 's4', cwd: 'D:\\nowhere' }),
+        status({ id: 's5', harness: 'pwsh', kind: 'shell' }),
       ],
       reg,
       NOW,
@@ -91,7 +92,7 @@ export const resumeSuite: Suite = {
         ],
         ['F:\\code\\web'],
       ],
-      'running sessions are noted with their folder on this PC (ended ones and unknown folders are not), and the projects',
+      'running sessions are noted with their folder on this PC (ended ones, unknown folders and shells are not), and the projects',
     );
     ledger.recordSessions(
       [

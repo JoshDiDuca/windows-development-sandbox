@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import type { GuestRequest, GuestResponse, Harness, SandboxStatus, SessionStatus } from '../../core/types.js';
 import { assertNoLinks, fail, isLink, removeLink, safeText, sleep } from '../../core/util/index.js';
 import { isWithin } from '../../shared/paths/index.js';
-import type { ProjectSpec } from '../../shared/channel/index.js';
+import type { ProjectSpec, ShellChoice } from '../../shared/channel/index.js';
 import { now, RunDir } from '../../shared/channel/index.js';
 import { safeRemove, writeJsonAtomic } from '../../shared/io/index.js';
 import { isSandboxRunning } from '../sandbox/index.js';
@@ -235,6 +235,20 @@ export class SandboxChannel {
   async restart(harness: string | null, cwd?: string): Promise<GuestResponse> {
     const requestId = newId();
     this.send({ kind: 'restart', id: requestId, harness, ...(cwd ? { cwd } : {}), createdAt: now() });
+    return this.waitForResponse(requestId, 30000);
+  }
+
+  /** Asks for a plain shell session in a folder of the sandbox; returns the request id (waitForSession follows it). */
+  requestShell(shell: ShellChoice, cwd: string): string {
+    const requestId = newId();
+    this.send({ kind: 'session', id: requestId, harness: 'shell', args: [], cwd, shell, createdAt: now() });
+    return requestId;
+  }
+
+  /** Ends a running session (agent or shell) and everything it started; waits for the sandbox's answer. */
+  async closeSession(sessionId: string): Promise<GuestResponse> {
+    const requestId = newId();
+    this.send({ kind: 'close', id: requestId, session: sessionId, createdAt: now() });
     return this.waitForResponse(requestId, 30000);
   }
 

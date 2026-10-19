@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isWin } from '../core/util/index.js';
+import { commandLine, shellLaunch } from '../guest/sessions/cmdline.js';
 import { runNode } from './support/fixtures.js';
 import type { Suite } from './support/suite.js';
 
@@ -90,5 +91,29 @@ export const cmdlineSuite: Suite = {
         'cmd /d /c <agent>.cmd passes &, |, <, >, ^, % and quotes through to the agent unchanged',
       );
     } else t.skip('end-to-end cmd.exe quoting run (not Windows, or the temp path has spaces)');
+
+    t.section('plain shell sessions');
+    const paths = { pwsh: 'C:/T/pwsh/pwsh.exe', powershell: 'C:/W/powershell.exe', cmd: 'C:/W/cmd.exe' };
+    const noPwsh = { ...paths, pwsh: null };
+    t.equal(
+      [
+        shellLaunch('auto', paths),
+        shellLaunch('auto', noPwsh),
+        shellLaunch('powershell', paths),
+        shellLaunch('cmd', paths),
+      ].map((l) => l.name + ' ' + commandLine(l.file, l.args)),
+      [
+        'pwsh C:/T/pwsh/pwsh.exe -NoLogo',
+        'powershell C:/W/powershell.exe -NoLogo',
+        'powershell C:/W/powershell.exe -NoLogo',
+        'cmd C:/W/cmd.exe',
+      ],
+      'a shell runs by its absolute path: auto is pwsh when present, else Windows PowerShell; cmd takes no arguments',
+    );
+    await t.throws(
+      () => shellLaunch('pwsh', noPwsh),
+      'PowerShell 7 is not installed',
+      'asking for pwsh where it is missing says so',
+    );
   },
 };

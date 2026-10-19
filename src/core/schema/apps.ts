@@ -4,7 +4,7 @@ import { APPS } from '../../shared/apps/index.js';
 
 const CATALOGUE_IDS = APPS.filter((a) => !a.setting).map((a) => a.id) as [string, ...string[]];
 export const AppIdSchema = z.enum(CATALOGUE_IDS);
-/** The apps a project's .sandbox-config.json may add: not the add-ons that are yours only (they change what the agents run or send). */
+/** The apps a project's .sandbox-config.json may add: not the add-ons that are yours only (they change the agents). */
 const PROJECT_IDS = APPS.filter((a) => !a.setting && !a.userOnly).map((a) => a.id) as [string, ...string[]];
 export const ProjectAppIdSchema = z.enum(PROJECT_IDS);
 export const CustomAppIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/, 'lower-case letters, digits and - only');

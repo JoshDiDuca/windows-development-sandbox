@@ -15,6 +15,15 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   `apps.install`, off by default) and the sandbox installs a pinned, checksum-verified rtk 1.0.1 once, puts it on
   PATH, adds rtk's hook to Claude Code through the sandbox's managed settings (nothing changes on your PC) and tells the
   other agents to use it. Only your own settings can turn rtk on; a project's `.sandbox-config.json` cannot.
+- **More agent add-ons: Headroom, ccusage, Playwright MCP, Context7 MCP.** All are off by default, only your own
+  settings turn them on, and each installs pinned from a lock file that ships with the tool, every package checked
+  against its hash.
+  - **Headroom** 0.41.0 compresses what Claude Code sends to the model. It installs with uv (`--require-hashes`). The
+    sandbox starts its proxy on 127.0.0.1:8787, offline apart from forwarding to api.anthropic.com, with no
+    telemetry and none of the agents' keys in its environment, and points Claude Code at it only once it answers.
+  - **ccusage** 20.0.36 reports token use and cost.
+  - **Playwright MCP** 0.0.83 (with Edge) and **Context7 MCP** 4.4.2 become the MCP servers `sbx-playwright` and
+    `sbx-context7` in the sandbox's own Claude Code, and are removed again when you turn them off.
 
 ## 1.11.7
 

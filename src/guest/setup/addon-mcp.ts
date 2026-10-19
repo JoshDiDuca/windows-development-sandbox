@@ -23,7 +23,8 @@ export function writeAddonMcpServers(): string[] {
   let state: unknown = {};
   if (fs.existsSync(file)) {
     try {
-      state = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, ''));
+      const text = fs.readFileSync(file, 'utf8');
+      state = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
     } catch {
       // Never rewrite a file Claude Code could not read either: its login and state are in it.
       warn('Claude Code MCP servers from Apps: ' + file + ' is not valid JSON, left as it is');

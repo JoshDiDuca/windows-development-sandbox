@@ -1,7 +1,8 @@
 // Claude Code managed settings for the sandbox (C:\Program Files\ClaudeCode\managed-settings.json). Managed settings
 // have the highest precedence and cannot be overridden by user or project settings, so they carry the hard rules (the
 // git access mode), the sandbox's own hooks (rtk, when it is installed) and the Headroom proxy's address while it runs
-// (env.ANTHROPIC_BASE_URL). Rewritten every boot; removed when there is nothing to write. Your Claude settings from this PC are never changed for this.
+// (env.ANTHROPIC_BASE_URL). Rewritten every boot; removed when there is nothing to write. Your Claude settings from
+// this PC are never changed for this.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { GitAccess } from '../../core/types.js';

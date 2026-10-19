@@ -239,6 +239,30 @@ Other users' secrets stay out: when the sandbox is someone else's, your agent en
 alone. Everything read from the owner's folders is checked like anything from a sandbox (validated, links refused,
 text cleaned). The "By" label shown for a request is a label, not proof of who sent it.
 
+## Remote access to the web UI (Beta)
+
+Off by default ([web-ui.md](web-ui.md#remote-access), [design](design/remote-access.md)). What to know:
+
+- **Access is control.** The web UI runs as you; a remote user with control can type into your agents' terminals and
+  read what they can read, logins included. View cannot change anything but sees terminal output, logs and the audit log.
+- **Local network only.** LAN mode listens on one private IPv4 address of a real adapter, drops every connection that
+  is not from a private address on that network (or is from this PC or a sandbox), runs only on the Private network it
+  was turned on for, and its firewall rule allows only the local subnet on Private networks. No tunnels or port mapping.
+- **Devices** sign in with a one-time code from your screen (40 bits, 5 minutes, one use, wrong tries limited per
+  address and voiding the code). Their credential is a `__Host-`, `Secure`, `HttpOnly`, `SameSite=Strict` cookie; only
+  its SHA-256 is kept, in a list sealed with DPAPI in your private storage, and it ends after `web.remote.rememberDays`.
+  Signing out (or LAN mode off) closes their open pages.
+- **The certificate** is made on your PC (not a CA, 397 days, key sealed with DPAPI) and kept, so a second warning on a
+  phone means someone may be in between. A page cannot check its own certificate, so a person who clicks through the
+  first warning without comparing could be fooled by someone already in the middle of their network at that moment.
+- **Other Windows users** are identified by Windows (the token of the process that connects to your web UI's named
+  pipe: low-integrity processes, AppContainers and services are refused), then only from their own connections. Only
+  users you list get in.
+- **Roles fail closed:** an operation is the owner's unless it says otherwise; control is a short list; settings,
+  remote access, logins and the audit log stay yours. The server checks every call, and every remote action is logged.
+- **Your own cookie** is bound to your own connections when HostTools can be built, and `sandbox web open` checks that
+  the server on the port holds the token before it opens the link (security review #10).
+
 ## VPN
 
 `vpn.enabled` sends the sandbox's traffic through a VPN ([vpn.md](vpn.md)). What to know:

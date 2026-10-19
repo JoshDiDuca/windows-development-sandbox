@@ -113,7 +113,8 @@ function OnYourNetwork({ onSignedIn }: { readonly onSignedIn: () => void }) {
 }
 
 export function SignIn({ onSignedIn }: { readonly onSignedIn: () => void }) {
-  const lan = location.protocol === 'https:';
+  // #device shows the device form on this PC too (the preview's screenshots); signing in still needs the LAN listener.
+  const lan = location.protocol === 'https:' || location.hash === '#device';
   return (
     <Center h="100dvh" p="md" style={{ background: 'var(--app-bg)' }}>
       <Card maw={440} w="100%" p="xl">

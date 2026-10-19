@@ -187,7 +187,7 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
     description: 'From ' + d.address + ', signed out ' + untilText(d.expiresAt, now) + '.',
     details: [
       'Allowed  ' + dateText(d.createdAt),
-      'Last seen ' + dateText(d.lastSeen),
+      'Last seen  ' + dateText(d.lastSeen),
       'Ends     ' + dateText(d.expiresAt),
       'Id       ' + d.id,
     ],
@@ -203,7 +203,7 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
           w.user.toLowerCase().endsWith('\\' + u.name.toLowerCase()) || w.user.toLowerCase() === u.name.toLowerCase(),
       )?.role ?? 'not on the list',
     description: 'Signed in with Windows, signed out ' + untilText(w.expiresAt, now) + '.',
-    details: ['Signed in ' + dateText(w.createdAt), 'Ends      ' + dateText(w.expiresAt), 'Id        ' + w.id],
+    details: ['Signed in  ' + dateText(w.createdAt), 'Ends      ' + dateText(w.expiresAt), 'Id        ' + w.id],
     keys: 'x signs them out.',
     actions: [action(revokeAccess, { id: w.id }, { key: 'x', verb: 'sign out', label: 'Sign out ' + w.user })],
   }));

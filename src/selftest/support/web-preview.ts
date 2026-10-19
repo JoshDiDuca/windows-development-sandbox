@@ -627,8 +627,57 @@ function sampleAuditLog(dir: string): AuditLog {
       sv: undefined,
     },
     proc(5, node, 'node dist/bin/agent-sandbox.js self-test app', claude),
+    { t: at(4), k: 'remote', p: 'sessions.restart', a: 'ok', au: "device Josh's iPhone" },
+    { t: at(3), k: 'remote', p: 'settings.set', a: 'refused', au: 'Windows user DESKTOP-JOSH\\sam' },
   ]);
   return log;
+}
+
+const ACCESS_FINGERPRINT =
+  '3A:7F:01:C2:9B:44:E8:15:6D:A0:2B:93:CC:71:58:0E:F4:12:9A:BD:63:07:E5:2C:48:D9:B1:76:0A:3F:C8:E2';
+
+/** Remote access: LAN mode on, two devices, one Windows sign-in, a code waiting. */
+function sampleAccess(): unknown {
+  const at = (hours: number): string => new Date(Date.now() + hours * 3_600_000).toISOString();
+  return {
+    lan: {
+      enabled: true,
+      running: true,
+      address: 'https://192.168.1.20:47801',
+      fingerprint: ACCESS_FINGERPRINT,
+      problem: null,
+      network: 'Home Wi-Fi',
+    },
+    windowsSignIn: true,
+    users: [
+      { name: 'sam', role: 'view' },
+      { name: 'OFFICE\\kim', role: 'control' },
+    ],
+    rememberDays: 30,
+    devices: [
+      {
+        id: '4f2c9a7e1b3d5f60',
+        name: "Josh's iPhone",
+        role: 'control',
+        address: '192.168.1.42',
+        createdAt: at(-24 * 6),
+        expiresAt: at(24 * 24),
+        lastSeen: at(-0.2),
+      },
+      {
+        id: '9d1e0b2a7c4f6e83',
+        name: 'Kitchen tablet',
+        role: 'view',
+        address: '192.168.1.57',
+        createdAt: at(-24 * 20),
+        expiresAt: at(24 * 10),
+        lastSeen: at(-30),
+      },
+    ],
+    windows: [{ id: '1a2b3c4d5e6f7a8b', user: 'DESKTOP-JOSH\\sam', createdAt: at(-3), expiresAt: at(24 * 30 - 3) }],
+    pending: { role: 'view', expiresAt: at(0.06) },
+    codeVoided: false,
+  };
 }
 
 /** The real features where they only touch the temp folder, sample data for the rest. */
@@ -647,6 +696,16 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
         );
       case 'sandbox.status':
         return sampleStatus(state.running);
+      case 'access.status':
+        return sampleAccess();
+      case 'access.allowDevice':
+        return {
+          code: 'K7QD-M2XP',
+          expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+          role: (input as { role?: string } | null)?.role ?? 'view',
+          address: 'https://192.168.1.20:47801',
+          fingerprint: ACCESS_FINGERPRINT,
+        };
       case 'vpn.status':
         return vpnStatus.output.parse({
           enabled: true,
@@ -917,6 +976,12 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
     'engine.status': 'query',
     'engine.leftovers': 'query',
     'audit.list': 'query',
+    'access.status': 'query',
+    'access.allowDevice': 'operation',
+    'access.revoke': 'operation',
+    'access.revokeAll': 'operation',
+    'access.lanOn': 'operation',
+    'access.lanOff': 'operation',
   };
   return {
     kind: (id) => kinds[id],

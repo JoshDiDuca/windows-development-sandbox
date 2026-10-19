@@ -56,9 +56,51 @@ The server is a way into every agent you run, so it is treated like a login:
   shared; never restart or launch). Data read from `run\` is validated as everywhere else; terminal text goes only to
   xterm.js (no HTML), links in it open only after a confirmation, and clipboard writes from the terminal (OSC 52) are
   ignored.
-- **LAN / phone (later, opt-in):** HTTPS with a certificate made for this PC (its fingerprint shown as a QR code to
-  pair), a pairing code per device, devices listed and revocable, a Windows Firewall rule for private networks only.
-  Not part of the foundation.
+- **Remote access (beta, opt-in):** devices on your own network and other Windows users of this PC, each with a role;
+  see [Remote access](#remote-access).
+
+## Remote access
+
+Off by default. The design and its security review: [design/remote-access.md](design/remote-access.md).
+
+**Anyone you let in acts as you.** The web UI runs as you, so whatever a remote user does runs with your settings,
+logins and projects. Give **control** only to people you would let use your keyboard: they can type into your agents'
+terminals and read what the agents can read, logins included. **View** sees everything (terminal output, logs, the
+audit log, settings with secrets as `***`) but cannot change anything or type.
+
+**Your phone or tablet, on your own network:**
+
+1. `sandbox web lan-on` (or Remote access > Turn on LAN mode). It checks the network is marked **Private** in Windows
+   and adds one firewall rule (Windows asks once): inbound TCP to this PC's private address and port 47801, from your
+   local subnet, on Private networks only. LAN mode then runs only on that network.
+2. `sandbox web status` (and the Remote access page, and the menu's Web UI page) shows the address, e.g.
+   `https://192.168.1.20:47801`, and the certificate's fingerprint. Type the address into the phone's browser. It warns
+   once about the certificate (made on your PC, not by a public authority): compare the fingerprint if the browser
+   shows it, then go on. **If it ever warns again later, stop**: someone may be in between.
+3. On the PC choose **Allow a new device** (`sandbox web allow-device`), pick view or control, and type the code it
+   shows (`ABCD-EFGH`, 5 minutes, one use) on the phone with a name for it.
+4. The phone stays signed in for `web.remote.rememberDays` days (30), counted from when it was allowed, not renewed by
+   use. Sign it out any time: Remote access page, `sandbox web revoke <id>` or `revoke-all`. `sandbox web lan-off`
+   signs out every device and removes the rule.
+
+**Local network only, never the internet.** The listener binds only to a private IPv4 address (10.x, 172.16-31.x,
+192.168.x) of a real adapter (never `0.0.0.0`, a public address or the sandbox's Hyper-V adapter); every connection
+whose peer is not a private address on that same network, is this PC itself, or comes from a sandbox, is dropped before
+anything is read. There are no tunnels, relays, UPnP or port mapping. Do not forward the port on your router: it would
+not work (public peers are dropped) and it is not meant to.
+
+**Another Windows user of this PC:** add them to `web.remote.users` with a role and turn on `web.remote.windowsSignIn`.
+They run, as themselves, `sandbox remote` (the menu over your program: every area, with their role) or `sandbox remote
+--browser` (your web UI in their browser). Windows says who they are through a named pipe of your web UI (no password);
+their sign-in only works from their own Windows account. Taking them off the list ends their access at once.
+
+**What stays yours** whatever the role: remote access itself (devices, the list, LAN mode), logins and tokens
+(accounts, GitHub, VPN), projects, roots and mappings, nearly every setting (control may change only `attach.*` and
+`resume.*`), data cleaning, updates, the folder picker and stopping the web UI. Every remote action, refusal, sign-in
+and new device is in the audit log (Activity, `sandbox audit --kind remote`).
+
+**Needs a real PC to try fully:** the firewall rule and the network check (here they are checked by dry runs), trusting
+the certificate on a phone, and a second Windows account for `sandbox remote`.
 
 ## Phases
 
@@ -73,7 +115,8 @@ The server is a way into every agent you run, so it is treated like a login:
    used from another device. Options, in the order to try: capturing the sandbox window on the PC and streaming it
    over this server (no server in the guest); a VNC server in the sandbox that connects out to the PC, shown with
    noVNC (MPL-2.0). Either needs a security review first: the guest is hostile, and this is a new way in.
-5. **LAN and phones:** the opt-in LAN mode above.
+5. **LAN, phones and other Windows users** (beta, built): see [Remote access](#remote-access) below and
+   [design/remote-access.md](design/remote-access.md).
 
 ## What Phase 1 is (as built)
 

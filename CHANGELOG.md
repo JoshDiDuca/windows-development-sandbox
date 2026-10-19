@@ -7,6 +7,24 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **(Beta) Remote access to the web UI** ([design](docs/design/remote-access.md), [how to](docs/web-ui.md#remote-access)).
+  Off by default; nothing changes until you turn it on. **Phones and tablets on your own network:** `sandbox web
+  lan-on` (Windows asks once to add a firewall rule for Private networks and the local subnet only) opens an HTTPS
+  address such as `https://192.168.1.20:47801`, shown on the PC; the phone types it, then a one-time code you make with
+  "Allow a new device" (5 minutes, one use). The device stays signed in for `web.remote.rememberDays` (30) and can be
+  signed out at any time (Remote access page, `sandbox web devices` / `revoke`). Never reachable from the internet: it
+  listens only on a private address, drops every peer that is not on your network (or is a sandbox), and has no
+  tunnels or port mapping. **Other Windows users of this PC:** list them in `web.remote.users` with a role and turn on
+  `web.remote.windowsSignIn`; they run `sandbox remote` (the menu over your program) or `sandbox remote --browser`,
+  signed in by Windows itself (no password). **Roles:** view (sees everything, terminals read-only) or control (a short
+  list: agents, sessions, stopping the sandbox, a few harmless settings); everything else, including remote access,
+  logins and most settings, stays yours. Every remote action is in the audit log (`sandbox audit --kind remote`).
+- **The web UI proves who it is** before `sandbox web open` hands it the token link (another program on the port no
+  longer gets it), and the owner's cookie works only from the owner's own connections when HostTools can be built
+  (security review finding #10).
+
 ## 1.12.0
 
 - **Security review fixes** ([details](docs/security-review-2026-10.md)). A project's `.sandbox-config.json` can no

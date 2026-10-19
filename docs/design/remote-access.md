@@ -1,7 +1,7 @@
 # Remote access: other Windows users and phones
 
-Status: design (this file), then built in phases (see the end). Everything here is **off by default**: with the
-default settings the web UI is exactly what it was, loopback only behind the token link.
+Status: **built (beta)**, phases 1-5 below. Everything here is **off by default**: with the default settings the web UI
+is exactly what it was, loopback only behind the token link. User docs: [web-ui.md](../web-ui.md#remote-access).
 
 ## The goal
 
@@ -41,7 +41,7 @@ Roles:
   secret values, session tokens or session addresses.
 - **control**: an explicit list, everything else is the owner's: start an agent in a project the sandbox has, type
   into terminals, restart sessions, stop the sandbox, show or hide its window, start apps, run the health check, and
-  change a short list of harmless settings (attach, resume, personalization, the menu). **Control can read whatever the
+  change a short list of harmless settings (`attach.*` and `resume.*`). **Control can read whatever the
   owner's agents can read, including their logins** (typing `cat ~/.claude/.credentials.json` into an agent's
   terminal): give it only to people you would let use your keyboard.
 - **owner** (never given to anyone else): everything not on the control list, including remote access and devices,
@@ -59,22 +59,23 @@ the caller's role as it is now (not as it was when the socket opened).
 
 **Chosen: a named pipe of the owner's server, identified by Windows (the client's token, not its session).**
 
-1. While `web.remote.windowsSignIn` is on, the owner's web server runs `HostTools.exe web-door`, which serves the pipe
-   `\\.\pipe\agent-sandbox-web-<owner SID>` (ACL: the owner, SYSTEM and Authenticated Users may connect; one instance
-   at a time, first-instance flag so it cannot be opened twice by us).
-2. Bob runs `sandbox remote` (or `sandbox remote --browser`) as himself. It finds the pipe name and port in the owner's
-   machine record (`machine\active\*.json`, written by the owner, readable by the Agent Sandbox Users group, not
-   writable by it), connects, and before sending anything checks with its own HostTools (`pipe-server --name`) that the
-   pipe's server process runs in the owner's session (`GetNamedPipeServerProcessId`), so another user cannot squat the
-   name.
+1. The owner's web server runs one long-running helper, `HostTools.exe web-helper` (JSON-ish tab-separated lines on
+   stdin/stdout, a capped queue), which serves the pipe `\\.\pipe\agent-sandbox-web-<owner SID>` (ACL: the owner,
+   SYSTEM and Authenticated Users may connect; one instance, so if someone else made the name first it fails and
+   sign-in stays off). It refuses everyone while `web.remote.windowsSignIn` is off.
+2. Bob runs `sandbox remote [owner]` (or `--browser`) as himself. The owner is the name he gives, else the owner of
+   the running sandbox from its machine record (that record can be forged by another group member: security review
+   #9; naming the owner avoids it). Bob's own HostTools (`door-client --owner`) turns the name into the SID, connects to
+   the pipe and, before sending anything, checks that the pipe's server process runs in a session of that SID
+   (`GetNamedPipeServerProcessId`), so another user cannot squat the name. The port comes back in the answer.
 3. On the owner's side the helper calls `ImpersonateNamedPipeClient` (identification is enough, no privilege needed),
    reads the thread token: user SID, integrity level, whether it is an AppContainer, then reverts. Below Medium
    integrity, an AppContainer, a SYSTEM/service account or the owner's own SID: refused. It writes those facts as one
-   JSON line to the server (Node), which looks the SID up in `web.remote.users` (names resolved to SIDs with
+   line to the server (Node), which looks the SID up in `web.remote.users` (names resolved to SIDs with
    `LookupAccountName` by the helper) and, when allowed, answers with a **one-time login token** (32 random bytes,
    valid 60 seconds, one use) that the helper writes back down the pipe.
-4. `sandbox remote` signs in with it (`POST /api/login`, like the owner's link) and talks RPC; `--browser` opens
-   `http://127.0.0.1:<port>/#k=<one-time token>` in Bob's browser, exactly like `sandbox web open` for the owner.
+4. `sandbox remote` signs in with it (`POST /api/login/once`, which also checks the connection is Bob's) and talks
+   RPC; `--browser` opens `http://127.0.0.1:<port>/#w=<one-time token>` in Bob's browser, like `sandbox web open`.
 
 Why not the TCP connection's session (my first idea): the session is not an identity. Anything that relays loopback
 connections into Bob's session (WSL's localhost relay, `ssh -L`, VS Code or dev tunnels, a dev server's proxy, Bob's
@@ -87,9 +88,10 @@ Then, for the cookie Bob's browser gets:
   user off the list (or changing the role) works at once, and their open sockets are closed.
 - **Bound to Bob's connections.** Cookies for `127.0.0.1` are sent to every port of `127.0.0.1` (cookies, and
   `SameSite`, ignore ports), so a page of another local server Bob visits could receive it. The server checks each new
-  TCP connection that carries a Windows cookie (`HostTools tcp-peer`: the full 4-tuple in the TCP table, its process,
-  that process's session and that session's user, refusing a process that started after the connection) and accepts
-  it only when that user is Bob. This is a second layer: a stolen cookie is useless from another account.
+  TCP connection that carries a Windows cookie (the helper's `peer` request: the full 4-tuple in the TCP table, the
+  server-side row must be our own process, its client process, that process's session and that session's user, read
+  table / session / table again so the same PID must still hold the connection) and accepts it only when that user is
+  Bob. This is a second layer: a stolen cookie is useless from another account.
 - `web.remote.windowsSignIn` (default off) is the switch for the browser and the menu; `web.remote.users` (default
   empty) says who. There are no new passwords.
 
@@ -150,7 +152,7 @@ private address of this PC; loopback stays as it is.
   dependency and an elevated `New-SelfSignedCertificate`). Subject alternative names: the private address(es) and the
   PC's name; not a CA (a CA key on the PC that a phone trusts could vouch for any site). The private key is sealed with
   `SecretStore` (DPAPI) in `<storage>\web\tls.json`. It is never replaced quietly: a new one is made
-  only by `sandbox web lan new-certificate`, which also signs out every device.
+  only when it is about to expire (a command to replace it on request is a follow-up).
 - **Trust on the phone**: the phone's browser warns about a self-signed certificate once. The PC shows the
   certificate's SHA-256 fingerprint next to the address and the code, to compare with what the phone's browser shows
   (where it shows one). An attacker who intercepts the connection also serves the page, so nothing in the page can
@@ -273,8 +275,8 @@ A second pass (on the revised section 3) added:
 
 | | Finding | Answer |
 | --- | --- | --- |
-| C1+ | `sandbox web open` can hand the token link to a squatter on the web port. | Passed to the security sweep with C1 (check that the listening socket's process is the owner's before putting a token in a URL; the `tcp-peer` helper can do it). |
-| H2 | The TCP-table lookup can race (process exit, PID or port reuse). | Adopted in `tcp-peer`: table, then session, then table again; same PID, ESTABLISHED, the server-side row is ours; users compared by SID, not session number. |
+| C1+ | `sandbox web open` can hand the token link to a squatter on the web port. | Passed to the security sweep with C1 (check that the listening socket's process is the owner's before putting a token in a URL; the helper's `peer` check can do it). |
+| H2 | The TCP-table lookup can race (process exit, PID or port reuse). | Adopted in the helper's `peer` check: table, then session, then table again; same PID, ESTABLISHED, the server-side row is ours; users compared by SID, not session number. |
 | H6 | The guest reaches the LAN listener through the Default Switch's forwarding. | Adopted: the firewall rule also names the local address; every accepted socket's `localAddress` must be the address we bound; peers in any `vEthernet` subnet are dropped. |
 | M1 | Names in `web.remote.users` are ambiguous. | Adopted: names are turned into SIDs by Windows (`LookupAccountName`) and SIDs are compared. |
 | M4 | A helper process per connection invites a denial of service. | Adopted: one long-running helper (`HostTools web-helper`, JSON lines on stdin/stdout) serves the pipe, the peer checks and the name lookups; its queue is capped. |
@@ -289,7 +291,7 @@ A second pass (on the revised section 3) added:
 1. Settings and this document.
 2. The access store (devices, sealed token hashes, codes, expiry, epochs, revocation), the roles in the shared core,
    `createRpcHost` and the RPC socket, the audit lines.
-3. Windows sign-in (HostTools `web-door`, `pipe-server`, `tcp-peer`; fakes in the tests) and `sandbox remote`.
+3. Windows sign-in (HostTools `web-helper` and `door-client`; a fake helper in the tests) and `sandbox remote`.
 4. LAN mode: address and peer checks, certificate, the HTTPS listener, the network profile and firewall scripts.
 5. The Remote access page (web, menu, CLI) with "Allow a new device", the address and the devices; the phone's code
    screen.

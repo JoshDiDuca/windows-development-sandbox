@@ -123,4 +123,52 @@ Then add an npm automation token as the repository's `NPM_TOKEN` secret. From th
 the secret CI skips npm, and a failed npm publish is only a warning: the GitHub release still goes out. Until the first
 publish, CI skips npm with a warning.
 
+### Signing releases
+
+CI signs `install.ps1` (the file in each GitHub release) with Azure Artifact Signing (called Trusted Signing before).
+The step is in `.github/workflows/release.yml` and does nothing until the secrets below exist: without them it prints
+`Code signing skipped: no ... secret yet` and the release goes out unsigned, as before. Once the secrets are set, a
+signing failure fails the release before anything is published, so a half-signed release cannot go out.
+
+Not signed, and not signable by us: `HostTools.exe`, `HcsHost.exe` and `memgov.exe`. The installer and the sandbox build
+them on your PC from source, so they carry no signature from us. The npm package and the `.tgz` are not Authenticode
+signed either; the `.tgz` is covered by `SHA256SUMS` and the build provenance attestation.
+
+**Set up once (the owner):**
+
+1. In the Azure portal, create an Artifact Signing account and a certificate profile (public trust), after the identity
+   validation the portal asks for.
+2. Create an app registration (a service principal) with a client secret, and give it the signer role on the signing
+   account's certificate profile (the "Artifact Signing Certificate Profile Signer" role).
+3. In the repository's Settings > Secrets and variables > Actions, add these six repository secrets:
+
+   | Secret | Value |
+   | --- | --- |
+   | `AZURE_TENANT_ID` | the directory (tenant) ID of the app registration |
+   | `AZURE_CLIENT_ID` | the application (client) ID of the app registration |
+   | `AZURE_CLIENT_SECRET` | the client secret (it expires: add a new one before then) |
+   | `TRUSTED_SIGNING_ENDPOINT` | the endpoint URL of the signing account, as the portal shows it (the region's) |
+   | `TRUSTED_SIGNING_ACCOUNT` | the name of the signing account |
+   | `TRUSTED_SIGNING_PROFILE` | the name of the certificate profile |
+
+The next release after the secrets are set is signed. The action is `Azure/artifact-signing-action`, pinned to v2.0.0 by
+commit, a composite action that runs PowerShell (it has no Node runtime to update).
+
+**Check a signed file** (in PowerShell, on the downloaded `install.ps1`):
+
+```powershell
+Get-AuthenticodeSignature .\install.ps1 | Format-List Status, StatusMessage, SignerCertificate
+```
+
+`Status` must be `Valid`. The same is in the file's Properties > Digital Signatures tab. The release workflow runs this
+check too and fails if the status is not `Valid`.
+
+**What users see:**
+
+- Before (unsigned): a downloaded `install.ps1` run as a file has no publisher to show, and PowerShell's RemoteSigned
+  policy refuses it (see [security.md](security.md)). The one-line install (`irm ... | iex`) reads no file, so it is not
+  affected either way.
+- After (signed): the file's Digital Signatures tab names the publisher, and RemoteSigned runs it. Windows' reputation
+  checks still start from zero for a new certificate, so a warning can appear for a while.
+
 The code layout and the rules for contributors (and agents) are in [CLAUDE.md](../CLAUDE.md).

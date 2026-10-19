@@ -50,6 +50,9 @@ Design (binding; ask the advisor before deviating):
 
 ### R3. Code signing, ready for a certificate — Sonnet
 
+Status: built (release.yml signing step, Azure Artifact Signing action pinned to v2.0.0, docs/development.md "Signing
+releases"). Waiting for the owner's signing account and the six secrets; nothing is signed until then.
+
 Why: antivirus heuristics flagged unsigned files before (a Start menu shortcut; HostTools.exe). Signing needs the
 owner's account (Azure Trusted Signing is the cheapest), so the pipeline must exist and do nothing until it is set up.
 

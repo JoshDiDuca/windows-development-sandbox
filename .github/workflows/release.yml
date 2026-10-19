@@ -83,6 +83,48 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLower()
           [IO.File]::WriteAllText("$PWD/SHA256SUMS", "$hash  $file`n")
           "file=$file" >> $env:GITHUB_OUTPUT
+      - name: Signing secrets
+        if: steps.version.outputs.release == 'true'
+        id: signing
+        shell: pwsh
+        env:
+          # Through env, never inlined: the values reach the script only as environment variables.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          TRUSTED_SIGNING_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          TRUSTED_SIGNING_ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          TRUSTED_SIGNING_PROFILE: ${{ secrets.TRUSTED_SIGNING_PROFILE }}
+        run: |
+          # Signing needs all six secrets. Without them it is skipped and the release goes out unsigned, as before.
+          $names = 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'TRUSTED_SIGNING_ENDPOINT', 'TRUSTED_SIGNING_ACCOUNT', 'TRUSTED_SIGNING_PROFILE'
+          $missing = @($names | Where-Object { -not [Environment]::GetEnvironmentVariable($_) })
+          if ($missing.Count -gt 0) {
+            "Code signing skipped: no $($missing -join ', ') secret yet (docs/development.md, Signing releases)."
+            exit 0
+          }
+          "sign=true" >> $env:GITHUB_OUTPUT
+          exit 0
+      - name: Sign install.ps1
+        if: steps.version.outputs.release == 'true' && steps.signing.outputs.sign == 'true'
+        # Azure Artifact Signing (Trusted Signing), the official action, pinned to v2.0.0 by commit. It is a composite
+        # action (PowerShell, no Node runtime). The signed file is the one uploaded below.
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\install.ps1
+      - name: Check the install.ps1 signature
+        if: steps.version.outputs.release == 'true' && steps.signing.outputs.sign == 'true'
+        shell: pwsh
+        run: |
+          $signature = Get-AuthenticodeSignature -LiteralPath install.ps1
+          "install.ps1: $($signature.Status), signed by $($signature.SignerCertificate.Subject)"
+          if ($signature.Status -ne 'Valid') { throw "install.ps1 is not validly signed: $($signature.StatusMessage)" }
       - name: Provenance
         if: steps.version.outputs.release == 'true'
         uses: actions/attest-build-provenance@v2

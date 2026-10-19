@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Code signing is ready for a certificate.** The release workflow signs `install.ps1` with Azure Artifact Signing once
+  six signing secrets exist; until then it skips signing and the release is unchanged. The files this PC builds
+  (HostTools.exe, HcsHost.exe, memgov.exe) stay unsigned. How to set it up and check a signature:
+  [development.md](docs/development.md#signing-releases).
+
 ## 1.11.7
 
 - **`sandbox update` works while a sandbox runs.** It installs the new version at once; the running sandbox keeps the

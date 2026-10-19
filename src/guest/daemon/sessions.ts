@@ -29,11 +29,15 @@ import { claudeDir, session, workspace } from '../runtime/session.js';
 import { findConversation } from '../sessions/conversation.js';
 import { isConversationId } from '../../shared/paths/conversation.js';
 import { errMsg } from '../../core/util/errors.js';
+import type { SessionRoot } from '../audit/parse.js';
 import { provisioner } from './project-provisioner.js';
 import { IdleShutdown } from './idle-shutdown.js';
 import { insidePrimary, respond, safely, saveStatus } from './state.js';
 
 type SessionRequest = Extract<GuestRequest, { kind: 'session' }>;
+
+/** An ended session's ptyhost is remembered this long: its last programs reach the audit up to 15 s later. */
+const ROOTS_KEPT_MS = 10 * 60 * 1000;
 
 function terminalTab(id: string, title: string, cwd: string): void {
   const view = [process.execPath, path.join(path.dirname(process.argv[1]), 'view.js'), id];
@@ -111,6 +115,7 @@ const launchPtyHost = async (
   env: NodeJS.ProcessEnv,
   say: (m: string) => void,
   sessions: number,
+  onSpawn: (child: ChildProcess) => void,
 ): Promise<{ child: ChildProcess; port: number; token: string }> => {
   const harness = harnessFor(req);
   // Never refresh here: main already did, and replacing a running agent's executable would fail.
@@ -133,6 +138,7 @@ const launchPtyHost = async (
     command: commandLine(launch.file, [...base, ...req.args]),
     restartCommand: commandLine(launch.file, [...base, ...(harness.resumeArguments ?? [])]),
   });
+  onSpawn(child);
   try {
     await waitForPtyHost(child, port, 15000);
   } catch (e) {
@@ -183,10 +189,29 @@ export class SessionManager {
   /** Sessions and projects being set up right now (a headless sandbox must not shut down under them). */
   private starting = 0;
   private readonly idle = new IdleShutdown(() => this.live.size > 0 || this.starting > 0);
+  /** Each session's ptyhost (process id and when it ran), for linking the programs it starts to it (audit). */
+  private readonly ptyHosts = new Map<string, SessionRoot>();
 
   /** How many sessions are running. */
   get count(): number {
     return this.live.size;
+  }
+
+  /** The sessions' ptyhosts, running or ended within ROOTS_KEPT_MS (audit events arrive after they happen). */
+  roots(): SessionRoot[] {
+    const cutoff = Date.now() - ROOTS_KEPT_MS;
+    for (const [id, r] of this.ptyHosts) if (r.to !== undefined && r.to < cutoff) this.ptyHosts.delete(id);
+    return [...this.ptyHosts.values()];
+  }
+
+  private rootStarted(id: string, child: ChildProcess, from: number): void {
+    if (child.pid) this.ptyHosts.set(id, { session: id, pid: child.pid, from });
+    child.once('exit', () => this.rootEnded(id));
+  }
+
+  private rootEnded(id: string): void {
+    const r = this.ptyHosts.get(id);
+    if (r && r.to === undefined) this.ptyHosts.set(id, { ...r, to: Date.now() });
   }
 
   /** `session` requests: an agent in its own ptyhost, in the launch folder's project or a registered one. */
@@ -215,7 +240,10 @@ export class SessionManager {
     try {
       const place = await placeFor(req, say);
       const remote = session.networking && session.attach.enabled;
-      const { child, port, token } = await launchPtyHost(req, remote, place.env, say, this.live.size + 1);
+      const from = Date.now();
+      const { child, port, token } = await launchPtyHost(req, remote, place.env, say, this.live.size + 1, (c) =>
+        this.rootStarted(req.id, c, from),
+      );
       const resumed = req.harness === 'claude' ? resumedConversation(req.args) : undefined;
       const running: SessionStatus = {
         ...status,
@@ -243,6 +271,7 @@ export class SessionManager {
           ')',
       );
     } catch (e) {
+      this.rootEnded(req.id);
       saveStatus({ ...status, phase: 'failed', message: errMsg(e) });
       warn('Session ' + req.id + ' failed: ' + errMsg(e));
       this.idle.check();

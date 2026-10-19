@@ -1,6 +1,6 @@
 // Section 7: keeping things in shape. Updates (the program and your saved settings), Data & storage (the data folder,
-// what is stored, clean-up), Health (doctor, repair and this PC's setup together), the logs, and the less common
-// commands. Each is a category on the left and loads when you open it.
+// what is stored, clean-up), Health (doctor, repair and this PC's setup together), Activity (the audit log), the logs,
+// and the less common commands. Each is a category on the left and loads when you open it.
 import { dataPage, showData, type DataShow } from '../../../app/features/data/index.js';
 import type { Action } from '../../../app/kernel/index.js';
 import { readQuery } from '../../../app/registry.js';
@@ -21,6 +21,7 @@ import {
   type StorageShow,
 } from '../../../app/features/storage/index.js';
 import { CRASH, listLogs, logsPage, type LogFiles } from '../../../app/features/logs/index.js';
+import { auditArgv, auditPage, listAudit, type AuditList } from '../../../app/features/audit/index.js';
 import { updatesPage, updatesStatus, type UpdatesStatus } from '../../../app/features/updates/updates.def.js';
 import { webPage, webStatus, type WebStatus } from '../../../app/features/web/index.js';
 import type { Context } from '../../commands/context.js';
@@ -54,6 +55,8 @@ export interface MaintenanceModel {
   readonly engine: Engines | null;
   /** HCS systems left running, read with the engines. */
   readonly leftovers?: Leftovers | null;
+  /** The audit log today (the audit view's query; null: not read yet or unreadable). */
+  readonly audit?: AuditList | null;
   /** The web UI's server (the web feature's status): running or not, and its address. */
   readonly web: WebStatus;
   /** The commands listed under "More commands". */
@@ -76,6 +79,12 @@ const CATEGORIES = [
     label: 'Health',
     description: 'Checks this PC and your settings, repairs problems, and sets up Windows Sandbox.',
   },
+  {
+    id: 'activity',
+    label: 'Activity',
+    description:
+      'What your agents ran, changed and committed today (the audit log). Enter on a session shows all of it.',
+  },
   { id: 'logs', label: 'Logs', description: "The sandbox's own logs." },
   {
     id: 'web',
@@ -90,7 +99,7 @@ const CATEGORIES = [
   { id: 'more', label: 'More commands', description: 'Less common commands.' },
 ];
 
-const MORE_COMMANDS = ['sync', 'audit', 'config', 'generate', 'exec', 'agent-commands'];
+const MORE_COMMANDS = ['sync', 'config', 'generate', 'exec', 'agent-commands'];
 
 const NO_LOGS: LogFiles = { folder: '', files: [], crash: false };
 
@@ -100,7 +109,6 @@ const NO_WEB: WebStatus = { running: false, port: null, address: null };
 /** Plain names for the commands under More commands. */
 const MORE_LABELS: Readonly<Record<string, string>> = {
   sync: 'Copy history back now',
-  audit: 'What happened in the sandbox',
   config: 'Your settings file',
   generate: 'Preview a start',
   exec: 'Run a command in the sandbox',
@@ -162,6 +170,11 @@ function logsMenu(files: LogFiles): MenuView {
   return menuView({ ...logsPage(files), empty: undefined }, { category: 'logs', refresh: false });
 }
 
+/** The audit view (src/app/features/audit) as the Activity category's rows and keys (none until it was read). */
+function auditMenu(m: MaintenanceModel): MenuView | undefined {
+  return m.audit ? menuView(auditPage(m.audit), { category: 'activity', prefix: 'audit:', refresh: false }) : undefined;
+}
+
 /** The Web UI view (src/app/features/web) as the menu's rows, keys and Enter labels, for the Web UI category. */
 function webMenu(m: MaintenanceModel): MenuView {
   return menuView(webPage(m.web), { category: 'web', prefix: 'web:', refresh: false });
@@ -176,6 +189,7 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   const updates = updatesMenu(m);
   const engine = engineMenu(m);
   const web = webMenu(m);
+  const audit = auditMenu(m);
   const more: ListItem<string>[] = m.more.map((c) => ({
     value: 'more:' + c.name,
     label: MORE_LABELS[c.name] ?? Text.humanize(c.name),
@@ -185,7 +199,16 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
   return {
     path: [],
     categories: CATEGORIES,
-    items: [...updates.items, ...dataItems(m), ...health.items, ...logs, ...web.items, ...engine.items, ...more],
+    items: [
+      ...updates.items,
+      ...dataItems(m),
+      ...health.items,
+      ...(audit?.items ?? []),
+      ...logs,
+      ...web.items,
+      ...engine.items,
+      ...more,
+    ],
     empty: 'Nothing here yet.',
     actions: maintenanceActions(m),
     enterLabel: (category, id) =>
@@ -197,9 +220,11 @@ export function maintenanceOptions(m: MaintenanceModel): ListOptions<string> {
             ? engine.enterLabel(category, id)
             : category === 'web'
               ? web.enterLabel(category, id)
-              : (category === 'data'
-                  ? storageMenu(m.storage)?.enterLabel(category, id) || dataMenuView(m.data)?.enterLabel(category, id)
-                  : undefined) || enterLabel(id ?? ''),
+              : category === 'activity'
+                ? (audit?.enterLabel(category, id) ?? '')
+                : (category === 'data'
+                    ? storageMenu(m.storage)?.enterLabel(category, id) || dataMenuView(m.data)?.enterLabel(category, id)
+                    : undefined) || enterLabel(id ?? ''),
   };
 }
 
@@ -259,6 +284,8 @@ function maintenanceActions(m: MaintenanceModel): (category: string | undefined)
         return [{ key: 'l', label: m.engine ? 'check again' : 'check' }, ...engineMenu(m).actions];
       case 'web':
         return webMenu(m).actions;
+      case 'activity':
+        return auditMenu(m)?.actions ?? [];
       default:
         return [];
     }
@@ -275,6 +302,7 @@ export class MaintenancePage extends ListPage<string> {
   private engine: Engines | null = null;
   private leftovers: Leftovers | null = null;
   private web: WebStatus = NO_WEB;
+  private audit: AuditList | null = null;
   private readonly operations: MenuOperations;
   /** The newer version the last check found (null: none, or not looked yet). */
   private latest: string | null = null;
@@ -297,6 +325,7 @@ export class MaintenancePage extends ListPage<string> {
       engine: this.engine,
       leftovers: this.leftovers,
       web: this.web,
+      audit: this.audit,
       more: MORE_COMMANDS.flatMap((name) => {
         const spec = commandSpec(name);
         return spec ? [{ name, summary: spec.summary }] : [];
@@ -320,6 +349,12 @@ export class MaintenancePage extends ListPage<string> {
     }
     this.last = (await readQuery(lastHealth, this.ctx)).last;
     this.updates = await readQuery(updatesStatus, this.ctx);
+    try {
+      this.audit = await readQuery(listAudit, this.ctx, { limit: 200 });
+    } catch {
+      // An unreadable log: the category says there is nothing yet.
+      this.audit = null;
+    }
     try {
       this.web = await readQuery(webStatus, this.ctx);
     } catch {
@@ -364,6 +399,15 @@ export class MaintenancePage extends ListPage<string> {
         if (chosen?.kind === 'action')
           return await this.operations.perform(chosen.action, [this.label], (text) => this.busy(text));
         return {};
+      }
+      // Activity: a session's row shows its events on the normal screen (sandbox audit --session ...); turning the
+      // log on runs the settings operation.
+      if (this.category === 'activity') {
+        const chosen = auditMenu(this.model())?.resolve(result);
+        if (chosen?.kind !== 'action') return {};
+        const target = chosen.action.kind === 'link' ? chosen.action.target : undefined;
+        if (target?.kind === 'view') return { exit: { kind: 'run', argv: auditArgv(target.params) } };
+        return await this.operations.perform(chosen.action, [this.label], (text) => this.busy(text));
       }
       if (key === 'm' || id === 'data:measure') return await this.measure();
       // Only the open category's rows and keys: `f` and Enter mean something else in Health.

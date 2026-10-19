@@ -7,7 +7,6 @@ export { contextOrDefaults } from './context.js';
 export { attach, db, exec } from './sessions/index.js';
 export { resume } from './resume.js';
 export {
-  audit,
   claudeHost,
   config,
   doctor,

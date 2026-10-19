@@ -7,7 +7,7 @@ import { RepoGuardStore, readDataSize, saveMarkedProjects } from '../../../host/
 import { ensureConpty, ensureTerminal } from '../../../host/tools/index.js';
 import { planView, viewSkipped, saveActiveViews, WorkspaceView } from '../../../host/workspace-view/index.js';
 import { saveForwards } from '../../../host/network/index.js';
-import { saveAuditSettings } from '../../../host/audit/collect.js';
+import { saveAuditSettings } from '../../../host/audit/index.js';
 import { humanBytes } from '../../../core/disk.js';
 import { syncBeforeLaunch, watcherRunning } from '../../../sync/index.js';
 import type { Config, ResolvedRun } from '../../../core/types.js';

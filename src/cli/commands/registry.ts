@@ -9,7 +9,7 @@ import { containedStatus, showStorage } from '../../app/features/storage/index.j
 import { listProjects } from '../../app/features/projects/index.js';
 import { definitionHandler } from '../operations/index.js';
 import { fail } from '../../core/util/index.js';
-import { audit, claudeHost, config, doctor, hostCommand, logs, sync, watcher } from './maintenance/index.js';
+import { claudeHost, config, doctor, hostCommand, logs, sync, watcher } from './maintenance/index.js';
 import { engine } from './engine.js';
 import { resume } from './resume.js';
 import { agentCommandsCommand } from './agent-commands.js';
@@ -33,7 +33,6 @@ export const HANDLERS: Readonly<Partial<Record<string, Handler>>> = {
   projects: definitionHandler(listProjects),
   sync: sync,
   logs: logs,
-  audit: audit,
   config: config,
   doctor: doctor,
   setup: setup,

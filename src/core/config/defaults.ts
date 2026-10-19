@@ -97,7 +97,17 @@ export const DEFAULTS: Config = {
     sqlserver: { enabled: 'auto' },
   },
   attach: { enabled: true, reuseSession: true, auto: false, autoHide: false, confirmCtrlC: true },
-  web: { enabled: false, port: 47800, openOnLaunch: false },
+  web: {
+    enabled: false,
+    port: 47800,
+    openOnLaunch: false,
+    remote: {
+      windowsSignIn: false,
+      users: [],
+      rememberDays: 30,
+      lan: { enabled: false, port: 47801, address: '' },
+    },
+  },
   agentCommands: { enabled: false, agents: 'auto' },
   secrets: { strip: true, allow: [], patterns: [], warnFiles: true },
   personalization: { enabled: true },

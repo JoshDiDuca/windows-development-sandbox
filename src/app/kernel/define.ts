@@ -4,6 +4,7 @@
 import type { z } from 'zod';
 import { fail } from '../../core/util/errors.js';
 import { issuesText } from './errors.js';
+import type { AccessRule } from './access.js';
 import type { OperationIO } from './io.js';
 import type { Page } from './view.js';
 
@@ -72,6 +73,11 @@ interface Definition<Id extends string, I extends z.ZodType, O extends z.ZodType
   readonly output: O;
   /** Default: every surface. */
   readonly surfaces?: Surfaces;
+  /**
+   * What a caller other than the owner needs (docs/design/remote-access.md). Default: view for a query, control for an
+   * operation; owner for what changes who has access, logins and tokens.
+   */
+  readonly access?: AccessRule;
   readonly cli?: CliHint;
   /** The output in one text: what an operation did, or a value a query read (CLI output, menu notice, web note). */
   text?(output: z.output<O>): string;

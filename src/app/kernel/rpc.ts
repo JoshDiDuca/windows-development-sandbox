@@ -4,6 +4,7 @@
 // does not end it; `unsubscribe` does). The server checks every message against these schemas.
 import { z } from 'zod';
 import { WireErrorSchema } from './errors.js';
+import type { Access, Caller } from './access.js';
 import { QuestionSchema, type OperationIO } from './io.js';
 
 /** One call or subscription on the socket (chosen by the browser, unique while it runs). */
@@ -59,6 +60,8 @@ export interface RpcHost {
   kind(id: string): 'operation' | 'query' | undefined;
   /** How often a query is read again while subscribed (undefined: once). */
   liveMs(id: string): number | undefined;
-  /** Runs an allowed definition (input and output checked). */
-  run(id: string, input: unknown, io: OperationIO): Promise<unknown>;
+  /** What a caller other than the owner needs to run it with this input (undefined: not here). */
+  need(id: string, input: unknown): Access | undefined;
+  /** Runs an allowed definition (input and output checked); refused when `caller` (default: the owner) may not. */
+  run(id: string, input: unknown, io: OperationIO, caller?: Caller): Promise<unknown>;
 }

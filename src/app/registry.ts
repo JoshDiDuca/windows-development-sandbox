@@ -1,8 +1,14 @@
 // Every feature's implementation, by id (Node side; features/defs.ts is the pure half the browser uses). Surfaces run
 // definitions only through here, so input and output are checked the same way everywhere.
 import type { AppContext } from './context.js';
+import { fail } from '../core/util/errors.js';
 import {
+  accessNeeded,
+  allows,
   invoke,
+  OWNER,
+  refusalText,
+  type Caller,
   NO_QUESTIONS,
   onSurface,
   type AnyDefinition,
@@ -161,7 +167,10 @@ export async function readQuery<D extends QueryDef>(
   return (await runDefinition(def.id, ctx, input, NO_QUESTIONS)) as OutputOf<D>;
 }
 
-/** What the web server may run: the registered definitions whose surfaces include the web. */
+/**
+ * What the web server may run: the registered definitions whose surfaces include the web, each refused to a caller
+ * whose role does not reach what it needs (docs/design/remote-access.md).
+ */
 export function createRpcHost(ctx: AppContext): RpcHost {
   const allowed = (id: string): Implementation<AnyDefinition, AppContext> | undefined => {
     const impl = implementationOf(id);
@@ -173,9 +182,15 @@ export function createRpcHost(ctx: AppContext): RpcHost {
       const def = allowed(id)?.def;
       return def?.kind === 'query' ? def.live?.everyMs : undefined;
     },
-    run: (id, input, io) => {
+    need: (id, input) => {
+      const impl = allowed(id);
+      return impl ? accessNeeded(impl.def, input) : undefined;
+    },
+    run: async (id, input, io, caller: Caller = OWNER) => {
       const impl = allowed(id);
       if (!impl) throw new Error('Not allowed on the web: ' + id);
+      const need = accessNeeded(impl.def, input);
+      if (!allows(caller, need)) fail(refusalText(caller, need));
       return invoke(impl, ctx, input, io);
     },
   };

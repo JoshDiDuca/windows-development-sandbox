@@ -19,7 +19,7 @@ const SKIP_DIRS = new Set([
   'venv',
 ]);
 const NEVER_CHECKED = new Set(['node_modules', '.git', 'agent-sandbox-quarantine']);
-const notSkipped =(d: string): boolean => !SKIP_DIRS.has(path.basename(d).toLowerCase());
+const notSkipped = (d: string): boolean => !SKIP_DIRS.has(path.basename(d).toLowerCase());
 
 function plainDirs(dir: string, limit: number): string[] {
   try {

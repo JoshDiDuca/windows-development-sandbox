@@ -14,7 +14,7 @@ const DANGEROUS_KEY =
  * in which `]` and escaped quotes are allowed ([filter "a]b"] must not hide the key after it).
  */
 const SECTION = /^\s*\[\s*([A-Za-z0-9.-]+)(\s+"(?:[^"\\]|\\.)*")?\s*\]\s*/;
-/** Sections where any key is risky: [protocol] turns on transports that run commands (ext::), [url] rewrites remotes. */
+/** Sections where any key is risky: [protocol] turns on transports that run commands (ext::), [url] rewrites URLs. */
 const RISKY_SECTIONS = new Set(['pager', 'protocol', 'url']);
 const MARK = '# [agent-sandbox] disabled, added inside the sandbox: ';
 const MAX_CONFIG_BYTES = 4 * 1024 * 1024;

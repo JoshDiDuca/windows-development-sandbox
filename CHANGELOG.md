@@ -9,6 +9,16 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
 
 ## Unreleased
 
+- **Security review fixes** ([details](docs/security-review-2026-10.md)). A project's `.sandbox-config.json` can no
+  longer copy a file of your PC into the sandbox as a "script" (scripts must be inside the project), set variables that
+  undo the git guard or redirect an agent's API (`toolchains.environment` refuses `AGENT_*`, `GIT_*`, `NODE_*`, `PATH`,
+  proxies, `*_BASE_URL`, `ANTHROPIC_*` ...), map the project a second time past `readOnly` or the workspace filter,
+  turn on `provisioning.copyFromHost`, or lower the RAM kept for your PC. The repository guard catches more git config
+  that runs programs (a `]` in a quoted section name hid a key), hooks in a `core.hooksPath` folder inside the project
+  (husky), whole-tool Claude permissions and plugins, and nested repositories in `build\`/`dist\`. Git `readonly`
+  refuses `grep -O`, `--upload-pack`, `--output` and `--ext-diff`. Marked programs were re-marked every second while a
+  sandbox ran; now once. A storage folder another Windows user owns is refused instead of being made "private".
+  Repo version files are read bounded and must look like versions.
 - **rtk in the sandbox.** A new **Agent add-ons** category in Apps holds things that plug into the agents: rtk
   (rtk-ai/rtk, compacts what shell commands print so the agent uses fewer tokens), claude-mem (its existing
   `claudeProfile.syncClaudeMem` setting) and REA (moved from Reverse engineering). Turn rtk on (`"rtk"` in

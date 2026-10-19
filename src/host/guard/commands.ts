@@ -2,6 +2,17 @@ import { filesIn } from './file-hash.js';
 import { quarantine } from './quarantine.js';
 import type { GuardRule, RepoFinding, RepoSnapshot } from './types.js';
 
+/** What cmd runs from the current folder: a fixed list plus this PC's PATHEXT (the Python installer adds .PY, .PYW). */
+const EXTENSIONS = [
+  ...new Set([
+    ...['exe', 'com', 'bat', 'cmd', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'msc', 'ps1', 'cpl'],
+    ...(process.env.PATHEXT ?? '')
+      .split(';')
+      .map((e) => e.replace(/^\./, '').toLowerCase())
+      .filter((e) => /^[a-z0-9]{1,8}$/.test(e)),
+  ]),
+];
+
 /** Names you are likely to run in a project folder; with any of these extensions Windows would pick the local copy. */
 export const COMMANDS = new RegExp(
   '^(' +
@@ -111,7 +122,9 @@ export const COMMANDS = new RegExp(
       'ssh',
       'scp',
     ].join('|') +
-    ')\\.(exe|com|bat|cmd|vbs|vbe|js|jse|wsf|wsh|msc|ps1)$',
+    ')\\.(' +
+    EXTENSIONS.join('|') +
+    ')$',
   'i',
 );
 

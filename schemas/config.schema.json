@@ -68,8 +68,8 @@
         "days": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 30,
-          "description": "Days the audit log is kept (1 to 30); older days are deleted when a sandbox starts and once a day."
+          "maximum": 365,
+          "description": "Days the audit log is kept (1 to 30; a larger number keeps 30); older days are deleted when a sandbox starts and once a day."
         },
         "maxMb": {
           "type": "integer",

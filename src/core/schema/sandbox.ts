@@ -166,8 +166,10 @@ export const AuditSchema = z.strictObject({
     .number()
     .int()
     .min(1)
-    .max(30)
-    .describe('Days the audit log is kept (1 to 30); older days are deleted when a sandbox starts and once a day.'),
+    .max(365)
+    .describe(
+      'Days the audit log is kept (1 to 30; a larger number keeps 30); older days are deleted when a sandbox starts and once a day.',
+    ),
   maxMb: z
     .number()
     .int()

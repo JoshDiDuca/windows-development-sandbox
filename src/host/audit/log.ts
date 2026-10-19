@@ -73,9 +73,13 @@ const MAX_DAY_BYTES = 128 * 1024 * 1024;
 /** Most events one read returns (the newest ones). */
 const MAX_READ_EVENTS = 400000;
 
+/** The audit log keeps at most this many days, whatever audit.days says (older settings allowed up to 365). */
+export const MAX_AUDIT_DAYS = 30;
+
 /** The first day (YYYY-MM-DD, UTC like the day files) of a window of `days` days ending today. */
 export function firstDay(days: number, now = Date.now()): string {
-  return new Date(now - (Math.max(1, days) - 1) * DAY_MS).toISOString().slice(0, 10);
+  const kept = Math.min(MAX_AUDIT_DAYS, Math.max(1, days));
+  return new Date(now - (kept - 1) * DAY_MS).toISOString().slice(0, 10);
 }
 
 export class AuditLog {

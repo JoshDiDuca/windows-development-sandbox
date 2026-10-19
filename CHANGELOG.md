@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.12.0
 
 - **rtk in the sandbox.** A new **Agent add-ons** category in Apps holds things that plug into the agents: rtk
   (rtk-ai/rtk, compacts what shell commands print so the agent uses fewer tokens), claude-mem (its existing

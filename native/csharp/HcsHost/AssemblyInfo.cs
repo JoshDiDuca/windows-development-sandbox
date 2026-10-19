@@ -8,9 +8,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("windows-development-sandbox (open source)")]
 [assembly: AssemblyProduct("Windows Development Sandbox")]
 [assembly: AssemblyCopyright("MIT License, windows-development-sandbox contributors")]
-[assembly: AssemblyVersion("1.11.7.0")]
-[assembly: AssemblyFileVersion("1.11.7.0")]
-[assembly: AssemblyInformationalVersion("1.11.7")]
+[assembly: AssemblyVersion("1.12.0.0")]
+[assembly: AssemblyFileVersion("1.12.0.0")]
+[assembly: AssemblyInformationalVersion("1.12.0")]
 [assembly: ComVisible(false)]
 // computecore.dll and computestorage.dll are not KnownDLLs: load them from System32 only, never from the exe's folder.
 [assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

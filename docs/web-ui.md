@@ -96,11 +96,33 @@ their sign-in only works from their own Windows account. Taking them off the lis
 
 **What stays yours** whatever the role: remote access itself (devices, the list, LAN mode), logins and tokens
 (accounts, GitHub, VPN), projects, roots and mappings, nearly every setting (control may change only `attach.*` and
-`resume.*`), data cleaning, updates, the folder picker and stopping the web UI. Every remote action, refusal, sign-in
+`resume.*`), data cleaning, updates, the folder picker, stopping the web UI and opening a new shell (a shell runs
+anything as you; control may still type into a shell you opened, as into an agent's terminal, and close sessions). Every remote action, refusal, sign-in
 and new device is in the audit log (Activity, `sandbox audit --kind remote`).
 
 **Needs a real PC to try fully:** the firewall rule and the network check (here they are checked by dry runs), trusting
 the certificate on a phone, and a second Windows account for `sandbox remote`.
+
+## Shells and closing sessions
+
+**New shell** on the Sessions page opens PowerShell in a project of the running sandbox (this folder's, the only one,
+or the one you pick) and shows its terminal. It is a session like an agent's: listed as `pwsh (shell)`,
+`powershell (shell)` or `cmd (shell)`, attachable from any terminal (`sandbox attach <id>`), shown in the menu, and
+viewers see it read-only. On the command line: `sandbox shell [project] [--shell pwsh|powershell|cmd]`.
+
+- **Which shell:** PowerShell 7 when the sandbox has it (`toolchains.pwsh`), else Windows PowerShell 5.1; `cmd` on
+  request. Each is started by its absolute path.
+- **Its environment:** the project's, as an agent session gets it (toolchains, PATH, `AGENT_*` variables, the memory
+  limits), without the agent's own `environment` (its API keys), the agent's install, its hooks or its add-ons.
+- **Closing:** **Close** (its row, `x` in the menu, the terminal page, `sandbox close <id>`) ends the session and every
+  program it started, agents too; typing `exit` does the same for a shell. Closing a session needs control. In a
+  sandbox shared by another Windows user, they may close shells, while agent sessions are only their owner's to close.
+- **Restart and resume leave shells alone:** `sandbox restart` restarts only agents, and a shell is not reopened after
+  a restart of the sandbox (what it was doing is gone).
+- **Idle shutdown:** an open shell counts as activity, like an agent: a headless sandbox shuts itself down only once
+  no session (agent or shell) is open or starting. Close shells you no longer need.
+- **Who may open one:** only you (the owner, at the PC or through the token link). Someone with control can type into
+  a shell you opened, but cannot open one remotely.
 
 ## Phases
 
@@ -109,8 +131,9 @@ the certificate on a phone, and a second Windows account for `sandbox remote`.
 2. **Redesign** (done): a design system, the sidebar with the sandbox's live state, Ctrl+K search, one renderer for
    every Page (cards, tiles, tables, inline settings, categories), a folder picker, a terminal page with find, text
    size, full screen and a phone key row, settings rows for the web UI itself.
-3. **Every area in the web UI** (done): every area of the menu is a shared-core feature and shows up here. Still
-   planned: a plain shell session kind (PowerShell through ptyhost) and closing a session.
+3. **Every area in the web UI** (done): every area of the menu is a shared-core feature and shows up here, plain
+   shell sessions (**New shell** on the Sessions page) and closing a session (**Close** on its row and in its terminal)
+   included; see [Shells and closing sessions](#shells-and-closing-sessions).
 4. **The sandbox's desktop in the browser** (idea): a view of the sandbox window with mouse and keyboard, so it can be
    used from another device. Options, in the order to try: capturing the sandbox window on the PC and streaming it
    over this server (no server in the guest); a VNC server in the sandbox that connects out to the PC, shown with

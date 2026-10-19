@@ -76,7 +76,9 @@ Anything else goes to the agent: `sandbox claude --continue`. If an agent has a 
 | | |
 |---|---|
 | `sandbox attach [id]` | show a session in this terminal (`Ctrl+]` detaches); without an id it offers the sessions, this folder's project first |
-| `sandbox sessions` | sessions, their project and who is attached (`*` = this folder's project) |
+| `sandbox sessions` | sessions (agents and shells), their project and who is attached (`*` = this folder's project) |
+| `sandbox shell [project] [--shell pwsh\|powershell\|cmd]` | open a plain shell in this folder's project (or the one named) as a session and attach this terminal; PowerShell 7 when the sandbox has it, else Windows PowerShell. It has the project's tools and environment, not the agent's keys ([web-ui.md](web-ui.md#shells-and-closing-sessions)) |
+| `sandbox close <id>` | end a session (agent or shell) and every program it started |
 | `sandbox status` | the whole sandbox: the machine, then every project (its folders, setup, databases, sessions, repo-guard findings), this folder's marked |
 | `sandbox db [start\|stop <name>]` | list, start or stop this folder's project's databases (`sbx-db` inside) |
 | `sandbox exec -- <cmd>` | run a command in this folder inside the sandbox, with its project's tools (`--timeout`, `--workspace`) |
@@ -91,7 +93,7 @@ Anything else goes to the agent: `sandbox claude --continue`. If an agent has a 
 | `sandbox show` / `hide` | show or hide the window (`sbx-show`, `sbx-hide`); hidden, it keeps running |
 
 Sessions can be shown in the sandbox and in your terminal at the same time, by any number of terminals. Closing a tab
-or a terminal never stops a session; only the agent exiting does.
+or a terminal never stops a session; only the agent (or shell) exiting does, or `sandbox close`.
 
 ## Several projects
 

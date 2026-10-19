@@ -7,6 +7,22 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Plain shell sessions.** `sandbox shell [project] [--shell pwsh|powershell|cmd]`, **New shell** on the Sessions
+  page of the menu (`s`) and the web UI open PowerShell (7 when the sandbox has it, else 5.1) or cmd in a project of
+  the running sandbox, as a session like an agent's: listed as `pwsh (shell)`, attachable with `sandbox attach`, shown
+  read-only to viewers. The command line attaches at once; the web UI opens its terminal. A shell gets the project's
+  tools and environment but not the agent's own environment (its keys), install, hooks or add-ons. `sandbox restart`
+  leaves shells alone and they are not reopened after a sandbox restart. An open shell keeps a headless sandbox from
+  shutting down, as an agent does. Only the owner opens a shell; someone with remote control cannot.
+- **Close a session from anywhere.** `sandbox close <id>`, `x` on a session in the menu, and **Close** on its row and
+  its terminal page in the web UI end a session (agent or shell) with every program it started. It needs control; in a
+  sandbox another Windows user shared, you may close shells but not their agents.
+- The web UI and `sandbox shell` can now start sessions in a project that joined the sandbox after it started (it was
+  set up already), not only in the launch folder's.
+- An agent can no longer be named `shell`, `pwsh`, `powershell`, `cmd` or `close`.
+
 ## 1.12.0
 
 - **(Beta) Remote access to the web UI** ([design](docs/design/remote-access.md), [how to](docs/web-ui.md#remote-access)).

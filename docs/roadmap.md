@@ -38,10 +38,11 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 ### Web UI
 
-- **Plain shell sessions** (planned): PowerShell and other shells through ptyhost, so terminals you open show in the web
-  UI too, and closing them from there.
-- **Other Windows users** (planned): their own `sandbox web` shows the sandbox you shared, under the same rules as the
-  command line.
+- **Plain shell sessions** (done, unreleased): PowerShell and cmd through ptyhost (`sandbox shell`, New shell in the
+  menu and the web UI), listed and attached like agents, and any session closed from every surface (`sandbox close`).
+  See [web-ui.md](web-ui.md#shells-and-closing-sessions).
+- **Other Windows users** (done, 1.12.0): remote access lets another Windows user of this PC use your web UI or menu
+  (`sandbox remote`), with the role you gave them ([web-ui.md](web-ui.md#remote-access)).
 - **Phone access** (planned): opt-in HTTPS, pairing per device (QR code), revocable devices, a private-network firewall
   rule. Design and security model: [web-ui.md](web-ui.md#phases).
 - **Sandbox desktop in the browser** (idea): mouse and keyboard for the sandbox's desktop from another device. Needs a
@@ -56,6 +57,9 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 Details are in the [changelog](../CHANGELOG.md).
 
+- **Unreleased**: plain shell sessions and closing a session from the command line, the menu and the web UI.
+- **1.12.0**: remote access (beta) for devices on your network and other Windows users of this PC; agent add-ons
+  (rtk, Headroom, ccusage, MCP servers); the audit log on by default with the Activity page.
 - **1.11.x**: the web UI rebuilt on the shared core, with every area of the command line and the menu in it; the
   `sandbox engine clean` command; the HCS engine workflow for GitHub Actions; no sandbox process left running when an
   agent session ends.

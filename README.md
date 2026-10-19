@@ -95,6 +95,7 @@ Details and settings: [troubleshooting](docs/troubleshooting.md#the-sandbox-clos
 | `sandbox <agent>`, `claude-sandbox` | start an agent; `-t` for this terminal, `--headless` for no window |
 | `sandbox start` | the sandbox without an agent |
 | `sandbox attach` / `sessions` / `status` | work with a running sandbox (this folder's project first) |
+| `sandbox shell` / `close <id>` | open PowerShell (or cmd) in a project as a session you can attach to; end a session |
 | `sandbox restart` / `resume` | restart the agents in place; reopen the last sessions |
 | `sandbox projects` | the projects a sandbox can open without a restart: roots, `all`, exclude |
 | `sandbox db [start\|stop <name>]` | list, start or stop databases (`sbx-db` inside) |

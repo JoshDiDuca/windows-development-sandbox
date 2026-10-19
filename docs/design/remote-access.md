@@ -40,14 +40,15 @@ Roles:
   anything an agent prints), logs, the audit log, settings (secrets as `***`) and folder names of projects. Never
   secret values, session tokens or session addresses.
 - **control**: an explicit list, everything else is the owner's: start an agent in a project the sandbox has, type
-  into terminals, restart sessions, stop the sandbox, show or hide its window, start apps, run the health check, and
+  into terminals (a shell the owner opened too), restart and close sessions, stop the sandbox, show or hide its window, start apps, run the health check, and
   change a short list of harmless settings (`attach.*` and `resume.*`). **Control can read whatever the
   owner's agents can read, including their logins** (typing `cat ~/.claude/.credentials.json` into an agent's
   terminal): give it only to people you would let use your keyboard.
 - **owner** (never given to anyone else): everything not on the control list, including remote access and devices,
   logins and tokens (accounts, GitHub, VPN), projects, roots and mappings, every other setting (secrets stripping,
   network, storage, sharing, audit, agents' folders and environment), importing settings, data cleaning, updates, the
-  folder picker (`files.browse`, it lists the owner's disk), and stopping the web server.
+  folder picker (`files.browse`, it lists the owner's disk), stopping the web server, and opening a new shell
+  (`sessions.shell`: a shell runs anything as the owner, so it is never opened remotely).
 
 Each definition in the shared core says what it needs with `access: 'view' | 'control' | 'owner'` or a pure function
 of its input. **The default fails closed**: a query needs view, an operation needs owner; a definition is open to

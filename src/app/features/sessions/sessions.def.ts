@@ -84,6 +84,7 @@ export const listSessions = defineQuery({
 
 export const restartSessions = defineOperation({
   id: 'sessions.restart',
+  access: 'control',
   title: 'Restart agents',
   summary: "restart this project's running agents in place; they resume their conversation",
   input: z.object({

@@ -73,7 +73,15 @@ export const webStatusRun = implement(webStatus, async (ctx) => {
   requireOnPc('web');
   const { running, state } = await controlOf(ctx).status();
   const port = running && state ? state.port : null;
-  return { running, port, address: port ? 'http://127.0.0.1:' + port + '/' : null };
+  const lan = running ? (state?.lan ?? null) : null;
+  return {
+    running,
+    port,
+    address: port ? 'http://127.0.0.1:' + port + '/' : null,
+    lanAddress: lan?.url ?? null,
+    lanFingerprint: lan?.fingerprint ?? null,
+    lanProblem: lan?.problem ?? null,
+  };
 });
 
 export const startWebRun = implement(startWeb, async (ctx, _input, io) => {
@@ -87,8 +95,8 @@ export const openWebRun = implement(openWeb, async (ctx, _input, io) => {
   const control = controlOf(ctx);
   const started = await startServer(ctx, io, control);
   if (started.wasRunning) io.log(started.message);
-  const { state } = await control.status();
-  if (!state) return fail('The web UI stopped right away.', 'Run sandbox web start again.');
+  const { running, state } = await control.status();
+  if (!running || !state) return fail('The web UI stopped right away.', 'Run sandbox web start again.');
   openBrowser(control.url(state));
   return { message: 'Opened in your browser.' };
 });

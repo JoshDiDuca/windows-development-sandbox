@@ -109,6 +109,7 @@ export const sandboxStatus = defineQuery({
 
 export const showWindow = defineOperation({
   id: 'sandbox.showWindow',
+  access: 'control',
   title: 'Show the window',
   summary: 'show the sandbox window',
   input: z.object({}),
@@ -119,6 +120,7 @@ export const showWindow = defineOperation({
 
 export const hideWindow = defineOperation({
   id: 'sandbox.hideWindow',
+  access: 'control',
   title: 'Hide the window',
   summary: 'hide the sandbox window (it keeps running)',
   input: z.object({}),
@@ -129,6 +131,7 @@ export const hideWindow = defineOperation({
 
 export const stopSandbox = defineOperation({
   id: 'sandbox.stop',
+  access: 'control',
   title: 'Stop the sandbox…',
   summary: "shut the sandbox down (every project's sessions end)",
   input: z.object({}),

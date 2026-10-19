@@ -2,7 +2,7 @@
 // has a role. The owner (at the PC, or through the token link) may do everything; another Windows user of this PC or a
 // paired device has the role the owner gave them, never owner. Pure (the web bundle shows what the role allows).
 
-/** What a definition needs. Default: a query needs view, an operation control. */
+/** What a definition needs. Default (fails closed): a query needs view, an operation owner. */
 export type Access = 'view' | 'control' | 'owner';
 
 /** A role the owner can give: view only, or full control (everything but the owner's own things). */
@@ -37,7 +37,7 @@ export function accessNeeded(
   input: unknown,
 ): Access {
   const rule = def.access;
-  if (rule === undefined) return def.kind === 'query' ? 'view' : 'control';
+  if (rule === undefined) return def.kind === 'query' ? 'view' : 'owner';
   if (typeof rule === 'string') return rule;
   try {
     return rule(input);

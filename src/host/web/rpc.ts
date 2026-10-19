@@ -3,7 +3,11 @@
 // closes the socket); only definitions the RpcHost allows on the web run; a bug's details never leave this PC.
 import type { RawData, WebSocket } from 'ws';
 import {
+  allows,
   ANSWER_SCHEMAS,
+  OWNER,
+  refusalText,
+  type Caller,
   ClientMessageSchema,
   MAX_OPEN_PER_SOCKET,
   ioFromAsker,
@@ -15,6 +19,14 @@ import {
   type ServerMessage,
 } from '../../app/kernel/index.js';
 import { LiveHub } from './live.js';
+
+/** One call as this socket saw it (the audit log of remote actions). */
+export interface RpcCallRecord {
+  readonly caller: Caller;
+  readonly op: string;
+  readonly kind: 'operation' | 'query';
+  readonly outcome: 'ok' | 'refused' | 'failed';
+}
 
 /** A call waiting for the browser's answer to its question. */
 interface Waiting {
@@ -40,7 +52,25 @@ export class RpcSession {
     private readonly host: RpcHost,
     /** Shared by every socket of the server (one poll per query); a socket of its own by default. */
     private readonly live: LiveHub = new LiveHub(host),
+    /** Who uses this socket, as it is now (null: their access ended); checked before every call and subscription. */
+    private readonly caller: () => Caller | null = () => OWNER,
+    private readonly onCall: (record: RpcCallRecord) => void = () => undefined,
   ) {}
+
+  /** The caller may run `id` with `input` now; else the refusal is sent (and the socket closed when access ended). */
+  private permitted(rpcId: string, id: string, input: unknown, kind: 'operation' | 'query'): Caller | null {
+    const caller = this.caller();
+    if (!caller) {
+      this.ws.close(4001, 'signed out');
+      this.close();
+      return null;
+    }
+    const need = this.host.need(id, input) ?? 'owner';
+    if (allows(caller, need)) return caller;
+    this.send({ t: 'error', id: rpcId, error: { kind: 'user', message: refusalText(caller, need) } });
+    this.onCall({ caller, op: id, kind, outcome: 'refused' });
+    return null;
+  }
 
   start(): void {
     this.ws.on('message', (data: RawData, binary: boolean) => this.receive(data, binary));
@@ -103,6 +133,8 @@ export class RpcSession {
       this.send({ t: 'error', id, error: { kind: 'invalid', message: 'There is no ' + op + ' here.' } });
       return;
     }
+    const caller = this.permitted(id, op, input, this.host.kind(op) ?? 'operation');
+    if (!caller) return;
     this.calls.set(id, null);
     const io = ioFromAsker(
       (question) =>
@@ -116,11 +148,18 @@ export class RpcSession {
         log: (text, tone) => this.send({ t: 'log', id, text, ...(tone ? { tone } : {}) }),
       },
     );
+    const kind = this.host.kind(op) ?? 'operation';
     this.host
-      .run(op, input, io)
+      .run(op, input, io, caller)
       .then(
-        (output) => this.send({ t: 'result', id, output }),
-        (e: unknown) => this.send({ t: 'error', id, error: toWireError(e) }),
+        (output) => {
+          this.send({ t: 'result', id, output });
+          this.onCall({ caller, op, kind, outcome: 'ok' });
+        },
+        (e: unknown) => {
+          this.send({ t: 'error', id, error: toWireError(e) });
+          this.onCall({ caller, op, kind, outcome: 'failed' });
+        },
       )
       .finally(() => {
         this.calls.delete(id);
@@ -143,6 +182,7 @@ export class RpcSession {
       this.send({ t: 'error', id, error: { kind: 'invalid', message: 'There is no ' + query + ' here.' } });
       return;
     }
+    if (!this.permitted(id, query, input, 'query')) return;
     const stop: Subscription = this.live.watch(query, input, (event) => {
       if (this.subscriptions.get(id) !== stop) return;
       if ('output' in event) this.send({ t: 'data', id, output: event.output });

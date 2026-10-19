@@ -28,6 +28,7 @@ export type FolderListing = z.output<typeof FolderListingSchema>;
 
 export const browseFolder = defineQuery({
   id: 'files.browse',
+  access: 'owner',
   title: 'Browse folders',
   summary: 'list what is in a folder of this PC, to pick a folder or a file',
   input: z.object({

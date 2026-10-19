@@ -920,6 +920,7 @@ function previewRpc(ctx: AppContext, state: { running: boolean; vpnLogin: 'none'
   };
   return {
     kind: (id) => kinds[id],
+    need: (id) => (kinds[id] ? 'view' : undefined),
     liveMs: (id) => (id === 'sandbox.status' || id === 'sessions.list' ? 2500 : id === 'logs.tail' ? 1000 : undefined),
     run: async (id, input, io) =>
       id !== 'apps.request' && (id.startsWith('settings.') || id.startsWith('apps.') || id === 'files.browse')

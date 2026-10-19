@@ -74,8 +74,8 @@ interface Definition<Id extends string, I extends z.ZodType, O extends z.ZodType
   /** Default: every surface. */
   readonly surfaces?: Surfaces;
   /**
-   * What a caller other than the owner needs (docs/design/remote-access.md). Default: view for a query, control for an
-   * operation; owner for what changes who has access, logins and tokens.
+   * What a caller other than the owner needs (docs/design/remote-access.md). Default (fails closed): view for a query,
+   * owner for an operation; an operation says 'control' to be open to someone the owner gave control.
    */
   readonly access?: AccessRule;
   readonly cli?: CliHint;
@@ -98,6 +98,8 @@ export interface OperationDef<
   readonly kind: 'operation';
   /** Shown as dangerous (red); it asks for its own confirmation through io.confirm. */
   readonly danger?: boolean;
+  /** Its result must stay on screen until dismissed (a one-time code to type elsewhere): the web keeps it open. */
+  readonly keepResult?: boolean;
 }
 
 export interface QueryDef<

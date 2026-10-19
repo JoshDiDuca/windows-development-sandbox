@@ -140,6 +140,7 @@ function fakeRpc(): { host: RpcHost; ran: string[]; live: { value: number } } {
   const host: RpcHost = {
     kind: (id) => (id === 'test.work' ? 'operation' : id === 'test.live' ? 'query' : undefined),
     liveMs: (id) => (id === 'test.live' ? 50 : undefined),
+    need: (id) => (id === 'test.work' ? 'control' : id === 'test.live' ? 'view' : undefined),
     run: async (id, input, io) => {
       ran.push(id);
       if (id === 'test.live') return { value: live.value };
@@ -278,6 +279,7 @@ export const webSuite: Suite = {
       let reads = 0;
       const host: RpcHost = {
         kind: () => 'query',
+        need: () => 'view',
         liveMs: () => 40,
         run: async () => {
           reads++;

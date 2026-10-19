@@ -73,6 +73,14 @@ import { checkEngineRun, cleanEngineRun, engineLeftoversRun, engineStatusRun } f
 import { openWebRun, startWebRun, stopWebRun, webStatusRun } from './features/web/index.js';
 import { vpnLoginRun, vpnLogoutRun, vpnStatusRun } from './features/vpn/index.js';
 import { githubLoginRun, githubLogoutRun, githubStatusRun } from './features/github/index.js';
+import {
+  accessStatusRun,
+  allowDeviceRun,
+  lanOffRun,
+  lanOnRun,
+  revokeAccessRun,
+  revokeAllAccessRun,
+} from './features/access/index.js';
 
 export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>[] = [
   sandboxStatusRun,
@@ -145,6 +153,12 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   githubLoginRun,
   githubLogoutRun,
   webStatusRun,
+  accessStatusRun,
+  allowDeviceRun,
+  revokeAccessRun,
+  revokeAllAccessRun,
+  lanOnRun,
+  lanOffRun,
 ];
 
 export function implementationOf(id: string): Implementation<AnyDefinition, AppContext> | undefined {

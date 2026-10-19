@@ -18,6 +18,7 @@ import { updatesView } from '../../app/features/updates/index.js';
 import { webView } from '../../app/features/web/index.js';
 import { vpnView } from '../../app/features/vpn/index.js';
 import { githubView } from '../../app/features/github/index.js';
+import { accessView } from '../../app/features/access/index.js';
 import type { AnyView } from '../../app/kernel/index.js';
 import type { SECTION_LABELS } from './shell.js';
 
@@ -42,6 +43,7 @@ export const MENU_VIEWS: readonly MenuViewPlace[] = [
   { view: updatesView, section: 'Maintenance' },
   { view: engineView, section: 'Maintenance' },
   { view: webView, section: 'Maintenance' },
+  { view: accessView, section: 'Maintenance' },
   // The Settings page draws the VPN row itself (its login is staged with the settings); the view lists its operations.
   { view: vpnView, section: 'Settings' },
   // The same for the GitHub token row.

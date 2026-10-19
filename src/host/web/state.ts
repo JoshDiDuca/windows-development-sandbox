@@ -13,6 +13,14 @@ export const WebStateSchema = z.strictObject({
   startedAt: z.string().max(64),
   /** The version that started it (missing: an older one). Another version is replaced, never reused. */
   version: z.string().max(64).optional(),
+  /** LAN mode (docs/design/remote-access.md): its address for phones, the certificate, or why it is not running. */
+  lan: z
+    .strictObject({
+      url: z.string().max(64).nullable(),
+      fingerprint: z.string().max(100).nullable(),
+      problem: z.string().max(500).nullable(),
+    })
+    .optional(),
 });
 export type WebState = z.output<typeof WebStateSchema>;
 

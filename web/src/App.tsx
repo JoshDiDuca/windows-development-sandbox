@@ -1,9 +1,11 @@
-// Signs in from the #k= fragment (then removes it from the address bar), and shows the page the address names inside
-// the shell: a view, or a session's terminal.
-import { Card, Center, Loader, Stack, Text, ThemeIcon, Title } from '@mantine/core';
-import { IconLock } from '@tabler/icons-react';
+// Signs in from the #k= fragment (the owner's link) or #w= (another Windows user's one-time link from sandbox remote
+// --browser), then removes it from the address bar, and shows the page the address names inside the shell: a view, or a
+// session's terminal. Not signed in: the sign-in page (on your network: the device code).
+import { Center, Loader } from '@mantine/core';
 import { useEffect, useState } from 'react';
+import { setAccess } from './access';
 import { api } from './api';
+import { SignIn } from './pages/SignIn';
 import { TerminalPage } from './pages/TerminalPage';
 import { ViewPage } from './pages/ViewPage';
 import { useRoute } from './router';
@@ -17,19 +19,27 @@ export function tokenFromFragment(hash: string): string | null {
   return match ? match[1] : null;
 }
 
+/** A Windows user's one-time token from #w=<token>, or null. */
+export function onceFromFragment(hash: string): string | null {
+  const match = /^#w=([0-9a-f]{64})$/.exec(hash);
+  return match ? match[1] : null;
+}
+
 async function signIn(): Promise<Auth> {
   const token = tokenFromFragment(location.hash);
-  if (token) {
+  const once = onceFromFragment(location.hash);
+  if (token || once) {
     // The fragment never goes to the server, and must not stay in the address bar or the history.
     history.replaceState(null, '', location.pathname + location.search);
     try {
-      await api.login(token);
+      if (token) await api.login(token);
+      else if (once) await api.loginOnce(once);
     } catch {
       return 'out';
     }
   }
   try {
-    await api.info();
+    setAccess((await api.me()).access);
     return 'in';
   } catch {
     return 'out';
@@ -49,26 +59,7 @@ export function App() {
         <Loader />
       </Center>
     );
-  if (auth === 'out')
-    return (
-      <Center h="100dvh" p="md" style={{ background: 'var(--app-bg)' }}>
-        <Card maw={440} p="xl">
-          <Stack gap="sm" align="center" ta="center">
-            <ThemeIcon size={52} radius="xl" variant="light">
-              <IconLock size={26} stroke={1.6} />
-            </ThemeIcon>
-            <Title order={2}>Not signed in</Title>
-            <Text c="dimmed" size="sm">
-              This page only opens from this PC. In a terminal, run{' '}
-              <Text span ff="monospace" fw={600}>
-                sandbox web open
-              </Text>{' '}
-              : it opens the web UI already signed in.
-            </Text>
-          </Stack>
-        </Card>
-      </Center>
-    );
+  if (auth === 'out') return <SignIn onSignedIn={() => void signIn().then(setAuth)} />;
   if (route.page === 'terminal')
     return (
       <Shell active="sessions" bare>

@@ -18,8 +18,8 @@ import {
 } from '../../kernel/index.js';
 import { setSetting } from '../settings/settings.def.js';
 
-export const AUDIT_EVENT_KINDS = ['proc', 'file', 'commit', 'session', 'guard', 'note'] as const;
-export const AUDIT_KIND_FILTERS = ['all', 'proc', 'file', 'commit', 'session', 'guard'] as const;
+export const AUDIT_EVENT_KINDS = ['proc', 'file', 'commit', 'session', 'guard', 'note', 'remote'] as const;
+export const AUDIT_KIND_FILTERS = ['all', 'proc', 'file', 'commit', 'session', 'guard', 'remote'] as const;
 /** The days the page offers (the log keeps at most 30). */
 const PERIODS = [1, 3, 7, 14, 30] as const;
 /** The session filter that means "not linked to any session". */
@@ -34,13 +34,16 @@ const KIND_LABEL: Readonly<Record<(typeof AUDIT_EVENT_KINDS)[number], string>> =
   session: 'session',
   guard: 'GUARD',
   note: 'note',
+  remote: 'remote',
 };
 
 export const AuditRowSchema = z.object({
   time: z.string().describe('When it happened (ISO time)'),
   kind: z
     .enum(AUDIT_EVENT_KINDS)
-    .describe('proc: a program started; file: changed in a project; commit; session; guard: the repo guard; note'),
+    .describe(
+      'proc: a program started; file: changed in a project; commit; session; guard: the repo guard; note; remote: what another Windows user or a paired device did in the web UI',
+    ),
   what: z.string().describe('The program, the file, the commit message, the agent, or what happened'),
   command: z.string().optional().describe("A program's command line (secrets hidden)"),
   parent: z.string().optional().describe('The program that started it'),
@@ -60,7 +63,7 @@ export const AuditRowSchema = z.object({
     ),
   count: z.number().int().describe('How many times it happened in that minute'),
   sha: z.string().optional().describe("A commit's id"),
-  author: z.string().optional().describe("A commit's author"),
+  author: z.string().optional().describe("A commit's author; for remote: who did it"),
 });
 export type AuditRow = z.output<typeof AuditRowSchema>;
 
@@ -180,6 +183,8 @@ export function eventWhat(e: AuditRow): string {
       );
     case 'session':
       return e.what + (e.action === 'end' ? ' ended' : ' started') + (e.project ? ' in ' + e.project : '');
+    case 'remote':
+      return (e.author ?? 'someone') + ': ' + e.what + (e.action && e.action !== 'ok' ? ' (' + e.action + ')' : '');
     default:
       return e.what;
   }

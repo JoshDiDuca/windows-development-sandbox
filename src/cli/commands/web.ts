@@ -3,10 +3,24 @@
 // running when no sandbox does. startWebOnLaunch is the sandbox start's hook.
 import fs from 'node:fs';
 import path from 'node:path';
+import { accessStoreOf } from '../../app/features/access/index.js';
 import { currentServer, START_WAIT_MS, webStatus } from '../../app/features/web/index.js';
 import { createRpcHost } from '../../app/registry.js';
+import { loadConfig } from '../../core/config/index.js';
 import { packageVersion } from '../../core/package-info.js';
+import type { WebRemote } from '../../core/schema/web.js';
 import { sleep, fail } from '../../core/util/index.js';
+import { AuditLog } from '../../host/audit/index.js';
+import {
+  doorPipeName,
+  HostToolsHelper,
+  networkProfile,
+  RemoteGate,
+  TlsStore,
+  type RemoteAuditEntry,
+} from '../../host/remote/index.js';
+import { SecretStore } from '../../host/secrets/index.js';
+import { currentUserSid } from '../../host/sharing/index.js';
 import { IDLE_EXIT_MS, openBrowser, WebControl, WebRunner, WebStore } from '../../host/web/index.js';
 import { spawnDetached } from '../../host/sandbox/index.js';
 import { WebService } from '../services/index.js';
@@ -56,6 +70,64 @@ export async function web(ctx: Context): Promise<number> {
   return (await definitionHandler(webStatus)(ctx)) ?? 0;
 }
 
+/** The remote settings as they are in the file now (read again at most every few seconds; a broken file keeps the last). */
+function remoteSettings(ctx: Context): () => WebRemote {
+  let last = ctx.loaded.config.web.remote;
+  let readAt = Date.now();
+  return () => {
+    if (Date.now() - readAt < 3000) return last;
+    readAt = Date.now();
+    try {
+      last = loadConfig(ctx.options.config).config.web.remote;
+    } catch {
+      // A settings file being edited or broken: keep what was read last.
+    }
+    return last;
+  };
+}
+
+/** Remote actions go to the audit log of this data set (k: remote), so the Activity page shows who did what. */
+function remoteAudit(ctx: Context): (entry: RemoteAuditEntry) => void {
+  const { days, maxMb } = ctx.loaded.config.audit;
+  const log = new AuditLog(AuditLog.dirFor(ctx.storageRoot, ctx.dataPath), { days, maxMb });
+  return (entry) => {
+    try {
+      log.append([{ t: new Date().toISOString(), k: 'remote', p: entry.what, a: entry.outcome, au: entry.who }]);
+    } catch {
+      // The audit log is a record, never a reason for a request to fail.
+    }
+  };
+}
+
+/**
+ * The gate for other Windows users and devices (docs/design/remote-access.md). The Windows helper is started when it
+ * can be built here: then the owner's own cookie is bound to the owner's connections too, and the sign-in pipe is
+ * served (it refuses everyone while web.remote.windowsSignIn is off).
+ */
+function remoteGate(ctx: Context): RemoteGate {
+  const secrets = SecretStore.standard();
+  let ownerSid = '';
+  try {
+    ownerSid = currentUserSid();
+  } catch {
+    // Unknown: Windows sign-in stays off, the owner signs in with the token as before.
+  }
+  const helper = ownerSid ? HostToolsHelper.start(ctx.storageRoot, doorPipeName(ownerSid)) : null;
+  const audit = remoteAudit(ctx);
+  helper?.onProblem((text) => audit({ who: 'the web UI', what: 'Windows sign-in: ' + text, outcome: 'failed' }));
+  const store = new WebStore(ctx.storageRoot);
+  return new RemoteGate({
+    store: accessStoreOf(ctx),
+    settings: remoteSettings(ctx),
+    ownerSid,
+    helper,
+    audit,
+    tls: new TlsStore(store.dir, secrets),
+    profile: (address) => networkProfile(address),
+    port: () => ctx.loaded.config.web.port,
+  });
+}
+
 /** Body of the background process (`sandbox _web`): runs until stopped. */
 export async function webServer(ctx: Context): Promise<void> {
   const staticRoot = path.join(ctx.packageRoot, 'dist', 'web');
@@ -69,6 +141,7 @@ export async function webServer(ctx: Context): Promise<void> {
     staticRoot,
     version: packageVersion(),
     idleExitMs: IDLE_EXIT_MS,
+    gate: remoteGate(ctx),
   }).run();
   process.exit(0);
 }

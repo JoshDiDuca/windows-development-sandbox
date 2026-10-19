@@ -16,6 +16,7 @@ import { agentCommandsCommand } from './agent-commands.js';
 import { vpn } from './vpn.js';
 import { github } from './github.js';
 import { web, webServer } from './web.js';
+import { remote } from './remote.js';
 
 export type Handler = (ctx: Context) => number | Promise<number | void>;
 
@@ -63,5 +64,6 @@ export const HANDLERS: Readonly<Partial<Record<string, Handler>>> = {
   vpn: vpn,
   github: github,
   web: web,
+  remote: remote,
   _web: webServer,
 } satisfies Partial<Record<CommandName, Handler>>;

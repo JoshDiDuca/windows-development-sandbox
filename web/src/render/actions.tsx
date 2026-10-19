@@ -26,6 +26,7 @@ import {
 } from '@tabler/icons-react';
 import { useCallback } from 'react';
 import type { Action, OperationAction } from '../../../src/app/kernel/index';
+import { mayRun } from '../access';
 import { navigate, viewPath } from '../router';
 import { useRunAction, type Outcome } from '../rpc/hooks';
 import { askFields } from './ActionForm';
@@ -72,9 +73,9 @@ export function isDanger(action: Action): boolean {
   return action.kind === 'operation' && action.danger === true;
 }
 
-/** Can the web do this action? */
+/** Can the web do this action, for whoever is signed in (a role that may not run it does not see it)? */
 export function offered(action: Action | undefined): action is Action {
-  return action !== undefined && !(action.kind === 'link' && action.target.kind === 'command');
+  return action !== undefined && !(action.kind === 'link' && action.target.kind === 'command') && mayRun(action);
 }
 
 /** Does an action. */

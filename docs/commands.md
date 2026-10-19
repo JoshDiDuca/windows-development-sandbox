@@ -83,7 +83,11 @@ Anything else goes to the agent: `sandbox claude --continue`. If an agent has a 
 | `sandbox restart` | restart this folder's project's agents in place; they resume their conversation (`--all`: every project's) |
 | `sandbox resume` | reopen the sessions from the last sandbox, each continuing its own conversation; starts the sandbox the way it was started if none runs. A launch does the same by itself or asks, as `resume.sessions` says. Terminal tabs you opened yourself inside the sandbox are not reopened |
 | `sandbox stop` | shut down (history syncs back); asks first when other projects' sessions would end (`--yes` skips) |
-| `sandbox web [start\|stop\|status\|open]` | **(Beta)** your sessions in a browser on this PC ([web-ui.md](web-ui.md)): `start` runs the server in the background (works even with `web.enabled` off, for this run), `open` starts it if needed and opens your browser already signed in, `status`, `stop`. Loopback only, behind a token |
+| `sandbox web [start\|stop\|status\|open]` | **(Beta)** your sessions in a browser on this PC ([web-ui.md](web-ui.md)): `start` runs the server in the background (works even with `web.enabled` off, for this run), `open` starts it if needed and opens your browser already signed in, `status` (also the address on your network when LAN mode is on), `stop`. Loopback only, behind a token |
+| `sandbox web lan-on\|lan-off` | **(Beta)** let devices you allow use the web UI on your own network ([remote access](web-ui.md#remote-access)): `lan-on` checks the network is Private and adds the firewall rule (Windows asks once); `lan-off` removes it and signs out every device |
+| `sandbox web allow-device [--role view\|control]` | a one-time code (5 minutes) for a phone or tablet that opened the address on your network |
+| `sandbox web devices [--json]`, `revoke <id>`, `revoke-all` | who may use your web UI (devices and Windows sign-ins), and signing one or everyone out |
+| `sandbox remote [user] [--browser]` | **(Beta)** another Windows user's web UI from your account: the menu over their program, or `--browser`; signed in by Windows, with the role they gave you |
 | `sandbox show` / `hide` | show or hide the window (`sbx-show`, `sbx-hide`); hidden, it keeps running |
 
 Sessions can be shown in the sandbox and in your terminal at the same time, by any number of terminals. Closing a tab

@@ -39,6 +39,8 @@ export class TerminalBridge {
     private readonly cols: number,
     private readonly rows: number,
     private readonly dial: (endpoint: Endpoint) => Promise<net.Socket> = connect,
+    /** View only: keystrokes and resizes from the browser are dropped here, whatever the page sends. */
+    private readonly readOnly: boolean = false,
   ) {}
 
   /** Connects to the session and starts passing data both ways. */
@@ -69,7 +71,7 @@ export class TerminalBridge {
   }
 
   private fromBrowser(data: RawData, isBinary: boolean): void {
-    if (!this.socket || this.done) return;
+    if (!this.socket || this.done || this.readOnly) return;
     const bytes = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer);
     if (isBinary) {
       if (bytes.length) this.socket.write(encodeFrame(FrameType.Input, bytes));

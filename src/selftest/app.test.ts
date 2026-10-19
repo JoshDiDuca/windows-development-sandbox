@@ -1536,8 +1536,11 @@ export const appSuite: Suite = {
       definitionFor('web', ['open'])?.id === 'web.open' &&
         definitionFor('web', ['status'])?.id === 'web.status' &&
         definitionFor('web', []) === undefined &&
-        (commandSpec('web')?.args[0]?.choices as readonly string[] | undefined)?.join() === 'start,stop,status,open',
-      'the web actions are actions of the web command; sandbox web with no action is not one of them',
+        (commandSpec('web')?.args[0]?.choices as readonly string[] | undefined)?.join() ===
+          'start,stop,status,open,allow-device,revoke,revoke-all,lan-on,lan-off,devices' &&
+        definitionFor('web', ['allow-device'])?.id === 'access.allowDevice' &&
+        definitionFor('web', ['revoke', '0123456789abcdef'])?.id === 'access.revoke',
+      'the web actions (and the remote access ones) are actions of the web command; sandbox web alone is not one',
     );
   },
 };

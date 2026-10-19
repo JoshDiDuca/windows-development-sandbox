@@ -7,7 +7,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { z } from 'zod';
 
-export const AUDIT_KINDS = ['proc', 'file', 'commit', 'session', 'guard', 'note'] as const;
+export const AUDIT_KINDS = ['proc', 'file', 'commit', 'session', 'guard', 'note', 'remote'] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 
 /** A session id as the sandbox's run folder names them. */
@@ -15,7 +15,7 @@ export const AuditSessionIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 /**
  * One event. k: proc (a program started), file (changed in a project), commit (a git commit in a project), session,
- * guard (repo guard), note.
+ * guard (repo guard), note, remote (what another Windows user or a paired device did in the web UI).
  */
 export const AuditEventSchema = z.object({
   /** ISO time. */
@@ -48,7 +48,7 @@ export const AuditEventSchema = z.object({
     .string()
     .regex(/^[0-9a-f]{7,64}$/)
     .optional(),
-  /** commit: who git says made it ("Name <email>"). */
+  /** commit: who git says made it ("Name <email>"); remote: who did it ("device Josh's phone"). */
   au: z.string().max(256).optional(),
 });
 export type AuditEvent = z.output<typeof AuditEventSchema>;

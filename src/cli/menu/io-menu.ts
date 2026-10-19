@@ -14,6 +14,7 @@ import {
   type AnyDefinition,
   type Asker,
   type OperationAction,
+  type OperationIO,
   type Question,
   type Target,
 } from '../../app/kernel/index.js';
@@ -93,10 +94,14 @@ function follow(target: Target): Performed {
   }
 }
 
+/** How a definition is run: in this process (the menu), or on the owner's web UI (sandbox remote). */
+export type DefinitionRunner = (id: string, input: unknown, io: OperationIO) => Promise<unknown>;
+
 export class MenuOperations {
   constructor(
     private readonly app: App,
-    private readonly ctx: Context,
+    ctx: Context,
+    private readonly runner: DefinitionRunner = (id, input, io) => runDefinition(id, ctx, input, io),
   ) {}
 
   /** Does what an action of a page says: follows a link, or asks for its fields and runs its operation. */
@@ -150,7 +155,7 @@ export class MenuOperations {
       log: (text, tone) => said.push(tone === 'warn' || tone === 'danger' ? Theme.warn(text) : text),
     });
     try {
-      const output = await runDefinition(def.id, this.ctx, input, io);
+      const output = await this.runner(def.id, input, io);
       onOutput?.(output);
       // The notice is one line: an operation that says several lines (accounts use) runs them together.
       const text = def.text?.(output)?.replace(/\n+/g, ' ');

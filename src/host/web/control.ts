@@ -1,5 +1,6 @@
 // Talking to a running web server from the CLI: is it up, its address (with the token fragment), and stopping it. The
 // state file says where it is and holds the token, so only you (and SYSTEM / Administrators) can do any of this.
+import crypto from 'node:crypto';
 import http from 'node:http';
 import { CSRF_HEADER, CSRF_VALUE } from '../../shared/web/index.js';
 import type { WebStore, WebState } from './state.js';
@@ -15,7 +16,7 @@ function request(
   path: string,
   body?: unknown,
   cookie?: string,
-): Promise<http.IncomingMessage> {
+): Promise<http.IncomingMessage & { text: string }> {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const req = http.request(
@@ -33,8 +34,12 @@ function request(
         },
       },
       (res) => {
-        res.resume();
-        resolve(res);
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => {
+          if (text.length < 4096) text += chunk;
+        });
+        res.on('end', () => resolve(Object.assign(res, { text })));
       },
     );
     req.on('timeout', () => req.destroy(new Error('timed out')));
@@ -46,12 +51,23 @@ function request(
 export class WebControl {
   constructor(private readonly store: WebStore) {}
 
-  /** Running means the state file exists and its port answers as our server. */
+  /**
+   * Running means the state file exists and its port answers as OUR server: it proves it holds the token (an HMAC of
+   * a fresh challenge), so the token link is never handed to another program that took the port.
+   */
   async status(): Promise<WebStatus> {
     const state = this.store.read();
     if (!state) return { running: false, state: null };
     try {
-      return { running: (await request(state, 'GET', '/api/health')).statusCode === 200, state };
+      const challenge = crypto.randomBytes(16).toString('hex');
+      const res = await request(state, 'GET', '/api/health?challenge=' + challenge);
+      const expected = crypto.createHmac('sha256', state.token).update(challenge).digest('hex');
+      const proof = (safeJson(res.text) as { proof?: unknown } | null)?.proof;
+      const proven =
+        typeof proof === 'string' &&
+        proof.length === expected.length &&
+        crypto.timingSafeEqual(Buffer.from(proof), Buffer.from(expected));
+      return { running: res.statusCode === 200 && proven, state };
     } catch {
       return { running: false, state };
     }
@@ -77,5 +93,13 @@ export class WebControl {
   /** The state file of a server that is gone. */
   clear(): void {
     this.store.clear();
+  }
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
   }
 }

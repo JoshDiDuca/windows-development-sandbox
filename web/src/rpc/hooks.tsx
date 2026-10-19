@@ -109,7 +109,7 @@ export function useRunAction(): (
           message: text,
           color: 'green',
           loading: false,
-          autoClose: options.inline ? 2500 : 5000,
+          autoClose: def?.keepResult ? false : options.inline ? 2500 : 5000,
         };
         if (shown) notifications.update(result);
         else notifications.show(result);

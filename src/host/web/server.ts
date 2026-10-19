@@ -1,12 +1,13 @@
 // The web UI's HTTP server: the app's files, a small JSON API for sessions, the terminal WebSocket and the RPC
 // WebSocket of the shared core. Loopback only; nothing works without the token's cookie, and Host / Origin / CSRF
 // checks keep other sites out (docs/web-ui.md).
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import type net from 'node:net';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { RpcHost } from '../../app/kernel/index.js';
+import { allows, callerAccess, callerLabel, OWNER, type Caller, type RpcHost } from '../../app/kernel/index.js';
 import { UserError, safeText } from '../../core/util/index.js';
 import type { Endpoint } from '../../shared/pty/index.js';
 import { MAX_CLIENT_MESSAGE_BYTES, MAX_COLS, MAX_ROWS, MIN_COLS, MIN_ROWS } from '../../shared/web/index.js';
@@ -16,6 +17,7 @@ import { TerminalBridge } from './bridge.js';
 import { LiveHub } from './live.js';
 import { RpcSession } from './rpc.js';
 import { StaticFiles } from './static-files.js';
+import type { RemoteGate } from '../remote/index.js';
 
 /** No inline script: the page and its script are files from this server. Inline styles are what xterm.js needs. */
 export const CONTENT_SECURITY_POLICY =
@@ -56,7 +58,17 @@ export interface WebServerOptions {
   readonly idleNoSandboxMs?: number;
   /** Heartbeat period (tests make it short). */
   readonly heartbeatMs?: number;
+  /**
+   * Other Windows users and paired devices (docs/design/remote-access.md); none: the owner's token only, as before.
+   * The gate also serves the LAN listener and closes sockets whose access ended.
+   */
+  readonly gate?: RemoteGate;
 }
+
+/** What a service worker registered on this origin by someone else gets when the browser updates it: gone. */
+const UNREGISTER_WORKER =
+  "self.addEventListener('install',()=>self.skipWaiting());" +
+  "self.addEventListener('activate',(e)=>e.waitUntil(self.registration.unregister()));";
 
 /** A browser's socket: which kind, whether it answered the last ping, and when it was opened. */
 interface Tracked {
@@ -120,7 +132,18 @@ export class WebServer {
           this.idleCheck = setInterval(() => void this.checkIdle(), Math.min(60_000, this.quietMs()));
           this.idleCheck.unref();
         }
-        resolve();
+        const gate = this.options.gate;
+        if (!gate) return resolve();
+        gate.start();
+        void gate
+          .startLan({
+            request: (req, res) => void this.handle(req, res),
+            upgrade: (req, socket, head) => {
+              this.lastUsed = Date.now();
+              this.upgrade(req, socket, head);
+            },
+          })
+          .finally(resolve);
       });
     });
   }
@@ -193,7 +216,8 @@ export class WebServer {
     clearInterval(this.idleCheck);
     for (const client of this.sockets.clients) client.close(1001, 'server stopping');
     this.server.closeAllConnections();
-    return new Promise((resolve) => this.server.close(() => resolve()));
+    const gate = this.options.gate?.stop();
+    return new Promise((resolve) => this.server.close(() => void Promise.resolve(gate).then(() => resolve())));
   }
 
   private headers(extra: http.OutgoingHttpHeaders = {}): http.OutgoingHttpHeaders {
@@ -219,7 +243,7 @@ export class WebServer {
   private async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     this.lastUsed = Date.now();
     try {
-      if (!hostAllowed(req.headers.host, this.actualPort)) throw new HttpFailure(421, 'Wrong host name.');
+      if (!this.hostOk(req)) throw new HttpFailure(421, 'Wrong host name.');
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
       if (url.pathname.startsWith('/api/')) await this.api(req, res, url.pathname);
       else this.serveFile(req, res, url.pathname);
@@ -230,8 +254,37 @@ export class WebServer {
     }
   }
 
+  /** The LAN listener's own address:port, or loopback with our port. */
+  private hostOk(req: http.IncomingMessage): boolean {
+    const gate = this.options.gate;
+    if (gate?.isLan(req.socket)) return gate.lanHostAllowed(req.headers.host);
+    return hostAllowed(req.headers.host, this.actualPort);
+  }
+
+  private originOk(req: http.IncomingMessage): boolean {
+    const gate = this.options.gate;
+    if (gate?.isLan(req.socket)) return gate.lanOriginAllowed(req.headers.origin, req.headers.host);
+    return originAllowed(req.headers.origin, req.headers.host, this.actualPort);
+  }
+
+  /** Who sent the request: the owner's token cookie (loopback only), or whoever the gate lets in. Null: nobody. */
+  private async callerOf(req: http.IncomingMessage): Promise<{ caller: Caller | null; ownerCookie: boolean }> {
+    const gate = this.options.gate;
+    const ownerCookie = !gate?.isLan(req.socket) && this.auth.signedIn(req.headers.cookie);
+    if (!gate) return { caller: ownerCookie ? OWNER : null, ownerCookie };
+    return { caller: await gate.caller(req, ownerCookie), ownerCookie };
+  }
+
   private serveFile(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): void {
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpFailure(405, 'Not allowed.');
+    if (req.headers['service-worker'] === 'script') {
+      res.writeHead(
+        200,
+        this.headers({ 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }),
+      );
+      res.end(UNREGISTER_WORKER);
+      return;
+    }
     const file = this.files.find(pathname);
     if (!file) throw new HttpFailure(404, 'Not found.');
     const size = fs.statSync(file.file).size;
@@ -249,14 +302,22 @@ export class WebServer {
 
   /** A call that changes something: the custom header, and an Origin that is this page. */
   private requireSameSite(req: http.IncomingMessage): void {
-    if (!csrfOk(req.headers) || !originAllowed(req.headers.origin, req.headers.host, this.actualPort))
-      throw new HttpFailure(403, 'Refused.');
+    if (!csrfOk(req.headers) || !this.originOk(req)) throw new HttpFailure(403, 'Refused.');
   }
 
   private async api(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): Promise<void> {
     const method = req.method ?? 'GET';
     const { backend } = this.options;
-    if (pathname === '/api/health' && method === 'GET') return this.json(res, 200, { ok: true });
+    if (pathname === '/api/health' && method === 'GET') return this.json(res, 200, this.health(req));
+    if (
+      this.options.gate &&
+      (await this.options.gate.route(req, pathname, {
+        body: () => this.body(req),
+        json: (status, body, headers) => this.json(res, status, body, headers),
+        requireSameSite: () => this.requireSameSite(req),
+      }))
+    )
+      return;
     if (pathname === '/api/login' && method === 'POST') {
       this.requireSameSite(req);
       const body = await this.body(req);
@@ -264,11 +325,15 @@ export class WebServer {
       if (!result.ok) throw new HttpFailure(result.status, result.status === 429 ? 'Too many tries.' : 'Wrong token.');
       return this.json(res, 200, { ok: true }, { 'Set-Cookie': cookieHeader(result.cookie) });
     }
-    if (!this.auth.signedIn(req.headers.cookie)) throw new HttpFailure(401, 'Not signed in.');
+    const { caller } = await this.callerOf(req);
+    if (!caller) throw new HttpFailure(401, 'Not signed in.');
+    if (pathname === '/api/me' && method === 'GET')
+      return this.json(res, 200, { kind: caller.kind, who: callerLabel(caller), access: callerAccess(caller) });
     if (pathname === '/api/info' && method === 'GET') return this.json(res, 200, await backend.info());
     if (pathname === '/api/sessions' && method === 'GET') return this.json(res, 200, await backend.sessions());
     if (pathname === '/api/stop' && method === 'POST') {
       this.requireSameSite(req);
+      if (caller.kind !== 'owner') throw new HttpFailure(403, 'Only the owner of this PC can stop the web UI.');
       this.json(res, 200, { ok: true });
       setTimeout(() => this.options.onStop?.(), 100);
       return;
@@ -310,26 +375,50 @@ export class WebServer {
     const rpc = url.pathname === RPC_PATH ? this.options.rpc : undefined;
     if (!match && !rpc) return refuse('404 Not Found');
     // The Origin must be this page (a page of another site can open WebSockets too) and the cookie is the login.
-    if (!originAllowed(req.headers.origin, req.headers.host, this.actualPort)) return refuse('403 Forbidden');
-    if (!this.auth.signedIn(req.headers.cookie)) return refuse('401 Unauthorized');
-    if (rpc) return this.upgradeRpc(req, socket, head, rpc);
-    if (!match) return refuse('404 Not Found');
-    const endpoint = this.options.backend.endpoint(match[1]);
-    if (!endpoint) return refuse('404 Not Found');
-    const cols = bounded(url.searchParams.get('cols'), MIN_COLS, MAX_COLS, 120);
-    const rows = bounded(url.searchParams.get('rows'), MIN_ROWS, MAX_ROWS, 30);
-    this.sockets.handleUpgrade(req, socket, head, (ws) => {
-      this.track(ws, 'terminal', MAX_TERMINALS);
-      void new TerminalBridge(ws, endpoint, cols, rows, this.options.dial).start();
+    if (!this.hostOk(req) || !this.originOk(req)) return refuse('403 Forbidden');
+    void this.callerOf(req).then(({ caller, ownerCookie }) => {
+      if (!caller) return refuse('401 Unauthorized');
+      if (rpc) return this.upgradeRpc(req, socket, head, rpc, caller, ownerCookie);
+      if (!match) return refuse('404 Not Found');
+      const endpoint = this.options.backend.endpoint(match[1]);
+      if (!endpoint) return refuse('404 Not Found');
+      const cols = bounded(url.searchParams.get('cols'), MIN_COLS, MAX_COLS, 120);
+      const rows = bounded(url.searchParams.get('rows'), MIN_ROWS, MAX_ROWS, 30);
+      // View only: the terminal shows, and the bridge drops every keystroke and resize.
+      const readOnly = !allows(caller, 'control');
+      this.sockets.handleUpgrade(req, socket, head, (ws) => {
+        this.track(ws, 'terminal', MAX_TERMINALS);
+        this.options.gate?.track(ws, req, ownerCookie, caller);
+        void new TerminalBridge(ws, endpoint, cols, rows, this.options.dial, readOnly).start();
+      });
     });
   }
 
-  /** The RPC socket (after the same Origin and cookie checks as a terminal). */
-  private upgradeRpc(req: http.IncomingMessage, socket: Duplex, head: Buffer, rpc: RpcHost): void {
+  /** The RPC socket (after the same Origin and caller checks as a terminal). */
+  private upgradeRpc(
+    req: http.IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+    rpc: RpcHost,
+    caller: Caller,
+    ownerCookie: boolean,
+  ): void {
     this.sockets.handleUpgrade(req, socket, head, (ws) => {
       this.track(ws, 'rpc', MAX_RPC_SOCKETS);
-      new RpcSession(ws, rpc, this.live).start();
+      const gate = this.options.gate;
+      const now = gate ? gate.track(ws, req, ownerCookie, caller) : () => caller;
+      new RpcSession(ws, rpc, this.live, now, gate ? (entry) => gate.recordCall(entry) : undefined).start();
     });
+  }
+
+  /**
+   * GET /api/health: alive, and with ?challenge=<hex> on loopback the proof that this server holds the token (an
+   * HMAC of the challenge), so the CLI never hands the token link to another program on the port.
+   */
+  private health(req: http.IncomingMessage): Record<string, unknown> {
+    const challenge = new URL(req.url ?? '/', 'http://127.0.0.1').searchParams.get('challenge') ?? '';
+    if (this.options.gate?.isLan(req.socket) || !/^[0-9a-f]{32,128}$/.test(challenge)) return { ok: true };
+    return { ok: true, proof: crypto.createHmac('sha256', this.options.token).update(challenge).digest('hex') };
   }
 }
 

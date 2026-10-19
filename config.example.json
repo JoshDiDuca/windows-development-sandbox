@@ -228,7 +228,17 @@
   "web": {
     "enabled": false,
     "port": 47800,
-    "openOnLaunch": false
+    "openOnLaunch": false,
+    "remote": {
+      "windowsSignIn": false,
+      "users": [],
+      "rememberDays": 30,
+      "lan": {
+        "enabled": false,
+        "port": 47801,
+        "address": ""
+      }
+    }
   },
   "agentCommands": {
     "enabled": false,

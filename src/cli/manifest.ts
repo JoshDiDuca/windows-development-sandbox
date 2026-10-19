@@ -563,19 +563,49 @@ const COMMAND_LIST = [
   },
   {
     name: 'web',
-    summary: '(beta) your sandbox sessions in a browser on this PC: start, stop, status or open',
+    summary: '(beta) your sandbox sessions in a browser on this PC (and, if you allow it, on your network)',
     group: 'Web',
-    examples: ['sandbox web open               start the web UI and open it in your browser'],
+    examples: [
+      'sandbox web open               start the web UI and open it in your browser',
+      'sandbox web lan-on             let devices you allow use it on your network',
+      'sandbox web allow-device       show a one-time code for a phone',
+      'sandbox web devices            who may use it; sandbox web revoke <id> signs one out',
+    ],
     args: [
       {
         name: 'action',
-        description: 'start the server, stop it, show whether it runs, or open it in your browser',
+        description:
+          'start, stop, status, open; devices, allow-device, revoke, revoke-all, lan-on, lan-off (remote access)',
         required: false,
         choices: ['start', 'stop', 'status', 'open'],
       },
+      {
+        name: 'id',
+        description: '(revoke) the device or sign-in id from sandbox web devices',
+        required: false,
+        when: 'revoke',
+      },
     ],
-    options: [],
+    options: [
+      text('--role', 'view|control', '(allow-device) what the device may do (default view)', {
+        when: 'allow-device',
+        choices: ['view', 'control'],
+      }),
+      bool('--yes', '(revoke-all, lan-off) do not ask first', { short: '-y', noMenu: true }),
+    ],
     json,
+  },
+  {
+    name: 'remote',
+    summary: "(beta) use another Windows user's web UI from here, signed in with your Windows account",
+    group: 'Web',
+    examples: [
+      'sandbox remote                 the menu over the owner of the running sandbox (their program, your role)',
+      "sandbox remote alice --browser open alice's web UI in your browser, signed in",
+    ],
+    args: [{ name: 'user', description: 'whose web UI (default: the owner of the running sandbox)', required: false }],
+    options: [bool('--browser', 'open it in your browser instead of the menu')],
+    interactive: true,
   },
   { name: '_watch', summary: 'background history sync', group: 'Data', args: [], options: [], hidden: true },
   {

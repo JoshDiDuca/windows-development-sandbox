@@ -58,6 +58,7 @@ import { syncSuite } from './sync.test.js';
 import { testGuardSuite } from './test-guard.test.js';
 import { toolchainsSuite } from './toolchains.test.js';
 import { webSuite } from './web.test.js';
+import { remoteSuite } from './remote.test.js';
 import { workspaceSuite } from './workspace.test.js';
 import { workspaceViewSuite } from './workspace-view.test.js';
 import { liveNetworkSuite } from './live-network.test.js';
@@ -109,6 +110,7 @@ export const SUITES: Suite[] = [
   secretsSuite,
   hostileInputSuite,
   webSuite,
+  remoteSuite,
   testGuardSuite,
   // pure helpers and the command line
   layoutSuite,

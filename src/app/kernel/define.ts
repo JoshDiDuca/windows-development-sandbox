@@ -4,6 +4,7 @@
 import type { z } from 'zod';
 import { fail } from '../../core/util/errors.js';
 import { issuesText } from './errors.js';
+import type { AccessRule } from './access.js';
 import type { OperationIO } from './io.js';
 import type { Page } from './view.js';
 
@@ -72,6 +73,11 @@ interface Definition<Id extends string, I extends z.ZodType, O extends z.ZodType
   readonly output: O;
   /** Default: every surface. */
   readonly surfaces?: Surfaces;
+  /**
+   * What a caller other than the owner needs (docs/design/remote-access.md). Default (fails closed): view for a query,
+   * owner for an operation; an operation says 'control' to be open to someone the owner gave control.
+   */
+  readonly access?: AccessRule;
   readonly cli?: CliHint;
   /** The output in one text: what an operation did, or a value a query read (CLI output, menu notice, web note). */
   text?(output: z.output<O>): string;
@@ -92,6 +98,8 @@ export interface OperationDef<
   readonly kind: 'operation';
   /** Shown as dangerous (red); it asks for its own confirmation through io.confirm. */
   readonly danger?: boolean;
+  /** Its result must stay on screen until dismissed (a one-time code to type elsewhere): the web keeps it open. */
+  readonly keepResult?: boolean;
 }
 
 export interface QueryDef<

@@ -88,8 +88,26 @@ export const getSetting = defineQuery({
   cli: { name: 'config', action: 'get', positional: ['key'] },
 });
 
+/**
+ * The settings someone with control (not the owner) may change: how attaching and reopening sessions behave, in your
+ * own settings file. Everything else (folders, agents, secrets, network, storage, sharing, the audit log, remote
+ * access) changes what the sandbox can reach or who can come in, so it is the owner's (docs/design/remote-access.md).
+ */
+export const CONTROL_SETTINGS: readonly string[] = ['attach.', 'resume.'];
+
+/** settings.set / settings.reset: control for CONTROL_SETTINGS in the user file, owner for everything else. */
+export function controlSettingAccess(input: unknown): 'control' | 'owner' {
+  const o = (input ?? {}) as { scope?: unknown; key?: unknown };
+  const key = typeof o.key === 'string' ? o.key : '';
+  const userFile = o.scope === undefined || o.scope === 'user';
+  return userFile && CONTROL_SETTINGS.some((prefix) => key.startsWith(prefix) && key.length > prefix.length)
+    ? 'control'
+    : 'owner';
+}
+
 export const setSetting = defineOperation({
   id: 'settings.set',
+  access: controlSettingAccess,
   title: 'Change a setting',
   summary: 'change one setting (text is read like the command line: true/on, numbers, JSON)',
   input: z.object({
@@ -104,6 +122,7 @@ export const setSetting = defineOperation({
 
 export const resetSetting = defineOperation({
   id: 'settings.reset',
+  access: controlSettingAccess,
   title: 'Reset a setting',
   summary: 'put one setting back to its default (in a project file: remove it)',
   input: z.object({ scope: ScopeSchema.default('user'), key: KeySchema }),

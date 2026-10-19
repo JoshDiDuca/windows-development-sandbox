@@ -55,6 +55,15 @@ import {
 } from './settings/settings.def.js';
 import { migrateSettings, runUpdate, updatesStatus, updatesView } from './updates/updates.def.js';
 import { openWeb, startWeb, stopWeb, webStatus, webView } from './web/web.def.js';
+import {
+  accessStatus,
+  accessView,
+  allowDevice,
+  lanOff,
+  lanOn,
+  revokeAccess,
+  revokeAllAccess,
+} from './access/access.def.js';
 
 export type { AgentRow, AgentsList } from './agents/agents.def.js';
 export type { AccountRow, AccountsList, AgentAccounts } from './accounts/accounts.def.js';
@@ -68,6 +77,7 @@ export type { SessionRow, SessionsList } from './sessions/sessions.def.js';
 export type { SettingRow, SettingsList } from './settings/settings.def.js';
 export type { VpnStatus } from './vpn/vpn.def.js';
 export type { GithubStatus } from './github/github.def.js';
+export type { AccessStatus } from './access/access.def.js';
 
 export const OPERATIONS = [
   cleanEngine,
@@ -117,6 +127,11 @@ export const OPERATIONS = [
   vpnLogout,
   githubLogin,
   githubLogout,
+  allowDevice,
+  revokeAccess,
+  revokeAllAccess,
+  lanOn,
+  lanOff,
 ] as const;
 export const QUERIES = [
   sandboxStatus,
@@ -142,6 +157,7 @@ export const QUERIES = [
   webStatus,
   vpnStatus,
   githubStatus,
+  accessStatus,
 ] as const;
 export const VIEWS = [
   sandboxView,
@@ -161,6 +177,7 @@ export const VIEWS = [
   webView,
   vpnView,
   githubView,
+  accessView,
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
@@ -240,6 +257,7 @@ export const NAV: readonly NavSection[] = [
     ],
   },
   { label: 'Accounts', view: 'accounts' },
+  { label: 'Remote access', view: 'access' },
   {
     label: 'Maintenance',
     children: [

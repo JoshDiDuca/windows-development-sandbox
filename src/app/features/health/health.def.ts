@@ -159,6 +159,7 @@ export const lastHealth = defineQuery({
 
 export const checkHealth = defineOperation({
   id: 'health.check',
+  access: 'control',
   title: 'Check this PC',
   summary: 'check this PC, the install, your settings and the sandbox (changes nothing)',
   input: z.object({ harness: z.string().optional().describe('agent to check') }),

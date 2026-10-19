@@ -10,6 +10,13 @@ export const WebStatusSchema = z.object({
   running: z.boolean().describe('The web UI server answers'),
   port: z.number().nullable().describe('Its port on 127.0.0.1, when it runs'),
   address: z.string().nullable().describe('Its address (without the login token), when it runs'),
+  lanAddress: z
+    .string()
+    .nullable()
+    .optional()
+    .describe('Its address on your network for paired devices (LAN mode), when it listens there'),
+  lanFingerprint: z.string().nullable().optional().describe("The LAN certificate's SHA-256 fingerprint"),
+  lanProblem: z.string().nullable().optional().describe('Why LAN mode is on but not listening'),
 });
 export type WebStatus = z.output<typeof WebStatusSchema>;
 
@@ -24,7 +31,11 @@ export const webStatus = defineQuery({
   surfaces: NOT_ON_WEB,
   text: (o) =>
     o.running && o.port
-      ? 'The web UI is running at http://127.0.0.1:' + o.port + '/ (sandbox web open signs you in).'
+      ? 'The web UI is running at http://127.0.0.1:' +
+        o.port +
+        '/ (sandbox web open signs you in).' +
+        (o.lanAddress ? '\nOn your network: ' + o.lanAddress + ' (certificate ' + o.lanFingerprint + ')' : '') +
+        (o.lanProblem ? '\nLAN mode is on but not listening: ' + o.lanProblem : '')
       : 'The web UI is not running (sandbox web start).',
   cli: { name: 'web', action: 'status', json: true },
 });
@@ -83,6 +94,20 @@ export function webPage(o: WebStatus): Page {
             tone: o.running ? 'ok' : 'muted',
           },
           ...(o.address ? [{ id: 'address', label: 'Address', value: o.address + '  (this PC only)' }] : []),
+          ...(o.lanAddress
+            ? [
+                {
+                  id: 'lan',
+                  label: 'On your network',
+                  value: o.lanAddress,
+                  description: 'Type this into the phone, then enter the code from Remote access > Allow a new device.',
+                  details: o.lanFingerprint ? ['Certificate ' + o.lanFingerprint] : undefined,
+                },
+              ]
+            : []),
+          ...(o.lanProblem
+            ? [{ id: 'lan-problem', label: 'LAN mode', value: o.lanProblem, tone: 'warn' as const }]
+            : []),
         ],
         actions: o.running ? [open, stop] : [start, open],
         notes: [{ text: 'Loopback only, behind a token. Open signs you in.', tone: 'muted' as const }],

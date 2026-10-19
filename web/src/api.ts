@@ -28,6 +28,12 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 
 export const api = {
   login: (token: string): Promise<unknown> => call('POST', '/api/login', { token }),
+  /** A Windows user's one-time link (sandbox remote --browser). */
+  loginOnce: (token: string): Promise<unknown> => call('POST', '/api/login/once', { token }),
+  /** A device on your network: the one-time code from the PC, and a name for this device. */
+  pair: (code: string, name: string): Promise<{ ok: boolean; role: string }> =>
+    call('POST', '/api/pair', { code, name }),
+  me: (): Promise<{ kind: string; who: string; access: 'view' | 'control' | 'owner' }> => call('GET', '/api/me'),
   info: (): Promise<WebInfo> => call('GET', '/api/info'),
   sessions: (): Promise<WebSession[]> => call('GET', '/api/sessions'),
 };

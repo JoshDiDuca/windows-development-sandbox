@@ -32,6 +32,7 @@ export const listAgents = defineQuery({
 
 export const startAgent = defineOperation({
   id: 'agents.start',
+  access: 'control',
   title: 'Start an agent',
   summary: 'start an agent in a project of the running sandbox',
   input: z.object({

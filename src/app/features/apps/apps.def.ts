@@ -182,6 +182,7 @@ export const setCustomApps = defineOperation({
 
 export const requestApp = defineOperation({
   id: 'apps.request',
+  access: 'control',
   title: 'Request an app…',
   summary: 'open a prefilled GitHub request for an app that is not in the list',
   input: z.object({}),

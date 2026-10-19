@@ -6,6 +6,8 @@
 //   hide-window --wait S        hides the sandbox window once it appears; prints the hidden handles as JSON
 //   show-window --handles a,b   shows those windows (else any sandbox window); prints how many
 //   user-path --add|--remove D  D first on, or off, your PATH; exit 3 when PATH would be too long
+//   web-helper --pipe P --server-pid N   Windows sign-in for the web UI (WebHelper.cs), until stdin closes
+//   door-client --owner USER   another user's side of that sign-in: prints the answer
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -96,6 +98,20 @@ static class Program
                     Console.Error.WriteLine(e.Message);
                     return 1;
                 }
+            case "web-helper":
+                int serverPid;
+                string pipeName;
+                if (!options.TryGetValue("pipe", out pipeName) || !options.TryGetValue("server-pid", out value) || !int.TryParse(value, out serverPid))
+                {
+                    return Usage();
+                }
+                return AgentSandbox.WebHelper.Serve(pipeName, serverPid);
+            case "door-client":
+                if (!options.TryGetValue("owner", out value))
+                {
+                    return Usage();
+                }
+                return AgentSandbox.WebHelper.Client(value);
             default:
                 return Usage();
         }
@@ -103,7 +119,7 @@ static class Program
 
     static int Usage()
     {
-        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove <folder>");
+        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove <folder> | web-helper --pipe P --server-pid N | door-client --owner USER");
         return 2;
     }
 

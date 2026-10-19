@@ -3,15 +3,7 @@
 // page; access.run.ts does the work. Everything here is the owner's: a device or another Windows user never manages
 // access, whatever their role.
 import { z } from 'zod';
-import {
-  action,
-  defineOperation,
-  defineQuery,
-  defineView,
-  fieldOf,
-  type Item,
-  type Page,
-} from '../../kernel/index.js';
+import { action, defineOperation, defineQuery, defineView, fieldOf, type Item, type Page } from '../../kernel/index.js';
 
 const RoleSchema = z.enum(['view', 'control']);
 
@@ -112,7 +104,12 @@ export const revokeAccess = defineOperation({
   id: 'access.revoke',
   title: 'Sign out',
   summary: 'sign out one device or Windows user now (its open pages close)',
-  input: z.object({ id: z.string().regex(/^[0-9a-f]{16}$/).describe('The id from sandbox web devices') }),
+  input: z.object({
+    id: z
+      .string()
+      .regex(/^[0-9a-f]{16}$/)
+      .describe('The id from sandbox web devices'),
+  }),
   output: z.object({ message: z.string() }),
   access: 'owner',
   text: (o) => o.message,
@@ -171,12 +168,16 @@ function dateText(iso: string | null): string {
 
 /** The Remote access page: your network, the devices, the Windows users. */
 export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
-  const allow = action(allowDevice, {}, {
-    key: 'a',
-    verb: 'allow',
-    fields: [{ ...fieldOf(allowDevice.input.shape.role, ['role']), name: 'role', label: 'Role' }],
-    initial: { role: 'view' },
-  });
+  const allow = action(
+    allowDevice,
+    {},
+    {
+      key: 'a',
+      verb: 'allow',
+      fields: [{ ...fieldOf(allowDevice.input.shape.role, ['role']), name: 'role', label: 'Role' }],
+      initial: { role: 'view' },
+    },
+  );
   const deviceItems: Item[] = o.devices.map((d) => ({
     id: 'device:' + d.id,
     label: d.name,
@@ -196,7 +197,11 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
   const windowsItems: Item[] = o.windows.map((w) => ({
     id: 'windows:' + w.id,
     label: w.user,
-    hint: o.users.find((u) => w.user.toLowerCase().endsWith('\\' + u.name.toLowerCase()) || w.user.toLowerCase() === u.name.toLowerCase())?.role ?? 'not on the list',
+    hint:
+      o.users.find(
+        (u) =>
+          w.user.toLowerCase().endsWith('\\' + u.name.toLowerCase()) || w.user.toLowerCase() === u.name.toLowerCase(),
+      )?.role ?? 'not on the list',
     description: 'Signed in with Windows, signed out ' + untilText(w.expiresAt, now) + '.',
     details: ['Signed in ' + dateText(w.createdAt), 'Ends      ' + dateText(w.expiresAt), 'Id        ' + w.id],
     keys: 'x signs them out.',
@@ -227,7 +232,8 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
                   id: 'lan-address',
                   label: 'On your network',
                   value: lan.address,
-                  description: 'Type this into the phone\'s browser. The first time it warns about the certificate: compare it with the one below. A warning after that means stop.',
+                  description:
+                    "Type this into the phone's browser. The first time it warns about the certificate: compare it with the one below. A warning after that means stop.",
                 },
               ]
             : []),
@@ -270,7 +276,8 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
             label: 'Windows sign-in',
             value: o.windowsSignIn ? 'on' : 'off',
             tone: o.windowsSignIn ? 'ok' : 'muted',
-            description: 'They run sandbox remote (or sandbox remote --browser) as themselves. Turn on web.remote.windowsSignIn and list them in web.remote.users (Settings).',
+            description:
+              'They run sandbox remote (or sandbox remote --browser) as themselves. Turn on web.remote.windowsSignIn and list them in web.remote.users (Settings).',
           },
           ...o.users.map((u, i) => ({ id: 'user-' + i, label: u.name, value: u.role })),
         ],

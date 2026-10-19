@@ -49,7 +49,12 @@ export class TlsStore {
     const saved = this.file.read();
     if (saved && Date.parse(saved.notAfter) - this.now() > RENEW_BEFORE_MS) {
       try {
-        return { cert: saved.cert, key: this.secrets.open(saved.key), fingerprint: saved.fingerprint, notAfter: saved.notAfter };
+        return {
+          cert: saved.cert,
+          key: this.secrets.open(saved.key),
+          fingerprint: saved.fingerprint,
+          notAfter: saved.notAfter,
+        };
       } catch {
         // Sealed by another user or system: a new one is made.
       }

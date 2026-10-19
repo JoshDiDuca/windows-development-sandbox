@@ -90,13 +90,18 @@ export const allowDeviceRun = implement(allowDevice, (ctx, input) => {
 
 export const revokeAccessRun = implement(revokeAccess, (ctx, input) => {
   requireOnPc('web');
-  if (!accessStoreOf(ctx).revoke(input.id)) fail('There is no device or sign-in ' + input.id + '.', 'See sandbox web devices.');
+  if (!accessStoreOf(ctx).revoke(input.id))
+    fail('There is no device or sign-in ' + input.id + '.', 'See sandbox web devices.');
   return { message: 'Signed out. Its open pages close within half a minute.' };
 });
 
 export const revokeAllAccessRun = implement(revokeAllAccess, async (ctx, _input, io) => {
   requireOnPc('web');
-  const ok = (await io.confirm({ title: 'Sign out every device and Windows user now?', danger: true, yes: 'Sign out all' }));
+  const ok = await io.confirm({
+    title: 'Sign out every device and Windows user now?',
+    danger: true,
+    yes: 'Sign out all',
+  });
   if (!ok) return { message: 'Nothing changed.' };
   accessStoreOf(ctx).revokeAll('everything');
   return { message: 'Everyone is signed out, and a code not used yet is void.' };
@@ -129,7 +134,7 @@ export const lanOnRun = implement(lanOn, async (ctx, _input, io) => {
 
 export const lanOffRun = implement(lanOff, async (ctx, _input, io) => {
   requireOnPc('web');
-  const ok = (await io.confirm({ title: 'Turn off LAN mode and sign out every device?', danger: true, yes: 'Turn off' }));
+  const ok = await io.confirm({ title: 'Turn off LAN mode and sign out every device?', danger: true, yes: 'Turn off' });
   if (!ok) return { message: 'Nothing changed.' };
   setLan(ctx, false);
   const store = accessStoreOf(ctx);

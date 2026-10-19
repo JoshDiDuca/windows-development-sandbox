@@ -17,7 +17,10 @@ const NO_USER = 5;
 /** What the helper printed (and its exit code), as an answer. */
 export function parseDoorAnswer(text: string, exitCode: number | null, owner: string): DoorAnswer {
   if (exitCode === NOT_OWNER)
-    return { ok: false, reason: 'The sign-in point for ' + owner + ' is not theirs (another user made it). Nothing was sent.' };
+    return {
+      ok: false,
+      reason: 'The sign-in point for ' + owner + ' is not theirs (another user made it). Nothing was sent.',
+    };
   if (exitCode === NO_PIPE)
     return { ok: false, reason: owner + "'s web UI is not running, or it is from a version without Windows sign-in." };
   if (exitCode === NO_USER) return { ok: false, reason: 'There is no Windows user ' + owner + ' on this PC.' };

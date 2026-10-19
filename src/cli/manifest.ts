@@ -579,7 +579,12 @@ const COMMAND_LIST = [
         required: false,
         choices: ['start', 'stop', 'status', 'open'],
       },
-      { name: 'id', description: '(revoke) the device or sign-in id from sandbox web devices', required: false, when: 'revoke' },
+      {
+        name: 'id',
+        description: '(revoke) the device or sign-in id from sandbox web devices',
+        required: false,
+        when: 'revoke',
+      },
     ],
     options: [
       text('--role', 'view|control', '(allow-device) what the device may do (default view)', {
@@ -596,7 +601,7 @@ const COMMAND_LIST = [
     group: 'Web',
     examples: [
       'sandbox remote                 the menu over the owner of the running sandbox (their program, your role)',
-      'sandbox remote alice --browser open alice\'s web UI in your browser, signed in',
+      "sandbox remote alice --browser open alice's web UI in your browser, signed in",
     ],
     args: [{ name: 'user', description: 'whose web UI (default: the owner of the running sandbox)', required: false }],
     options: [bool('--browser', 'open it in your browser instead of the menu')],

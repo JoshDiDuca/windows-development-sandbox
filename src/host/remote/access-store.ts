@@ -1,5 +1,5 @@
 // Who the owner let in (docs/design/remote-access.md): paired devices, Windows sign-ins and the one pending device
-// code, in <storage>\web\access.json (the web state's private folder). Only SHA-256 hashes of codes and tokens are kept,
+// code, in <storage>\web\access.json (the web state's private folder). Only SHA-256 hashes of codes and tokens stay,
 // and the whole list is sealed with SecretStore (DPAPI). Credentials end at a fixed time (never renewed by use); revoke
 // one, or all (which also moves the epoch and voids the pending code). The web server and the CLI share this file: the
 // server reads it again when it changes.
@@ -107,14 +107,10 @@ export function showCode(code: string): string {
   return code.slice(0, 4) + '-' + code.slice(4);
 }
 
-/** What a person typed, as a code: upper case, no dashes or spaces, O as 0 and I or L as 1; null when it cannot be one. */
+/** What a person typed, as a code: upper case, no dashes or spaces, O as 0, I or L as 1; null when it is not one. */
 export function normalizeCode(typed: unknown): string | null {
   if (typeof typed !== 'string' || typed.length > 32) return null;
-  const code = typed
-    .toUpperCase()
-    .replace(/[\s-]/g, '')
-    .replace(/O/g, '0')
-    .replace(/[IL]/g, '1');
+  const code = typed.toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
   return code.length === CODE_LENGTH && [...code].every((c) => CODE_ALPHABET.includes(c)) ? code : null;
 }
 

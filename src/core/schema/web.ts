@@ -1,5 +1,5 @@
 // The web UI settings (sandbox web): not part of LocalOverrides, a repo never turns a way into your agents on. The
-// remote group (other Windows users of this PC, devices on your network) is off by default: docs/design/remote-access.md.
+// remote group (other Windows users of this PC, devices on your network) is off by default: design/remote-access.md.
 import { z } from 'zod';
 
 export const WEB_DEFAULT_PORT = 47800;
@@ -56,7 +56,9 @@ export const WebRemoteSchema = z.strictObject({
     .int()
     .min(1)
     .max(90)
-    .describe('How many days a paired device or a Windows sign-in stays signed in (from when it signed in, not renewed).'),
+    .describe(
+      'How many days a paired device or a Windows sign-in stays signed in (from when it signed in, not renewed).',
+    ),
   lan: WebLanSchema,
 });
 export type WebRemote = z.output<typeof WebRemoteSchema>;

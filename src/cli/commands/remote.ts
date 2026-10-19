@@ -1,4 +1,4 @@
-// `sandbox remote [user] [--browser]`: another Windows user's program, used from this one (docs/design/remote-access.md).
+// `sandbox remote [user] [--browser]`: another Windows user's program, used from here (docs/design/remote-access.md).
 // Windows sign-in through the owner's pipe gives a one-time token; the menu then runs over the owner's web UI (every
 // action checked against the role the owner gave, and written to their audit log), or --browser opens it signed in.
 import { allows, type Caller } from '../../app/kernel/index.js';

@@ -70,7 +70,7 @@ export async function web(ctx: Context): Promise<number> {
   return (await definitionHandler(webStatus)(ctx)) ?? 0;
 }
 
-/** The remote settings as they are in the file now (read again at most every few seconds; a broken file keeps the last). */
+/** The remote settings as in the file now (read again at most every 3 seconds; a broken file keeps the last). */
 function remoteSettings(ctx: Context): () => WebRemote {
   let last = ctx.loaded.config.web.remote;
   let readAt = Date.now();

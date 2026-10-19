@@ -115,18 +115,20 @@ class Refused extends Error {
 /** The Set-Cookie value of a remembered credential. */
 export function credentialCookie(name: string, value: string, days: number, secure: boolean): string {
   return (
-    name +
-    '=' +
-    value +
-    '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' +
-    days * DAY_S +
-    (secure ? '; Secure' : '')
+    name + '=' + value + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + days * DAY_S + (secure ? '; Secure' : '')
   );
 }
 
-/** A device name as shown on the PC: printable, trimmed, at most 40 characters. */
+/** A device name as shown on the PC: no escape sequences or control characters, trimmed, at most 40 characters. */
 export function deviceName(value: unknown): string {
-  const text = typeof value === 'string' ? safeText(value).replace(/\s+/g, ' ').trim() : '';
+  const text =
+    typeof value === 'string'
+      ? safeText(value.slice(0, 200))
+          .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+          .replace(/[\x00-\x1f\x7f-\x9f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+      : '';
   return text.slice(0, MAX_DEVICE_NAME) || 'A device';
 }
 
@@ -148,7 +150,6 @@ export class RemoteGate {
     this.now = o.now ?? Date.now;
     o.helper?.onKnock((k) => this.knock(k));
   }
-
 
   /** The account at the other end of this loopback connection (asked once per TCP connection). */
   private peer(socket: net.Socket): Promise<WindowsAccount | null> {
@@ -224,7 +225,6 @@ export class RemoteGate {
     return role ? { kind: 'windows', user: grant.user, role } : null;
   }
 
-
   private lanHost(): string | null {
     return this.lan ? this.lan.bound.address + ':' + this.lan.port : null;
   }
@@ -238,7 +238,6 @@ export class RemoteGate {
   lanOriginAllowed(origin: string | undefined, host: string | undefined): boolean {
     return this.lanHostAllowed(host) && origin === 'https://' + host;
   }
-
 
   /** Serves the remote sign-in routes; false when the path is not one of them. */
   async route(req: http.IncomingMessage, pathname: string, io: RouteIO): Promise<boolean> {
@@ -353,8 +352,7 @@ export class RemoteGate {
     return 'ok ' + token + ' ' + this.o.port() + ' ' + role;
   }
 
-
-  /** Watches a socket: it is closed when its caller no longer gets in. Returns the caller as it is now, for each use. */
+  /** Watches a socket: closed when its caller no longer gets in. Returns the caller as it is now, for each use. */
   track(ws: WebSocket, req: http.IncomingMessage, ownerCookie: boolean, first: Caller): () => Caller | null {
     const entry: Tracked = { ws, check: () => this.caller(req, ownerCookie), current: first };
     this.tracked.add(entry);
@@ -384,7 +382,6 @@ export class RemoteGate {
       }
     }
   }
-
 
   /** Starts the LAN listener when LAN mode is on and allowed here; else notes why. Devices go when it is off. */
   async startLan(handlers: LanHandlers): Promise<void> {

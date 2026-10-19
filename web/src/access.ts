@@ -16,8 +16,7 @@ export function isOwner(): boolean {
 
 /** May this browser run the action? Links always (a terminal opens read-only for view); operations by their need. */
 export function mayRun(action: Action): boolean {
-  if (action.kind === 'link')
-    return action.target.kind !== 'start-agent' || allows(caller, 'control');
+  if (action.kind === 'link') return action.target.kind !== 'start-agent' || allows(caller, 'control');
   const def = operationById(action.op);
   return def !== undefined && allows(caller, accessNeeded(def, action.input));
 }

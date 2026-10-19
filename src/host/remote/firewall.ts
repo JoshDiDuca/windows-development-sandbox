@@ -29,7 +29,11 @@ export type FirewallRequest =
   | { readonly action: 'remove'; readonly ruleName: string };
 
 /** The request for adding the rule (checked here first; the script checks it again). */
-export function addRuleRequest(port: number, localAddress: string, program: string = process.execPath): FirewallRequest {
+export function addRuleRequest(
+  port: number,
+  localAddress: string,
+  program: string = process.execPath,
+): FirewallRequest {
   if (!Number.isInteger(port) || port < 1024 || port > 65535) fail('The LAN port must be from 1024 to 65535.');
   if (!isPrivateIPv4(localAddress))
     fail(localAddress + ' is not a private address.', 'LAN mode is for your own network only.');

@@ -49,7 +49,14 @@ function integer(bytes: Buffer): Buffer {
 /** UTCTime (YYMMDDHHMMSSZ), what certificates use before 2050. */
 function utcTime(ms: number): Buffer {
   const iso = new Date(ms).toISOString();
-  const text = iso.slice(2, 4) + iso.slice(5, 7) + iso.slice(8, 10) + iso.slice(11, 13) + iso.slice(14, 16) + iso.slice(17, 19) + 'Z';
+  const text =
+    iso.slice(2, 4) +
+    iso.slice(5, 7) +
+    iso.slice(8, 10) +
+    iso.slice(11, 13) +
+    iso.slice(14, 16) +
+    iso.slice(17, 19) +
+    'Z';
   return tlv(0x17, Buffer.from(text, 'ascii'));
 }
 
@@ -118,7 +125,10 @@ export function makeCertificate(r: CertificateRequest): MadeCertificate {
   );
   const signature = crypto.sign('sha256', tbs, { key: privateKey, dsaEncoding: 'der' });
   const der = seq(tbs, algorithm, bits(signature));
-  const cert = '-----BEGIN CERTIFICATE-----\n' + (der.toString('base64').match(/.{1,64}/g) ?? []).join('\n') + '\n-----END CERTIFICATE-----\n';
+  const cert =
+    '-----BEGIN CERTIFICATE-----\n' +
+    (der.toString('base64').match(/.{1,64}/g) ?? []).join('\n') +
+    '\n-----END CERTIFICATE-----\n';
   return {
     cert,
     key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
@@ -129,12 +139,5 @@ export function makeCertificate(r: CertificateRequest): MadeCertificate {
 
 /** SHA-256 of DER bytes as AA:BB:... */
 export function fingerprintOf(der: Buffer): string {
-  return (
-    crypto
-      .createHash('sha256')
-      .update(der)
-      .digest('hex')
-      .toUpperCase()
-      .match(/.{2}/g) ?? []
-  ).join(':');
+  return (crypto.createHash('sha256').update(der).digest('hex').toUpperCase().match(/.{2}/g) ?? []).join(':');
 }

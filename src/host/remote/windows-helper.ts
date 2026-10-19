@@ -50,7 +50,11 @@ export type HelperLine =
   | { readonly kind: 'door'; readonly number: number; readonly knock: Knock }
   | { readonly kind: 'problem'; readonly text: string };
 
-const clip = (text: string): string => [...text].filter((c) => c >= ' ' && c !== '\u007f').join('').slice(0, 200);
+const clip = (text: string): string =>
+  [...text]
+    .filter((c) => c >= ' ' && c !== '\u007f')
+    .join('')
+    .slice(0, 200);
 
 /** One line from the helper, or null when it is not one of its lines. */
 export function parseHelperLine(line: string): HelperLine | null {

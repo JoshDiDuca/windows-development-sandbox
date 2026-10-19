@@ -278,7 +278,10 @@ export class WebServer {
   private serveFile(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): void {
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpFailure(405, 'Not allowed.');
     if (req.headers['service-worker'] === 'script') {
-      res.writeHead(200, this.headers({ 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }));
+      res.writeHead(
+        200,
+        this.headers({ 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }),
+      );
       res.end(UNREGISTER_WORKER);
       return;
     }

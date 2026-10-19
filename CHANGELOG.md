@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.12.0
 
 - **(Beta) Remote access to the web UI** ([design](docs/design/remote-access.md), [how to](docs/web-ui.md#remote-access)).
   Off by default; nothing changes until you turn it on. **Phones and tablets on your own network:** `sandbox web
@@ -24,9 +24,6 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
 - **The web UI proves who it is** before `sandbox web open` hands it the token link (another program on the port no
   longer gets it), and the owner's cookie works only from the owner's own connections when HostTools can be built
   (security review finding #10).
-
-## 1.12.0
-
 - **Security review fixes** ([details](docs/security-review-2026-10.md)). A project's `.sandbox-config.json` can no
   longer copy a file of your PC into the sandbox as a "script" (scripts must be inside the project), set variables that
   undo the git guard or redirect an agent's API (`toolchains.environment` refuses `AGENT_*`, `GIT_*`, `NODE_*`, `PATH`,

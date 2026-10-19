@@ -15,6 +15,10 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   `apps.install`, off by default) and the sandbox installs a pinned, checksum-verified rtk 1.0.1 once, puts it on
   PATH, adds rtk's hook to Claude Code through the sandbox's managed settings (nothing changes on your PC) and tells the
   other agents to use it. Only your own settings can turn rtk on; a project's `.sandbox-config.json` cannot.
+- **Code signing is ready for a certificate.** The release workflow signs `install.ps1` with Azure Artifact Signing once
+  six signing secrets exist; until then it skips signing and the release is unchanged. The files this PC builds
+  (HostTools.exe, HcsHost.exe, memgov.exe) stay unsigned. How to set it up and check a signature:
+  [development.md](docs/development.md#signing-releases).
 
 ## 1.11.7
 

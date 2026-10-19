@@ -32,8 +32,9 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 ### Release and install
 
-- **Code signing** (planned, needs a signing account): a signing step in the release workflow, Azure Trusted Signing,
-  that does nothing until its secrets exist. Spec: task R3 in [design/roadmap-tasks.md](design/roadmap-tasks.md).
+- **Code signing** (built, waiting for the signing account): the release workflow signs `install.ps1` with Azure
+  Artifact Signing once its six secrets exist, and does nothing until then. Setup and checks:
+  [development.md](development.md#signing-releases). Spec: task R3 in [design/roadmap-tasks.md](design/roadmap-tasks.md).
 
 ### Web UI
 

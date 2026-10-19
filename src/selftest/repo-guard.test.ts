@@ -238,10 +238,14 @@ export const repoGuardSuite: Suite = {
         fs.readFileSync(path.join(marked, 'setup.ps1'), 'utf8') === 'calc',
       'a script gets the "from the internet" mark (the file itself is never written); source files are left alone',
     );
-    const stop = watchAndMark([marked]);
+    const notes: string[] = [];
+    const stop = watchAndMark([marked], (n) => notes.push(n));
     t.write(path.join(marked, 'bin', 'tool.exe'), 'MZ');
     const live = await t.waitFor(() => isMarked(path.join(marked, 'bin', 'tool.exe')), 5000);
-    stop();
     t.check(Boolean(live), 'while it watches, a program that appears is marked within a second or two');
+    // Writing the mark fires a change event for the same file: it must not be marked (and reported) again and again.
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+    stop();
+    t.check(notes.length === 1, 'a marked program is marked once, not again every second', String(notes.length));
   },
 };

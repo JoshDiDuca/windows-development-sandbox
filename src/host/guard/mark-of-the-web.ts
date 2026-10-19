@@ -17,7 +17,9 @@ export function markFromSandbox(file: string): boolean {
   if (!RISKY.test(file) || SKIP.test(file)) return false;
   try {
     const stat = fs.lstatSync(file);
-    if (!stat.isFile()) return false;
+    // Already marked: writing the mark again would fire another change event for this file, so every marked file was
+    // marked (and reported) again every second for as long as the sandbox ran.
+    if (!stat.isFile() || isMarked(file)) return false;
     fs.writeFileSync(file + ':Zone.Identifier', MARK);
     return true;
   } catch {

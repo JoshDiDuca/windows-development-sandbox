@@ -213,7 +213,7 @@ export const repoGuardSuite: Suite = {
         fs.existsSync(path.join(repo8, '.husky', '_', 'pre-commit')) &&
         fs.existsSync(path.join(repo8, '.husky', 'README.md')) &&
         found8.some((x) => x.kind === 'hook' && x.detail.includes('core.hooksPath')),
-      'a changed hook in the folder the repo\'s own core.hooksPath points at (husky) is quarantined; other files there stay',
+      "a changed hook in the folder the repo's own core.hooksPath points at (husky) is quarantined; other files there stay",
       JSON.stringify(found8),
     );
     t.check(

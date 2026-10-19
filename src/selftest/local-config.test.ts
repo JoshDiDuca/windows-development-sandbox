@@ -126,7 +126,14 @@ export const localConfigSuite: Suite = {
       'a script reached through a link to a folder outside the project is refused',
     );
     fs.rmSync(path.join(dirC, 'linked'));
-    for (const name of ['AGENT_GIT_ACCESS', 'GIT_CONFIG_COUNT', 'ANTHROPIC_BASE_URL', 'NODE_OPTIONS', 'Path', 'https_proxy'])
+    for (const name of [
+      'AGENT_GIT_ACCESS',
+      'GIT_CONFIG_COUNT',
+      'ANTHROPIC_BASE_URL',
+      'NODE_OPTIONS',
+      'Path',
+      'https_proxy',
+    ])
       await rejectedBecause(
         { toolchains: { environment: { [name]: 'x' } } },
         'cannot be set by a project',

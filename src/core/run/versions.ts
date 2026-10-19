@@ -1,18 +1,20 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import type { Config, Overrides, ToolVersions, VersionSpec } from '../types.js';
-import { fileExists } from '../util/index.js';
+import { fileExists, readSmallFile } from '../util/index.js';
+
+/** A version spec as version files hold it (20, lts/iron, 3.12.1, v18.*): anything else is ignored, never printed. */
+const VERSION_SPEC = /^[\w./*~^-]{1,64}$/;
 
 const firstLine = (file: string): string | null => {
-  if (!fileExists(file)) return null;
-  const line = fs
-    .readFileSync(file, 'utf8')
+  const text = fileExists(file) ? readSmallFile(file, 64 * 1024) : null;
+  if (text === null) return null;
+  const line = text
     .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
     .map((l: string) => l.replace(/#.*$/, '').trim())
     .find((l: string) => l !== '');
-  return line ?? null;
+  return line !== undefined && VERSION_SPEC.test(line) ? line : null;
 };
 
 const VOLTA_PIN = 'package.json volta.node';
@@ -35,8 +37,8 @@ export function voltaNode(workspace: string): string | null {
   if (!fileExists(file)) return null;
   try {
     return (
-      PackageJsonSchema.safeParse(JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''))).data?.volta?.node ??
-      null
+      PackageJsonSchema.safeParse(JSON.parse((readSmallFile(file, 4 * 1024 * 1024) ?? '').replace(/^\uFEFF/, ''))).data
+        ?.volta?.node ?? null
     );
   } catch {
     return null;

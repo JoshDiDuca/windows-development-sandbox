@@ -58,14 +58,12 @@ export function disableConfig(dir: string, before: readonly string[]): RepoFindi
     if (line.startsWith(MARK) || seen[line] <= (known[line] ?? 0)) return line;
     // git also accepts "[core] fsmonitor = x" on one line, so look past a leading section header.
     const keyPart = line.replace(SECTION, '').trim();
-    if (
-      !(
-        badHeader ||
-        DANGEROUS_KEY.test(keyPart) ||
-        (inInclude && keyPart.includes('=')) ||
-        dangerousInSection(section, keyPart)
-      )
-    )
+    if (!(
+      badHeader ||
+      DANGEROUS_KEY.test(keyPart) ||
+      (inInclude && keyPart.includes('=')) ||
+      dangerousInSection(section, keyPart)
+    ))
       return line;
     findings.push({ kind: 'config', detail: line.trim() });
     return MARK + line.trim();

@@ -15,11 +15,34 @@ export const EMPTY_GIT: GitState = { config: [], hooks: {}, redirects: [], pathH
 
 /** The names git runs as hooks (a core.hooksPath folder inside the project holds other files too). */
 const HOOK_NAMES = new Set([
-  'applypatch-msg', 'pre-applypatch', 'post-applypatch', 'pre-commit', 'pre-merge-commit', 'prepare-commit-msg',
-  'commit-msg', 'post-commit', 'pre-rebase', 'post-checkout', 'post-merge', 'pre-push', 'pre-receive', 'update',
-  'proc-receive', 'post-receive', 'post-update', 'reference-transaction', 'push-to-checkout', 'pre-auto-gc',
-  'post-rewrite', 'sendemail-validate', 'fsmonitor-watchman', 'p4-changelist', 'p4-prepare-changelist',
-  'p4-post-changelist', 'p4-pre-submit', 'post-index-change',
+  'applypatch-msg',
+  'pre-applypatch',
+  'post-applypatch',
+  'pre-commit',
+  'pre-merge-commit',
+  'prepare-commit-msg',
+  'commit-msg',
+  'post-commit',
+  'pre-rebase',
+  'post-checkout',
+  'post-merge',
+  'pre-push',
+  'pre-receive',
+  'update',
+  'proc-receive',
+  'post-receive',
+  'post-update',
+  'reference-transaction',
+  'push-to-checkout',
+  'pre-auto-gc',
+  'post-rewrite',
+  'sendemail-validate',
+  'fsmonitor-watchman',
+  'p4-changelist',
+  'p4-prepare-changelist',
+  'p4-post-changelist',
+  'p4-pre-submit',
+  'post-index-change',
 ]);
 
 /**
@@ -46,7 +69,10 @@ function hooksPathDirs(dir: string, config: readonly string[]): string[] {
 const hooksIn = (dirs: readonly string[], workTree: string): Record<string, string> =>
   Object.fromEntries(
     dirs.flatMap((d) =>
-      Object.entries(filesIn(d, (n) => HOOK_NAMES.has(n))).map(([n, h]) => [path.relative(workTree, path.join(d, n)), h]),
+      Object.entries(filesIn(d, (n) => HOOK_NAMES.has(n))).map(([n, h]) => [
+        path.relative(workTree, path.join(d, n)),
+        h,
+      ]),
     ),
   );
 

@@ -75,6 +75,9 @@ const LISTING: Record<string, (rest: string[]) => boolean> = {
 const WITH_VALUE = new Set(['-C', '--namespace']);
 const FORBIDDEN_GLOBAL = /^(-c|--config-env|--exec-path|--git-dir|--work-tree|--super-prefix)(=|$)/;
 
+/** Options of reading commands that run a program or write a file (grep -O<cmd>, ls-remote --upload-pack, --output). */
+const RUNS_OR_WRITES = /^(--open-files-in-pager|--upload-pack|--output|--ext-diff)(=|$)/;
+
 export function gitDecision(args: string[], access: string): Decision {
   if (access === 'full') return { allow: true };
   if (access !== 'readonly')
@@ -89,6 +92,14 @@ export function gitDecision(args: string[], access: string): Decision {
     i += WITH_VALUE.has(args[i]) ? 2 : 1;
   }
   const [command, ...rest] = args.slice(i);
+  const runsOrWrites = rest.find(
+    (a) =>
+      RUNS_OR_WRITES.test(a) ||
+      (command === 'ls-remote' && /^-u(.|$)/.test(a)) ||
+      (command === 'grep' && /^-O/.test(a)),
+  );
+  if (runsOrWrites)
+    return { allow: false, reason: 'git ' + runsOrWrites + ' is not allowed: git is read-only in this sandbox.' };
   if (command === undefined || command === '--version' || READ_ONLY.has(command) || (LISTING[command]?.(rest) ?? false))
     return { allow: true };
   return {

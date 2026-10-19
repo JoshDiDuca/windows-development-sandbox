@@ -22,12 +22,27 @@ const NAMED =
 const HEADERS =
   /\b(authorization|proxy-authorization|x-api-key|api-key|x-auth-token|cookie|private-token)(\s*:\s*)[^"'\r\n]+/gi;
 
-/** mysql -p<password> / -pPASSWORD (no space), and -u user:password for curl. */
-const SHORT = /(\s-p)(?!\s)([^\s"'`]+)|(\s(?:-u|--user)\s+)([^\s:"'`]+):([^\s"'`]+)/g;
+/** mysql -p<password> / -pPASSWORD (no space), and user:password for curl (-u x:y, -ux:y, --user=x:y). */
+const SHORT = /(\s-p)(?!\s)([^\s"'`]+)|(\s(?:-u|--user)(?:\s+|=)?)([^\s:"'`]+):([^\s"'`]+)/g;
 
-/** Does a name (a flag or a variable) say it holds a secret? */
+/** A token as a URL's user name (https://<token>@host), and PowerShell's ConvertTo-SecureString "<password>". */
+const MORE: readonly RegExp[] = [
+  /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:"'`]{8,}@/gi,
+  /(ConvertTo-SecureString\s+(?:-String\s+)?)("[^"]*"|'[^']*'|[^\s"'`)]+)/gi,
+  // `-p <password>` only where it means one (docker/podman/npm login, sshpass): elsewhere -p is a port or a package.
+  /(\blogin\b[^&|;\r\n]{0,200}?\s-p\s+|\bsshpass\s+-p\s+)("[^"]*"|'[^']*'|[^\s"'`]+)/gi,
+];
+
+/** Words that make any name a secret's wherever they stand in it (PGPASSWORD, accessToken, mySecretKey). */
+const ANYWHERE = /PASSW(OR)?D|TOKEN|SECRET|APIKEY|API_KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIAL/;
+
+/** Does a name (a flag or a variable) say it holds a secret? camelCase counts as words. */
 function secretName(name: string): boolean {
-  return SECRET_WORDS.test(name.toUpperCase().replace(/[-.]/g, '_'));
+  const upper = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toUpperCase()
+    .replace(/[-.]/g, '_');
+  return SECRET_WORDS.test(upper) || ANYWHERE.test(upper);
 }
 
 /** The values after names that say they hold a secret, as *** (see NAMED). */
@@ -54,6 +69,7 @@ export function redactCommandLine(text: string): string {
   let out = text;
   for (const r of VALUES) out = out.replace(r, REDACTED);
   out = out.replace(HEADERS, (_m, name: string, sep: string) => name + sep + REDACTED);
+  for (const r of MORE) out = out.replace(r, (_m, lead: string) => lead + REDACTED + (r === MORE[0] ? '@' : ''));
   out = redactNamed(out);
   out = out.replace(SHORT, (m, p: string | undefined, _pw: string, u: string | undefined, user: string) =>
     p ? p + REDACTED : u ? u + user + ':' + REDACTED : m,

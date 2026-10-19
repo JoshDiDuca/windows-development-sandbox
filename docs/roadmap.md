@@ -43,7 +43,6 @@ These shipped, but have only been tested inside a Windows Sandbox.
   command line.
 - **Phone access** (planned): opt-in HTTPS, pairing per device (QR code), revocable devices, a private-network firewall
   rule. Design and security model: [web-ui.md](web-ui.md#phases).
-- **Audit log in the web UI** (planned): browse what `sandbox audit` shows.
 - **Sandbox desktop in the browser** (idea): mouse and keyboard for the sandbox's desktop from another device. Needs a
   security review first ([web-ui.md](web-ui.md#phases)).
 

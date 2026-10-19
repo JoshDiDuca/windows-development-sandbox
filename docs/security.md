@@ -53,6 +53,13 @@ can read because the whole folder is mapped.
   everything in your project folder. The agent is an administrator inside the sandbox; treat every key you give it as one it
   can read, use and leak. Use keys you can revoke, with the smallest rights.
 - **Settings print `***`** for secret values (`sandbox config show`, the settings screen, `doctor`, every `--json`).
+- **The audit log** (on by default, [audit log](configuration.md#audit-log)) records the command lines of the programs
+  started in the sandbox, file names and commit messages, on this PC only (`<storage>\audit`, out of the sandbox's
+  reach), for `audit.days` (7) at most. Credentials are hidden before a line is written (tokens and keys by their
+  shape, passwords in URLs, auth headers, values after `--password`, `--token`, `API_KEY=` and the like), but a secret
+  with no recognisable shape or name can still appear: treat the folder like your shell history. Turn it off with
+  `sandbox config set audit.enabled false`. What the sandbox reports (programs and which session ran them) is checked
+  (only program lines, sizes capped, times kept near now, only sessions this sandbox has), not trusted.
 - `network.proxy` takes no `user:password@`: it would be stored in plain text in a file the sandbox reads.
 
 ## The HCS engine (Alpha) compared with Windows Sandbox

@@ -23,6 +23,26 @@ import { redactCommandLine } from './redact.js';
 
 const MAX_FILES_PER_PASS = 200;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
+/** Most of the sandbox's reports taken in per pass, all files together. */
+const MAX_BYTES_PER_PASS = 16 * 1024 * 1024;
+/** Commits waiting to be written, and git commands remembered for linking them, at most. */
+const MAX_HELD_COMMITS = 500;
+const MAX_GIT_RUNS = 2000;
+
+/** A plain file's text (null when it is not a plain file or is bigger than `max`), checked on the open handle. */
+function readPlainFile(file: string, max: number): string | null {
+  if (!fs.lstatSync(file).isFile()) return null;
+  const fd = fs.openSync(file, 'r');
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > max) return null;
+    const buffer = Buffer.alloc(stat.size);
+    const read = fs.readSync(fd, buffer, 0, stat.size, 0);
+    return buffer.subarray(0, read).toString('utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 /** Paths in a project not worth a line each (git's own bookkeeping, dependency folders). */
 const QUIET =
   /(^|[\\/])(\.git[\\/](objects|logs|refs|index\.lock|FETCH_HEAD|ORIG_HEAD)|node_modules[\\/]|target[\\/]|\.venv[\\/]|__pycache__[\\/])/i;
@@ -182,14 +202,30 @@ export class AuditCollector {
     } catch {
       return;
     }
+    // A budget for the whole pass: what is over it waits (the next pass takes the next files).
+    let budget = MAX_BYTES_PER_PASS;
     for (const name of names) {
       const file = path.join(dir, name);
       try {
-        const stat = fs.lstatSync(file);
-        if (stat.isFile() && stat.size <= MAX_FILE_BYTES)
-          for (const line of fs.readFileSync(file, 'utf8').split('\n')) this.takeLine(line, now);
+        const size = fs.lstatSync(file).size;
+        if (size <= MAX_FILE_BYTES && size > budget) break;
+      } catch {
+        continue;
+      }
+      try {
+        const text = readPlainFile(file, MAX_FILE_BYTES);
+        if (text !== null) {
+          budget -= text.length;
+          for (const line of text.split('\n')) this.takeLine(line, now);
+        }
+      } catch {
+        /* unreadable: deleted below like any other */
       } finally {
-        fs.rmSync(file, { force: true });
+        try {
+          fs.rmSync(file, { force: true, recursive: true });
+        } catch {
+          // Cannot be removed (held open): the next pass tries again.
+        }
       }
     }
   }
@@ -216,7 +252,8 @@ export class AuditCollector {
       ...(pp !== undefined ? { pp } : {}),
       ...(session ? this.linked({ s: session.id, sv: 'p' }) : {}),
     };
-    if (session && makesCommits(p ?? '', c ?? '')) this.gitRuns.push({ t: Date.parse(event.t), session: session.id });
+    if (session && makesCommits(p ?? '', c ?? '') && this.gitRuns.length < MAX_GIT_RUNS)
+      this.gitRuns.push({ t: Date.parse(event.t), session: session.id });
     this.pending.push(event);
   }
 
@@ -251,8 +288,12 @@ export class AuditCollector {
   private takeCommits(now: number, final: boolean): void {
     if (!this.settings.commits) return;
     const projects = this.projects();
-    for (const commit of this.commitWatcher.commits(projects.map((p) => p.host)))
-      this.held.push({ commit, seenAt: now });
+    // Commits are never folded, so their number is capped here (a reflog full of made-up lines cannot flood the log).
+    const fresh = this.commitWatcher.commits(projects.map((p) => p.host));
+    const room = Math.max(0, MAX_HELD_COMMITS - this.held.length);
+    for (const commit of fresh.slice(0, room)) this.held.push({ commit, seenAt: now });
+    if (fresh.length > room)
+      this.add({ k: 'note', p: fresh.length - room + ' more commits were seen at once and not listed (audit cap)' });
     const due = this.held.filter((h) => final || now - h.seenAt >= COMMIT_HOLD_MS);
     this.held = this.held.filter((h) => !due.includes(h));
     for (const { commit, seenAt } of due) {
@@ -270,7 +311,9 @@ export class AuditCollector {
         au: commit.author,
         w: commit.project,
         pj: name,
-        ...this.linked(this.book.linkCommit(name, Date.parse(t), this.gitRuns)),
+        // With programs recorded, a commit no session's git command made is not put on a session as "likely" (it
+        // may well be yours, made on this PC).
+        ...this.linked(this.book.linkCommit(name, Date.parse(t), this.gitRuns, !this.settings.processes)),
       });
     }
     this.gitRuns = this.gitRuns.filter((g) => g.t >= now - GIT_RUNS_KEPT_MS);

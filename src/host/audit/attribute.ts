@@ -77,6 +77,10 @@ export class SessionBook {
         ...(ended ? { to: Math.max(from, Date.parse(s.updatedAt) || now) } : {}),
       });
     }
+    // A session whose record is gone is not running any more: it ended by now at the latest.
+    const listed = new Set(list.map((s) => s.id));
+    for (const [id, s] of this.sessions)
+      if (!listed.has(id) && s.to === undefined) this.sessions.set(id, { ...s, to: now });
   }
 
   get(id: string | undefined): KnownSession | undefined {
@@ -99,9 +103,10 @@ export class SessionBook {
 
   /**
    * A commit in a project at time t: the session whose git command made it when that project's sessions ran git
-   * commands that make commits around then and all were the same session's; else the one session running there.
+   * commands that make commits around then and all were the same session's; else, when `likely` is allowed (programs
+   * are not recorded, so no git command could be seen), the one session running there.
    */
-  linkCommit(project: string, t: number, gitRuns: readonly GitRun[]): Link | undefined {
+  linkCommit(project: string, t: number, gitRuns: readonly GitRun[], likely = true): Link | undefined {
     const near = new Set(
       gitRuns
         .filter((g) => g.t >= t - GIT_BEFORE_MS && g.t <= t + GIT_AFTER_MS)
@@ -110,6 +115,6 @@ export class SessionBook {
     );
     if (near.size === 1) return { s: [...near][0], sv: 'p' };
     if (near.size > 1) return undefined;
-    return this.linkFile(project, t);
+    return likely ? this.linkFile(project, t) : undefined;
   }
 }

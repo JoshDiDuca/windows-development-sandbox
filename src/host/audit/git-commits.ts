@@ -147,6 +147,8 @@ export class CommitWatcher {
     let fd: number | undefined;
     try {
       fd = fs.openSync(file, 'r');
+      // What was opened must still be a plain file (not swapped for something else after the check).
+      if (!fs.fstatSync(fd).isFile()) return null;
       const buffer = Buffer.alloc(length);
       const read = fs.readSync(fd, buffer, 0, length, from);
       return buffer.subarray(0, read);

@@ -128,15 +128,43 @@ export const auditSuite: Suite = {
       'cargo build',
       'a compressed day still holds its events',
     );
-    const big = new AuditLog(t.at('audit-big'), { days: 30, maxMb: 5 });
+    // Written while the limit was higher, then kept to 5 MB.
+    const roomy = new AuditLog(t.at('audit-big'), { days: 30, maxMb: 50 });
     // Random text: compression must not make the test data fit after all.
     const line = (d: string): AuditEvent => ev(d + 'T00:00:00Z', { c: crypto.randomBytes(900).toString('hex') });
-    for (const d of [day(2), day(1), day(0)]) big.append(Array.from({ length: 1400 }, () => line(d)));
+    for (const d of [day(2), day(1), day(0)]) roomy.append(Array.from({ length: 1400 }, () => line(d)));
+    const big = new AuditLog(roomy.dir, { days: 30, maxMb: 5 });
     big.maintain(day(0));
     t.check(
       big.bytes() <= 5 * 1024 * 1024 && fs.readdirSync(big.dir).length < 3,
       'past audit.maxMb the oldest days go',
       String(big.bytes()),
+    );
+    const capped = new AuditLog(t.at('audit-capped'), { days: 30, maxMb: 5 });
+    for (let i = 0; i < 3; i++) capped.append(Array.from({ length: 1400 }, () => line(day(0))));
+    const cappedEvents = capped.read({ days: 1 });
+    t.check(
+      capped.bytes() <= 5 * 1024 * 1024 + 4096 &&
+        cappedEvents.filter((e) => e.k === 'note' && e.p!.includes('audit.maxMb')).length === 1,
+      'past audit.maxMb nothing more is written while the sandbox runs, but one note saying so',
+      String(capped.bytes()),
+    );
+    const late = new AuditLog(t.at('audit-late'), { days: 7, maxMb: 5 });
+    late.append([ev(day(1) + 'T23:59:58Z', { c: 'before midnight' })]);
+    late.maintain(day(0));
+    late.append([ev(day(1) + 'T23:59:59Z', { c: 'reported late' })]);
+    late.maintain(day(0));
+    t.equal(
+      late.read({ days: 3 }).map((e) => e.c),
+      ['before midnight', 'reported late'],
+      "a line that arrives after its day was compressed is added to it: the day's log is never written over",
+    );
+    const clipped = new AuditLog(t.at('audit-clip'), { days: 7, maxMb: 5 });
+    clipped.append([ev(day(0) + 'T00:00:01Z', { k: 'session', w: 'C:\\' + 'x'.repeat(3000) })]);
+    t.equal(
+      clipped.read({ days: 1 }).map((e) => e.w?.length),
+      [1024],
+      'a field longer than its limit is cut, not left to make the line unreadable later',
     );
     const kept = new AuditLog(t.at('audit-kept'), { days: 2, maxMb: 5 });
     kept.append([ev(day(5) + 'T10:00:00Z', { c: 'old' }), ev(day(0) + 'T00:00:01Z', { c: 'new' })]);
@@ -166,6 +194,14 @@ export const auditSuite: Suite = {
       ['mysql -u root -pHunter2pass db', 'Hunter2pass', 'mysql -p<password>'],
       ['echo ghp_abcdefghijklmnopqrstuvwxyz0123456789AB', 'ghp_abcdefghij', 'a token by its shape'],
       ["$env:GITHUB_TOKEN = 'abcdef123456'", 'abcdef123456', 'a PowerShell variable'],
+      ['set PGPASSWORD=pgsecret1 && psql', 'pgsecret1', 'a name with the word inside (PGPASSWORD)'],
+      ['tool --accessToken abc123def456', 'abc123def456', 'a camelCase flag'],
+      ['tool --apiToken=abc123def456', 'abc123def456', 'a camelCase flag with ='],
+      ['docker login -u me -p dockerpw1 registry.io', 'dockerpw1', 'docker login -p'],
+      ['sshpass -p sshpw123 ssh host', 'sshpw123', 'sshpass -p'],
+      ['curl --user=me:curlpw12 https://x', 'curlpw12', 'curl --user=name:password'],
+      ['git clone https://abcdef0123456789@github.com/a/b', 'abcdef0123456789', 'a token as the user name of a URL'],
+      ['$p = ConvertTo-SecureString "pspw1234" -AsPlainText', 'pspw1234', 'ConvertTo-SecureString'],
     ];
     for (const [cmd, secret, what] of cases) {
       const out = redactCommandLine(cmd);
@@ -313,6 +349,13 @@ export const auditSuite: Suite = {
       [{ s: 'b', sv: 'p' }, undefined, undefined],
       "a commit goes to the session whose git command made it; two candidates or another project's session: none",
     );
+    t.equal(
+      [book.linkCommit('app', ms(40), [], true), book.linkCommit('app', ms(40), [], false)],
+      [{ s: 'b', sv: 't' }, undefined],
+      'with no git command seen, a commit is "likely" the only running session only when programs are not recorded',
+    );
+    book.update([], 'app', ms(50));
+    t.equal(book.linkFile('app', ms(55)), undefined, 'a session whose record is gone counts as ended');
 
     t.section('what the sandbox reports');
     const data = t.at('audit-data', 'data', 'd');
@@ -348,6 +391,8 @@ export const auditSuite: Suite = {
       ].join('\n'),
     );
     t.write(path.join(run.auditDir, 'not-a-report.txt'), 'ignored');
+    // A folder with a report's name stops nothing.
+    fs.mkdirSync(path.join(run.auditDir, '0-0.jsonl'), { recursive: true });
     const project = t.dir('audit-data', 'app');
     const collector = new AuditCollector(data, storage, settings(), () => [{ name: 'app', host: project }]);
     collector.flush();

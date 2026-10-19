@@ -83,7 +83,7 @@ const CATEGORIES = [
     id: 'activity',
     label: 'Activity',
     description:
-      'What your agents ran, changed and committed today (the audit log). Enter on a session shows all of it.',
+      'What your agents ran, changed and committed in the last 24 hours (the audit log). Enter on a session shows all of it.',
   },
   { id: 'logs', label: 'Logs', description: "The sandbox's own logs." },
   {

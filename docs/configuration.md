@@ -220,26 +220,47 @@ the launch folder. The agent can read its own environment, which is the point; s
 
 ## Audit log
 
-`audit.enabled: true` (menu: Settings > Security & privacy > Audit log) keeps a log on your PC of what happened in your
-sandboxes. It lives in `<storage>\audit\<data set>`, where the sandbox cannot reach it.
+The audit log is **on by default** (`audit.enabled`; menu: Settings > Security & privacy > Audit log). It keeps a
+record on your PC of what your agents did, in `<storage>\audit\<data set>`, where the sandbox cannot reach it. Turn it
+off with `sandbox config set audit.enabled false`.
 
 - **Programs started** in the sandbox, with their command lines (`audit.processes`): Windows' own process auditing,
-  so it covers every agent and everything they start. Windows' background programs are left out.
-- **Files changed** in the project while the sandbox runs (`audit.files`), seen from your PC.
+  so it covers every agent and everything they start. Windows' background programs are left out. **Secrets are hidden**
+  before a line is written: tokens and keys recognised by their shape, passwords in URLs, `Authorization:` headers,
+  and the value after a flag or variable whose name says it holds one (`--password x`, `--token=x`, `API_KEY=x`,
+  `-p<password>`) become `***`.
+- **Files changed** in the projects while the sandbox runs (`audit.files`), seen from your PC.
+- **Git commits** made in the projects while the sandbox runs (`audit.commits`): id, first line of the message
+  (secrets hidden) and author, read from each project's `.git` reflog on your PC.
 - **Sessions** starting and ending, and what the **repo guard** caught.
 
+**Which agent did it.** Every program is linked to the agent session whose terminal started it (directly or further
+down: a build an agent's shell started is that session's). Programs the sandbox runs itself (setup, services) are
+"not linked to a session". A commit is linked to the session that ran the `git commit` (or merge, cherry-pick ...)
+that made it. A file change cannot be traced to a program from your PC: it is linked only when exactly one session was
+running in that project at the time, shown as *likely* (`?`) since you may have changed it yourself (a commit gets
+the same "likely" link only when `audit.processes` is off). Otherwise it stays unlinked: nothing is guessed.
+
 It stays small: one short line per event, the same event within a minute is one line with a count, at most 300 lines a
-minute (the rest is counted), finished days are compressed, and days past `audit.days` (14) or beyond `audit.maxMb`
-(100 MB) are deleted, oldest first.
+minute (the rest is counted), finished days are compressed, and days past `audit.days` (7, at most 30) or beyond
+`audit.maxMb` (100 MB) are deleted, oldest first, when a sandbox starts and once a day while it runs.
+
+See it on the **Activity** page of the web UI (totals, per agent, each session as a card that opens its own events,
+filters for kind and period), in the menu (Maintenance > Activity) or on the command line:
 
 ```powershell
-sandbox audit                    # today
-sandbox audit --days 7 --kind proc --grep "git push"
-sandbox audit --json             # for scripts
+sandbox audit                            # the last 24 hours
+sandbox audit --days 7 --kind commit
+sandbox audit --session 4f2c --grep "git push"
+sandbox audit --agent codex --project api
+sandbox audit --json                     # for scripts
 ```
 
-What the sandbox reports about the programs it ran is taken as it says (an agent with admin rights there could leave
-things out); file changes, sessions and repo-guard findings are observed from your PC.
+What the sandbox reports about the programs it ran, and which session started them, is taken as it says after checks
+(an agent with admin rights there could leave things out or link them wrongly, but cannot name a session that does not
+exist or write anything but program lines); file changes, sessions and repo-guard findings are observed from your PC.
+Commits are what the project's reflog says: the sandbox can write that file too, so a commit listed there is a record,
+not proof. The log stops growing at `audit.maxMb` (it says so in one line) until old days are deleted.
 
 ## Git-ignored files
 

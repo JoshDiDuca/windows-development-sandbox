@@ -140,7 +140,7 @@ and for `restart`, `show`, `hide` and starting your own, you are told whose it i
 
 ## Diagnostics
 
-`sandbox audit [--days n] [--kind proc|file|session|guard] [--grep text]` reads the [audit log](configuration.md#audit-log) (`audit.enabled`).
+`sandbox audit [--days n] [--kind proc|file|commit|session|guard] [--session id] [--agent name] [--project name] [--grep text] [--limit n] [--json]` shows the [audit log](configuration.md#audit-log): what your agents ran, changed and committed in the last `n` × 24 hours (default 1), with totals, a table of sessions and the newest events. `--session` takes a session id or its start (`none`: what no session can be linked to). The web UI shows the same on its Activity page.
 
 
 | | |

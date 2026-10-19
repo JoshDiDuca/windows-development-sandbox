@@ -53,6 +53,19 @@ export const AuditEventSchema = z.object({
 });
 export type AuditEvent = z.output<typeof AuditEventSchema>;
 
+/** Each text field's limit (the schema's): text is cut to it before writing, so a line is never refused on reading. */
+const FIELD_MAX = { p: 1024, c: 2048, pp: 1024, a: 32, w: 1024, ag: 64, pj: 128, au: 256 } as const;
+
+/** An event with every text field cut to its limit. */
+export function clipEvent(e: AuditEvent): AuditEvent {
+  const out: Record<string, unknown> = { ...e };
+  for (const [key, max] of Object.entries(FIELD_MAX)) {
+    const v = out[key];
+    if (typeof v === 'string' && v.length > max) out[key] = v.slice(0, max - 1) + '…';
+  }
+  return out as AuditEvent;
+}
+
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.jsonl(\.gz)?$/;
 const DAY_MS = 86400000;
 /** A day's file is never unpacked past this (a damaged or planted file cannot take all memory). */
@@ -88,16 +101,44 @@ export class AuditLog {
       .sort();
   }
 
+  /**
+   * Writes events (each cut to its fields' limits and checked, so every line written can be read back). Past
+   * audit.maxMb nothing more is written but one note saying so, until old days are deleted.
+   */
   append(events: readonly AuditEvent[]): void {
     if (!events.length) return;
     fs.mkdirSync(this.dir, { recursive: true });
+    const limit = this.limits.maxMb * 1024 * 1024;
+    let size = this.bytes();
+    if (size >= limit) {
+      this.noteFull(events[events.length - 1].t);
+      return;
+    }
     const byDay = new Map<string, string[]>();
     for (const e of events) {
       const day = e.t.slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
-      byDay.set(day, [...(byDay.get(day) ?? []), JSON.stringify(e)]);
+      const checked = AuditEventSchema.safeParse(clipEvent(e));
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !checked.success) continue;
+      const line = JSON.stringify(checked.data);
+      size += line.length + 1;
+      if (size > limit) {
+        this.noteFull(e.t);
+        break;
+      }
+      byDay.set(day, [...(byDay.get(day) ?? []), line]);
     }
     for (const [day, lines] of byDay) fs.appendFileSync(this.dayFile(day), lines.join('\n') + '\n');
+    if (size <= limit) this.fullNoted = false;
+  }
+
+  private fullNoted = false;
+
+  /** One line saying the log is full (once until it has room again). */
+  private noteFull(t: string): void {
+    if (this.fullNoted) return;
+    this.fullNoted = true;
+    const note: AuditEvent = { t, k: 'note', p: 'the audit log reached audit.maxMb: nothing more is recorded for now' };
+    fs.appendFileSync(this.dayFile(t.slice(0, 10)), JSON.stringify(note) + '\n');
   }
 
   /** Compresses finished days, then deletes days past the limits. Cheap when there is nothing to do. */
@@ -107,7 +148,9 @@ export class AuditLog {
       const m = DAY_FILE.exec(name);
       if (!m || m[2] || m[1] >= today) continue;
       const file = path.join(this.dir, name);
-      fs.writeFileSync(file + '.gz', zlib.gzipSync(fs.readFileSync(file)));
+      // Lines that arrived for a day already compressed (late reports) are added as another gzip member: the day's
+      // compressed file is never written over.
+      fs.appendFileSync(file + '.gz', zlib.gzipSync(fs.readFileSync(file)));
       fs.rmSync(file);
     }
     const oldest = firstDay(this.limits.days, Date.parse(today));

@@ -544,7 +544,7 @@ function sampleLogTail(input: { readonly name?: string }): unknown {
   });
 }
 
-/** An audit log of a plausible morning: two agents' sessions, the sandbox's own setup, a commit each, a guard finding. */
+/** A plausible audit log: two agents' sessions, the sandbox's own setup, a commit each, a guard finding. */
 function sampleAuditLog(dir: string): AuditLog {
   const log = new AuditLog(dir, { days: 7, maxMb: 100 });
   const at = (minutesAgo: number): string => new Date(Date.now() - minutesAgo * MINUTE).toISOString();

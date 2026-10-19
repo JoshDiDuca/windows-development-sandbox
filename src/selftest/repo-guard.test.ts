@@ -114,7 +114,12 @@ export const repoGuardSuite: Suite = {
     t.write(path.join(repo6, '.git', 'modules', 'lib', 'hooks', 'post-checkout'), 'calc.exe');
     fs.appendFileSync(path.join(repo6, 'tools', 'inner', '.git', 'config'), '\tfsmonitor = calc.exe\n');
     t.write(path.join(repo6, 'other', '.git', 'hooks', 'pre-commit'), 'calc.exe');
+    t.write(path.join(repo6, 'build', '.git', 'hooks', 'pre-commit'), 'calc.exe');
     const findings6 = repoGuard.guard(repo6, before6);
+    t.check(
+      !fs.existsSync(path.join(repo6, 'build', '.git', 'hooks', 'pre-commit')),
+      'a repository made directly in build\\ (VS Code opens it too) is checked like any other',
+    );
     t.check(
       !fs.existsSync(path.join(repo6, '.git', 'modules', 'lib', 'hooks', 'post-checkout')) &&
         disabled('fsmonitor').test(fs.readFileSync(path.join(repo6, 'tools', 'inner', '.git', 'config'), 'utf8')) &&

@@ -18,7 +18,8 @@ const SKIP_DIRS = new Set([
   '.venv',
   'venv',
 ]);
-const notSkipped = (d: string): boolean => !SKIP_DIRS.has(path.basename(d).toLowerCase());
+const NEVER_CHECKED = new Set(['node_modules', '.git', 'agent-sandbox-quarantine']);
+const notSkipped =(d: string): boolean => !SKIP_DIRS.has(path.basename(d).toLowerCase());
 
 function plainDirs(dir: string, limit: number): string[] {
   try {
@@ -56,8 +57,12 @@ export function otherGitDirs(workspace: string): string[] {
     }
   };
   if (main) walk(path.join(main, 'modules'), 0);
-  for (const sub of plainDirs(workspace, 500).filter(notSkipped)) {
-    for (const candidate of [sub, ...plainDirs(sub, 200).filter(notSkipped)]) {
+  // A repository directly in build\, dist\, bin\ ... is still one VS Code's repository scan opens (it skips only
+  // node_modules), so those folders are checked themselves; only their insides are skipped.
+  const neverChecked = (d: string): boolean => NEVER_CHECKED.has(path.basename(d).toLowerCase());
+  for (const sub of plainDirs(workspace, 500).filter((d) => !neverChecked(d))) {
+    const inside = notSkipped(sub) ? plainDirs(sub, 200).filter(notSkipped) : [];
+    for (const candidate of [sub, ...inside]) {
       if (found.length >= MAX_OTHER_REPOS) return found;
       const git = plainGitDir(candidate);
       if (git) found.push(git);

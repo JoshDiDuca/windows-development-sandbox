@@ -22,6 +22,7 @@ import { IconBox, IconMoon, IconSearch, IconSun } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { NAV, navViews, type NavSection, type ViewId } from '../../../src/app/features/defs';
 import { navigate, viewPath } from '../router';
+import { isOwner } from '../access';
 import { AREA_ICONS } from '../render/icons';
 import { CommandPalette } from './CommandPalette';
 import { SandboxStatusCard } from './StatusPill';
@@ -90,7 +91,8 @@ function SearchButton() {
 }
 
 function Navigation({ active, onPick }: { readonly active?: string; readonly onPick: () => void }) {
-  const here = NAV.filter((s) => s.view || s.children?.length);
+  // Remote access is the owner's alone: another Windows user or a device does not see the entry.
+  const here = NAV.filter((s) => (s.view || s.children?.length) && (s.view !== 'access' || isOwner()));
   const later = NAV.filter((s) => !s.view && !s.children?.length);
   /**
    * One entry: a link to its view, or a parent whose children are links under it (open when one of them is shown).

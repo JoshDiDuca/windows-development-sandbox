@@ -282,11 +282,11 @@ export class AccessStore {
     return sameHash(secretHash(parsed.token), device.tokenHash) ? device : null;
   }
 
-  /** Notes when a device was last seen (at most once a minute per device, so a busy page does not keep writing). */
+  /** Notes when a device was last seen (at most every 10 minutes per device: each write seals the list again). */
   seen(id: string): void {
     const device = this.read().devices.find((d) => d.id === id);
     const t = this.now();
-    if (!device || (device.lastSeen && t - Date.parse(device.lastSeen) < 60_000)) return;
+    if (!device || (device.lastSeen && t - Date.parse(device.lastSeen) < 10 * 60_000)) return;
     this.update((d) => ({
       ...d,
       devices: d.devices.map((x) => (x.id === id ? { ...x, lastSeen: this.iso(t) } : x)),

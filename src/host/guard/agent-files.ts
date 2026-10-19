@@ -19,9 +19,12 @@ const CLAUDE_RISKY_KEYS = [
   'enableAllProjectMcpServers',
   'enabledMcpjsonServers',
   'disableAllHooks',
+  // Plugins bring their own hooks and MCP servers.
+  'enabledPlugins',
+  'extraKnownMarketplaces',
 ] as const;
 const VSCODE_RISKY_KEY =
-  /path|executable|command|interpreter|shell|profile|args|env|exec|program|server|launch|runtime|binary/i;
+  /path|executable|command|interpreter|shell|profile|args|env|exec|program|server|launch|runtime|binary|alternatetools|home|goroot|tsdk|sdk/i;
 const MAX_AGENT_FILE_BYTES = 1024 * 1024;
 
 function claudeRisk(d: unknown): unknown {
@@ -30,6 +33,11 @@ function claudeRisk(d: unknown): unknown {
   return {
     ..._.pick(s, CLAUDE_RISKY_KEYS),
     permissions: _.pick(permissions, ['defaultMode', 'additionalDirectories']),
+    // A whole-tool rule ("Bash", "Bash(*)") lets Claude Code on this PC run any command without asking; narrow rules
+    // (Bash(npm test), what "always allow" writes) are ordinary edits.
+    broadAllow: (Array.isArray(permissions.allow) ? permissions.allow : []).filter(
+      (r) => typeof r !== 'string' || !r.includes('(') || /\(\s*:?\*\s*\)\s*$/.test(r),
+    ),
   };
 }
 

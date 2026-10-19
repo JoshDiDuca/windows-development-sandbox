@@ -114,7 +114,12 @@ export const repoGuardSuite: Suite = {
     t.write(path.join(repo6, '.git', 'modules', 'lib', 'hooks', 'post-checkout'), 'calc.exe');
     fs.appendFileSync(path.join(repo6, 'tools', 'inner', '.git', 'config'), '\tfsmonitor = calc.exe\n');
     t.write(path.join(repo6, 'other', '.git', 'hooks', 'pre-commit'), 'calc.exe');
+    t.write(path.join(repo6, 'build', '.git', 'hooks', 'pre-commit'), 'calc.exe');
     const findings6 = repoGuard.guard(repo6, before6);
+    t.check(
+      !fs.existsSync(path.join(repo6, 'build', '.git', 'hooks', 'pre-commit')),
+      'a repository made directly in build\\ (VS Code opens it too) is checked like any other',
+    );
     t.check(
       !fs.existsSync(path.join(repo6, '.git', 'modules', 'lib', 'hooks', 'post-checkout')) &&
         disabled('fsmonitor').test(fs.readFileSync(path.join(repo6, 'tools', 'inner', '.git', 'config'), 'utf8')) &&
@@ -159,6 +164,73 @@ export const repoGuardSuite: Suite = {
       'Claude hooks, MCP servers, folder-open tasks and program paths in VS Code settings are quarantined, nothing else',
     );
 
+    t.section('security review 2026-10: config spellings, hooksPath folders, broad permissions');
+    const repo8 = t.at('repo8');
+    t.write(path.join(repo8, '.git', 'config'), '[core]\n\thooksPath = .husky/_\n[alias]\n\tst = status\n');
+    t.write(path.join(repo8, '.husky', '_', 'pre-commit'), 'stub');
+    t.write(path.join(repo8, '.husky', 'pre-commit'), 'npm test');
+    t.write(path.join(repo8, '.husky', 'README.md'), 'not a hook');
+    t.write(path.join(repo8, '.claude', 'settings.local.json'), '{ "permissions": { "allow": ["Bash(npm test)"] } }');
+    const before8 = repoGuard.snapshot(repo8);
+    fs.appendFileSync(
+      path.join(repo8, '.git', 'config'),
+      [
+        '[filter "x]y"] smudge = calc.exe',
+        '[alias]',
+        '\tlg = ""!calc.exe',
+        '\tsh = \\',
+        '!calc.exe',
+        '\tco = checkout',
+        '[protocol]',
+        '\tallow = always',
+        '[url "ext::calc.exe "]',
+        '\tinsteadOf = https://',
+        '[submodule "lib"]',
+        '\tupdate = !calc.exe',
+        '\turl = https://example.com/lib.git',
+        '[remote "origin"]',
+        '\tvcs = evil',
+        '',
+      ].join('\n'),
+    );
+    t.write(path.join(repo8, '.husky', 'pre-commit'), 'calc.exe');
+    t.write(path.join(repo8, '.husky', 'README.md'), 'edited');
+    t.write(path.join(repo8, '.claude', 'settings.local.json'), '{ "permissions": { "allow": ["Bash"] } }');
+    t.write(path.join(repo8, 'git.py'), 'calc');
+    const pathextHasPy = (process.env.PATHEXT ?? '').toLowerCase().split(';').includes('.py');
+    const found8 = repoGuard.guard(repo8, before8);
+    const config8 = readConfig(repo8);
+    t.check(
+      disabled('smudge = calc').test(config8) &&
+        disabled('lg = ""!calc').test(config8) &&
+        disabled('!calc.exe').test(config8) &&
+        disabled('allow = always').test(config8) &&
+        disabled('insteadOf').test(config8) &&
+        disabled('update = !calc').test(config8) &&
+        disabled('vcs = evil').test(config8) &&
+        /^\tco = checkout$/m.test(config8) &&
+        /^\turl = https:\/\/example.com\/lib.git$/m.test(config8),
+      'git config: a ] in a quoted subsection, quoted or continued "!" aliases, [protocol], [url], submodule "!" updates and remote vcs helpers are disabled; plain lines stay',
+      config8,
+    );
+    t.check(
+      !fs.existsSync(path.join(repo8, '.husky', 'pre-commit')) &&
+        fs.existsSync(path.join(repo8, '.husky', '_', 'pre-commit')) &&
+        fs.existsSync(path.join(repo8, '.husky', 'README.md')) &&
+        found8.some((x) => x.kind === 'hook' && x.detail.includes('core.hooksPath')),
+      "a changed hook in the folder the repo's own core.hooksPath points at (husky) is quarantined; other files there stay",
+      JSON.stringify(found8),
+    );
+    t.check(
+      found8.some((x) => x.kind === 'agent' && x.detail.includes('settings.local.json')),
+      'a whole-tool permission ("Bash") added to Claude settings is quarantined',
+      JSON.stringify(found8),
+    );
+    t.check(
+      !pathextHasPy || !fs.existsSync(path.join(repo8, 'git.py')),
+      'a planted command with an extension from PATHEXT (.py) is quarantined' + (pathextHasPy ? '' : ' (no .PY here)'),
+    );
+
     t.section('programs from the sandbox are marked');
     const marked = t.at('marked');
     t.write(path.join(marked, 'setup.ps1'), 'calc');
@@ -171,10 +243,14 @@ export const repoGuardSuite: Suite = {
         fs.readFileSync(path.join(marked, 'setup.ps1'), 'utf8') === 'calc',
       'a script gets the "from the internet" mark (the file itself is never written); source files are left alone',
     );
-    const stop = watchAndMark([marked]);
+    const notes: string[] = [];
+    const stop = watchAndMark([marked], (n) => notes.push(n));
     t.write(path.join(marked, 'bin', 'tool.exe'), 'MZ');
     const live = await t.waitFor(() => isMarked(path.join(marked, 'bin', 'tool.exe')), 5000);
-    stop();
     t.check(Boolean(live), 'while it watches, a program that appears is marked within a second or two');
+    // Writing the mark fires a change event for the same file: it must not be marked (and reported) again and again.
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+    stop();
+    t.check(notes.length === 1, 'a marked program is marked once, not again every second', String(notes.length));
   },
 };

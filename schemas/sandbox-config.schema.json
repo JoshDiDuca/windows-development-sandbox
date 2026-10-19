@@ -107,24 +107,6 @@
           ],
           "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered."
         },
-        "maxMemoryMb": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Upper limit for memoryMb \"auto\"."
-        },
-        "maxMemoryPercent": {
-          "type": "integer",
-          "minimum": 10,
-          "maximum": 100,
-          "description": "memoryMb \"auto\" never takes more than this share of this PC's total RAM (percent)."
-        },
-        "reserveHostMb": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Memory always left for this PC when memoryMb is \"auto\": the sandbox gets at most (free RAM, and RAM plus paging file still unused) minus this."
-        },
         "vGpu": {
           "type": "boolean",
           "description": "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface. The sandbox then uses this PC's graphics card, and with some graphics drivers heavy use can freeze the whole PC: turn it on only when a program in the sandbox needs the GPU (the mesa toolchain gives software OpenGL without it)."

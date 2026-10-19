@@ -2,29 +2,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { INTERESTING_FILE, type ProjectFile } from '../../core/detect/index.js';
+import { readSmallFile } from '../../core/util/index.js';
 
 const SKIP =
   /^(node_modules|\.git|\.hg|\.svn|vendor|target|bin|obj|dist|build|out|\.next|\.nuxt|\.venv|venv|env|__pycache__|\.gradle|\.idea|\.vs|coverage|packages)$/i;
 const MAX_FILES = 400;
 const MAX_BYTES = 256 * 1024;
 const MAX_FOLDERS = 2000;
-
-/** Reads a file through one handle, only if that handle is a regular file of at most MAX_BYTES. */
-function readSmallFile(file: string): string | null {
-  let fd: number | null = null;
-  try {
-    fd = fs.openSync(file, 'r');
-    const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.size > MAX_BYTES) return null;
-    const buffer = Buffer.alloc(stat.size);
-    fs.readSync(fd, buffer, 0, stat.size, 0);
-    return buffer.toString('utf8');
-  } catch {
-    return null;
-  } finally {
-    if (fd !== null) fs.closeSync(fd);
-  }
-}
 
 /** Manifest-type files in the project, up to 3 folders deep. Links are not followed (the guest may have written it). */
 export function readProjectFiles(root: string, depth = 3): ProjectFile[] {
@@ -42,7 +26,7 @@ export function readProjectFiles(root: string, depth = 3): ProjectFile[] {
       if (files.length >= MAX_FILES) return;
       const full = path.join(dir, entry.name);
       if (entry.isFile() && INTERESTING_FILE.test(entry.name)) {
-        const text = readSmallFile(full);
+        const text = readSmallFile(full, MAX_BYTES);
         if (text !== null) files.push({ path: path.relative(root, full), text });
       } else if (entry.isDirectory() && level < depth && !SKIP.test(entry.name)) walk(full, level + 1);
     }

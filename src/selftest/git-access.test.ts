@@ -54,6 +54,14 @@ export const gitAccessSuite: Suite = {
       '--git-dir=x status',
       'clean -fd',
       'apply p.diff',
+      // reading commands with options that run a program or write a file
+      'grep -Ocalc.exe x',
+      'grep --open-files-in-pager=calc.exe x',
+      'ls-remote --upload-pack=calc.exe origin',
+      'ls-remote -ucalc.exe origin',
+      'diff --output=C:/x.txt',
+      'log --output C:/x.txt',
+      'diff --ext-diff',
     ];
     t.equal(
       writing.filter((command) => allowed(command.split(' '))),

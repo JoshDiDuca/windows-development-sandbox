@@ -19,6 +19,7 @@ const GitStateSchema = z.object({
   config: z.array(z.string()),
   hooks: z.record(z.string(), z.string()),
   redirects: z.array(z.string()),
+  pathHooks: z.record(z.string(), z.string()).optional(),
 });
 const SavedSchema = z.object({
   workspace: z

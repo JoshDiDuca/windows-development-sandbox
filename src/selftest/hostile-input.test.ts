@@ -14,7 +14,7 @@ import type { Suite } from './support/suite.js';
 export const hostileInputSuite: Suite = {
   name: 'hostile-input',
   title: 'file names, deletes, printed text, mappings and state files from an untrusted sandbox',
-  run: async (t) => {
+  run: async (t, f) => {
     t.section('file names');
     const unsafe = ['CON.jsonl', 'nul', 'aux.json', 'COM1.txt', 'a:b', 'x.jsonl.', 'x ', '..', 'a\\b', 'LPT3'];
     t.equal(
@@ -93,5 +93,25 @@ export const hostileInputSuite: Suite = {
       'cannot be started safely',
       'a launch path with quotes and & is refused',
     );
+
+    t.section('repo files read on this PC (security review 2026-10)');
+    const repoDir = t.dir('hostile-versions');
+    fs.writeFileSync(path.join(repoDir, '.nvmrc'), '\u001b]52;c;ZXZpbA==\u0007\u001b[2J20\n');
+    fs.writeFileSync(path.join(repoDir, '.python-version'), '3.12.1\n');
+    const versionsRun = await f.run({ cwd: repoDir });
+    t.check(
+      !versionsRun.versions.node.spec.includes('\u001b') &&
+        versionsRun.versions.node.source !== '.nvmrc' &&
+        versionsRun.versions.python.spec === '3.12.1',
+      'a version file holding escape codes is ignored (it would reach the launch table); a plain one is used',
+      JSON.stringify(versionsRun.versions),
+    );
+    fs.writeFileSync(path.join(repoDir, '.sandbox-config.json'), '{"readOnly": true}' + ' '.repeat(1100 * 1024));
+    await t.throws(
+      () => f.run({ cwd: repoDir, trustConfig: true }),
+      'over 1 MB',
+      'a .sandbox-config.json over 1 MB is refused before it is parsed',
+    );
+    fs.rmSync(path.join(repoDir, '.sandbox-config.json'));
   },
 };

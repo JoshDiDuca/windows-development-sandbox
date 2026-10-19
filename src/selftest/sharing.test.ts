@@ -204,7 +204,7 @@ async function permissionPlan(t: Harness): Promise<void> {
 }
 
 /** The PowerShell script: it parses, changes a temp folder's permissions, and refuses links. Windows only. */
-function folderScript(t: Harness): void {
+async function folderScript(t: Harness): Promise<void> {
   t.section('set-folder-access.ps1');
   if (process.platform !== 'win32') {
     t.skip('the folder-permission script runs only on Windows');
@@ -325,6 +325,16 @@ function folderScript(t: Harness): void {
     fs.readFileSync(path.join(own, 'child', 'a.txt'), 'utf8') === 'x',
     'the owner can still use a private folder',
   );
+  // Security review 2026-10: under an all-users install another member of the group can create users\<you> first.
+  const theirs = t.dir('acl-someone-elses');
+  const given = spawnSync(SYSTEM.icacls(), [theirs, '/setowner', '*S-1-5-18'], { encoding: 'utf8', windowsHide: true });
+  if (given.status !== 0) t.skip('a folder owned by someone else (cannot give a folder to SYSTEM here)');
+  else
+    await t.throws(
+      () => runPrivateFolder(theirs),
+      'not to you',
+      'a folder someone else owns is refused, never made "private" for you (its owner could open it again)',
+    );
 }
 
 export const sharingSuite: Suite = {
@@ -339,7 +349,7 @@ export const sharingSuite: Suite = {
       recordsSection(t);
       ownership(t);
       await permissionPlan(t);
-      folderScript(t);
+      await folderScript(t);
     } finally {
       // Later suites load the settings too: the machine file this suite wrote must not outlive it.
       fs.rmSync(t.at('machine-home'), { recursive: true, force: true });

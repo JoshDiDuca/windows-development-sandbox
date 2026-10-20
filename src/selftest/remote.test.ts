@@ -328,6 +328,7 @@ export const remoteSuite: Suite = {
         'sandbox.hideWindow',
         'sandbox.showWindow',
         'sandbox.stop',
+        'sessions.close',
         'sessions.restart',
       ].join(),
       'only an explicit short list of operations is open to control',

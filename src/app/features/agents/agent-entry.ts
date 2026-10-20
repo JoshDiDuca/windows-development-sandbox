@@ -7,6 +7,9 @@ import type { Harness } from '../../../core/types.js';
 /** How a new agent gets into the sandbox. */
 export type AgentSource = 'npm' | 'uv' | 'host';
 
+/** Names an agent cannot have. */
+const RESERVED: readonly string[] = ['shell', 'pwsh', 'powershell', 'cmd', 'close'];
+
 /** Nothing wrong with the name (true), or what is wrong. Pure. */
 export function agentNameProblem(name: string, taken: readonly string[]): true | string {
   const typed = name.trim();
@@ -14,6 +17,8 @@ export function agentNameProblem(name: string, taken: readonly string[]): true |
   const parsed = NameSchema.safeParse(typed);
   if (!parsed.success) return 'Use letters, numbers, - and _ only.';
   if (taken.some((t) => t.toLowerCase() === typed.toLowerCase())) return typed + ' is an agent already.';
+  // Shell sessions are listed by these names, and sandbox shell / close are commands.
+  if (RESERVED.includes(typed.toLowerCase())) return typed + ' is taken by the sandbox; choose another name.';
   return true;
 }
 

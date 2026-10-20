@@ -31,6 +31,10 @@ const THING_ICONS: Readonly<Record<string, Icon>> = {
   folder: IconFolder,
   database: IconDatabase,
   session: IconTerminal2,
+  // Plain shell sessions are listed by their shell's name.
+  pwsh: IconTerminal2,
+  powershell: IconTerminal2,
+  cmd: IconTerminal2,
 };
 
 /** Each agent's colour, so its sessions are told apart at a glance. */

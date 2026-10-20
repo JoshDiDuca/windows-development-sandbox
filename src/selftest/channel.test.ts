@@ -60,6 +60,25 @@ export const channelSuite: Suite = {
         !validSession({ ...goodSession, phase: 'pwned' }),
       'session status: a well-formed one passes; an impossible port or unknown phase is rejected',
     );
+    const shellRequest = {
+      kind: 'session',
+      id: 'r1',
+      harness: 'shell',
+      args: [],
+      cwd: 'C:\\Workspace',
+      shell: 'pwsh',
+      createdAt: 'x',
+    };
+    t.check(
+      validRequest(shellRequest) &&
+        validRequest({ ...shellRequest, shell: 'auto' }) &&
+        !validRequest({ ...shellRequest, shell: 'bash -c evil' }) &&
+        validRequest({ kind: 'close', id: 'c1', session: 's1', createdAt: 'x' }) &&
+        !validRequest({ kind: 'close', id: 'c1', session: '..\\s1', createdAt: 'x' }) &&
+        validSession({ ...goodSession, harness: 'pwsh', kind: 'shell' }) &&
+        !validSession({ ...goodSession, kind: 'daemon' }),
+      'shells: a session request names one of the known shells; close names a safe session id; a status says shell',
+    );
 
     t.section('boot progress');
     const goodStatus = {

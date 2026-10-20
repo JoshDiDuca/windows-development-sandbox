@@ -33,3 +33,29 @@ export function commandLine(file: string, args: string[]): string {
     ? [quoteArg(file), cmdArgs(args)].filter(Boolean).join(' ')
     : [file, ...args].map(quoteArg).join(' ');
 }
+
+/** A plain shell session's program: which shell, its absolute path and its arguments. */
+export interface ShellLaunch {
+  readonly name: 'pwsh' | 'powershell' | 'cmd';
+  readonly file: string;
+  readonly args: string[];
+}
+
+/** Where the shells are in this sandbox (pwsh: null when PowerShell 7 is not installed). */
+export interface ShellPaths {
+  readonly pwsh: string | null;
+  readonly powershell: string;
+  readonly cmd: string;
+}
+
+/** The shell a session asked for runs as (auto: PowerShell 7 when present, else Windows PowerShell). Pure. */
+export function shellLaunch(asked: 'auto' | ShellLaunch['name'], paths: ShellPaths): ShellLaunch {
+  if (asked === 'cmd') return { name: 'cmd', file: paths.cmd, args: [] };
+  if (asked === 'powershell' || (asked === 'auto' && !paths.pwsh))
+    return { name: 'powershell', file: paths.powershell, args: ['-NoLogo'] };
+  if (!paths.pwsh)
+    throw new Error(
+      'PowerShell 7 is not installed in this sandbox (toolchains.pwsh). Open powershell or cmd instead, or turn pwsh on.',
+    );
+  return { name: 'pwsh', file: paths.pwsh, args: ['-NoLogo'] };
+}

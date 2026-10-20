@@ -6,7 +6,7 @@ import { fail } from '../../core/util/errors.js';
 import { issuesText } from './errors.js';
 import type { AccessRule } from './access.js';
 import type { OperationIO } from './io.js';
-import type { Page } from './view.js';
+import type { Page, Target } from './view.js';
 
 export type SurfaceName = 'cli' | 'menu' | 'web';
 export const SURFACE_NAMES: readonly SurfaceName[] = ['cli', 'menu', 'web'];
@@ -100,6 +100,11 @@ export interface OperationDef<
   readonly danger?: boolean;
   /** Its result must stay on screen until dismissed (a one-time code to type elsewhere): the web keeps it open. */
   readonly keepResult?: boolean;
+  /**
+   * Where every surface goes once it succeeded: a new session's terminal is attached on the command line and in the
+   * menu, and opened in the web UI.
+   */
+  opens?(output: z.output<O>): Target | undefined;
 }
 
 export interface QueryDef<

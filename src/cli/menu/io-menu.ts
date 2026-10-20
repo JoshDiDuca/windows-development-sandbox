@@ -116,7 +116,14 @@ export class MenuOperations {
     if (!def) return { notice: Theme.error(Theme.glyph.cross + ' Unknown operation ' + action.op + '.') };
     const answers = await this.fields(action, def, where);
     if (!answers) return {};
-    return { reload: true, notice: await this.run(def, { ...action.input, ...answers }, where, busy, onOutput) };
+    // An operation that opens a session's terminal (a new shell) leaves the menu to attach to it.
+    let opened: Target | undefined;
+    const notice = await this.run(def, { ...action.input, ...answers }, where, busy, (output) => {
+      onOutput?.(output);
+      opened = def.kind === 'operation' ? def.opens?.(output) : undefined;
+    });
+    const exit = opened ? follow(opened).exit : undefined;
+    return { reload: true, notice, ...(exit ? { exit } : {}) };
   }
 
   /** The values of an action's fields, from the editors that fit them (undefined: one was backed out of). */

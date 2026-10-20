@@ -67,6 +67,10 @@ export const ProjectSpecSchema = z.strictObject({
   hooks: z.boolean(),
 });
 
+/** The plain shells a session can run instead of an agent; auto: PowerShell 7 when the sandbox has it, else 5.1. */
+export const ShellChoiceSchema = z.enum(['auto', 'pwsh', 'powershell', 'cmd']);
+export type ShellChoice = z.output<typeof ShellChoiceSchema>;
+
 /** C:\AgentData\run\requests\<id>.json: the ONLY things the host can ask the sandbox to do. */
 export const GuestRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -77,8 +81,12 @@ export const GuestRequestSchema = z.discriminatedUnion('kind', [
     cwd: Text(),
     project: ProjectSpecSchema.optional(),
     harnessSpec: HarnessSchema.optional(),
+    /** A plain shell instead of an agent (harness is then "shell" and args are ignored). */
+    shell: ShellChoiceSchema.optional(),
     createdAt: TimeSchema,
   }),
+  /** End a running session (an agent or a shell) and everything it started. */
+  z.strictObject({ kind: z.literal('close'), id: IdSchema, session: IdSchema, createdAt: TimeSchema }),
   /** Provision a registered project without starting an agent (sandbox start / exec / db from its folder). */
   z.strictObject({ kind: z.literal('project'), id: IdSchema, project: ProjectSpecSchema, createdAt: TimeSchema }),
   z.strictObject({
@@ -151,6 +159,8 @@ export const SessionStatusSchema = z.object({
   id: IdSchema,
   launchId: Text(64),
   harness: Text(64),
+  /** A plain shell (harness is then the shell: pwsh, powershell or cmd); absent: an agent. */
+  kind: z.enum(['agent', 'shell']).optional(),
   cwd: Text(),
   /** The project it runs in: its hub name, or the launch folder's for the first project. */
   project: Text(64).optional(),

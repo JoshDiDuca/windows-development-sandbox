@@ -11,6 +11,7 @@
 //                   3 RESIZE  [cols:2][rows:2]
 //                   4 RESTART restart the program with <restartCommandLine> (e.g. after switching accounts)
 //                   5 PING    "still here": viewers send it every few seconds, so a closed terminal stops counting
+//                   6 CLOSE   end the program (and everything it started) and with it the session
 //   host -> client 16 OUTPUT  VT output
 //                  17 EXIT    [exitCode:4]
 //                  18 ERROR   utf8 message
@@ -65,6 +66,7 @@ sealed class SessionHost
     private readonly string restartCommand;
     private string command;
     private volatile bool restartRequested;
+    private volatile bool closeRequested;
 
     public SessionHost(ClientHub hub, Log log, string command, string restartCommand)
     {
@@ -99,9 +101,22 @@ sealed class SessionHost
 
     public void Restart()
     {
+        if (closeRequested)
+        {
+            return;
+        }
         restartRequested = true;
         hub.ResetReplay();
         hub.Notify(Frame.Restarting);
+        hub.KillProgram();
+    }
+
+    /// <summary>Ends the program for good (CLOSE): the session exits the way it does when the program exits.</summary>
+    public void Close()
+    {
+        closeRequested = true;
+        restartRequested = false;
+        log.Write("closing the session on request");
         hub.KillProgram();
     }
 }
@@ -200,6 +215,10 @@ sealed class Listener
                 else if (type == Frame.Restart)
                 {
                     host.Restart();
+                }
+                else if (type == Frame.Close)
+                {
+                    host.Close();
                 }
             }
         }
@@ -1251,6 +1270,7 @@ static class Frame
     public const byte Resize = 3;
     public const byte Restart = 4;
     public const byte Ping = 5;
+    public const byte Close = 6;
     public const byte Output = 16;
     public const byte Exit = 17;
     public const byte Error = 18;

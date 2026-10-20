@@ -7,6 +7,8 @@ export const FrameType = {
   Resize: 3,
   Restart: 4,
   Ping: 5,
+  /** Ends the program and everything it started, and with it the session. */
+  Close: 6,
   Output: 16,
   Exit: 17,
   Error: 18,

@@ -1,6 +1,9 @@
-// Agent sessions of the running sandbox: list, pick one to attach to, restart. Returns data, never prints.
+// Sessions of the running sandbox (agents and plain shells): list, pick one to attach to, restart the agents, open a
+// shell, close one. Returns data, never prints.
 import _ from 'lodash';
 import type { SessionStatus } from '../../core/types.js';
+import { fail } from '../../core/util/index.js';
+import type { ShellChoice } from '../../shared/channel/index.js';
 import { SandboxChannel, sessionsFirstIn, sessionViewers } from '../../host/channel/index.js';
 import { isSandboxRunning } from '../../host/sandbox/index.js';
 import type { RegistryEntry } from '../../host/projects/index.js';
@@ -9,6 +12,9 @@ import { isWithin, projectForGuestDir } from '../../shared/paths/index.js';
 import type { Viewers } from '../../shared/pty/index.js';
 import type { Context } from '../commands/context.js';
 import { hereDir, locateHere, registryOf } from '../commands/projects/here.js';
+
+/** A shell needs no install: the longest it may take is its project's first setup. */
+const SHELL_START_MS = 15 * 60 * 1000;
 
 export function viewerText(v: Viewers | null | undefined): string {
   return v === undefined
@@ -112,6 +118,19 @@ export class SessionsService {
   /** Restarts the agents (one kind, or all) of a project or of every session; returns the sandbox's message. */
   async restart(harness: string | null, scope?: string): Promise<string> {
     return (await this.channel.restart(harness, scope)).message;
+  }
+
+  /** Starts a plain shell in a folder of the sandbox and waits until it runs. */
+  openShell(shell: ShellChoice, guestDir: string): Promise<SessionStatus> {
+    const channel = this.channel;
+    return channel.waitForSession(channel.requestShell(shell, guestDir), SHELL_START_MS, () => undefined);
+  }
+
+  /** Ends a running session and everything it started; returns the sandbox's message (throws when it refused). */
+  async close(sessionId: string): Promise<string> {
+    const answer = await this.channel.closeSession(sessionId);
+    if (!answer.ok) fail(answer.message);
+    return answer.message;
   }
 
   private projects(): RegistryEntry[] {

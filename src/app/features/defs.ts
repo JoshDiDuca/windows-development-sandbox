@@ -41,7 +41,7 @@ import {
 } from './projects/projects.def.js';
 import { listLogs, logsView, tailLog } from './logs/logs.def.js';
 import { auditView, listAudit } from './audit/audit.def.js';
-import { listSessions, restartSessions, sessionsView } from './sessions/sessions.def.js';
+import { closeSession, listSessions, restartSessions, sessionsView, startShell } from './sessions/sessions.def.js';
 import { vpnLogin, vpnLogout, vpnStatus, vpnView } from './vpn/vpn.def.js';
 import { githubLogin, githubLogout, githubStatus, githubView } from './github/github.def.js';
 import {
@@ -85,6 +85,8 @@ export const OPERATIONS = [
   hideWindow,
   stopSandbox,
   restartSessions,
+  startShell,
+  closeSession,
   startAgent,
   addAgent,
   makeDefaultAgent,

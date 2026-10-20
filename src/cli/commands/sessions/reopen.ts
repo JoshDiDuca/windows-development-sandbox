@@ -31,6 +31,8 @@ export interface Reopen {
 /** Where each running session is on this PC, so it can be reopened after a restart. */
 export function sessionsToReopen(registry: Registry, sessions: readonly SessionStatus[]): Reopen[] {
   return sessions.flatMap((s) => {
+    // Shells are not reopened: a new one would not be the one that ended.
+    if (s.kind === 'shell') return [];
     const project = projectForGuestDir([...registry.projects, ...registry.roots.map((r) => ({ ...r }))], s.cwd);
     return project
       ? [

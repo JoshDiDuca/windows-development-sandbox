@@ -21,6 +21,8 @@ export const liveDaemonSuite: Suite = {
     Object.assign(session.harness, {
       arguments: ['/d', '/k', 'echo LIVE-AGENT-READY'],
       resumeArguments: ['/d', '/k', 'echo LIVE-AGENT-RESUMED'],
+      // The agent's own environment (where its keys live): a shell session must not get it.
+      environment: { LIVE_AGENT_KEY: 'sk-live-agent' },
     });
     t.writeJson(gen.sessionPath, session);
     const daemon = startDaemon(t, f, { launchPath: gen.launchPath, data, workspace });
@@ -127,6 +129,42 @@ export const liveDaemonSuite: Suite = {
         'ping is answered; an unknown request kind gets no answer and is deleted',
         JSON.stringify(ping),
       );
+
+      t.section('live: a plain shell session');
+      daemon.request({ kind: 'session', id: 'shell1', harness: 'shell', args: [], cwd: workspace, shell: 'cmd' });
+      const shell = await daemon.started('shell1');
+      t.check(
+        shell?.phase === 'running' && shell.harness === 'cmd' && shell.kind === 'shell' && Boolean(shell.attach),
+        'a shell session runs through ptyhost and is listed by its shell, marked as a shell',
+        JSON.stringify(shell) + '\n' + daemon.diagnostics(),
+      );
+      if (shell?.attach) {
+        const shellView = await openViewer(shell.attach);
+        viewers.push(shellView);
+        // Typing before cmd has drawn its prompt can lose the keystrokes: wait for the prompt first.
+        await sees(t, shellView, '>');
+        shellView.type('echo SHELL-[%LIVE_AGENT_KEY%]-%USERNAME:~0,0%OK');
+        const sawShell = await sees(t, shellView, 'SHELL-[%LIVE_AGENT_KEY%]-OK');
+        t.check(
+          Boolean(sawShell),
+          "keystrokes reach the shell, and it has none of the agent's own environment",
+          'screen so far: ' + tail(shellView.output()) + '\n' + daemon.diagnostics(),
+        );
+        daemon.request({ kind: 'close', id: 'close1', session: 'shell1' });
+        const closed = await daemon.response('close1');
+        const shellEnded = await t.waitFor(() => {
+          const s = daemon.status('shell1');
+          return s?.phase === 'exited' ? s : null;
+        }, WAIT.exit);
+        t.check(
+          Boolean(closed?.ok) && shellEnded !== null && shellView.exitCode() !== null,
+          'close ends the shell: the sandbox answers, the status says exited and the attached client gets the exit',
+          JSON.stringify(closed) + ' ' + JSON.stringify(daemon.status('shell1')),
+        );
+        daemon.request({ kind: 'close', id: 'close2', session: 'shell1' });
+        const again = await daemon.response('close2');
+        t.check(again?.ok === false, 'closing a session that has ended says it is not running', JSON.stringify(again));
+      }
 
       t.section('live: restart and exit');
       daemon.request({ kind: 'restart', id: 'restart1', harness: 'claude' });

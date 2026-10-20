@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.13.0
 
 - **Plain shell sessions.** `sandbox shell [project] [--shell pwsh|powershell|cmd]`, **New shell** on the Sessions
   page of the menu (`s`) and the web UI open PowerShell (7 when the sandbox has it, else 5.1) or cmd in a project of

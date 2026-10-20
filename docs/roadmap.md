@@ -38,7 +38,7 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 ### Web UI
 
-- **Plain shell sessions** (done, unreleased): PowerShell and cmd through ptyhost (`sandbox shell`, New shell in the
+- **Plain shell sessions** (done, 1.13.0): PowerShell and cmd through ptyhost (`sandbox shell`, New shell in the
   menu and the web UI), listed and attached like agents, and any session closed from every surface (`sandbox close`).
   See [web-ui.md](web-ui.md#shells-and-closing-sessions).
 - **Other Windows users** (done, 1.12.0): remote access lets another Windows user of this PC use your web UI or menu
@@ -57,7 +57,7 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 Details are in the [changelog](../CHANGELOG.md).
 
-- **Unreleased**: plain shell sessions and closing a session from the command line, the menu and the web UI.
+- **1.13.0**: plain shell sessions and closing a session from the command line, the menu and the web UI.
 - **1.12.0**: remote access (beta) for devices on your network and other Windows users of this PC; agent add-ons
   (rtk, Headroom, ccusage, MCP servers); the audit log on by default with the Activity page.
 - **1.11.x**: the web UI rebuilt on the shared core, with every area of the command line and the menu in it; the

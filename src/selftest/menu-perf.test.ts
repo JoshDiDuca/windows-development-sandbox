@@ -1,18 +1,29 @@
-// The menu stays quick: no key or draw waits for a child process (tasklist is faked and counted), a slow tab load shows
-// "Loading…" instead of holding up the keys, a held key is drawn once, and the terminal writes only the rows that
-// changed (the screen after the diffs is the same as a full draw, also after a resize).
+// The menu stays quick: no key or draw waits for a child process (tasklist is faked and counted), the first screen does
+// not wait for the process list, a slow tab load shows "Loading…" instead of holding up the keys, a section seen before
+// shows at once, a held key is drawn once, Esc is a key at once, an idle menu writes nothing, and the terminal writes
+// only the rows that changed (the screen after the diffs is the same as a full draw, also after a resize). The process
+// list is fetched only when it may have changed, and the settings file is read once for a whole list.
+import fs from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { ConfigFile } from '../app/features/settings/index.js';
 import { DEFAULTS } from '../core/config/index.js';
 import { sleep } from '../core/util/index.js';
 import { Menu } from '../cli/menu/menu.js';
-import { LiveStatus } from '../cli/menu/live.js';
+import { LiveStatus, listGap } from '../cli/menu/live.js';
 import { ListPage, type Outcome } from '../cli/menu/pages/list-page.js';
 import type { Context } from '../cli/commands/context.js';
 import type { CliOptions } from '../cli/args.js';
 import { App, Text, Terminal, type ListOptions, type Screen, type Size } from '../cli/tui/index.js';
-import { supportsSyncUpdate } from '../cli/tui/terminal.js';
-import { isSandboxRunning, useTasklistCache, useTasklistRunners } from '../host/sandbox/index.js';
+import { ESCAPE_TIMEOUT_MS, supportsSyncUpdate } from '../cli/tui/terminal.js';
+import {
+  isSandboxRunning,
+  readTasklist,
+  sandboxPids,
+  useTasklistCache,
+  useTasklistRunners,
+} from '../host/sandbox/index.js';
+import { staleMountNote } from '../host/storage/index.js';
 import type { Harness } from './support/harness.js';
 import type { Suite } from './support/suite.js';
 
@@ -157,6 +168,30 @@ export const menuPerfSuite: Suite = {
       );
     }
 
+    t.section('Esc is a key at once');
+    {
+      const tty = new FakeTty();
+      const term = tty.terminal();
+      term.start();
+      const times: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        const at = Date.now();
+        tty.type('\x1b');
+        const key = await term.key();
+        times.push(Date.now() - at);
+        if (key.name !== 'escape') times.push(9999);
+      }
+      tty.type('\x1b[B');
+      const arrow = await term.key();
+      term.stop();
+      t.check(
+        Math.max(...times) < 250 && ESCAPE_TIMEOUT_MS <= 50,
+        'Esc arrives in ' + times.join(', ') + ' ms (Node waits 500 ms for the rest of a sequence by default)',
+        times.join(', '),
+      );
+      t.check(arrow.name === 'down', 'an arrow key is still one key, not Esc and letters');
+    }
+
     t.section('a slow load does not hold up the keys');
     {
       const tty = new FakeTty();
@@ -164,9 +199,10 @@ export const menuPerfSuite: Suite = {
       class Slow extends ListPage<string> {
         readonly label = 'Slow';
         private rows: string[] = [];
+        next = ['alpha', 'beta'];
         protected async load(): Promise<void> {
           await sleep(500);
-          this.rows = ['alpha', 'beta'];
+          this.rows = this.next;
         }
         protected options(): ListOptions<string> {
           return { path: [], items: this.rows.map((r) => ({ value: r, label: r })) };
@@ -187,6 +223,19 @@ export const menuPerfSuite: Suite = {
       );
       const arrived = await t.waitFor(() => (text().includes('beta') ? true : null), 5000, 20);
       t.check(arrived === true && !page.loading, 'the list is built when the data arrives');
+
+      // Back on the section later: what it had shows at once, the fresh data replaces it when it is there.
+      page.next = ['alpha', 'gamma'];
+      const again = Date.now();
+      await page.show();
+      const shownIn = Date.now() - again;
+      t.check(
+        shownIn < 100 && text().includes('beta'),
+        'a section seen before shows its last data at once (in ' + shownIn + ' ms), not Loading…',
+        text(),
+      );
+      const fresh = await t.waitFor(() => (text().includes('gamma') ? true : null), 5000, 20);
+      t.check(fresh === true && !text().includes('beta'), 'and its fresh data when it has loaded');
     }
 
     t.section('no child process on a key or a draw');
@@ -215,24 +264,36 @@ export const menuPerfSuite: Suite = {
           return TASKLIST;
         },
         refreshMs: 100,
+        // The sandbox's process is gone at every look: the list is fetched again on every tick.
+        processAlive: () => false,
       });
+      const startedAt = Date.now();
       const done = menu.start();
-      const shown = await t.waitFor(() => tty.writes.length > 0, 20000, 20);
+      const shown = await t.waitFor(() => tty.writes.length > 0, 20000, 5);
+      const firstPaint = Date.now() - startedAt;
       t.check(shown === true, 'the menu draws its first screen');
+      t.check(
+        firstPaint < 1000,
+        'the first screen does not wait for a 1.5 second process list (drawn after ' + firstPaint + ' ms)',
+      );
       const slowest = { ms: 0, key: '' };
+      const took: number[] = [];
       const press = async (name: string, bytes: string): Promise<void> => {
         const before = tty.writes.length;
         const at = Date.now();
         tty.type(bytes);
         // Not every key changes the screen: give the ones that do a chance, and measure those.
-        await t.waitFor(() => tty.writes.length > before, 400, 5);
-        const took = Date.now() - at;
-        if (tty.writes.length > before && took > slowest.ms) {
-          slowest.ms = took;
+        await t.waitFor(() => tty.writes.length > before, 400, 2);
+        const ms = Date.now() - at;
+        if (tty.writes.length > before) took.push(ms);
+        if (tty.writes.length > before && ms > slowest.ms) {
+          slowest.ms = ms;
           slowest.key = name;
         }
         await sleep(15);
       };
+      // The pages have their data (the first process list came after 1.5 s).
+      await sleep(1700);
       const syncBefore = calls.sync;
       for (const section of ['2', '3', '4', '5', '6', '7', '1']) await press('section ' + section, section);
       for (const k of ['down', 'down', 'up', 'left', 'down', 'down', 'right', 'down', 'down', 'tab'] as const)
@@ -251,6 +312,26 @@ export const menuPerfSuite: Suite = {
           ' ' +
           slowest.ms +
           ' ms)',
+      );
+      const median = [...took].sort((a, b) => a - b)[Math.floor(took.length / 2)] ?? 9999;
+      t.check(median < 100, 'a key is usually drawn at once (median ' + median + ' ms over ' + took.length + ' keys)');
+
+      // Left alone, the menu writes nothing: the process list keeps coming (every tick here), but nothing on the
+      // screen changes, so nothing is drawn.
+      await sleep(300);
+      const idleFrom = tty.writes.length;
+      const fetchesFrom = calls.async;
+      await sleep(3000);
+      const idleWrites = tty.writes.slice(idleFrom);
+      const idleBytes = idleWrites.join('').length;
+      t.check(
+        idleWrites.length <= 1 && idleBytes < 4000 && calls.async > fetchesFrom,
+        'an idle menu writes nothing for 3 s (' +
+          idleWrites.length +
+          ' writes, ' +
+          idleBytes +
+          ' bytes) while the process list is looked at in the background',
+        Text.strip(idleWrites.join('')).slice(0, 300),
       );
       tty.type(KEYS.ctrlC);
       const code = await Promise.race([done, sleep(5000).then(() => -1)]);
@@ -284,6 +365,159 @@ export const menuPerfSuite: Suite = {
       facts = 'c';
       await sleep(80);
       t.check(live.line() === 'status b' && changes === 2, 'a stopped status looks at nothing');
+    }
+
+    t.section('the process list is fetched only when it may have changed');
+    {
+      t.equal(
+        [0, 1, 2, 3, 4, 10, -1].map((n) => listGap(n, 2500, 30000)),
+        [2500, 5000, 10000, 20000, 30000, 30000, 2500],
+        'while nothing changes, the gap between two lists doubles up to the longest',
+      );
+      t.equal(
+        sandboxPids(TASKLIST + '\r\n"WindowsSandbox.exe","77","Console","1","5 K"'),
+        [4242, 77],
+        'the ids of the sandbox programs are read from the list',
+      );
+
+      // A sandbox runs: its programs are checked by id, and the list is fetched again only when one has ended.
+      let fetches = 0;
+      let derived = 0;
+      let alive = true;
+      const running = new LiveStatus({
+        fetch: () => {
+          fetches++;
+          return Promise.resolve(TASKLIST);
+        },
+        derive: () => String(++derived),
+        onChange: () => undefined,
+        intervalMs: 20,
+        alive: () => alive,
+        needsList: () => true,
+      });
+      await running.start();
+      await sleep(400);
+      t.check(
+        fetches === 1 && derived > 5,
+        'while the sandbox runs, its programs are checked by id: no new list (' +
+          fetches +
+          ' fetched), the line is still derived (' +
+          derived +
+          ' times)',
+      );
+      alive = false;
+      const refetched = await t.waitFor(() => fetches > 1, 3000, 10);
+      running.stop();
+      t.check(refetched === true, 'when one of them has ended, the list is fetched again');
+
+      // None runs: fewer and fewer lists, one at once after a key press or when the data folder changes.
+      fetches = 0;
+      let signal = 'a';
+      const idle = new LiveStatus({
+        fetch: () => {
+          fetches++;
+          return Promise.resolve('"System Idle Process","0","Services","0","8 K"');
+        },
+        derive: () => 'none',
+        onChange: () => undefined,
+        intervalMs: 20,
+        idleMaxMs: 100000,
+        needsList: () => true,
+        signal: () => signal,
+      });
+      await idle.start();
+      await sleep(1000);
+      const quiet = fetches;
+      t.check(
+        quiet >= 2 && quiet <= 8,
+        'with nothing running, a second of 20 ms ticks fetched the list ' + quiet + ' times (not 50)',
+      );
+      signal = 'b';
+      const onSignal = await t.waitFor(() => fetches > quiet, 1000, 5);
+      t.check(onSignal === true, 'a change in the data folder fetches the list at once');
+      await sleep(100);
+      const beforeKey = fetches;
+      idle.touch();
+      const onKey = await t.waitFor(() => fetches > beforeKey, 1000, 5);
+      idle.stop();
+      t.check(onKey === true, 'so does a key press (someone is looking)');
+
+      // Inside a sandbox the list is never needed: nothing runs tasklist, not even a question asked meanwhile.
+      fetches = 0;
+      let syncRuns = 0;
+      useTasklistRunners({
+        sync: () => {
+          syncRuns++;
+          return '';
+        },
+        async: () => Promise.resolve(''),
+      });
+      try {
+        const inside = new LiveStatus({
+          fetch: () => {
+            fetches++;
+            return Promise.resolve('');
+          },
+          derive: () => 'inside',
+          onChange: () => undefined,
+          intervalMs: 20,
+          needsList: () => false,
+        });
+        await inside.start();
+        await sleep(200);
+        const list = readTasklist();
+        inside.stop();
+        t.check(
+          fetches === 0 && syncRuns === 0 && list === '',
+          'when the list is not needed, it is never fetched and nothing asks tasklist meanwhile',
+        );
+      } finally {
+        useTasklistRunners();
+      }
+    }
+
+    t.section('nothing before the menu waits for tasklist');
+    {
+      let asked = 0;
+      const note = staleMountNote(t.dir('no-mounts'), 'main', () => {
+        asked++;
+        return false;
+      });
+      t.check(note === null && asked === 0, 'with no image mounted, "is a sandbox running?" is not even asked');
+    }
+
+    t.section('the settings file is read once for a whole list');
+    {
+      const file = t.write(
+        t.at('settings', 'config.json'),
+        JSON.stringify({ defaultHarness: 'codex', workspaceFilter: { exclude: ['a', 'b'] } }),
+      );
+      const config = new ConfigFile('user', file);
+      const reads = { count: 0 };
+      const original = fs.readFileSync;
+      const counting = ((...args: Parameters<typeof fs.readFileSync>) => {
+        if (String(args[0]) === file) reads.count++;
+        return original(...args);
+      }) as typeof fs.readFileSync;
+      fs.readFileSync = counting;
+      let first: unknown[];
+      try {
+        first = Array.from({ length: 200 }, () => config.valueInFile(['defaultHarness']));
+      } finally {
+        fs.readFileSync = original;
+      }
+      t.check(
+        reads.count === 1 && first.every((v) => v === 'codex'),
+        '200 values in one run read the file once (' + reads.count + ' reads)',
+      );
+      const exclude = ['workspaceFilter', 'exclude'];
+      (config.valueInFile(exclude) as string[]).push('c');
+      t.equal(config.valueInFile(exclude), ['a', 'b'], 'a value handed out is a copy (changing it changes nothing)');
+      fs.writeFileSync(file, JSON.stringify({ defaultHarness: 'gemini' }));
+      await Promise.resolve();
+      t.equal(config.valueInFile(['defaultHarness']), 'gemini', 'the next run reads the file again (a change outside)');
+      const result = config.set(['defaultHarness'], 'opencode');
+      t.equal([result, config.valueInFile(['defaultHarness'])], ['saved', 'opencode'], 'a save is seen at once');
     }
   },
 };

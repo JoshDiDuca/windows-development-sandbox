@@ -126,11 +126,20 @@ export const useAccount = defineOperation({
 export const defaultAccount = defineOperation({
   id: 'accounts.default',
   title: 'Make default',
-  summary: 'the login new launches start with',
-  input: z.object({ agent: AgentSchema, name: NameSchema }),
+  summary: 'the login every launch starts with; the sandbox switches to it now too',
+  input: z.object({
+    agent: AgentSchema,
+    name: NameSchema,
+    noRestart: z.boolean().default(false).describe('(default) do not restart running sessions'),
+  }),
   output: MessageSchema,
   text: (o) => o.message,
-  cli: { name: 'account', action: 'default', positional: ['name'], flags: { agent: { flag: '--agent' } } },
+  cli: {
+    name: 'account',
+    action: 'default',
+    positional: ['name'],
+    flags: { agent: { flag: '--agent' }, noRestart: { flag: '--no-restart' } },
+  },
 });
 
 export const renameAccount = defineOperation({

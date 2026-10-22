@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { AccountStore } from '../../../host/profile/index.js';
+import { AccountsService } from '../../services/index.js';
 import { SandboxChannel } from '../../../host/channel/index.js';
 import { describePrune, hostDataFolder, pruneStorage } from '../../../host/storage/index.js';
 import { RepoGuardStore, readDataSize, saveMarkedProjects } from '../../../host/guard/index.js';
@@ -94,6 +94,28 @@ async function prepareWorkspaceView(ctx: Context, run: ResolvedRun): Promise<str
   );
 }
 
+/**
+ * Every agent that keeps a login starts the new sandbox on its default (the launched agent on --account when given),
+ * so a session of any agent opened later uses the login you chose. Returns the launched agent's login.
+ */
+function launchAccounts(ctx: Context, launched: string, wanted: string | null): string | null {
+  const accounts = new AccountsService(ctx);
+  let account: string | null = null;
+  for (const agent of accounts.agents().filter((a) => a.kept)) {
+    if (agent.name === launched) {
+      account = accounts.ensure(launched, wanted);
+      continue;
+    }
+    try {
+      accounts.ensure(agent.name, null);
+    } catch (e) {
+      // Another agent's saved login could not be put in place: the launch goes on, and that agent says so.
+      console.warn(c.yellow('Could not switch ' + agent.name + ' to its default account: ' + errMsg(e)));
+    }
+  }
+  return account;
+}
+
 /** What prepare did, for the launch summary. */
 export interface Prepared {
   readonly account: string | null;
@@ -107,11 +129,7 @@ export interface Prepared {
 export async function prepare(ctx: Context, run: ResolvedRun): Promise<Prepared> {
   const { options, dataPath, storageRoot } = ctx;
   const { config } = run;
-  const accounts = new AccountStore(storageRoot, config.claudeProfile.sharePluginsAcrossAccounts);
-  const account = options.account ?? accounts.defaultName();
-  if (account && run.harnessName === 'claude' && account !== accounts.activeFor(dataPath))
-    accounts.activate(dataPath, account);
-  else if (run.harnessName === 'claude') accounts.syncPlugins(dataPath);
+  const account = launchAccounts(ctx, run.harnessName, options.account ?? null);
   const terminal = config.provisioning.terminal.enabled
     ? await ensureTerminal(dataPath, config.provisioning.refresh, { pwsh: config.toolchains.pwsh.enabled !== false })
     : { exe: null, message: 'disabled' };

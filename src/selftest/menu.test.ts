@@ -1008,6 +1008,18 @@ export const menuSuite: Suite = {
       ],
       'rename keeps the default and active marks',
     );
+    const ensured = [service.ensure('codex', 'main'), service.activeName('codex'), fs.readFileSync(codexAuth, 'utf8')];
+    t.equal(ensured, ['main', 'main', '{"token":"A"}'], 'a launch with --account switches the sandbox to that login');
+    t.equal(
+      [service.ensure('codex', null), service.activeName('codex'), fs.readFileSync(codexAuth, 'utf8')],
+      ['second', 'second', '{"token":"B2"}'],
+      'a launch without --account switches the sandbox back to the default login',
+    );
+    t.equal(
+      [service.ensure('claude', null), service.ensure('nobody', 'x')],
+      [null, null],
+      'an agent with no saved login, or one that keeps no login: nothing to switch',
+    );
     await t.throws(() => service.save('x', false, 'nobody'), 'Unknown agent', 'an unknown agent: refused');
     await t.throws(() => service.save('bad name', false, 'codex'), 'Invalid account name', 'bad names are refused');
 

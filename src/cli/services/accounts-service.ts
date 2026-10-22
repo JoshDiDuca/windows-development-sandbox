@@ -116,6 +116,24 @@ export class AccountsService {
     return { name, email: null };
   }
 
+  /** The agent's default login, if it keeps logins and one is set. */
+  defaultName(agent = CLAUDE): string | null {
+    return agent === CLAUDE ? this.claude.defaultName() : this.other(agent).store.defaultName();
+  }
+
+  /**
+   * Makes the sandbox use `wanted`, else the agent's default, when it uses another login now (a launch, or a session
+   * started with --account). Returns the login it then uses; null when the agent keeps no login or none is saved.
+   */
+  ensure(agent: string, wanted: string | null): string | null {
+    if (!this.agents().some((a) => a.name === agent && a.kept)) return null;
+    const name = wanted ?? this.defaultName(agent);
+    if (!name) return this.activeName(agent);
+    if (name !== this.activeName(agent)) this.activate(name, agent);
+    else if (agent === CLAUDE) this.claude.syncPlugins(this.ctx.dataPath);
+    return name;
+  }
+
   /** Whether a session of this agent is running that would pick up a new login on restart. */
   hasRunningSessions(agent = CLAUDE): boolean {
     return (

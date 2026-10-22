@@ -7,6 +7,14 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.13.1
+
+- **Accounts follow your choice for every agent.** `sandbox account default <name>` (and Make default in the menu and
+  the web UI) switches the sandbox to that login at once, offering to restart running sessions, instead of only from
+  the next new sandbox. Every launch puts each agent that keeps its login on its default, not only Claude, and
+  `--account` works for the launched agent (`sandbox codex --account main`) and for a new session in a running sandbox,
+  which used to ignore it.
+
 ## 1.13.0
 
 - **Plain shell sessions.** `sandbox shell [project] [--shell pwsh|powershell|cmd]`, **New shell** on the Sessions

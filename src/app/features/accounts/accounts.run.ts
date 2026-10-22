@@ -88,34 +88,50 @@ export const saveAccountRun = implement(saveAccount, async (ctx, input, io) => {
   return { name: saved.name, message: 'Saved account ' + label(saved) + '.' };
 });
 
-export const useAccountRun = implement(useAccount, async (ctx, input, io) => {
-  const service = new AccountsService(ctx);
-  const name = await accountName(io, service, 'use', input.agent, input.name);
-  // The switch is done before the question: a "no" to the restart keeps the new login and only skips the restart.
-  const used = service.activate(name, input.agent);
+/**
+ * Makes the sandbox use a saved login, then offers to restart the agent's running sessions. The switch is done before
+ * the question: a "no" keeps the new login and only skips the restart.
+ */
+async function switchTo(
+  io: OperationIO,
+  service: AccountsService,
+  name: string,
+  agent: string,
+  noRestart: boolean,
+): Promise<string[]> {
+  const used = service.activate(name, agent);
   const lines = ['Sandbox now uses ' + label(used) + '.'];
   if (used.note) lines.push(safeText(used.note));
-  if (service.hasRunningSessions(input.agent) && !input.noRestart) {
+  if (service.hasRunningSessions(agent) && !noRestart) {
     const restart = await io.confirm({
-      title: 'Restart the running ' + input.agent + ' sessions?',
+      title: 'Restart the running ' + agent + ' sessions?',
       lines: ['They restart and continue their conversation where the agent can, now under the new login.'],
       yes: 'Restart',
       implied: true,
     });
     if (restart)
       lines.push(
-        safeText(await service.restart(input.agent)) +
-          ' with --continue; the conversation carries on under the new account.',
+        safeText(await service.restart(agent)) + ' with --continue; the conversation carries on under the new account.',
       );
   }
-  return { lines };
+  return lines;
+}
+
+export const useAccountRun = implement(useAccount, async (ctx, input, io) => {
+  const service = new AccountsService(ctx);
+  const name = await accountName(io, service, 'use', input.agent, input.name);
+  return { lines: await switchTo(io, service, name, input.agent, input.noRestart) };
 });
 
 export const defaultAccountRun = implement(defaultAccount, async (ctx, input, io) => {
   const service = new AccountsService(ctx);
   const name = await accountName(io, service, 'default', input.agent, input.name);
   service.setDefault(name, input.agent);
-  return { message: 'Default account: ' + name };
+  const lines = ['Default account: ' + name];
+  // The sandbox follows the new default at once (not only from the next launch).
+  if (service.activeName(input.agent) !== name)
+    lines.push(...(await switchTo(io, service, name, input.agent, input.noRestart)));
+  return { message: lines.join('\n') };
 });
 
 export const renameAccountRun = implement(renameAccount, async (ctx, input, io) => {

@@ -345,9 +345,15 @@ are not. What ran is noted every minute while the sandbox runs, on this PC (`<st
 ```powershell
 sandbox account save personal          # the login currently in the sandbox
 sandbox account save work --from-host  # or this PC's login
-sandbox account default personal       # for new sandboxes
+sandbox account default personal       # every launch starts on it; the sandbox switches to it now too
 sandbox account use work               # switch now: Claude restarts and continues the conversation
+sandbox claude --account work          # this launch (or new session in a running sandbox) uses work
 ```
+
+The same works for every agent that keeps its login (`--agent codex` and so on). Each launch puts every agent on its
+default login, so a session of any agent you open later uses the login you chose. `use` switches only until the next
+launch; `default` stays. When agent sessions are running, both offer to restart them under the new login
+(`--no-restart` skips that; they switch at their next restart).
 
 All accounts of one data set share one Claude folder, so plugins installed in the sandbox already stay when you switch.
 They do not reach another data set (`storage.dataName`). Set `claudeProfile.sharePluginsAcrossAccounts` to `true` (off by

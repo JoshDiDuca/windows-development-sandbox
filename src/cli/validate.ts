@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DATABASES } from '../core/detect/index.js';
 import { fail } from '../core/util/index.js';
-import { AccountStore } from '../host/profile/index.js';
+import { AccountsService } from './services/accounts-service.js';
 import type { CliOptions } from './args.js';
 import type { Context } from './commands/context.js';
 
@@ -95,15 +95,19 @@ export function validateOptions(ctx: Context): void {
       unknownValue('database', db, DATABASES, 'Repeat --database for several.');
   }
   if (o.account !== undefined) {
-    const names = new AccountStore(ctx.storageRoot).list(ctx.dataPath).map((a) => a.name);
+    // The launched agent's saved logins (an agent that keeps none says so).
+    const agent = o.harness ?? ctx.loaded.config.defaultHarness;
+    const names = new AccountsService(ctx).list(agent).map((a) => a.name);
     if (!names.includes(o.account))
       unknownValue(
         'account',
         o.account,
         names,
         names.length
-          ? 'See them with: sandbox account list'
-          : 'None saved yet: sign in inside the sandbox, then run sandbox account save <name>.',
+          ? 'See them with: sandbox account list' + (agent === 'claude' ? '' : ' --agent ' + agent)
+          : 'None saved yet: sign in inside the sandbox, then run sandbox account save <name>' +
+              (agent === 'claude' ? '' : ' --agent ' + agent) +
+              '.',
       );
   }
   for (const s of o.sessions) {

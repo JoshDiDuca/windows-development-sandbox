@@ -7,6 +7,7 @@ import { RunDir } from '../../../shared/channel/index.js';
 import type { SandboxStatus, SessionStatus } from '../../../core/types.js';
 import { errMsg, fail, sleep } from '../../../core/util/index.js';
 import { c, follow, working, table, type Progressing } from '../../output/index.js';
+import { AccountsService } from '../../services/index.js';
 import { bootLine, readyIn, stillWorking } from './boot-progress.js';
 import type { Context } from '../context.js';
 import { hereDir, joinHere, readyHere, offerRestart, type Joined, type Relauncher } from '../projects/index.js';
@@ -115,6 +116,8 @@ function requestSession(
   joined: Joined,
 ): string {
   const harnessSpec = ctx.loaded.config.harnesses[harness];
+  // --account into a running sandbox switches its login first (sessions already running switch on their restart).
+  if (ctx.options.account && !ctx.borrowed) new AccountsService(ctx).ensure(harness, ctx.options.account);
   return channel.requestSession(harness, args, joined.guestDir, {
     ...(joined.spec ? { project: joined.spec } : {}),
     ...(harnessSpec ? { harnessSpec } : {}),

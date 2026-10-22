@@ -7,6 +7,18 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.13.2
+
+- **The menu is fast.** Measured, then fixed:
+  - Esc goes back at once (it waited 500 ms).
+  - The first screen draws in about a third of the time: the commands load as one bundle, and the menu no longer waits
+    for the process list.
+  - A section you have seen opens instantly and refreshes behind.
+  - Settings read the settings file once instead of about four times per setting.
+  - The process list (tasklist), which ran every 2.5 s for as long as the menu was open, now runs only when something
+    changed: while a sandbox runs, its processes are checked by id. Idle CPU goes from 6-10 % to about 0.
+  - No command runs tasklist before it starts any more.
+
 ## 1.13.1
 
 - **Accounts follow your choice for every agent.** `sandbox account default <name>` (and Make default in the menu and

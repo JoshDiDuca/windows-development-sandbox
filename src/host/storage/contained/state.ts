@@ -193,12 +193,13 @@ export function mountedSets(storageRoot: string): string[] {
 
 /**
  * A line for the start of a command when the record says an image is mounted that no running process holds and no
- * sandbox uses (nothing is looked up on the disk: this is only the record), or null.
+ * sandbox uses (nothing is looked up on the disk: this is only the record), or null. `sandboxRunning` can be a
+ * function: it is only asked (it runs tasklist) when the record says an image is mounted.
  */
 export function staleMountNote(
   storageRoot: string,
   set: string,
-  sandboxRunning: boolean,
+  sandboxRunning: boolean | (() => boolean),
   alive: (pid: number) => boolean = processAlive,
 ): string | null {
   const record = setStateOf(
@@ -206,6 +207,7 @@ export function staleMountNote(
       EMPTY_STATE,
     set,
   );
-  if (!record.mounted || sandboxRunning || record.holders.some((h) => alive(h.pid))) return null;
+  if (!record.mounted || record.holders.some((h) => alive(h.pid))) return null;
+  if (typeof sandboxRunning === 'function' ? sandboxRunning() : sandboxRunning) return null;
   return 'Contained storage is still mounted from an earlier sandbox. Run sandbox repair to dismount it (Windows asks for permission).';
 }

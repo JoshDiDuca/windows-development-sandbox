@@ -70,9 +70,18 @@ export function masked(key: readonly string[], value: unknown): unknown {
   return _.get(redactSecrets(_.set({}, key, structuredClone(value))), key);
 }
 
+/** The keys a project file's schema can set, worked out once per schema (a list asks for it on every row). */
+const projectKeysOf = new WeakMap<SchemaNode, ReadonlySet<string>>();
+
 /** The keys a project file can set. */
 function projectKeys(files: SettingsFiles): ReadonlySet<string> {
-  return new Set(files.project.schema.leaves().map((l) => l.key.join('.')));
+  const schema = files.project.schema;
+  let keys = projectKeysOf.get(schema);
+  if (!keys) {
+    keys = new Set(schema.leaves().map((l) => l.key.join('.')));
+    projectKeysOf.set(schema, keys);
+  }
+  return keys;
 }
 
 /** One setting's row in a scope (`config` and `inProject` can be passed when making many rows). */

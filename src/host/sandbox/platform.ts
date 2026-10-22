@@ -14,17 +14,19 @@ const START_WAIT_MS = 20000;
 
 const SANDBOX_PROCESSES = ['WindowsSandboxClient.exe', 'WindowsSandboxRemoteSession.exe', 'WindowsSandbox.exe'];
 
+/** Whether the launch and data folders are mapped in (looked for once; see insideSandbox). */
+let mappedIn: boolean | undefined;
+
 /**
  * Running INSIDE a Windows Sandbox this tool started (its launch folder and data folder are mapped in): then the CLI
  * talks to the sandbox it is in, through C:\\AgentData and loopback, instead of looking for one on a PC.
  */
 export function insideSandbox(): boolean {
-  return (
-    isWin &&
-    !process.env.AGENT_SANDBOX_HOST_ONLY &&
-    fs.existsSync('C:\\AgentLaunch\\session.json') &&
-    fs.existsSync('C:\\AgentData\\run')
-  );
+  if (!isWin || process.env.AGENT_SANDBOX_HOST_ONLY) return false;
+  // The launch folder and the data folder are mapped in for the sandbox's whole life (and never exist on a PC), so
+  // they are looked for once: the menu asks this many times a second.
+  mappedIn ??= fs.existsSync('C:\\AgentLaunch\\session.json') && fs.existsSync('C:\\AgentData\\run');
+  return mappedIn;
 }
 export const GUEST_DATA_DIR = 'C:\\AgentData';
 
@@ -32,6 +34,17 @@ export const GUEST_DATA_DIR = 'C:\\AgentData';
 export function sandboxInTasklist(tasklist: string): boolean {
   const out = tasklist.toLowerCase();
   return SANDBOX_PROCESSES.some((image: string) => out.includes('"' + image.toLowerCase() + '"'));
+}
+
+/** The process ids of the Windows Sandbox programs in this process list (tasklist /NH /FO CSV output). */
+export function sandboxPids(tasklist: string): number[] {
+  const images = new Set(SANDBOX_PROCESSES.map((image) => image.toLowerCase()));
+  const pids: number[] = [];
+  for (const line of tasklist.split('\n')) {
+    const row = /^"([^"]{1,260})","(\d{1,10})"/.exec(line);
+    if (row && images.has(row[1].toLowerCase())) pids.push(Number(row[2]));
+  }
+  return pids;
 }
 
 export function isSandboxRunning(): boolean {

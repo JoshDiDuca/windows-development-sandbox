@@ -139,6 +139,21 @@ export abstract class ListPage<T> implements Page {
   }
 
   /**
+   * The section came on screen again: it shows what it had at once and loads the data again after that screen is
+   * drawn (the list is rebuilt on the entry and search the user is on). The first time, it is open().
+   */
+  async show(): Promise<void> {
+    if (!this.loaded) return this.open();
+    const mine = ++this.generation;
+    setImmediate(() => {
+      if (mine !== this.generation) return;
+      void this.loadData().then(() => {
+        if (mine === this.generation) this.rebuildLate();
+      });
+    });
+  }
+
+  /**
    * Loads the data and waits for it at most QUICK_LOAD_MS. In time, the list is built here (`build`) or by the caller;
    * later, the list is built when the data arrives, on the entry and search the user has moved to meanwhile.
    */
@@ -164,6 +179,8 @@ export abstract class ListPage<T> implements Page {
 
   private async loadData(): Promise<void> {
     try {
+      // The first screen is drawn before the menu's facts (the process list) are known; loads wait for them.
+      await this.app.ready;
       await this.load();
     } catch (e) {
       this.say(Theme.error(Theme.glyph.cross + ' ' + errMsg(e)));

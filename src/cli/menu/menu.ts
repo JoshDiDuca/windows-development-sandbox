@@ -6,6 +6,7 @@ import path from 'node:path';
 import { loadConfig } from '../../core/config/index.js';
 import { errMsg } from '../../core/util/index.js';
 import { SandboxChannel } from '../../host/channel/index.js';
+import { RunDir } from '../../shared/channel/index.js';
 import { isSandboxRunning } from '../../host/sandbox/index.js';
 import type { Context } from '../commands/context.js';
 import { lookAtSandbox } from '../commands/shared-use.js';
@@ -29,11 +30,21 @@ import { SECTION_LABELS, Shell, type MenuView } from './shell.js';
 /** Where the menu was last left: it opens there again (also in a later run, from menu-state.json). */
 let lastView: MenuView | undefined;
 
-/** What a test may replace: the terminal, the process list fetch and how often it is fetched. */
+/** What a test may replace: the terminal, the process list fetch, how often it is fetched and the process check. */
 export interface MenuOptions {
   readonly terminal?: Terminal;
   readonly fetchTasklist?: () => Promise<string>;
   readonly refreshMs?: number;
+  readonly processAlive?: (pid: number) => boolean;
+}
+
+/** When the data folder's run folder last changed (a start writes there): a stat, never a read of what is in it. */
+function runFolderStamp(dataPath: string): string {
+  try {
+    return String(fs.lstatSync(new RunDir(dataPath).root).mtimeMs);
+  } catch {
+    return '';
+  }
 }
 
 export class Menu {
@@ -51,9 +62,12 @@ export class Menu {
       derive: () => this.status(),
       onChange: () => this.app.requestRedraw(),
       intervalMs: options.refreshMs,
+      alive: options.processAlive,
+      signal: () => runFolderStamp(ctx.dataPath),
     });
     this.app.status = () => this.live.line();
     this.app.afterAction = () => this.live.refresh();
+    this.app.onKey = () => this.live.touch();
     try {
       Frame.version =
         (JSON.parse(fs.readFileSync(path.join(ctx.packageRoot, 'package.json'), 'utf8')) as { version?: string })
@@ -118,7 +132,8 @@ export class Menu {
     }
     try {
       const shell = this.shell();
-      await this.live.start();
+      // The first screen does not wait for the process list: the pages show "Loading…" until it is there.
+      this.app.ready = this.live.start();
       await shell.restore(lastView ?? readMenuView(SECTION_LABELS) ?? { section: 0, screens: {} });
       for (;;) {
         const exit = await this.app.show(shell);
@@ -132,7 +147,7 @@ export class Menu {
           const code = await this.execute(exit.argv);
           if (code !== undefined) return code;
         }
-        await this.live.start();
+        this.app.ready = this.live.start();
         await shell.reload();
       }
     } catch (e) {

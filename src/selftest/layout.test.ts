@@ -1,6 +1,7 @@
 // The architecture rules, checked on the compiled output (dist/**/*.js): which areas may import which, the guest's
 // portable core, the pure guest files the host and tests may load without the guest runtime's side effects, and no
-// import cycles. The bundled dist/runtime is left out (it has no imports).
+// import cycles. The bundled dist/runtime is left out (it has no imports); the bundled commands (dist/bin) must import
+// only their own chunks.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Suite } from './support/suite.js';
@@ -188,5 +189,20 @@ export const layoutSuite: Suite = {
           .map((d) => f + ' -> ' + d),
       );
     t.check(!intoApp.length, 'below the CLI only host code uses the shared core, and only its kernel', list(intoApp));
+
+    t.section('the commands');
+    // Loading the CLI as hundreds of modules took most of a second before anything was shown (scripts/bundle.mjs).
+    const bins = files.filter((f) => area(f) === 'bin');
+    const unbundled = bins.flatMap((f) =>
+      modules
+        .get(f)!
+        .statics.filter((d) => area(d) !== 'bin')
+        .map((d) => f + ' -> ' + d),
+    );
+    t.check(
+      bins.includes('bin/sandbox.js') && bins.some((f) => f.startsWith('bin/chunk-')) && !unbundled.length,
+      'the commands (dist/bin) are bundled: they load no compiled module one by one',
+      list(unbundled),
+    );
   },
 };

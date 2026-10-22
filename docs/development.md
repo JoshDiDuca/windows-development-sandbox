@@ -44,7 +44,15 @@ node dist/bin/agent-sandbox.js self-test nope         # prints the list of suite
 - The `layout` suite checks the compiled imports: guest code reaches only the portable core, nothing imports an entry
   point, there are no import cycles, and the pure guest files host code and tests may load never pull in the guest
   runtime's side effects.
+  It also checks that the commands in `dist/bin` are bundled.
+- The `menu-perf` suite keeps the menu quick: no key or draw runs a program, the first screen does not wait for the
+  process list, a key is drawn at once, Esc is not held back, and an idle menu writes nothing.
 - Slowest suites: `host-sim` (every command as its own Node process, two at a time), then the live ones.
+
+The build bundles the commands (`dist/bin/*.js` and their `chunk-*.js`, `scripts/bundle.mjs`) over what tsc wrote: the
+CLI as hundreds of separate modules took most of a second to load before the menu could draw. The rest of `dist` stays
+as tsc wrote it (the self-test, `api.js` and the tests load it). In the menu, nothing runs a program per draw, key or
+tick: the process list (tasklist) is fetched in the background and only when it may have changed (`cli/menu/live.ts`).
 
 CI builds on Node 22 and on the official Node 22.0.0 zip (the oldest Node users run it on, so dependencies must not
 need newer), and runs the self-test as information only. Releases and `npm run publish:npm` run no tests.

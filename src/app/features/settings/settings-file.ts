@@ -52,6 +52,8 @@ export interface SettingChange {
 
 export class ConfigFile {
   readonly schema: SchemaNode;
+  /** The file as read in this synchronous run (see read). */
+  private snapshot: { text: string; parsed: unknown } | undefined;
 
   constructor(
     readonly target: SettingsTarget,
@@ -74,12 +76,27 @@ export class ConfigFile {
     return fs.existsSync(this.file);
   }
   text(): string {
-    return this.exists ? fs.readFileSync(this.file, 'utf8') : '';
+    return this.read().text;
   }
 
   /** The value written in this file (undefined = not set here). */
   valueInFile(key: string[]): unknown {
-    return fileValue(this.text(), key);
+    const value: unknown = _.get(this.read().parsed, key);
+    // A copy: the parsed file is shared by every read in this run.
+    return value !== null && typeof value === 'object' ? structuredClone(value) : value;
+  }
+
+  /**
+   * The file's text and what it parses to, read once per synchronous run: the settings list asks for every setting's
+   * value (hundreds of reads), and the next run (after a key, a save or a change outside) reads the file again.
+   */
+  private read(): { text: string; parsed: unknown } {
+    if (!this.snapshot) {
+      const text = this.exists ? fs.readFileSync(this.file, 'utf8') : '';
+      this.snapshot = { text, parsed: parse(text) ?? {} };
+      queueMicrotask(() => (this.snapshot = undefined));
+    }
+    return this.snapshot;
   }
 
   /** Your own settings with the built-in defaults filled in (what a sandbox uses without a project file). */
@@ -125,6 +142,7 @@ export class ConfigFile {
     if (text === original) return 'unchanged';
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     fs.writeFileSync(this.file, text, 'utf8');
+    this.snapshot = undefined;
     return 'saved';
   }
 }

@@ -26,6 +26,13 @@ export class ExitRequested extends Error {
 const SYNC_BEGIN = '\x1b[?2026h';
 const SYNC_END = '\x1b[?2026l';
 
+/**
+ * How long a lone ESC waits for the rest of an escape sequence before it counts as the Esc key. Node's default is
+ * 500 ms, which every Esc (back, close) waited for. Terminals send a key's whole sequence in one write, so a short wait
+ * is enough.
+ */
+export const ESCAPE_TIMEOUT_MS = 25;
+
 /** Whether this terminal is known to take synchronized updates (AGENT_SANDBOX_SYNC_UPDATE=1 or 0 overrides). */
 export function supportsSyncUpdate(env: NodeJS.ProcessEnv = process.env): boolean {
   const forced = env.AGENT_SANDBOX_SYNC_UPDATE;
@@ -72,7 +79,8 @@ export class Terminal {
     if (this.active) return;
     this.active = true;
     this.frame = [];
-    readline.emitKeypressEvents(this.stdin);
+    // The first call on a stream sets its decoder; later calls (and readline interfaces) keep it.
+    readline.emitKeypressEvents(this.stdin, { escapeCodeTimeout: ESCAPE_TIMEOUT_MS } as unknown as readline.Interface);
     if (this.stdin.isTTY) this.stdin.setRawMode(true);
     this.stdin.on('keypress', this.onKeypress);
     this.stdin.resume();

@@ -23,6 +23,10 @@ export class App {
   status: () => string = () => '';
   /** Awaited after an action changed something, before the screen loads what it shows again. */
   afterAction: () => Promise<void> = () => Promise.resolve();
+  /** Settles when the facts pages load from are known (the first screen is drawn without waiting for it). */
+  ready: Promise<void> = Promise.resolve();
+  /** Told about every key (after it was handled and drawn): someone is looking at the screen. */
+  onKey: () => void = () => undefined;
   /** The navigation on the left of every screen (none: no navigation column). */
   nav: () => NavState | undefined = () => undefined;
   /** The screens being shown, innermost last: a dialog is drawn over the one below it. */
@@ -78,6 +82,7 @@ export class App {
           drawnAt = Date.now();
         }
         const step = await screen.handle(await this.terminal.key());
+        this.onKey();
         if (step) return step.done;
       }
     } finally {

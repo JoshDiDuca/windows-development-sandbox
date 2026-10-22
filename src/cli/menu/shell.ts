@@ -49,6 +49,8 @@ export interface Page {
   setFocus(list: boolean): void;
   /** The section was opened (or the shell came back from a command): load what it shows again. */
   open(): Promise<void>;
+  /** The section came on screen again: show what it had at once and load it again in the background (default open). */
+  show?(): Promise<void>;
   render(size: Size): FrameParts;
   /** A `quit` from the page means "Esc with nothing left to close": the shell moves to the navigation. */
   handle(key: Key): Promise<Step<ShellExit>> | Step<ShellExit>;
@@ -133,7 +135,7 @@ export class Shell implements Screen<ShellExit> {
     this.remember();
     this.active = Math.max(0, Math.min(this.pages.length - 1, index));
     this.page.setFocus(this.focus === 'list');
-    await this.page.open();
+    await (this.page.show ?? this.page.open).call(this.page);
     if (this.restored.has(this.active)) return;
     this.restored.add(this.active);
     const wanted = this.screens.get(this.page.label);

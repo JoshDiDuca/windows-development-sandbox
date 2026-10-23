@@ -20,8 +20,11 @@ without a restart when it can:
 
 1. Inside a **project root** (`projects.roots`, mapped at every start): at once, also for folders created after the
    start.
-2. On Windows 11 24H2+ with the updated Windows Sandbox: `wsb share` (untested; any error falls back to 3).
-3. Otherwise you are offered a **restart** that maps it too. It lists the sessions that will end, keeps your files,
+2. On Windows 11 24H2+ with the updated Windows Sandbox: `wsb share` (untested; any error falls back to 4).
+3. Without `wsb share`, only when you turned on `projects.liveFolders: "hcs"` before the sandbox started: a **live
+   folder through HCS** (alpha, untested on a real PC; one administrator prompt; any refusal or error falls back to 4).
+   See [Live folders through HCS](#live-folders-through-hcs-alpha).
+4. Otherwise you are offered a **restart** that maps it too. It lists the sessions that will end, keeps your files,
    tools, databases and logins, and reopens those sessions afterwards (each continuing its conversation). `--yes` skips the
    question; without a terminal it is never done without `--yes`.
 
@@ -100,7 +103,7 @@ tool's own folders are never mapped, and no mapping lands on a folder the sandbo
 - `roots [list|add|remove <folder>]`: folders whose subfolders are projects, mapped at every start.
 
 The settings behind these (`projects.roots`, `projects.all`, `projects.exclude`, `projects.askToAddRoot`,
-`projects.declinedRoots`, `projects.allowOutsideMappings`, `projects.wsbShare`) are described in
+`projects.declinedRoots`, `projects.allowOutsideMappings`, `projects.wsbShare`, `projects.liveFolders`) are described in
 [configuration](configuration.md#several-projects-in-one-sandbox). When you start a project whose parent is not a root,
 `projects.askToAddRoot` (on by default) asks once whether to add that parent as a root. Answers are saved: yes adds it, and
 no is remembered in `projects.declinedRoots` (not asked again). Answering never turns `askToAddRoot` off.
@@ -109,11 +112,46 @@ no is remembered in `projects.declinedRoots` (not asked again). Answering never 
 
 Adding a folder to a **running** sandbox needs Windows 11 24H2+ with the updated Windows Sandbox (`wsb share`, untested).
 On older Windows, folders inside a project root open instantly; anything else offers a restart (your files, tools,
-databases and logins are kept; the sessions can be reopened).
+databases and logins are kept; the sessions can be reopened), unless you turned on the
+[live folders alpha](#live-folders-through-hcs-alpha).
 
 To get `wsb`: Settings > Windows Update, turn on "Get the latest updates as soon as they're available" (or use the
 Windows 11 Installation Assistant), then update Windows Sandbox from the Microsoft Store. Check with `wsb --version`;
 `sandbox doctor` says whether it is found.
+
+## Live folders through HCS (alpha)
+
+**Alpha, untested on a real PC.** On Windows without `wsb share` (Windows 10, Windows 11 before 24H2), this adds a
+folder to the running sandbox through the Windows Host Compute Service, the way Windows Sandbox itself adds its mapped
+folders. It is off by default; turn it on **before** the sandbox starts:
+
+```
+sandbox config set projects.liveFolders hcs
+```
+
+> If it fails, the sandbox may close: save your work first. Each add or remove asks for administrator permission (one
+> Windows prompt). It has not passed the real-PC tests in [the design note](design/hcs-live-folders.md#test-plan) yet;
+> until it has, use it only with a sandbox you can lose.
+
+What happens when `sandbox claude` (or `start`, `exec`, `db`) runs in a folder outside your roots:
+
+1. The sandbox must be **yours** (not another Windows user's, shared or not) and started with the setting on.
+2. Windows asks for permission. The helper finds the one running Windows Sandbox (exactly one: two, for example a second
+   user's sandbox or Application Guard, means no), then shares a test folder holding a random token. Only when the
+   sandbox's own daemon reads that token back is your folder shared. Otherwise nothing is shared and a restart is
+   offered.
+3. The folder appears at `C:\Workspace\<name>` inside (the name in lower case: letters, digits, `-` and `_`), read-only
+   unless the project is writable (its `readOnly` setting decides, as at a launch). `sandbox projects` and
+   `sandbox status` list it as "live folder through HCS, alpha".
+4. `sandbox projects remove <folder>` hides it inside first, then removes the share (another prompt). If files in it are
+   open in the sandbox, it stays until the sandbox stops.
+
+Live folders end with the sandbox; a restart maps them at boot like any other project. Refused folders: drives, Windows,
+Program Files, ProgramData, your profile folder itself or another user's, this tool's storage and data folders (and any
+folder that holds them), network drives, folders with a link on the way, and folders you cannot read yourself (or
+write, for a writable one); a subst drive is shared by its real path. What each add or remove did is logged in
+`<storage>\state\live-folders.log`. `sandbox doctor` says how a folder would get in on this PC ("Add folders while the
+sandbox runs").
 
 ## Security
 
@@ -128,6 +166,11 @@ you start for project A can read and change project B. Keep untrusted repos out 
   no "before" picture, so any git hook, program-running git config (`core.hooksPath`, `core.fsmonitor`, ...) or planted
   command in it is neutralised as if the sandbox had added it.
 - `wsb share` is used only to add a folder to the running sandbox. Any error falls back to the restart offer.
+- Live folders through HCS (alpha, off by default) are shared only from a command you ran, never on a request from the
+  sandbox; a project's `.sandbox-config.json` cannot turn them on. The sandbox's daemon only shows what this PC shared.
+  Its requests are signed with a key made for each launch, which stops other users of a shared sandbox and replayed
+  files; the agent is the sandbox's administrator and could read that key, but it can only show or hide what it was
+  given (this PC decides what is shared, and read-only is enforced on this PC).
 - Restarts that add a project need your consent (see above).
 
 More on the rest of the sandbox's protections: [security](security.md).

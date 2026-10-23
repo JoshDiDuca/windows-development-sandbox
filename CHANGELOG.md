@@ -7,6 +7,21 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Live folders through HCS (alpha, off by default, untested on a real PC).** On Windows without `wsb share`
+  (Windows 10, Windows 11 before 24H2), `projects.liveFolders: "hcs"` adds a project folder to the running sandbox
+  instead of offering a restart. Each add or remove asks for administrator permission once. A helper finds the one
+  running Windows Sandbox (two candidates, such as another user's sandbox or Application Guard, mean no), proves it is
+  yours with a test share whose random token must come back through the sandbox's daemon, and only then shares the
+  folder: read-only unless the project is writable, never a system folder, your profile itself, this tool's storage or
+  a folder you cannot use yourself. Inside, it appears at `C:\Workspace\<name>` as a plain folder; `sandbox projects
+  remove` hides it and removes the share. Turn it on before the sandbox starts. If it fails, the sandbox may close:
+  save your work first. It replaces the restart only after the real-PC tests in
+  [the design note](docs/design/hcs-live-folders.md#test-plan) pass. See
+  [projects](docs/projects.md#live-folders-through-hcs-alpha).
+- `sandbox doctor` has a row "Add folders while the sandbox runs": wsb share, HCS (alpha) or restart, and why.
+
 ## 1.14.0
 
 - **Contained storage without a permission prompt (beta, all-users installs).** The installer can add a small Windows

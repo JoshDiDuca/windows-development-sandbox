@@ -1,8 +1,12 @@
 # Live folders through HCS (design)
 
-Status: **research done, prototype on this branch, not wired into the CLI.** Goal (from the owner): add a folder to a
-Windows Sandbox that is already running, on PCs without Windows 11 24H2's `wsb share`, through the Host Compute Service
-(HCS), and only if it can be done safely and tested on GitHub too.
+Status: **built as an opt-in alpha (`projects.liveFolders: "hcs"`, off by default), unreleased, untested on a real PC.**
+The owner asked for it to be built, which counts as going ahead with the narrow HcsHost exception (`wsb-share`) below;
+every rule in [Safety](#4-safety) applies. It must not replace the restart until the real-PC test in the
+[Test plan](#test-plan) has passed. What was built and decided is in [As built](#as-built-alpha).
+
+Goal (from the owner): add a folder to a Windows Sandbox that is already running, on PCs without Windows 11 24H2's
+`wsb share`, through the Host Compute Service (HCS), and only if it can be done safely and tested on GitHub too.
 
 **Recommendation: a conditional go.** Build it as an opt-in alpha (`projects.liveFolders: "hcs"`, off by default). It
 replaces the restart only after the real-PC test below has passed on Windows 10 22H2 and Windows 11 23H2. The guest
@@ -129,10 +133,12 @@ Shown in this sandbox (`BindProbe`/`BindMount`, admin, as our daemon runs):
 | `\\?\GLOBALROOT\Device\vmsmb\VSMB-{dcc0...}\<existing share>\` | `S_OK`; the folder lists the share (`mw2-agent, windows-sandbox, ...`); `BfRemoveMapping` `S_OK` |
 | `\Device\vmsmb\VSMB-{dcc0...}\<share>\` (the form `BfGetMappings` prints) | `0x80070003` path not found |
 | `\\?\UNC\VMSMB\VSMB-{dcc0...}\<share>\` | `0x80070035` network path not found |
-| `...\agentsbx-0123abcd\` (no such share yet) | `0x80070002`, and nothing is created |
+| `...\agentsbx-0123abcd\` (no such share yet) | `0x80070002`, and nothing is created (correction, 2026-10-23: that was with `C:\Workspace` missing; with it there the answer is `0x80070490` ERROR_NOT_FOUND) |
 
 - The virtual root does not need to exist. bindflt shows it while the mapping lives, and after `BfRemoveMapping` it is
-  gone (`Test-Path` false).
+  gone (`Test-Path` false). **Its parent must exist** (seen 2026-10-23): without `C:\Workspace`, `BfSetupFilter` gives
+  `0x80070002` even for an existing share, so the daemon makes `C:\Workspace` first and treats both `0x80070002` and
+  `0x80070490` as "the share has not arrived".
 - A read-only mapping refused a write ("Access to the path is denied").
 - The mapped folder is a plain directory, like a .wsb mapped folder.
 
@@ -297,6 +303,46 @@ below. Items marked (branch) are already done on this branch; the rest are rules
   12. Read the Hyper-V-Compute and CmService event logs (Applications and Services Logs) for errors after each step.
 
   Any failure in steps 2 to 5, 8 or 10 is a no-go for the HCS route.
+
+## As built (alpha)
+
+Files: `native/csharp/HcsHost/` (`WsbShare.cs`, `WsbGuard.cs`, `FolderAccess.cs`, `Share.cs`), the elevated
+`native/scripts/hcs-live-share.ps1`, `src/host/engines/hcs/live-folders.ts` (`LiveFolders`, `ScriptLivePort`),
+`src/host/projects/mapper.ts` (order and `addFoldersRow`), `src/shared/channel/live.ts` (signed messages),
+`src/guest/daemon/live-folders.ts` + `live.ts` (the handler), `sandbox/csharp/BindMount.cs`, the `live-folders`
+self-test suite and the manual `scripts/experiments/hcs/Test-LiveGuest.ps1`.
+
+Decisions where this note left room (an Opus advisor was asked; its answers were followed):
+- **The HMAC key** is made per launch only when `projects.liveFolders` is `"hcs"` at the start (otherwise a restart is
+  offered and the doctor says why), kept on the host sealed with DPAPI in `<storage>\state\live-folders.json`, handed
+  over in the one-shot secrets file, and kept by the daemon in `C:\ProgramData\AgentSandboxDaemon` (Administrators and
+  SYSTEM). The MAC is over the exact payload text (`{payload, mac}`), the payload carries the launch id and its time
+  (two minutes either way), and the seen ids are kept on the sandbox's disk so a daemon restart does not reopen them.
+  **The agent is the sandbox's administrator, so "a key the agent user cannot read" is not possible**: the signature
+  stops other users of a shared sandbox (who may write `run\`, never `secrets\`) and stale or replayed files. The test
+  plan's "ignores requests in a folder the agent user can write" is therefore "ignores every request without a valid
+  signature" (and deletes planted files and links unread). The boundary is that only the host decides what is shared.
+- **One HcsHost process, one handle** for the canary and the real add (no separate find then share). The first add
+  passes no id; HcsHost returns the id the canary proved, the host records it, and later adds and removes must match it.
+  `HcsOpenComputeSystem` documents no narrower right than `GENERIC_ALL`, so the "least access" item stays open.
+- **The canary folder** is made by HcsHost next to its own administrator-only copy with its DACL applied at creation:
+  Administrators, SYSTEM and Virtual Machines (`S-1-5-83-0`, the VM worker) read only; the user is left off. The
+  unelevated host relays the token through `answer.txt` in the request's private temp folder; HcsHost compares it in
+  fixed time. Cleanup is in `finally`.
+- **The exe copy** goes to a fresh random folder under `%ProgramData%\AgentSandboxLiveFolders` (made once with a
+  protected Administrators + SYSTEM DACL, owner Administrators; checked on every run, refused if anyone else may use
+  it), its SHA-256 compared with the request's, and the folder removed afterwards. The `.ps1` itself runs from the
+  package folder (same-user malware is out of scope; UAC is not a boundary).
+- **Folder checks in the elevated process**: the real path is resolved unelevated first (a subst drive is not visible
+  to the elevated session and is refused there); HcsHost opens the folder without following links, compares
+  `GetFinalPathNameByHandle`, refuses drives, Windows, Program Files, ProgramData, the users folder, the profile root
+  and other profiles, the storage and data folders (and folders holding them), and runs `AccessCheck` with the linked
+  (unelevated) token for read and traverse, plus write for a writable share. `identity` stays `NULL` (PC test 8).
+- **Writable or not**: the project's own `readOnly` setting decides (as at a launch); read-only when it is not known.
+- **Concurrency**: the mutex `Global\AgentSandboxLiveFolders` (two minutes, an abandoned one counts as taken).
+- **Remove**: the daemon hides the folder and confirms the mapping is gone, then the share is removed; any failure keeps
+  the record and the project. Each add and remove is logged in `<storage>\state\live-folders.log`. A stop clears the
+  record and its key (the watcher); the next launch makes a new key.
 
 ## Sources
 

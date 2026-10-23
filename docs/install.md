@@ -33,11 +33,19 @@ install themselves, and runs `sandbox doctor`.
 | Saved data (accounts, history, storage) | `%ProgramData%\AgentSandbox\users\<name>` (private to you); an earlier `%LOCALAPPDATA%\AgentSandbox` stays in use until you move it | `%ProgramData%\AgentSandbox\users\<name>`, one private folder per user |
 | Admin rights | only to turn on Windows Sandbox | once, to install |
 | Automatic updates | checked when you start a command | a scheduled task at 03:00 |
+| Contained storage (beta) | a permission prompt for each mount | the same, or no prompt with the optional storage helper |
 
 For everyone, the installer also creates the local group **Agent Sandbox Users** and puts you in it (add others with
 `-AddUsers`). A user added to the group must sign out and in once before it counts. It asks "Let other users of this PC
 use a sandbox you start?" and saves the answer in the machine settings file (see [Configuration](configuration.md)).
 Windows runs one sandbox per PC, so this is how a second user can still use it: [Security](security.md#several-users-on-one-pc).
+
+For everyone, it also asks whether to install the **storage helper** (default no): a small Windows service,
+`AgentSandboxStorage`, that mounts the disk image of [contained storage](configuration.md#contained-storage-beta)
+without a Windows permission prompt each time. It runs as SYSTEM, answers only members of the group, and only for
+their own image in their own storage folder; what it checks and what it cannot protect against is in
+[Security](security.md#contained-storage-beta). It is built on your PC with the C# compiler that ships with Windows,
+from the sources in the installed package, into the install folder.
 
 Everyone installs need an admin PowerShell (right-click Start, Terminal (Admin)). Without admin the installer stops and
 says so.
@@ -56,8 +64,9 @@ The one-liner takes no options. To pass them, run the script as a script block:
 | `-AutoUpdate` / `-NoAutoUpdate` | `WDS_AUTOUPDATE=1` / `0` | answer the automatic-updates question |
 | `-AddUsers a,b` | `WDS_ADDUSERS` | everyone: also put these users in the group |
 | `-Share` / `-NoShare` | `WDS_SHARE=1` / `0` | everyone: answer the sharing question (also changes it on a later run) |
+| `-ContainedStorageHelper` / `-NoContainedStorageHelper` | `WDS_STORAGEHELPER=1` / `0` | everyone: install the storage helper service (or remove it); asked once when neither is given, then the answer is kept |
 | `-StartMenuShortcut` | `WDS_SHORTCUT=1` | also make a Start menu shortcut. Off by default: some antivirus tools (Malwarebytes "Trojan.Loader") flag a shortcut that starts a command script, a false positive. Without it an earlier shortcut is removed |
-| `-Uninstall` | `WDS_UNINSTALL=1` | remove the program, PATH entry, shortcut and scheduled task; your data stays |
+| `-Uninstall` | `WDS_UNINSTALL=1` | remove the program, PATH entry, shortcut, scheduled task and storage helper; your data stays |
 | `-RemoveData` | `WDS_REMOVEDATA=1` | with `-Uninstall`: also delete saved data, after you type `DELETE` (`-Confirm:$false` skips that) |
 | `-Version x.y.z` | `WDS_VERSION` | install this release instead of the latest (also an older one) |
 | | `WDS_PACKAGE`, `WDS_SHA256` | install this package (a file or https address) instead of the latest release, checked against that checksum |
@@ -75,7 +84,8 @@ The release package is checked against the SHA-256 GitHub lists for it (the asse
   bin\sandbox.cmd, ...      the commands on your PATH (they read the two files below)
   active-version            which version runs
   active-node               which Node runs it
-  install.json              scope, group, automatic updates
+  install.json              scope, group, automatic updates, storage helper
+  helper\AgentSandboxStorage.exe   everyone, when chosen: the storage helper service
   update-state.json         what the updater did
 ```
 
@@ -87,6 +97,10 @@ one stays for a rollback. Your PATH only gets `bin\`, not `node` itself.
 `sandbox update` installs the newest version (`--check` only looks, `--rollback` goes back one version). It never runs
 while a Windows Sandbox is running. A version that fails to start is not used, is recorded as failed, and is not tried
 again until a newer one exists.
+
+`sandbox update` does not rebuild the storage helper: it keeps working across updates (the CLI and the service agree
+on a protocol version and the CLI uses the permission prompt when they do not). Running the installer again rebuilds it
+from the new version.
 
 `sandbox update --auto on` makes this happen by itself. For one user it is checked when you start a command, at most
 once a day. For everyone it is the scheduled task `\WindowsDevelopmentSandbox\Update` (daily 03:00, up to an hour of
@@ -140,7 +154,9 @@ just you and an older `C:\Scripts\agent-sandbox` layout (default no; without a t
 ```
 
 Without `-Scope` it removes the install there is (and asks which when there are both). Add `-RemoveData` to delete the
-saved data as well.
+saved data as well. For everyone, the storage helper goes first: the service is stopped, every image it mounted is
+dismounted (a running sandbox keeps its image mounted: close it and run `sandbox repair` later), and the service is
+deleted. Its log in `%ProgramData%\AgentSandbox\logs` stays until the saved data is removed.
 
 ## By hand
 

@@ -7,6 +7,17 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Contained storage without a permission prompt (beta, all-users installs).** The installer can add a small Windows
+  service, the storage helper (`-ContainedStorageHelper`, asked once, default no). It mounts and dismounts a user's
+  contained-storage disk image without a Windows prompt, for members of the Agent Sandbox Users group only, and only
+  their own image in their own storage folder: it reads their settings itself, checks the folders and the image on
+  handles (no links, theirs, nobody else may change them, a plain VHDX within the limit), and logs every call to
+  `%ProgramData%\AgentSandbox\logs\storage-helper.log`. Without it, or when it cannot answer, the prompt is used as
+  before. Uninstalling removes it and dismounts what it mounted. Not yet tried on a real PC; see
+  [security](docs/security.md#contained-storage-beta).
+
 ## 1.13.3
 
 - **The web UI no longer closes while you have it open.** A tab in the background let go of its connection after a

@@ -153,3 +153,23 @@ Code: `src/host/storage/contained/` (layout, state/refcount, disk port, `Contain
 7. Decline a prompt at each step and confirm nothing is left half done; mount twice quickly (two terminals).
 8. `diskpart`'s `select partition 1` after `attach vdisk` selects the new disk's first partition (the probe used
    `create partition` right after `attach`, which relies on the same focus rule).
+
+**The storage helper (unreleased).** `native/csharp/StorageHelper/` is the service `AgentSandboxStorage` (task R2 in
+[roadmap-tasks.md](roadmap-tasks.md)); `src/host/storage/contained/helper-port.ts` (`HelperDiskPort`) asks it first and
+falls back to the scripts. It does not use diskpart: virtdisk (`OpenVirtualDisk` / `CreateVirtualDisk`,
+`AttachVirtualDisk` with no drive letter and permanent lifetime), the disk IOCTLs for a new disk's one GPT partition,
+fmifs `FormatEx` for NTFS, and `FSCTL_SET_REPARSE_POINT` on the held mount folder for the mount point (the mount manager
+is not told, so the service clears a mount point whose disk is gone when it starts). Images made by the scripts (MBR, one
+partition) are accepted too: the rule is one partition, one NTFS volume. In a Windows Sandbox all of it works except
+diskpart (no Virtual Disk Service), so the helper was tested end to end there: install, a non-admin group member's
+create, mount, remount, dismount, restart tidy, a non-member refused, removal dismounting.
+
+**Checklist for the helper on a PC (not yet done):**
+1. Install for everyone with `-ContainedStorageHelper`; `Get-Service AgentSandboxStorage` runs, start type Automatic;
+   `sc qprivs AgentSandboxStorage` lists only the five privileges.
+2. As a non-admin member: `sandbox storage contained on` and `sandbox launch` with no prompt; the log shows the calls.
+3. An image made earlier by the scripts (MBR) mounts through the helper; one made by the helper mounts through the
+   scripts (helper stopped).
+4. Restart the PC while mounted: after sign-in the stale mount point is gone and the next launch mounts.
+5. A second member's launch uses their own folder; a non-member gets the prompt.
+6. Uninstall: the service is gone, nothing stays mounted, `helper\` is gone.

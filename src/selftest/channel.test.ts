@@ -13,6 +13,7 @@ import {
   fixWindowsKeys,
   helloFrame,
   InputJoiner,
+  KeyGate,
   MAX_FRAME_BYTES,
   MOUSE_OFF,
   OutputFilter,
@@ -224,6 +225,27 @@ export const channelSuite: Suite = {
       Buffer.from([0x61, 0x7f, 0x08, 0x1b]),
       'Windows console Backspace (^H) reaches the agent as DEL, so it deletes one character, not a word',
     );
+    {
+      // Keys typed while the client is still turning VT input on are the terminal's own bytes once it is on: they wait
+      // and are never swapped (a Backspace sent as DEL used to reach the agent as ^H, deleting a word).
+      const keys = new KeyGate(true);
+      const early = keys.push(Buffer.from([0x7f, 0x08]));
+      const held = keys.decide(true);
+      const later = keys.push(Buffer.from([0x7f]));
+      const fallback = new KeyGate(true);
+      fallback.push(Buffer.from([0x08]));
+      const off = fallback.decide(false);
+      const plain = new KeyGate(false).push(Buffer.from([0x7f, 0x08]));
+      t.check(
+        early.length === 0 &&
+          held.equals(Buffer.from([0x7f, 0x08])) &&
+          later.equals(Buffer.from([0x7f])) &&
+          off.equals(Buffer.from([0x7f])) &&
+          fallback.push(Buffer.from([0x7f])).equals(Buffer.from([0x08])) &&
+          plain.equals(Buffer.from([0x7f, 0x08])),
+        'keys typed before the console mode is known wait, then go unswapped with VT input (swapped only without it)',
+      );
+    }
 
     t.section('Ctrl+C meant as "copy" does not reach the agent');
     const ctrlC = Buffer.from([3]);

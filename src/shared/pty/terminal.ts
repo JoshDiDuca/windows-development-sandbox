@@ -12,6 +12,7 @@ import { OutputFilter } from './output-filter.js';
 import { enableVtInput } from './console-input.js';
 import { InputJoiner, JOIN_MS } from './input-joiner.js';
 import { CTRL_C_CONFIRM_MS, CtrlCGuard } from './ctrl-c.js';
+import { KeyGate } from './key-gate.js';
 
 export type ClientResult =
   { reason: 'exit'; exitCode: number } | { reason: 'detach' | 'closed' } | { reason: 'error'; message: string };
@@ -22,14 +23,8 @@ export type ClientResult =
  */
 export const MOUSE_OFF = '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?1015l';
 
-/**
- * Node on Windows reads keys through the console API, where Backspace is ^H and Ctrl+Backspace is DEL: the reverse of
- * what terminals send. ConPTY reads ^H as Ctrl+Backspace (delete a word), so swap them back.
- */
-export function fixWindowsKeys(chunk: Buffer): Buffer {
-  if (!chunk.includes(0x08) && !chunk.includes(0x7f)) return chunk;
-  return Buffer.from(chunk.map((b) => (b === 0x08 ? 0x7f : b === 0x7f ? 0x08 : b)));
-}
+/** Longest wait for the console's input mode before typed keys are sent anyway (it normally takes about 2 s). */
+const VT_WAIT_MS = 10000;
 
 /**
  * Bridges this process's terminal to the remote program until it exits, the connection drops, or the user presses
@@ -49,8 +44,8 @@ export function runTerminalClient(
     const [c, r] = stdout.isTTY ? stdout.getWindowSize() : [0, 0];
     return [c || 120, r || 30];
   };
-  // Until the console passes the terminal's input through as it is (enableVtInput), Node turns Backspace into ^H.
-  let swapKeys = process.platform === 'win32' && stdin.isTTY;
+  // Until the console's input mode is known (enableVtInput), what is typed waits: see KeyGate.
+  const keys = new KeyGate(process.platform === 'win32' && Boolean(stdin.isTTY));
   return new Promise((resolve) => {
     let done = false;
     const reader = new FrameReader();
@@ -59,7 +54,7 @@ export function runTerminalClient(
     let resizeTimer: NodeJS.Timeout | undefined;
     // Set once raw mode is on (below); finish() may run before that.
     // eslint-disable-next-line prefer-const
-    let vtInput: ReturnType<typeof enableVtInput> | undefined;
+    let vtInput: ReturnType<typeof enableVtInput> | undefined, vtTimer: NodeJS.Timeout | undefined;
     const finish = (result: ClientResult): void => {
       if (done) return;
       done = true;
@@ -70,6 +65,7 @@ export function runTerminalClient(
       clearInterval(sizeWatch);
       clearTimeout(joinTimer);
       clearTimeout(hintTimer);
+      clearTimeout(vtTimer);
       socket.destroy();
       // The agent's mouse tracking ends with it: your terminal's wheel scrolls again (and clicks select text).
       stdout.write('\x1b[0m\x1b[?25h' + MOUSE_OFF + '\r\n');
@@ -82,9 +78,10 @@ export function runTerminalClient(
     };
     const joiner = new InputJoiner();
     let joinTimer: NodeJS.Timeout | undefined;
-    const sendInput = (data: Buffer): void => {
-      if (data.length && !done) socket.write(encodeFrame(FrameType.Input, swapKeys ? fixWindowsKeys(data) : data));
+    const write = (data: Buffer): void => {
+      if (data.length && !done) socket.write(encodeFrame(FrameType.Input, data));
     };
+    const sendInput = (data: Buffer): void => write(keys.push(data));
     const guard = options.confirmCtrlC ? new CtrlCGuard() : null;
     let hintTimer: NodeJS.Timeout | undefined;
     const onInput = (chunk: Buffer): void => {
@@ -169,8 +166,11 @@ export function runTerminalClient(
     // After setRawMode (which sets the console mode): mouse reports, focus and keys then arrive as the terminal sent
     // them.
     vtInput = enableVtInput();
+    // A helper that hangs must not hold the keyboard: after VT_WAIT_MS keys go as console keys until it is done.
+    vtTimer = setTimeout(() => write(keys.decide(false)), VT_WAIT_MS);
     void vtInput.ready.then((on) => {
-      if (on) swapKeys = false;
+      clearTimeout(vtTimer);
+      write(keys.decide(on));
     });
     stdin.on('data', onInput);
     stdin.resume();

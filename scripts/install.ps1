@@ -208,10 +208,10 @@ param(
     # deletes it. A version without that script but a service left behind: stopped and deleted here. Nothing installed:
     # nothing to do.
     if (-not (Get-Service -Name 'AgentSandboxStorage' -ErrorAction SilentlyContinue) -and -not (Test-Path -LiteralPath (Join-Path $toolFolder 'helper'))) { return }
-    $helperScript = if ($packageDir) { Join-Path $packageDir 'native\scripts\set-storage-helper.ps1' } else { $null }
-    if ($helperScript -and (Test-Path -LiteralPath $helperScript)) {
-      $output = & $powershellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $helperScript -Remove -InstallRoot $toolFolder 2>&1 | Out-String
-      if ($output.Trim()) { Write-Host "   $($output.Trim())" }
+    $removeScript = if ($packageDir) { Join-Path $packageDir 'native\scripts\set-storage-helper.ps1' } else { $null }
+    if ($removeScript -and (Test-Path -LiteralPath $removeScript)) {
+      $removeOutput = & $powershellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $removeScript -Remove -InstallRoot $toolFolder 2>&1 | Out-String
+      if ($removeOutput.Trim()) { Write-Host "   $($removeOutput.Trim())" }
       if ($LASTEXITCODE -eq 0) { Ok 'storage helper removed' } else { Warn "Could not remove the storage helper service AgentSandboxStorage (exit $LASTEXITCODE)." }
     } elseif (Get-Service -Name 'AgentSandboxStorage' -ErrorAction SilentlyContinue) {
       Stop-Service -Name 'AgentSandboxStorage' -Force -ErrorAction SilentlyContinue
@@ -727,6 +727,9 @@ param(
       $adminRules = @((New-Rule $systemSid 'FullControl' $both 'None'), (New-Rule $adminsSid 'FullControl' $both 'None'))
       # Root: administrators change it, the group reads (config.json, migrations.json).
       Set-FolderAcl $machineData ($adminRules + (New-Rule $groupId 'ReadAndExecute' $both 'None'))
+      # Its owner too (a per-user install may have made it): only administrators may change the folder that holds the
+      # machine settings and the storage helper's log and record. Only this folder's owner changes; nothing is walked.
+      & (Join-Path $env:SystemRoot 'System32\icacls.exe') $machineData /setowner '*S-1-5-32-544' /Q | Out-Null
       # users\: the group lists and creates folders here (this folder only); whoever creates a folder owns it alone.
       Set-FolderAcl (Join-Path $machineData 'users') ($adminRules + @((New-Rule $groupId 'ReadAndExecute, CreateDirectories' 'None' 'None'), (New-Rule $ownerSid 'FullControl' $both 'InheritOnly')))
       # active\: the group lists and creates files here, and reads every file; only the creator changes its own.

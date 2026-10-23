@@ -3,8 +3,9 @@
 // count never drops below the maximum, so nobody can add an instance of their own and catch other users' calls.
 // Remote clients are refused (PIPE_REJECT_REMOTE_CLIENTS and a deny entry for NETWORK); only SYSTEM, Administrators and
 // the "Agent Sandbox Users" group may open it. One request per connection: read one line (512 bytes, 5 seconds), find
-// out who called, rate-limit, work out that user's storage from their settings, do the one operation (one at a time,
-// under a lock that only administrators may hold), answer, log.
+// out who called, rate-limit (connections per user before anything is read, calls per user after; a user whose files
+// stalled a call waits five minutes), work out that user's storage from their settings, do the one operation (one at a
+// time, under a lock that only administrators may hold), answer, log.
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -45,11 +46,17 @@ namespace AgentSandbox.StorageHelper
         private const int ErrorBrokenPipe = 109;
         private const int ErrorOperationAborted = 995;
         private const uint WaitObject0 = 0;
-        private const int ReadTimeoutMs = 5000;
+        private const int ReadTimeoutMs = 2000;
+        private const int CloseWaitMs = 1000;
         private const int LockTimeoutMs = 120000;
+        private static readonly TimeSpan Penalty = TimeSpan.FromMinutes(5);
 
         private readonly ServerOptions options;
         private readonly RateLimiter limiter = new RateLimiter(10, 60, TimeSpan.FromMinutes(1));
+        // Connections, counted per user of the connecting process before anything is read: someone who only connects
+        // (and sends nothing) cannot keep the four pipe instances busy for others.
+        private readonly RateLimiter connections = new RateLimiter(30, 600, TimeSpan.FromMinutes(1));
+        private readonly System.Collections.Generic.Dictionary<string, DateTime> penalized = new System.Collections.Generic.Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly object work = new object();
         private readonly ManualResetEvent stopping = new ManualResetEvent(false);
         private readonly SafePipe[] pipes = new SafePipe[Instances];
@@ -137,7 +144,6 @@ namespace AgentSandbox.StorageHelper
         /// <summary>Creates the lock and every pipe instance; throws when the pipe exists already (someone made it first).</summary>
         public void Start()
         {
-            machineLock = CreateMachineLock(options.MutexName, options.Log);
             RawSecurityDescriptor sd = new RawSecurityDescriptor(PipeSddl(options.Group));
             byte[] sdBytes = new byte[sd.BinaryLength];
             sd.GetBinaryForm(sdBytes, 0);
@@ -164,6 +170,8 @@ namespace AgentSandbox.StorageHelper
             {
                 pinned.Free();
             }
+            // After the pipes: a second copy of the service stops at the pipe, before it looks at the lock.
+            machineLock = CreateMachineLock(options.MutexName, options.Log);
             for (int i = 0; i < Instances; i++)
             {
                 int index = i;
@@ -172,7 +180,10 @@ namespace AgentSandbox.StorageHelper
                 threads[i].Start();
             }
             options.Log.Note("started: pipe " + options.PipeName + (options.DryRun ? " (dry run)" : ""));
-            Tidy();
+            // In the background: Windows waits for OnStart, and a tidy can wait for the lock.
+            Thread tidy = new Thread(Tidy);
+            tidy.IsBackground = true;
+            tidy.Start();
         }
 
         /// <summary>Mount points left by a restart (their disk is gone) are taken off; mounts that are still there stay.</summary>
@@ -217,7 +228,22 @@ namespace AgentSandbox.StorageHelper
             Mutex mutex = new Mutex(false, name, out createdNew, security);
             if (!createdNew)
             {
-                log.Note("the lock " + name + " existed before the service started (another program may hold it)");
+                // Anyone may create a named lock: one that a normal user made first could be held to block every mount.
+                SecurityIdentifier owner = null;
+                try
+                {
+                    owner = mutex.GetAccessControl().GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    owner = null;
+                }
+                if (owner == null || !(owner.Value == "S-1-5-18" || owner.Value == "S-1-5-32-544"))
+                {
+                    mutex.Dispose();
+                    throw new InvalidOperationException("The lock " + name + " was made by " + (owner == null ? "someone else" : owner.Value) + ", not by an administrator; not starting (restart the PC).");
+                }
+                log.Note("the lock " + name + " existed before the service started (made by an administrator)");
             }
             return mutex;
         }
@@ -290,6 +316,15 @@ namespace AgentSandbox.StorageHelper
 
         private void Handle(SafePipe pipe, ManualResetEvent ready)
         {
+            string caller = Client.ProcessUserOf(pipe);
+            if (!connections.TryTake(caller, DateTime.UtcNow))
+            {
+                if (connections.ShouldLogRefusal(caller, DateTime.UtcNow))
+                {
+                    options.Log.Write(caller, "", 0, "", "", "", "refused: too many connections (further refusals this minute are not logged)");
+                }
+                return;
+            }
             string text = ReadLine(pipe, ready);
             if (text == null)
             {
@@ -315,6 +350,11 @@ namespace AgentSandbox.StorageHelper
                 string verb = "";
                 string set = "";
                 Outcome outcome;
+                if (IsPenalized(sid))
+                {
+                    Reply(pipe, ready, Refused("Your last call had to be stopped (your files took too long to open); wait a few minutes."));
+                    return;
+                }
                 if (!limiter.TryTake(sid, DateTime.UtcNow))
                 {
                     if (limiter.ShouldLogRefusal(sid, DateTime.UtcNow))
@@ -327,7 +367,7 @@ namespace AgentSandbox.StorageHelper
                 try
                 {
                     Protocol.Parse(text, out verb, out set);
-                    StorageSettings settings = UserSettings.For(client, options.Sources);
+                    StorageSettings settings = ReadSettings(client);
                     Request request = new Request();
                     request.Verb = verb;
                     request.Set = set;
@@ -345,8 +385,63 @@ namespace AgentSandbox.StorageHelper
                 {
                     outcome = Refused(e.Message);
                 }
+                catch (TimedOutException e)
+                {
+                    outcome = Refused(e.Message);
+                    outcome.TimedOut = true;
+                }
+                catch (Exception e)
+                {
+                    // Never leave a client waiting for an answer that will not come.
+                    outcome = Refused("The storage helper could not read your settings (" + e.GetType().Name + ").");
+                }
+                if (outcome.TimedOut)
+                {
+                    Penalize(sid);
+                }
                 options.Log.Write(sid, client.Account, client.Pid, client.Program, verb, set, (outcome.Ok ? "ok: " : "refused: ") + outcome.Message);
                 Reply(pipe, ready, outcome);
+            }
+        }
+
+        /// <summary>The caller's settings, read under the time limit (the files are the caller's own).</summary>
+        private StorageSettings ReadSettings(Client client)
+        {
+            using (Watchdog dog = new Watchdog(TimeSpan.FromSeconds(10)))
+            {
+                try
+                {
+                    return UserSettings.For(client, options.Sources);
+                }
+                catch (Exception)
+                {
+                    if (dog.Fired)
+                    {
+                        throw new TimedOutException();
+                    }
+                    throw;
+                }
+            }
+        }
+
+        private bool IsPenalized(string sid)
+        {
+            lock (penalized)
+            {
+                DateTime until;
+                return penalized.TryGetValue(sid, out until) && DateTime.UtcNow < until;
+            }
+        }
+
+        private void Penalize(string sid)
+        {
+            lock (penalized)
+            {
+                if (penalized.Count > 1000)
+                {
+                    penalized.Clear();
+                }
+                penalized[sid] = DateTime.UtcNow + Penalty;
             }
         }
 
@@ -373,6 +468,10 @@ namespace AgentSandbox.StorageHelper
                     {
                         return Refused("Another mount or dismount is running. Try again in a minute.");
                     }
+                    if (!RoomToRecord(request))
+                    {
+                        return Refused("You have too many data sets mounted through the helper; dismount one first (sandbox repair).");
+                    }
                     Outcome outcome = Operations.Run(request);
                     Record(request, outcome);
                     return outcome;
@@ -389,6 +488,15 @@ namespace AgentSandbox.StorageHelper
             {
                 Monitor.Exit(work);
             }
+        }
+
+        private bool RoomToRecord(Request request)
+        {
+            if (options.Records == null || request.DryRun || request.Verb != "mount")
+            {
+                return true;
+            }
+            return options.Records.HasRoomFor(new MountRecord(request.User.Value, request.Settings.StorageRoot.TrimEnd('\\'), request.Set));
         }
 
         private void Record(Request request, Outcome outcome)
@@ -459,7 +567,7 @@ namespace AgentSandbox.StorageHelper
             Transfer(pipe, ready, true, bytes, 0, bytes.Length, ReadTimeoutMs);
             // Wait (briefly) for the client to read and close, so disconnecting does not throw the answer away.
             byte[] rest = new byte[64];
-            Transfer(pipe, ready, false, rest, 0, rest.Length, ReadTimeoutMs);
+            Transfer(pipe, ready, false, rest, 0, rest.Length, CloseWaitMs);
         }
 
         /// <summary>One overlapped read or write with a timeout; the bytes moved, 0 on end, timeout or error.</summary>

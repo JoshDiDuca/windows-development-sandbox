@@ -157,6 +157,11 @@ export class HelperDiskPort implements DiskPort {
     return answer ?? this.fallback.mount(request);
   }
 
+  /** The helper checks a mount without a prompt (it is "mounted already" only for this image); null without it. */
+  confirmMounted(request: MountRequest): Promise<ScriptOutcome | null> {
+    return this.ask({ verb: 'mount', set: request.paths.set }, request.paths);
+  }
+
   async dismount(request: DismountRequest): Promise<ScriptOutcome> {
     const answer = await this.ask({ verb: 'dismount', set: request.paths.set }, request.paths);
     return answer ?? this.fallback.dismount(request);

@@ -108,6 +108,22 @@ namespace AgentSandbox.StorageHelper
             public static extern bool CloseHandle(IntPtr handle);
         }
 
+        /// <summary>
+        /// The user of the process at the other end of the pipe, before anything is read (to count connections): its
+        /// SID, or "pid:N" when it cannot be told. Only for counting; never for deciding who the caller is.
+        /// </summary>
+        public static string ProcessUserOf(SafeHandle pipe)
+        {
+            uint pid;
+            if (!NativeMethods.GetNamedPipeClientProcessId(pipe, out pid))
+            {
+                return "unknown";
+            }
+            string program;
+            SecurityIdentifier user = ProcessUser(pid, out program);
+            return user == null ? "pid:" + pid : user.Value;
+        }
+
         /// <summary>The checked client of a pipe that has already received the request (impersonation needs that).</summary>
         public static Client Of(SafeHandle h, SecurityIdentifier group)
         {

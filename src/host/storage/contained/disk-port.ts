@@ -41,6 +41,11 @@ export interface DismountRequest {
 
 export interface DiskPort {
   mount(request: MountRequest): Promise<ScriptOutcome>;
+  /**
+   * A mount that should be there already, checked without a permission prompt: the outcome of a mount (which, for a
+   * mount of this image, changes nothing), or null when this port cannot check without a prompt.
+   */
+  confirmMounted?(request: MountRequest): Promise<ScriptOutcome | null>;
   dismount(request: DismountRequest): Promise<ScriptOutcome>;
   reality(paths: ContainedPaths): Promise<MountReality>;
 }

@@ -200,6 +200,36 @@ async function ports(t: Harness): Promise<void> {
     'does not mount or dismount',
     'the self-test never talks to the real helper',
   );
+  const unconfirmed = await new HelperDiskPort(
+    new RecordingPort(),
+    true,
+    connector({ kind: 'absent', reason: 'x' }),
+    'test',
+  ).confirmMounted(request);
+  t.equal(unconfirmed, null, 'a vouched mount without the helper stays vouched (no prompt for a check)');
+  const refusedMount = await new HelperDiskPort(
+    new RecordingPort(),
+    true,
+    connector({
+      kind: 'answer',
+      text: JSON.stringify({
+        protocol: 1,
+        ok: false,
+        message: 'The mount folder is a mount point already.',
+        created: false,
+        alreadyMounted: false,
+        fallback: false,
+        image: paths.image,
+        mount: paths.mount,
+        notes: [],
+      }),
+    }),
+    'test',
+  ).confirmMounted(request);
+  t.check(
+    refusedMount !== null && !refusedMount.ok,
+    'with the helper, a vouched mount is checked: a mount point of another disk is a failure',
+  );
   const absent = await pipeConnector('\\\\.\\pipe\\agent-sandbox-test-no-such-pipe-' + process.pid, '{}', 5000);
   t.equal(absent.kind, 'absent', 'a pipe that is not there reads as "no helper"');
 }
@@ -475,6 +505,25 @@ async function server(t: Harness, exe: string, sid: string): Promise<void> {
       'a second server on the same pipe name does not start (someone else made the pipe first)',
       second.stderr(),
     );
+    const holder = path.join(t.packageRoot, 'src', 'selftest', 'fixtures', 'storage-helper', 'hold-mutex.ps1');
+    if (fs.existsSync(holder)) {
+      const lockName = 'Local\\agent-sandbox-test-lock-' + process.pid;
+      const hold = spawn(
+        SYSTEM.powershell(),
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', holder, '-Name', lockName],
+        { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
+      );
+      let held = '';
+      hold.stdout.on('data', (d: Buffer) => (held += d.toString()));
+      await t.waitFor(() => held.includes('held'), 20000);
+      const squatted = await startConsole(exe, ['--pipe', name + '-lock', '--mutex', lockName, ...common]);
+      t.check(
+        !squatted.ready && /not by an administrator/.test(squatted.stderr()),
+        'a lock that a normal user made first stops the service from starting (it could be held to block mounts)',
+        squatted.stderr(),
+      );
+      hold.stdin.end();
+    } else t.skip('a lock made first by a normal user (the fixture is only in the repository)');
     let limited = 0;
     for (let i = 0; i < 12; i++) if (/Too many calls/.test(await raw('{"verb":"dismount","set":"main"}'))) limited++;
     t.check(limited >= 3, 'more than 10 calls a minute from one user are refused');

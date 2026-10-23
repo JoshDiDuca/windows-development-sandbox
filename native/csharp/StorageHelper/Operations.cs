@@ -28,6 +28,9 @@ namespace AgentSandbox.StorageHelper
 
         public string Image { get; set; }
         public string Mount { get; set; }
+
+        /// <summary>A step on the caller's own files was cancelled after the time limit (the caller may be stalling it).</summary>
+        public bool TimedOut { get; set; }
         public List<string> Notes { get; private set; }
 
         public Outcome()
@@ -57,6 +60,7 @@ namespace AgentSandbox.StorageHelper
     {
         private const uint FileAddFile = 0x2;
         private static readonly TimeSpan VolumeWait = TimeSpan.FromSeconds(60);
+        private static readonly TimeSpan OpenLimit = TimeSpan.FromSeconds(30);
 
         private static class NativeMethods
         {
@@ -81,6 +85,20 @@ namespace AgentSandbox.StorageHelper
         public static Outcome Run(Request request)
         {
             Outcome outcome = new Outcome();
+            using (Watchdog dog = new Watchdog(OpenLimit))
+            {
+                RunGuarded(request, outcome);
+                if (dog.Fired && !outcome.Ok)
+                {
+                    outcome.TimedOut = true;
+                    outcome.Message = new TimedOutException().Message;
+                }
+            }
+            return outcome;
+        }
+
+        private static void RunGuarded(Request request, Outcome outcome)
+        {
             try
             {
                 Rules.CheckMaxGb(request.Settings.MaxGb);
@@ -132,7 +150,12 @@ namespace AgentSandbox.StorageHelper
                 outcome.Ok = false;
                 outcome.Message = e.Message;
             }
-            return outcome;
+            catch (Exception e)
+            {
+                // Anything else is a fault of this service, not something to show in detail.
+                outcome.Ok = false;
+                outcome.Message = "The storage helper failed (" + e.GetType().Name + ").";
+            }
         }
 
         private static void Mount(Request request, ContainedPaths paths, Outcome outcome)
@@ -190,14 +213,19 @@ namespace AgentSandbox.StorageHelper
                 {
                     throw new InvalidOperationException("The new image did not show up as a disk.");
                 }
-                Volumes.Partition(number);
-                List<string> volumes = Volumes.WaitFor(number, 1, VolumeWait);
-                if (volumes.Count != 1)
+                List<string> volumes = null;
+                // The service's own new disk: no time limit (a format takes a while).
+                Watchdog.Suspended(delegate
                 {
-                    throw new InvalidOperationException("The new disk has " + volumes.Count + " volumes instead of one.");
-                }
+                    Volumes.Partition(number);
+                    volumes = Volumes.WaitFor(number, 1, VolumeWait);
+                    if (volumes.Count != 1)
+                    {
+                        throw new InvalidOperationException("The new disk has " + volumes.Count + " volumes instead of one.");
+                    }
+                    Volumes.Format(volumes[0], "AgentData");
+                });
                 string volume = volumes[0];
-                Volumes.Format(volume, "AgentData");
                 Volumes.RemoveDriveLetters(volume);
                 RequirePlainMountFolder(pins);
                 Volumes.SetMountPoint(pins.MountFolder, volume);
@@ -296,7 +324,8 @@ namespace AgentSandbox.StorageHelper
                     {
                         throw new InvalidOperationException("The image did not show up as a disk.");
                     }
-                    List<string> volumes = Volumes.WaitFor(number, 1, VolumeWait);
+                    List<string> volumes = null;
+                    Watchdog.Suspended(delegate { volumes = Volumes.WaitFor(number, 1, VolumeWait); });
                     if (Volumes.IsOfflineOrReadOnly(number))
                     {
                         throw new RefusedException("Windows keeps the image's disk offline (is it a copy of another disk?); refusing it.");

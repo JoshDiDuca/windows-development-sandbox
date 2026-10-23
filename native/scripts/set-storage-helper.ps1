@@ -64,11 +64,31 @@ function Set-AdminFolder([string]$Path) {
     Set-Acl -LiteralPath $Path -AclObject $acl
 }
 
+# The machine folder itself must be one that only administrators may change (install.ps1 sets that up first): else a
+# user could swap logs\ or storage-helper\ between the checks above and the permissions being written.
+function Assert-AdminOnlyMachineFolder([string]$Path) {
+    Write-Step "check that only administrators may change $Path"
+    if ($DryRun) { return }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) { throw "The machine folder is missing: $Path (run the installer for everyone first)." }
+    Assert-NotLink $Path
+    $acl = Get-Acl -LiteralPath $Path
+    $admins = @('S-1-5-18', 'S-1-5-32-544', 'S-1-3-0', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+    $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+    if ($admins -notcontains $owner) { throw "$Path belongs to $owner, not to administrators; run the installer for everyone again." }
+    $writeBits = [int]([Security.AccessControl.FileSystemRights]'WriteData, AppendData, WriteExtendedAttributes, DeleteSubdirectoriesAndFiles, WriteAttributes, Delete, ChangePermissions, TakeOwnership')
+    foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+        if ($rule.AccessControlType -ne 'Allow') { continue }
+        $rights = [int]$rule.FileSystemRights
+        if (($rights -band $writeBits) -eq 0 -and ($rights -band 0x50000000) -eq 0) { continue }
+        if ($admins -notcontains $rule.IdentityReference.Value) { throw "$($rule.IdentityReference.Value) may change $Path; run the installer for everyone again." }
+    }
+}
+
 function Wait-Stopped([string]$Name) {
-    $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
-    if (-not $service -or $service.Status -eq 'Stopped') { return }
+    $running = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if (-not $running -or $running.Status -eq 'Stopped') { return }
     Stop-Service -Name $Name -Force -ErrorAction SilentlyContinue
-    $service.WaitForStatus('Stopped', (New-TimeSpan -Seconds 60))
+    $running.WaitForStatus('Stopped', (New-TimeSpan -Seconds 60))
 }
 
 function Invoke-Sc([string[]]$Arguments) {
@@ -128,6 +148,7 @@ try {
     if ($files.Count -eq 0) { throw "No sources in $Sources." }
     if (-not (Test-Path -LiteralPath $csc)) { throw "The C# compiler that ships with Windows is missing: $csc" }
     foreach ($p in @($InstallRoot, $helperDir, $Sources)) { Assert-NotLink $p }
+    Assert-AdminOnlyMachineFolder $MachineData
 
     $build = Join-Path $InstallRoot ('helper-build-' + [guid]::NewGuid().ToString('N'))
     Write-Step "build $exeName from $($files.Count) sources in $build"

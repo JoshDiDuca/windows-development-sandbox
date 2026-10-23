@@ -33,6 +33,7 @@ namespace AgentSandbox.StorageHelper
     public sealed class MountRecords
     {
         private const int MaxRecords = 1000;
+        private const int MaxPerUser = 8;
         private readonly object gate = new object();
         private readonly string file;
 
@@ -74,6 +75,28 @@ namespace AgentSandbox.StorageHelper
                     }
                 }
                 return records;
+            }
+        }
+
+        /// <summary>True when this record is there already or there is room for it (at most 8 per user, 1000 in all).</summary>
+        public bool HasRoomFor(MountRecord record)
+        {
+            lock (gate)
+            {
+                int mine = 0;
+                List<MountRecord> records = Read();
+                foreach (MountRecord r in records)
+                {
+                    if (r.Key == record.Key)
+                    {
+                        return true;
+                    }
+                    if (string.Equals(r.Sid, record.Sid, StringComparison.OrdinalIgnoreCase))
+                    {
+                        mine++;
+                    }
+                }
+                return mine < MaxPerUser && records.Count < MaxRecords;
             }
         }
 

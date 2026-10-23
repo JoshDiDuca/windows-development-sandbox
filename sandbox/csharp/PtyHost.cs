@@ -3,7 +3,12 @@
 // .NET Framework csc.exe, so this is C# 5 (no string interpolation, no ?., no expression-bodied members).
 //
 // Usage: ptyhost.exe <port> <token> <cols> <rows> <logFile> <commandLine> [<restartCommandLine>]
+//        ptyhost.exe --end-tree <recordFile>   ends what a ptyhost that was itself ended (Task Manager, a crash) left
+//                                              running, from the process tree it recorded (PTYHOST_TREE_FILE)
 //
+// PTYHOST_TREE_FILE: where the program's process tree (ProcessTree: what it started, by id and start time) is kept
+// while it runs; deleted when ptyhost ends it itself. A file left behind means ptyhost did not get to: the session
+// daemon then runs --end-tree on it.
 // Wire format, both directions: [type:1][length:4, little endian][payload]
 //   client -> host  1 HELLO   [cols:2][rows:2][flags:1][token utf8]   flags bit 0 = control-only (no output, no sizing),
 //                                                                    bit 1 = status query (answered with STATUS, then closed)
@@ -37,6 +42,10 @@ static class PtyHost
 {
     static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--end-tree")
+        {
+            return ProcessTree.EndRecorded(args[1]);
+        }
         if (args.Length < 6)
         {
             Console.Error.WriteLine("usage: ptyhost <port> <token> <cols> <rows> <logFile> <commandLine> [<restartCommandLine>]");
@@ -886,9 +895,24 @@ sealed class ProcessTree
     private const uint SnapProcess = 0x00000002;
     private const uint ProcessTerminate = 0x0001;
     private const uint ProcessQueryLimited = 0x1000;
+    private const uint Synchronize = 0x00100000;
+    private const uint WaitTimeout = 0x102;
     private const int FollowMs = 3000;
     private const int MaxPath = 260;
+    private const uint MoveReplaceExisting = 0x1;
+    private const uint MoveWriteThrough = 0x8;
+    /// <summary>A record larger than this is not one ptyhost wrote (thousands of processes).</summary>
+    private const int MaxRecordBytes = 1 << 20;
+    /// <summary>--end-tree exit codes: the ptyhost that wrote the record still runs; no readable record.</summary>
+    private const int StillRunning = 3;
+    private const int Unreadable = 4;
     private static readonly IntPtr InvalidHandle = new IntPtr(-1);
+    private static readonly Regex RecordEntry = new Regex("\\{\"pid\":(\\d{1,10}),\"start\":\"(\\d{1,20})\"\\}");
+    /// <summary>The pseudo console's own process (Windows' or conpty.dll's), started by ptyhost itself.</summary>
+    private static readonly HashSet<string> ConsoleHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "conhost.exe", "OpenConsole.exe",
+    };
     private static readonly HashSet<string> Shared = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "postgres.exe", "pg_ctl.exe", "mysqld.exe", "mariadbd.exe", "redis-server.exe", "mongod.exe", "sccache.exe",
@@ -937,13 +961,28 @@ sealed class ProcessTree
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CloseHandle(IntPtr handle);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool MoveFileExW(string existing, string replacement, uint flags);
+
+        [DllImport("kernel32.dll")]
+        public static extern int GetCurrentProcessId();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
     }
 
     private readonly object gate = new object();
     /// <summary>The program and what it started: process id -> start time.</summary>
     private readonly Dictionary<int, long> known = new Dictionary<int, long>();
+    /// <summary>The program (closing the console ends it), spared by EndAll (0 in --end-tree: none).</summary>
     private readonly int root;
     private readonly Timer timer;
+    /// <summary>Where the tree is recorded (PTYHOST_TREE_FILE), or null.</summary>
+    private readonly string recordFile;
+    private int recorded = -1;
+    /// <summary>The last process snapshot Refresh took (Record reuses it), or null.</summary>
+    private List<ProcessEntry> lastSnapshot;
     private bool ended;
 
     public ProcessTree(IntPtr rootProcess)
@@ -954,7 +993,22 @@ sealed class ProcessTree
         {
             known[root] = start;
         }
+        string file = Environment.GetEnvironmentVariable("PTYHOST_TREE_FILE");
+        recordFile = string.IsNullOrEmpty(file) ? null : file;
+        lock (gate)
+        {
+            Record();
+        }
         timer = new Timer(Follow, null, FollowMs, FollowMs);
+    }
+
+    /// <summary>--end-tree: the processes of a record that still run as the same process (id and start time).</summary>
+    private ProcessTree(Dictionary<int, long> alive)
+    {
+        foreach (KeyValuePair<int, long> p in alive)
+        {
+            known[p.Key] = p.Value;
+        }
     }
 
     private void Follow(object unused)
@@ -964,8 +1018,158 @@ sealed class ProcessTree
             if (!ended)
             {
                 Refresh();
+                Record();
             }
         }
+    }
+
+    /// <summary>
+    /// Writes the tree to the record file when it grew: {"ptyhost":{"pid":1,"start":"2"},"processes":[{...}]}, start
+    /// times as FILETIME strings (too large for a JSON number). Written aside and moved over the old one, so a ptyhost
+    /// ended at any moment leaves a whole record.
+    /// </summary>
+    private void Record()
+    {
+        if (recordFile == null)
+        {
+            return;
+        }
+        // The pseudo console's process too: one whose ptyhost was ended does not always go away by itself.
+        int self = NativeMethods.GetCurrentProcessId();
+        long selfStart = StartTime(self);
+        Dictionary<int, long> all = new Dictionary<int, long>(known);
+        foreach (ProcessEntry p in lastSnapshot ?? Snapshot())
+        {
+            int pid = (int)p.ProcessId;
+            if ((int)p.ParentProcessId != self || !ConsoleHosts.Contains(p.ExeFile) || all.ContainsKey(pid))
+            {
+                continue;
+            }
+            long start = StartTime(pid);
+            if (start != 0 && start >= selfStart)
+            {
+                all[pid] = start;
+            }
+        }
+        if (all.Count == recorded)
+        {
+            return;
+        }
+        StringBuilder json = new StringBuilder();
+        json.Append("{\"ptyhost\":").Append(Entry(self, selfStart)).Append(",\"processes\":[");
+        bool first = true;
+        foreach (KeyValuePair<int, long> p in all)
+        {
+            json.Append(first ? "" : ",").Append(Entry(p.Key, p.Value));
+            first = false;
+        }
+        json.Append("]}");
+        string temp = recordFile + ".tmp";
+        try
+        {
+            File.WriteAllText(temp, json.ToString());
+            if (NativeMethods.MoveFileExW(temp, recordFile, MoveReplaceExisting | MoveWriteThrough))
+            {
+                recorded = all.Count;
+            }
+        }
+        catch (IOException)
+        {
+            // Tried again on the next round (every FollowMs).
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Same.
+        }
+    }
+
+    private static string Entry(int pid, long start)
+    {
+        return "{\"pid\":" + pid + ",\"start\":\"" + start + "\"}";
+    }
+
+    /// <summary>The tree ended with ptyhost's own help: nothing is left for the daemon to end.</summary>
+    private void Unrecord()
+    {
+        if (recordFile == null)
+        {
+            return;
+        }
+        try
+        {
+            File.Delete(recordFile);
+        }
+        catch (IOException)
+        {
+            // The daemon finds the processes gone (their ids and start times no longer match).
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Same.
+        }
+    }
+
+    /// <summary>
+    /// --end-tree: ends what a ptyhost recorded, unless that ptyhost still runs. Only processes that still run as the
+    /// recorded process (same id and start time) count, and the processes they started since; the Shared ones
+    /// (databases, sccache ...) are spared as always. Prints how many were ended. 0 = done, 3 = the ptyhost still
+    /// runs, 4 = no readable record.
+    /// </summary>
+    public static int EndRecorded(string file)
+    {
+        string text;
+        try
+        {
+            FileInfo info = new FileInfo(file);
+            if (!info.Exists || info.Length > MaxRecordBytes)
+            {
+                return Unreadable;
+            }
+            text = File.ReadAllText(file);
+        }
+        catch (IOException)
+        {
+            return Unreadable;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unreadable;
+        }
+        if (!text.StartsWith("{\"ptyhost\":"))
+        {
+            return Unreadable;
+        }
+        MatchCollection entries = RecordEntry.Matches(text);
+        if (entries.Count == 0)
+        {
+            return Unreadable;
+        }
+        Dictionary<int, long> alive = new Dictionary<int, long>();
+        for (int i = 0; i < entries.Count; i++)
+        {
+            int pid;
+            long start;
+            if (!int.TryParse(entries[i].Groups[1].Value, out pid) ||
+                !long.TryParse(entries[i].Groups[2].Value, out start))
+            {
+                return Unreadable;
+            }
+            bool same = pid != 0 && start != 0 && Running(pid, start);
+            if (i == 0)
+            {
+                if (same)
+                {
+                    return StillRunning;
+                }
+            }
+            else if (same)
+            {
+                alive[pid] = start;
+            }
+        }
+        int ended = new ProcessTree(alive).EndAll();
+        Console.Out.WriteLine("ended " + ended + " process(es)");
+        return 0;
     }
 
     /// <summary>Adds every process whose parent is known (and that started after it), until nothing new is found.</summary>
@@ -976,6 +1180,7 @@ sealed class ProcessTree
             return;
         }
         List<ProcessEntry> all = Snapshot();
+        lastSnapshot = all;
         bool added = true;
         while (added)
         {
@@ -1012,7 +1217,10 @@ sealed class ProcessTree
             }
             Refresh();
             ended = true;
-            timer.Dispose();
+            if (timer != null)
+            {
+                timer.Dispose();
+            }
             int count = 0;
             foreach (KeyValuePair<int, long> p in known)
             {
@@ -1021,6 +1229,7 @@ sealed class ProcessTree
                     count++;
                 }
             }
+            Unrecord();
             return count;
         }
     }
@@ -1066,6 +1275,32 @@ sealed class ProcessTree
             long kernel;
             long user;
             return NativeMethods.GetProcessTimes(process, out creation, out exit, out kernel, out user) ? creation : 0;
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
+    }
+
+    /// <summary>
+    /// True while process pid is the one that started at `start` and has not ended (an ended process someone still
+    /// holds a handle to keeps its id and start time).
+    /// </summary>
+    private static bool Running(int pid, long start)
+    {
+        IntPtr process = NativeMethods.OpenProcess(ProcessQueryLimited | Synchronize, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return false;
+        }
+        try
+        {
+            long creation;
+            long exit;
+            long kernel;
+            long user;
+            return NativeMethods.GetProcessTimes(process, out creation, out exit, out kernel, out user) &&
+                creation == start && NativeMethods.WaitForSingleObject(process, 0) == WaitTimeout;
         }
         finally
         {

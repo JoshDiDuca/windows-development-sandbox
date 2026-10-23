@@ -2,13 +2,15 @@
 // with cmd.exe standing in for the agent. One daemon serves all the checks below, in order (compiling ptyhost is slow).
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { queryViewers } from '../shared/pty/index.js';
+import { SYSTEM } from '../shared/system.js';
 import { copyCmdAsFakeAgent, openViewer, sees, startDaemon, tail, viewersWhen, WAIT } from './support/live.js';
 import type { Suite } from './support/suite.js';
 
 export const liveDaemonSuite: Suite = {
   name: 'live-daemon',
-  title: 'live: session daemon + ptyhost (start, attach, viewers, exec, restart, exit)',
+  title: 'live: session daemon + ptyhost (start, attach, viewers, exec, a killed ptyhost, restart, exit)',
   live: true,
   timeoutMs: 360000,
   run: async (t, f) => {
@@ -164,6 +166,71 @@ export const liveDaemonSuite: Suite = {
         daemon.request({ kind: 'close', id: 'close2', session: 'shell1' });
         const again = await daemon.response('close2');
         t.check(again?.ok === false, 'closing a session that has ended says it is not running', JSON.stringify(again));
+      }
+
+      t.section('live: a session host ended from outside (Task Manager)');
+      {
+        // A copy of PING with a name of its own, started hidden in a console of its own (closing the pseudo console
+        // does not end it) by a PowerShell the shell runs; then the session's ptyhost is killed.
+        const probe = t.at('tree-probe.exe');
+        fs.copyFileSync(path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE'), probe);
+        const probeRunning = (): boolean =>
+          spawnSync(SYSTEM.tasklist(), ['/FI', 'IMAGENAME eq tree-probe.exe', '/NH'], { encoding: 'utf8' })
+            .stdout.toLowerCase()
+            .includes('tree-probe.exe');
+        daemon.request({ kind: 'session', id: 'shell2', harness: 'shell', args: [], cwd: workspace, shell: 'cmd' });
+        const tree = await daemon.started('shell2');
+        const record = path.join(daemon.run, 'trees', 'shell2.json');
+        const readRecord = (): { ptyhost: { pid: number }; processes: unknown[] } | null => {
+          try {
+            return JSON.parse(fs.readFileSync(record, 'utf8')) as { ptyhost: { pid: number }; processes: unknown[] };
+          } catch {
+            return null;
+          }
+        };
+        if (tree?.attach) {
+          const treeView = await openViewer(tree.attach);
+          viewers.push(treeView);
+          await sees(t, treeView, '>');
+          treeView.type(
+            '"' +
+              SYSTEM.powershell() +
+              '" -NoProfile -Command "Start-Process -WindowStyle Hidden -FilePath \'' +
+              probe +
+              "' -ArgumentList '-n','120','127.0.0.1'; Start-Sleep -Seconds 8\"",
+          );
+          // cmd, the PowerShell and the probe, once ptyhost has followed the tree (every 3 s).
+          const recorded = await t.waitFor(() => {
+            const r = readRecord();
+            return probeRunning() && r && r.processes.length >= 3 ? r : null;
+          }, WAIT.screen);
+          t.check(
+            recorded !== null,
+            "the session's ptyhost records what its program started in the run folder",
+            JSON.stringify(readRecord()) + ' probe running: ' + probeRunning() + '\n' + daemon.diagnostics(),
+          );
+          if (recorded) {
+            spawnSync(
+              path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'),
+              ['/F', '/PID', String(recorded.ptyhost.pid)],
+              { stdio: 'ignore' },
+            );
+            const gone = await t.waitFor(() => !probeRunning() && !fs.existsSync(record), 30000);
+            t.check(
+              Boolean(gone) &&
+                daemon.status('shell2')?.phase === 'exited' &&
+                /session host was ended from outside; ended [1-9]\d* process\(es\)/.test(daemon.diagnostics()),
+              'when its ptyhost is killed, the daemon ends what the session left running (and forgets the record)',
+              'probe running: ' + probeRunning() + ', record: ' + fs.existsSync(record) + '\n' + daemon.diagnostics(),
+            );
+          }
+        } else t.check(false, 'a second shell session starts', JSON.stringify(tree) + '\n' + daemon.diagnostics());
+        if (probeRunning())
+          spawnSync(
+            path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'),
+            ['/F', '/IM', 'tree-probe.exe'],
+            { stdio: 'ignore' },
+          );
       }
 
       t.section('live: restart and exit');

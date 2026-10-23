@@ -12,6 +12,8 @@ import { OutputFilter } from './output-filter.js';
 import { enableVtInput } from './console-input.js';
 import { InputJoiner, JOIN_MS } from './input-joiner.js';
 import { CTRL_C_CONFIRM_MS, CtrlCGuard } from './ctrl-c.js';
+import { KeyGate } from './key-gate.js';
+import { MouseModes } from './mouse-modes.js';
 
 export type ClientResult =
   { reason: 'exit'; exitCode: number } | { reason: 'detach' | 'closed' } | { reason: 'error'; message: string };
@@ -22,14 +24,32 @@ export type ClientResult =
  */
 export const MOUSE_OFF = '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?1015l';
 
-/**
- * Node on Windows reads keys through the console API, where Backspace is ^H and Ctrl+Backspace is DEL: the reverse of
- * what terminals send. ConPTY reads ^H as Ctrl+Backspace (delete a word), so swap them back.
- */
-export function fixWindowsKeys(chunk: Buffer): Buffer {
-  if (!chunk.includes(0x08) && !chunk.includes(0x7f)) return chunk;
-  return Buffer.from(chunk.map((b) => (b === 0x08 ? 0x7f : b === 0x7f ? 0x08 : b)));
+/** After leaving: mouse reports still on their way are dropped until input is this quiet (at most SETTLE_MAX_MS). */
+const SETTLE_QUIET_MS = 50;
+const SETTLE_MAX_MS = 300;
+
+/** Waits until `stream` has been quiet for SETTLE_QUIET_MS (or SETTLE_MAX_MS passed), dropping what it reads. */
+function drainInput(stream: NodeJS.ReadStream): Promise<void> {
+  return new Promise((done) => {
+    let quiet: NodeJS.Timeout | undefined;
+    const end = (): void => {
+      clearTimeout(quiet);
+      clearTimeout(cap);
+      stream.off('data', onData);
+      done();
+    };
+    const onData = (): void => {
+      clearTimeout(quiet);
+      quiet = setTimeout(end, SETTLE_QUIET_MS);
+    };
+    const cap = setTimeout(end, SETTLE_MAX_MS);
+    stream.on('data', onData);
+    onData();
+  });
 }
+
+/** Longest wait for the console's input mode before typed keys are sent anyway (it normally takes about 2 s). */
+const VT_WAIT_MS = 10000;
 
 /**
  * Bridges this process's terminal to the remote program until it exits, the connection drops, or the user presses
@@ -49,8 +69,8 @@ export function runTerminalClient(
     const [c, r] = stdout.isTTY ? stdout.getWindowSize() : [0, 0];
     return [c || 120, r || 30];
   };
-  // Until the console passes the terminal's input through as it is (enableVtInput), Node turns Backspace into ^H.
-  let swapKeys = process.platform === 'win32' && stdin.isTTY;
+  // Until the console's input mode is known (enableVtInput), what is typed waits: see KeyGate.
+  const keys = new KeyGate(process.platform === 'win32' && Boolean(stdin.isTTY));
   return new Promise((resolve) => {
     let done = false;
     const reader = new FrameReader();
@@ -59,7 +79,10 @@ export function runTerminalClient(
     let resizeTimer: NodeJS.Timeout | undefined;
     // Set once raw mode is on (below); finish() may run before that.
     // eslint-disable-next-line prefer-const
-    let vtInput: ReturnType<typeof enableVtInput> | undefined;
+    let vtInput: ReturnType<typeof enableVtInput> | undefined, vtTimer: NodeJS.Timeout | undefined;
+    // The agent's mouse modes, read from its output; only known when it is passed through (conpty.dll, see below).
+    const mouse = new MouseModes();
+    let passthrough = false;
     const finish = (result: ClientResult): void => {
       if (done) return;
       done = true;
@@ -70,11 +93,16 @@ export function runTerminalClient(
       clearInterval(sizeWatch);
       clearTimeout(joinTimer);
       clearTimeout(hintTimer);
+      clearTimeout(vtTimer);
       socket.destroy();
-      // The agent's mouse tracking ends with it: your terminal's wheel scrolls again (and clicks select text).
-      stdout.write('\x1b[0m\x1b[?25h' + MOUSE_OFF + '\r\n');
+      // The agent's mouse tracking ends with it: your terminal's wheel scrolls again (and clicks select text). Reports
+      // the terminal sent before it read that are dropped here, or they would reach your shell as text.
+      const tracked = mouse.tracking();
+      const reset = '\x1b[0m\x1b[?25h' + MOUSE_OFF + (mouse.has(2004) ? '\x1b[?2004l' : '') + '\r\n';
+      const flushed = new Promise<void>((written) => stdout.write(reset, () => written()));
+      const settled = tracked ? flushed.then(() => drainInput(stdin)) : Promise.resolve();
       // Wait for a console-mode change still in progress, then give the console back in its normal mode.
-      void (vtInput?.stop() ?? Promise.resolve()).then(() => {
+      void Promise.all([settled, vtInput?.stop()]).then(() => {
         if (stdin.isTTY) stdin.setRawMode(false);
         stdin.pause();
         resolve(result);
@@ -82,9 +110,11 @@ export function runTerminalClient(
     };
     const joiner = new InputJoiner();
     let joinTimer: NodeJS.Timeout | undefined;
-    const sendInput = (data: Buffer): void => {
-      if (data.length && !done) socket.write(encodeFrame(FrameType.Input, swapKeys ? fixWindowsKeys(data) : data));
+    const write = (data: Buffer): void => {
+      if (data.length && !done) socket.write(encodeFrame(FrameType.Input, data));
     };
+    // Mouse reports the agent has not asked for (motion without 1002/1003 ...) are dropped: see MouseModes.
+    const sendInput = (data: Buffer): void => write(keys.push(passthrough ? mouse.filter(data) : data));
     const guard = options.confirmCtrlC ? new CtrlCGuard() : null;
     let hintTimer: NodeJS.Timeout | undefined;
     const onInput = (chunk: Buffer): void => {
@@ -111,7 +141,6 @@ export function runTerminalClient(
     // repaints racing each other left the screen garbled. Wait until the size settles, clear what this terminal
     // reflowed on its own, then let ptyhost repaint everything once at the new size. With conpty.dll (passthrough)
     // nothing is repainted: this terminal's own reflow and scrollback stay, and the program redraws what it needs.
-    let passthrough = false;
     const sendSize = (): void => {
       const [c, r] = size();
       if (c === sent[0] && r === sent[1]) return;
@@ -143,11 +172,14 @@ export function runTerminalClient(
       for (const frame of frames) {
         if (frame.type === FrameType.Output) {
           const out = filter.push(frame.payload);
+          mouse.watch(out);
           guard?.watchOutput(out.toString('latin1'));
           stdout.write(out);
         } else if (frame.type === FrameType.Console) passthrough = frame.payload.toString('latin1') === 'conpty.dll';
-        else if (frame.type === FrameType.Restarting) stdout.write(MOUSE_OFF + '\x1b[2J\x1b[3J\x1b[H');
-        else if (frame.type === FrameType.Exit)
+        else if (frame.type === FrameType.Restarting) {
+          mouse.reset();
+          stdout.write(MOUSE_OFF + '\x1b[2J\x1b[3J\x1b[H');
+        } else if (frame.type === FrameType.Exit)
           finish({ reason: 'exit', exitCode: frame.payload.length >= 4 ? frame.payload.readInt32LE(0) : 1 });
         else if (frame.type === FrameType.Error)
           finish({
@@ -169,8 +201,11 @@ export function runTerminalClient(
     // After setRawMode (which sets the console mode): mouse reports, focus and keys then arrive as the terminal sent
     // them.
     vtInput = enableVtInput();
+    // A helper that hangs must not hold the keyboard: after VT_WAIT_MS keys go as console keys until it is done.
+    vtTimer = setTimeout(() => write(keys.decide(false)), VT_WAIT_MS);
     void vtInput.ready.then((on) => {
-      if (on) swapKeys = false;
+      clearTimeout(vtTimer);
+      write(keys.decide(on));
     });
     stdin.on('data', onInput);
     stdin.resume();

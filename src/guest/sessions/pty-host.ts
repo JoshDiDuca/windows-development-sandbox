@@ -1,10 +1,10 @@
 // Starts one ptyhost (the ConPTY bridge, sandbox/csharp/PtyHost.cs) per agent session and waits for it to listen.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { ensureCompiled } from '../runtime/csc.js';
 import { portOpen } from '../runtime/ports.js';
-import { logsDir, toolsDir } from '../runtime/paths.js';
+import { logsDir, run, toolsDir } from '../runtime/paths.js';
 import { session } from '../runtime/session.js';
 
 export function ensurePtyHost(): string {
@@ -68,7 +68,12 @@ const conptyDll = (): string | null => {
 
 /** Starts ptyhost detached, so closing a terminal tab never kills the agent; only the agent exiting ends it. */
 export function startPtyHost(o: PtyHostOptions): ChildProcess {
-  const env: NodeJS.ProcessEnv = { ...o.env, PTYHOST_BIND: o.remote ? 'any' : 'loopback' };
+  fs.mkdirSync(run.treesDir, { recursive: true });
+  const env: NodeJS.ProcessEnv = {
+    ...o.env,
+    PTYHOST_BIND: o.remote ? 'any' : 'loopback',
+    PTYHOST_TREE_FILE: run.treeFile(o.id),
+  };
   delete env.PTYHOST_CONPTY;
   const dll = conptyDll();
   if (dll) env.PTYHOST_CONPTY = dll;
@@ -77,4 +82,44 @@ export function startPtyHost(o: PtyHostOptions): ChildProcess {
     [String(o.port), o.token, String(o.cols), String(o.rows), ptyHostLog(o.id), o.command, o.restartCommand],
     { cwd: o.cwd, env, detached: true, stdio: 'ignore', windowsHide: true },
   );
+}
+
+/** How long `ptyhost --end-tree` may take (a process snapshot and a few TerminateProcess calls). */
+const END_TREE_MS = 30000;
+
+/**
+ * Ends what a session's ptyhost left running when it was itself ended (Task Manager, a crash): its program and what
+ * that started, from the tree it recorded in run/trees (PTYHOST_TREE_FILE). ptyhost deletes the record when it ends the
+ * tree itself, so a record left behind is the sign. `ptyhost --end-tree` checks every process by id and start time (a
+ * reused id is never ended), spares the shared ones (databases, sccache ...) and does nothing while the ptyhost that
+ * wrote it still runs. Resolves with what it did, or null when there was nothing to do.
+ */
+export function endLeftoverTree(id: string, exe: string = ensurePtyHost()): Promise<string | null> {
+  const file = run.treeFile(id);
+  if (!fs.existsSync(file)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    execFile(exe, ['--end-tree', file], { timeout: END_TREE_MS, windowsHide: true }, (error, stdout) => {
+      const code = error ? (typeof error.code === 'number' ? error.code : -1) : 0;
+      // 3: the ptyhost that wrote it still runs (its session goes on): the record stays.
+      if (code !== 3)
+        try {
+          fs.rmSync(file, { force: true });
+        } catch {
+          /* removed by the next sweep (or the host's reset at the next launch) */
+        }
+      resolve(code === 0 ? stdout.trim().slice(0, 200) : code === 3 ? null : 'could not end them (code ' + code + ')');
+    });
+  });
+}
+
+/** Session ids with a process tree recorded (running sessions, and any whose ptyhost was ended). */
+export function recordedTrees(): string[] {
+  try {
+    return fs
+      .readdirSync(run.treesDir)
+      .filter((n) => /^[A-Za-z0-9_-]{1,64}\.json$/.test(n))
+      .map((n) => n.slice(0, -'.json'.length));
+  } catch {
+    return [];
+  }
 }

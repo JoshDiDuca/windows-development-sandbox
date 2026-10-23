@@ -13,8 +13,10 @@ import {
   fixWindowsKeys,
   helloFrame,
   InputJoiner,
+  KeyGate,
   MAX_FRAME_BYTES,
   MOUSE_OFF,
+  MouseModes,
   OutputFilter,
 } from '../shared/pty/index.js';
 import { bootSilent, FIRST_STATUS_MS } from '../host/channel/index.js';
@@ -224,6 +226,89 @@ export const channelSuite: Suite = {
       Buffer.from([0x61, 0x7f, 0x08, 0x1b]),
       'Windows console Backspace (^H) reaches the agent as DEL, so it deletes one character, not a word',
     );
+    {
+      // Keys typed while the client is still turning VT input on are the terminal's own bytes once it is on: they wait
+      // and are never swapped (a Backspace sent as DEL used to reach the agent as ^H, deleting a word).
+      const keys = new KeyGate(true);
+      const early = keys.push(Buffer.from([0x7f, 0x08]));
+      const held = keys.decide(true);
+      const later = keys.push(Buffer.from([0x7f]));
+      const fallback = new KeyGate(true);
+      fallback.push(Buffer.from([0x08]));
+      const off = fallback.decide(false);
+      const plain = new KeyGate(false).push(Buffer.from([0x7f, 0x08]));
+      t.check(
+        early.length === 0 &&
+          held.equals(Buffer.from([0x7f, 0x08])) &&
+          later.equals(Buffer.from([0x7f])) &&
+          off.equals(Buffer.from([0x7f])) &&
+          fallback.push(Buffer.from([0x7f])).equals(Buffer.from([0x08])) &&
+          plain.equals(Buffer.from([0x7f, 0x08])),
+        'keys typed before the console mode is known wait, then go unswapped with VT input (swapped only without it)',
+      );
+    }
+
+    t.section('raw mouse input: motion and drag only while the agent asked for them');
+    {
+      const m = new MouseModes();
+      const b = (text: string): Buffer => Buffer.from(text, 'latin1');
+      const press = '\x1b[<0;10;5M';
+      const release = '\x1b[<0;10;5m';
+      const wheel = '\x1b[<64;10;5M';
+      const drag = '\x1b[<32;11;5M';
+      const ctrlDrag = '\x1b[<48;11;5M';
+      const move = '\x1b[<35;12;6M';
+      const all = 'a' + press + drag + move + release + wheel + 'b';
+      const pass = (): string => m.filter(b(all)).toString('latin1');
+      const none = pass();
+      m.watch(b('\x1b[?10'));
+      m.watch(b('00h\x1b[?1006h'));
+      const normal = pass();
+      m.watch(b('\x1b[?1002h'));
+      const button = pass();
+      const ctrl = m.filter(b(ctrlDrag)).toString('latin1');
+      m.watch(b('\x1b[?1003;1015h'));
+      const any = pass();
+      const urxvt = m.filter(b('\x1b[67;3;4M\x1b[1;5C')).toString('latin1');
+      t.check(
+        none === 'ab' &&
+          normal === 'a' + press + release + wheel + 'b' &&
+          button === 'a' + press + drag + release + wheel + 'b' &&
+          ctrl === ctrlDrag &&
+          any === all &&
+          urxvt === '\x1b[67;3;4M\x1b[1;5C' &&
+          m.modes().join(',') === '1000,1002,1003,1006,1015',
+        'no tracking: no reports; 1000: clicks and wheel; 1002: + drags (modifiers kept); 1003: + every move; mode ' +
+          'changes split across chunks and lists (1003;1015) are followed; keys are never touched',
+        JSON.stringify({ none, normal, button, ctrl, any, urxvt, modes: m.modes() }),
+      );
+      m.watch(b('\x1b[?1003l'));
+      const afterOff = pass();
+      m.watch(b('\x1b[?1015l\x1b[?1000l\x1b[?1002l'));
+      const x10 = m.filter(b('k\x1b[M #%')).toString('latin1');
+      m.watch(b('\x1b[?1000h'));
+      const x10On = m.filter(b('k\x1b[M #%\x1b[MC#%')).toString('latin1');
+      m.watch(b('\x1bc'));
+      const ris = m.tracking();
+      m.watch(b('\x1b[?1003h\x1b[!p'));
+      const decstr = m.tracking();
+      m.watch(b('\x1b[?1002h\x1b[?2004h'));
+      const paste = m.has(2004);
+      m.reset();
+      t.check(
+        afterOff === 'a' + press + drag + release + wheel + 'b' &&
+          x10 === 'k' &&
+          x10On === 'k\x1b[M #%' &&
+          !ris &&
+          !decstr &&
+          paste &&
+          !m.tracking() &&
+          !m.has(2004),
+        'turning 1003 off drops moves again; X10 reports follow the same rules; a full or soft reset (ESC c, ' +
+          'ESC[!p) and a restart turn tracking off',
+        JSON.stringify({ afterOff, x10, x10On, ris, decstr, paste }),
+      );
+    }
 
     t.section('Ctrl+C meant as "copy" does not reach the agent');
     const ctrlC = Buffer.from([3]);

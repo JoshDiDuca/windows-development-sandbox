@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.14.0
 
 - **Contained storage without a permission prompt (beta, all-users installs).** The installer can add a small Windows
   service, the storage helper (`-ContainedStorageHelper`, asked once, default no). It mounts and dismounts a user's
@@ -17,6 +17,16 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   `%ProgramData%\AgentSandbox\logs\storage-helper.log`. Without it, or when it cannot answer, the prompt is used as
   before. Uninstalling removes it and dismounts what it mounted. Not yet tried on a real PC; see
   [security](docs/security.md#contained-storage-beta).
+- **Backspace stays Backspace when you attach.** Keys typed in the first seconds of `sandbox attach` (or in the
+  sandbox's own tab), while the console was still being switched to pass the terminal's input through, were swapped:
+  Backspace reached the agent as Ctrl+Backspace and deleted a word. They now wait that moment and arrive as typed.
+- **Drags and mouse moves reach the agent when it asks for them** (editors, tmux, TUIs: DECSET 1002 / 1003), in the
+  sandbox's tab, `sandbox attach` and the web UI. Reports it did not ask for are dropped, leaving a session turns mouse
+  tracking (and bracketed paste) off in your terminal and swallows reports still on their way, so none land in your
+  shell as text. The web terminal stops tracking the mouse when the program restarts or exits.
+- **Ending a session host in Task Manager no longer leaves the agent's programs running.** Each session host records
+  what its program started; when it is ended from outside, the sandbox ends those processes (checked by id and start
+  time, so a reused id is never touched), sparing databases and sccache as when an agent exits.
 
 ## 1.13.3
 

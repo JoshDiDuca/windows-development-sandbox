@@ -63,6 +63,11 @@ export class RunDir {
   readonly projectsDir: string;
   /** audit.processes: programs the sandbox started, in small .jsonl files the host takes in and deletes. */
   readonly auditDir: string;
+  /**
+   * Each running session's process tree, recorded by its ptyhost (guest only: the daemon ends what a ptyhost that was
+   * itself ended left running).
+   */
+  readonly treesDir: string;
   /** One-shot secrets the host hands over (see secrets.ts). Next to run, not in it: shared-use users can change run. */
   readonly secretsDir: string;
 
@@ -77,6 +82,7 @@ export class RunDir {
     this.sessionsDir = path.join(this.root, 'sessions');
     this.projectsDir = path.join(this.root, 'projects');
     this.auditDir = path.join(this.root, 'audit');
+    this.treesDir = path.join(this.root, 'trees');
     this.secretsDir = path.join(dataDir, 'secrets');
   }
 
@@ -88,6 +94,9 @@ export class RunDir {
   }
   sessionFile(id: string): string {
     return path.join(this.sessionsDir, safeId(id) + '.json');
+  }
+  treeFile(id: string): string {
+    return path.join(this.treesDir, safeId(id) + '.json');
   }
   projectFile(name: string): string {
     return path.join(this.projectsDir, safeId(name) + '.json');

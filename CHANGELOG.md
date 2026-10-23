@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.15.0
 
 - **Live folders through HCS (alpha, off by default, untested on a real PC).** On Windows without `wsb share`
   (Windows 10, Windows 11 before 24H2), `projects.liveFolders: "hcs"` adds a project folder to the running sandbox

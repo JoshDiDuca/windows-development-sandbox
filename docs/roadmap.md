@@ -27,7 +27,7 @@ These shipped, but have only been tested inside a Windows Sandbox.
 - **Storage helper** (done, 1.14.0): a small service installed by the all-users installer, so contained storage
   needs no admin prompt per launch. Waits for a test on a real PC (above). Spec: task R2 in
   [design/roadmap-tasks.md](design/roadmap-tasks.md).
-- **Mounting folders into a running sandbox** (alpha, unreleased, waiting for the real-PC test): `projects.liveFolders:
+- **Mounting folders into a running sandbox** (alpha, 1.15.0, waiting for the real-PC test): `projects.liveFolders:
   "hcs"` adds a folder to a running Windows Sandbox through the Host Compute Service where `wsb share` is missing (one
   administrator prompt, a canary share first). It replaces the restart only after the PC tests in
   [design/hcs-live-folders.md](design/hcs-live-folders.md#test-plan) pass on Windows 10 22H2 and Windows 11 23H2. See

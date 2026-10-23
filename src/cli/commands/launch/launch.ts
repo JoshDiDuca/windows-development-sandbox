@@ -176,7 +176,7 @@ class Launcher {
       config,
       config.storage.contained === 'off'
         ? {}
-        : { contained: realContainedDeps(ctx.storageRoot, config.storage.containedMaxGb) },
+        : { contained: realContainedDeps(ctx.storageRoot, config.storage.containedMaxGb, Boolean(ctx.options.config)) },
     );
     if (!generateOnly) assertCanLaunch(isSandboxRunning() ? runningOwner() : undefined);
     // Contained storage: the image is mounted now (before anything reads or writes the data set), and let go of again

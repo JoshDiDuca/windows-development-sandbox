@@ -166,7 +166,10 @@ export class Watcher {
   /** Contained storage of this data set (only when a mounted image is on record), else null. */
   private contained(): ContainedStorage | null {
     try {
-      const storage = new ContainedStorage(realContainedDeps(this.storageRoot, 64), setNameOf(this.dataPath));
+      const storage = new ContainedStorage(
+        realContainedDeps(this.storageRoot, 64, Boolean(this.resume.config)),
+        setNameOf(this.dataPath),
+      );
       return storage.isRecorded() ? storage : null;
     } catch {
       // Not a name contained storage can use: there is none.

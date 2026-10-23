@@ -23,6 +23,10 @@ shipped in 1.11.1 and is no longer listed.
 
 ### R2. Contained storage without an admin prompt per launch — Sonnet, Opus review before merge
 
+Status: **built (unreleased)**: `native/csharp/StorageHelper/`, `native/scripts/set-storage-helper.ps1`,
+`src/host/storage/contained/helper-port.ts`, the `storage-helper` self-test suite. The service itself waits for a test on
+a real PC ([roadmap](../roadmap.md)).
+
 Why: `storage.contained` mounts its disk image with one UAC prompt per launch (native/scripts/mount-contained.ps1 via
 run-elevated.ps1). An all-users install already has admin at install time, so it can install a tiny helper once.
 

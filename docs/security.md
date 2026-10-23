@@ -113,6 +113,46 @@ PC.** What it does and does not do:
   What it cannot do: the prompt names "Windows PowerShell", not the script, and a program already running as you that
   can edit the installed scripts could change what is run. That holds for every per-user install of anything; the
   all-users install keeps its files administrator-only. Do not approve a prompt you did not just cause.
+- **Or the storage helper, with no prompt (all-users installs that chose it).** The installer can add a Windows
+  service, `AgentSandboxStorage` (built on your PC from `native/csharp/StorageHelper` into the Program Files install
+  folder, running as SYSTEM, started with Windows). It does the same mount and dismount, with the same checks, for the
+  user who asks, and nothing else:
+  - **Who may ask.** Its pipe `\\.\pipe\AgentSandboxStorage` opens only for SYSTEM, administrators and the group
+    **Agent Sandbox Users**, never over the network. The caller is identified by Windows (the pipe client's token and
+    process), never by what it sends; a program at low integrity, in an app container or with a restricted token is
+    refused. The pipe and its lock are created when Windows starts, before anyone signs in, and all its instances are
+    taken by the service, so another user cannot put a pipe of their own in its place.
+  - **What it may be asked.** One line: `mount` or `dismount` and a data set name. No path, no size, no user: the service
+    reads your settings itself (the machine file, which must belong to administrators, and your own
+    `.agent-sandbox\config.json`, opened as you) and builds `<storage>\images\<name>.vhdx` and
+    `<storage>\mounts\<name>` from them. A size limit set in the machine file is a ceiling your own file cannot raise.
+  - **What it checks, on handles.** Every folder from the drive root down to the mount folder is opened and held while it
+    works, so nothing on the way can be renamed or swapped for a link in the middle; none may be a link; the storage
+    folder, `images`, `mounts`, the mount folder and the image must be **yours**, with nobody but you, SYSTEM and
+    administrators allowed to change them; the drive must be a fixed NTFS drive and not inside another mounted disk; the
+    image must have one name only (no hard links). The image is opened once and that same handle is checked by the
+    disk driver (a VHDX, not a differencing disk, within the limit) and attached; its header is read first while
+    nobody may write it (no parent file; an image whose log still has changes to replay is left to the permission
+    prompt). The mount point is written on the held folder itself, so a folder turned into a link cannot receive it.
+    A dismount only takes off a mount point of this image's own disk. A new image is made only where no file is, owned
+    by you.
+  - **A record and a log.** What it mounted is listed in `%ProgramData%\AgentSandbox\storage-helper` and every call
+    (who, which program, what, the result) is logged to `%ProgramData%\AgentSandbox\logs\storage-helper.log`; both
+    folders are for administrators only. It answers at most 10 calls a minute per user (60 in all) and 30 connections
+    a minute per user, one operation at a time; an open of your own files that takes longer than 30 seconds (another
+    program holding them) is cancelled and your next calls wait five minutes, so no user can stall the others. Its lock
+    must belong to administrators: one that someone else made first stops the service instead of being used. At most 8
+    mounts per user are recorded. When Windows starts it takes off mount points whose disk is gone (the PC restarted while mounted), and
+    removing it dismounts everything it mounted.
+  - **What it does not protect against.** A member of the group can make the PC read a disk image they prepared: the
+    image is theirs, so they can change its raw bytes while it is not mounted, and attaching it has Windows' VHDX and
+    NTFS drivers read it, and its volume can hold NTFS links that a normal user could not make on the PC's own disk.
+    That is the same as plugging in a USB disk, and the reason the helper is optional and the group is chosen by an
+    administrator. A mount that another command vouches for is still checked by the helper (it says "mounted already"
+    only for a mount of that very image), so a stale mount point cannot lead into someone else's disk. The sandbox cannot do this: it never gets the image file, only folders inside
+    the mounted disk.
+  - Without the helper (not installed, stopped, another version, or `--config` / `AGENT_SANDBOX_CONFIG` /
+    `AGENT_SANDBOX_HOME`, whose settings the helper does not read) the permission prompt is used as before.
 - **A crash can leave the image mounted** until `sandbox repair` dismounts it (the next command says so). Nothing is lost.
 - **A project cannot turn it on or off**: `storage.contained` and `storage.containedMaxGb` are your settings only.
 - **Not covered yet**: `sandbox data`, `sandbox clean` and some menu screens still look at the plain data folder, so

@@ -123,6 +123,17 @@ export class ContainedStorage {
         userSid: this.deps.userSid(),
       });
       this.requireOk(outcome, 'mount');
+    } else {
+      // Another holder vouches for the mount, but the folder could be a mount point of some other disk (one left after
+      // a restart, whose volume name an image of someone else's now has). A port that can check it without a prompt
+      // (the storage helper) is asked: it only says "mounted already" for a mount of this very image.
+      const confirmed = await this.deps.port.confirmMounted?.({
+        paths,
+        maxGb: this.deps.maxGb,
+        create: false,
+        userSid: this.deps.userSid(),
+      });
+      if (confirmed) this.requireOk(confirmed, 'mount');
     }
     this.assertReallyMounted();
     for (const name of CONTAINED_FOLDERS) fs.mkdirSync(path.join(paths.mount, name), { recursive: true });

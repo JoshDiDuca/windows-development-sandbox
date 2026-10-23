@@ -8,6 +8,8 @@ export const InstallRecordSchema = z.object({
   scope: z.enum(['user', 'machine']),
   groupSid: z.string().nullable(),
   autoUpdate: z.boolean(),
+  /** All-users installs: the storage helper service (AgentSandboxStorage) was installed. Older records have none. */
+  storageHelper: z.boolean().optional(),
   installedAt: z.string(),
 });
 

@@ -5,14 +5,19 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { SYSTEM } from '../../shared/system.js';
 import { ensureCompiled } from '../runtime/csc.js';
-import { isWin, run, testMode } from '../runtime/paths.js';
+import { isWin, localDir, run, testMode } from '../runtime/paths.js';
 import { session } from '../runtime/session.js';
 import { warn } from '../runtime/log.js';
 import { LiveFolderHandler, type BindPort } from './live-folders.js';
 
 const BIND_TIMEOUT_MS = 30000;
+/** A test (it names its own local folder) never touches C:\ProgramData of the machine it runs on. */
+const testing = Boolean(process.env.AGENT_DAEMON_STATE_DIR || process.env.AGENT_LOCAL_DIR);
 const stateDir =
-  process.env.AGENT_DAEMON_STATE_DIR ?? path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'AgentSandboxDaemon');
+  process.env.AGENT_DAEMON_STATE_DIR ??
+  (process.env.AGENT_LOCAL_DIR
+    ? path.join(localDir, 'daemon-state')
+    : path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'AgentSandboxDaemon'));
 
 function bindMount(args: string[]): number {
   const r = spawnSync(ensureCompiled('bindmount'), args, {
@@ -32,7 +37,7 @@ const realBind: BindPort = {
 /** The state folder, made administrator-only (inside a real sandbox; a test names its own temp folder). */
 function protectStateDir(): void {
   fs.mkdirSync(stateDir, { recursive: true });
-  if (!isWin || testMode || process.env.AGENT_DAEMON_STATE_DIR) return;
+  if (!isWin || testMode || testing) return;
   spawnSync(
     SYSTEM.icacls(),
     [stateDir, '/inheritance:r', '/grant:r', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-18:(OI)(CI)F'],

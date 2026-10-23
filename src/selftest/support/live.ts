@@ -160,6 +160,8 @@ export function startDaemon(
     AGENT_DATA_DIR: data,
     AGENT_WORKSPACE: options.workspace,
     AGENT_LOCAL_DIR: f.at(path.basename(data) + '-local'),
+    // The daemon's live-folder state: a temp folder, never C:\ProgramData of the machine running the test.
+    AGENT_DAEMON_STATE_DIR: f.at(path.basename(data) + '-daemon-state'),
     AGENT_LOG_PREFIX: 'daemon',
     AGENT_NO_TABS: '1',
     ...options.env,

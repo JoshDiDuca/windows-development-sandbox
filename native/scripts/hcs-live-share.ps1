@@ -147,7 +147,7 @@ function Invoke-Live($Req, [string]$JsonPath, [string]$Checksum) {
 
 # result.json in the caller's folder: checked for a link right before, and only made as a new file.
 function Write-LiveResult([hashtable]$Result, [string]$JsonPath) {
-    $Result.notes = @($script:Lines)
+    $Result.notes = @(Get-Notes)
     $dir = Split-Path -Parent $JsonPath
     if (Test-ReparsePoint $dir) { return }
     $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes(($Result | ConvertTo-Json -Compress))

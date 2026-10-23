@@ -15,6 +15,10 @@ function Add-Note([string]$Text) {
     $script:Lines.Add($Text)
 }
 
+function Get-Notes {
+    return @($script:Lines)
+}
+
 function Test-PlainAbsolute([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
     if ($Path -notmatch $script:PathRule) { return $false }

@@ -1,6 +1,8 @@
 // HcsHost.exe <verb> [arguments] --out <response.json>
 // Verbs: check, enumerate, properties <id>, create <request.json>, start <id>, terminate <id>,
-//        grant-vm-access <vmId> <file>, create-vhdx <path> <maxGb>, share <request.json> (prototype).
+//        grant-vm-access <vmId> <file>, create-vhdx <path> <maxGb>, share <request.json> (our own systems),
+//        wsb-share <request.json> --sha256 <hex> (live folders on the running Windows Sandbox, WsbShare.cs),
+//        wsb-rules <enumerate.json> [id] (pure: applies WsbGuard's rules to a recorded list; asks HCS nothing).
 // The answer is one JSON file (see Json.Response); exit code 0 = ok, 1 = failed, 2 = wrong use. A create request is
 // {"id": "...", "document": "<the HCS document as a JSON string>"}. Never attaches a disk to this PC.
 using System;
@@ -23,12 +25,18 @@ namespace AgentSandbox.HcsHost
         public static int Main(string[] args)
         {
             string outFile = null;
+            string sha256 = null;
             List<string> rest = new List<string>();
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "--out" && i + 1 < args.Length)
                 {
                     outFile = args[i + 1];
+                    i++;
+                }
+                else if (args[i] == "--sha256" && i + 1 < args.Length)
+                {
+                    sha256 = args[i + 1];
                     i++;
                 }
                 else
@@ -40,7 +48,7 @@ namespace AgentSandbox.HcsHost
             int code;
             try
             {
-                code = Dispatch(rest, out response);
+                code = Dispatch(rest, sha256, out response);
             }
             catch (Exception ex)
             {
@@ -73,11 +81,11 @@ namespace AgentSandbox.HcsHost
             return reply.Ok ? ExitOk : ExitFailed;
         }
 
-        private static int Dispatch(List<string> args, out string response)
+        private static int Dispatch(List<string> args, string sha256, out string response)
         {
             if (args.Count == 0)
             {
-                return Usage(out response, "HcsHost <check|enumerate|properties|create|start|terminate|grant-vm-access|create-vhdx> ... --out file");
+                return Usage(out response, "HcsHost <check|enumerate|properties|create|start|terminate|grant-vm-access|create-vhdx|share|wsb-share|wsb-rules> ... --out file");
             }
             string verb = args[0];
             if (verb == "check")
@@ -112,6 +120,22 @@ namespace AgentSandbox.HcsHost
             if (verb == "share" && args.Count == 2)
             {
                 return Share(args[1], out response);
+            }
+            if (verb == "wsb-share" && args.Count == 2)
+            {
+                if (sha256 == null || !System.Text.RegularExpressions.Regex.IsMatch(sha256, "^[0-9A-Fa-f]{64}$"))
+                {
+                    return Usage(out response, "wsb-share <request.json> --sha256 <its SHA-256>");
+                }
+                Dictionary<string, string> values = new Dictionary<string, string>();
+                string message;
+                bool ok = WsbShare.Run(args[1], sha256, values, out message);
+                response = Json.Response(ok, 0, message, "", values);
+                return ok ? ExitOk : (message.StartsWith("Refused: ") ? ExitUsage : ExitFailed);
+            }
+            if (verb == "wsb-rules" && (args.Count == 2 || args.Count == 3))
+            {
+                return WsbRules(args[1], args.Count == 3 ? args[2] : null, out response);
             }
             if (verb == "grant-vm-access" && args.Count == 3)
             {
@@ -175,8 +199,8 @@ namespace AgentSandbox.HcsHost
         }
 
         /// <summary>
-        /// PROTOTYPE (docs/design/hcs-live-folders.md): adds or removes a vSMB share on a running system of OURS (id
-        /// prefix and Owner, as for start/terminate). Windows Sandbox's own system is refused like any other.
+        /// Adds or removes a vSMB share on a running system of OURS (id prefix and Owner, as for start/terminate).
+        /// Windows Sandbox's own system is refused like any other: that is wsb-share's, with its own rules.
         /// </summary>
         private static int Share(string requestFile, out string response)
         {
@@ -193,6 +217,30 @@ namespace AgentSandbox.HcsHost
             Dictionary<string, string> values = new Dictionary<string, string>();
             values["request"] = request.ToModifySettingRequest();
             return FromReply(Hcs.Modify(request.Id, values["request"]), values, out response);
+        }
+
+        /// <summary>The test hook for WsbGuard: its rules on a recorded enumerate answer. Never calls HCS.</summary>
+        private static int WsbRules(string file, string id, out string response)
+        {
+            FileInfo info = new FileInfo(file);
+            if (!info.Exists || info.Length > MaxRequestBytes)
+            {
+                return Usage(out response, "wsb-rules <enumerate.json> [id]");
+            }
+            string found;
+            string problem = WsbGuard.Candidate(File.ReadAllText(file, Encoding.UTF8), out found);
+            if (problem == null && id != null)
+            {
+                problem = WsbGuard.IdProblem(id) ?? WsbGuard.MatchProblem(found, id);
+            }
+            Dictionary<string, string> values = new Dictionary<string, string>();
+            values["id"] = found ?? "";
+            if (Refused(problem, out response))
+            {
+                return ExitUsage;
+            }
+            response = Json.Response(true, 0, "ok", "", values);
+            return ExitOk;
         }
 
         /// <summary>True (with the refusal as the response) when `problem` says why the request is not allowed.</summary>

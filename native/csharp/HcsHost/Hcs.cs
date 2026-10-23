@@ -63,7 +63,9 @@ namespace AgentSandbox.HcsHost
 
     public static class Hcs
     {
+        /// <summary>HcsOpenComputeSystem documents no narrower right than GENERIC_ALL for modify.</summary>
         private const uint GenericAll = 0x10000000;
+        private const uint LoadLibrarySearchSystem32 = 0x00000800;
         private const uint QueryMs = 15000;
         private const uint ChangeMs = 180000;
 
@@ -116,7 +118,7 @@ namespace AgentSandbox.HcsHost
             public static extern IntPtr LocalFree(IntPtr mem);
 
             [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-            public static extern IntPtr LoadLibrary(string fileName);
+            public static extern IntPtr LoadLibraryEx(string fileName, IntPtr file, uint flags);
 
             [DllImport("kernel32.dll", SetLastError = true)]
             public static extern bool FreeLibrary(IntPtr module);
@@ -139,10 +141,10 @@ namespace AgentSandbox.HcsHost
             }
         }
 
-        /// <summary>Whether a DLL (computecore.dll) can be loaded at all on this PC.</summary>
+        /// <summary>Whether a DLL (computecore.dll) can be loaded at all on this PC (from System32 only).</summary>
         public static bool CanLoad(string dll)
         {
-            IntPtr module = NativeMethods.LoadLibrary(dll);
+            IntPtr module = NativeMethods.LoadLibraryEx(dll, IntPtr.Zero, LoadLibrarySearchSystem32);
             if (module == IntPtr.Zero)
             {
                 return false;
@@ -252,6 +254,32 @@ namespace AgentSandbox.HcsHost
         public static HcsReply Modify(string id, string modifySettingRequest)
         {
             return WithSystem(id, ChangeMs, delegate(IntPtr system, IntPtr op) { return NativeMethods.HcsModifyComputeSystem(system, op, modifySettingRequest, IntPtr.Zero); });
+        }
+
+        /// <summary>Opens a compute system and keeps the handle (Close it): checks and changes then use the same system.</summary>
+        public static int Open(string id, out IntPtr system)
+        {
+            return NativeMethods.HcsOpenComputeSystem(id, GenericAll, out system);
+        }
+
+        public static void Close(IntPtr system)
+        {
+            if (system != IntPtr.Zero)
+            {
+                NativeMethods.HcsCloseComputeSystem(system);
+            }
+        }
+
+        /// <summary>The properties of an opened system (Id, SystemType, Owner, State, ...).</summary>
+        public static HcsReply PropertiesOf(IntPtr system)
+        {
+            return Run(delegate(IntPtr op) { return NativeMethods.HcsGetComputeSystemProperties(system, op, "{\"PropertyTypes\":[]}"); }, QueryMs);
+        }
+
+        /// <summary>One ModifySettingRequest on an opened system, waiting at most `waitMs`.</summary>
+        public static HcsReply ModifyOn(IntPtr system, string modifySettingRequest, uint waitMs)
+        {
+            return Run(delegate(IntPtr op) { return NativeMethods.HcsModifyComputeSystem(system, op, modifySettingRequest, IntPtr.Zero); }, waitMs);
         }
 
         /// <summary>Lets the virtual machine `vmId` open the file (its disk). The file must exist.</summary>

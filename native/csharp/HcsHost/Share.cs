@@ -1,8 +1,9 @@
-// Live folders (PROTOTYPE, not wired into the CLI; docs/design/hcs-live-folders.md): a vSMB share added to or removed
-// from a RUNNING compute system with HcsModifyComputeSystem. The request is built here from checked fields, never
-// passed through: only ResourcePath "VirtualMachine/Devices/VirtualSmb/Shares", only Add or Remove, a share name with
-// this tool's prefix, and fixed options (NoDirectmap always; read-only unless asked; never TakeBackupPrivilege,
-// UseShareRootIdentity, AllowedFiles or any other option that changes whose rights the guest uses).
+// Live folders (docs/design/hcs-live-folders.md): a vSMB share added to or removed from a RUNNING compute system with
+// HcsModifyComputeSystem. The request is built here from checked fields, never passed through: only ResourcePath
+// "VirtualMachine/Devices/VirtualSmb/Shares", only Add or Remove, a share name with this tool's prefix, and fixed
+// options (NoDirectmap always; read-only unless asked; never TakeBackupPrivilege, UseShareRootIdentity, AllowedFiles or
+// any other option that changes whose rights the guest uses). `share` uses it on our own systems, `wsb-share` on the
+// running Windows Sandbox (WsbShare.cs).
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -25,9 +26,21 @@ namespace AgentSandbox.HcsHost
         public string Name;
         public string Path;
         public bool ReadOnly = true;
+        /// <summary>wsb-share: this tool's storage and data folders, never shared (the data folder holds secrets\).</summary>
+        public string StorageRoot;
+        public string DataPath;
 
         /// <summary>Reads and checks a request file. Null with `problem` set when it is not allowed.</summary>
         public static ShareRequest Read(string file, out string problem)
+        {
+            return Read(file, null, out problem);
+        }
+
+        /// <summary>
+        /// The same, and when `sha256` is given the exact bytes parsed must have that SHA-256 (a file swapped after the
+        /// elevated script checked it is caught here).
+        /// </summary>
+        public static ShareRequest Read(string file, string sha256, out string problem)
         {
             FileInfo info = new FileInfo(file);
             if (!info.Exists || info.Length > MaxRequestBytes)
@@ -35,10 +48,27 @@ namespace AgentSandbox.HcsHost
                 problem = "the request must be a file of at most 64 KB";
                 return null;
             }
+            byte[] bytes = File.ReadAllBytes(file);
+            if (bytes.Length > MaxRequestBytes)
+            {
+                problem = "the request must be a file of at most 64 KB";
+                return null;
+            }
+            if (sha256 != null && !string.Equals(Sha256Hex(bytes), sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                problem = "the request file changed after it was checked";
+                return null;
+            }
             Dictionary<string, object> raw;
             try
             {
-                raw = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(file, Encoding.UTF8));
+                string text = new UTF8Encoding(false, true).GetString(bytes).TrimStart('\uFEFF');
+                raw = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(text);
+            }
+            catch (DecoderFallbackException)
+            {
+                problem = "the request is not UTF-8";
+                return null;
             }
             catch (ArgumentException)
             {
@@ -55,6 +85,8 @@ namespace AgentSandbox.HcsHost
             string action = Text(raw, "action");
             r.Name = Text(raw, "name");
             r.Path = Text(raw, "path");
+            r.StorageRoot = Text(raw, "storageRoot");
+            r.DataPath = Text(raw, "dataPath");
             object ro;
             if (raw != null && raw.TryGetValue("readOnly", out ro))
             {
@@ -78,6 +110,14 @@ namespace AgentSandbox.HcsHost
             }
             problem = r.Add ? FolderProblem(r.Path) : null;
             return problem == null ? r : null;
+        }
+
+        public static string Sha256Hex(byte[] bytes)
+        {
+            using (System.Security.Cryptography.SHA256 sha = System.Security.Cryptography.SHA256.Create())
+            {
+                return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+            }
         }
 
         private static string Text(Dictionary<string, object> raw, string key)
@@ -150,17 +190,27 @@ namespace AgentSandbox.HcsHost
         /// <summary>The ModifySettingRequest (HCS schema; learn.microsoft.com .../hcsmodifycomputesystem).</summary>
         public string ToModifySettingRequest()
         {
+            return Build(Add, Name, Add ? System.IO.Path.GetFullPath(Path.TrimEnd('\\')) : null, ReadOnly);
+        }
+
+        /// <summary>The one place a share request is written: the fixed resource path and options.</summary>
+        public static string Build(bool add, string name, string folder, bool readOnly)
+        {
+            if (name == null || !SafeName.IsMatch(name))
+            {
+                throw new ArgumentException("not one of this tool's share names");
+            }
             StringBuilder sb = new StringBuilder();
             sb.Append("{\"ResourcePath\":").Append(Json.Quote(ResourcePath));
-            sb.Append(",\"RequestType\":").Append(Json.Quote(Add ? "Add" : "Remove"));
-            sb.Append(",\"Settings\":{\"Name\":").Append(Json.Quote(Name));
-            if (Add)
+            sb.Append(",\"RequestType\":").Append(Json.Quote(add ? "Add" : "Remove"));
+            sb.Append(",\"Settings\":{\"Name\":").Append(Json.Quote(name));
+            if (add)
             {
-                sb.Append(",\"Path\":").Append(Json.Quote(System.IO.Path.GetFullPath(Path.TrimEnd('\\'))));
+                sb.Append(",\"Path\":").Append(Json.Quote(folder));
                 // hcsshim's read-only defaults (internal/uvm/vsmb.go DefaultVSMBOptions) plus NoDirectmap: a share that
                 // was never direct-mapped can be removed again while the system runs.
                 sb.Append(",\"Options\":{\"NoDirectmap\":true");
-                if (ReadOnly)
+                if (readOnly)
                 {
                     sb.Append(",\"ReadOnly\":true,\"ShareRead\":true,\"CacheIo\":true,\"PseudoOplocks\":true");
                 }

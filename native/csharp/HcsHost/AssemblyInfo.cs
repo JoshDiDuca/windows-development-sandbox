@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("Windows Development Sandbox HCS helper")]
-[assembly: AssemblyDescription("Helper of windows-development-sandbox (open source, MIT), used only by the beta HCS engine: asks the Windows Host Compute Service to list, create, start and stop its sandbox virtual machine, gives that machine access to its own disk file and creates a blank virtual disk file. It never mounts a disk on this PC. Source: https://github.com/JoshDiDuca/windows-development-sandbox")]
+[assembly: AssemblyDescription("Helper of windows-development-sandbox (open source, MIT), used only by the beta HCS engine: asks the Windows Host Compute Service to list, create, start and stop its sandbox virtual machine, gives that machine access to its own disk file, creates a blank virtual disk file and, for the opt-in live folders alpha, adds or removes a folder share on the running Windows Sandbox after an administrator prompt. It never mounts a disk on this PC. Source: https://github.com/JoshDiDuca/windows-development-sandbox")]
 [assembly: AssemblyCompany("windows-development-sandbox (open source)")]
 [assembly: AssemblyProduct("Windows Development Sandbox")]
 [assembly: AssemblyCopyright("MIT License, windows-development-sandbox contributors")]

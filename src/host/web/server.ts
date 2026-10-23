@@ -100,6 +100,7 @@ export class WebServer {
   private readonly live: LiveHub | undefined;
   private actualPort = 0;
   private lastUsed = Date.now();
+  private lastCheck = Date.now();
   private heartbeat: NodeJS.Timeout | undefined;
   private idleCheck: NodeJS.Timeout | undefined;
 
@@ -129,7 +130,8 @@ export class WebServer {
         this.heartbeat = setInterval(() => this.beat(), this.options.heartbeatMs ?? HEARTBEAT_MS);
         this.heartbeat.unref();
         if (this.options.idleExitMs) {
-          this.idleCheck = setInterval(() => void this.checkIdle(), Math.min(60_000, this.quietMs()));
+          this.lastCheck = Date.now();
+          this.idleCheck = setInterval(() => void this.checkIdle(), this.checkEveryMs());
           this.idleCheck.unref();
         }
         const gate = this.options.gate;
@@ -175,6 +177,10 @@ export class WebServer {
   /** No browser has used the server for a while: it ends (sooner when no sandbox runs). */
   private async checkIdle(): Promise<void> {
     const limit = this.options.idleExitMs ?? 0;
+    const now = Date.now();
+    // A check much later than planned: the PC slept. Its tabs get time to reconnect before anything counts as idle.
+    if (now - this.lastCheck > 3 * this.checkEveryMs()) this.lastUsed = now;
+    this.lastCheck = now;
     if (!limit || this.tracked.size > 0) return;
     const idle = Date.now() - this.lastUsed;
     if (idle >= limit) return this.options.onStop?.();
@@ -185,6 +191,10 @@ export class WebServer {
       return; // cannot tell: wait for the longer limit
     }
     this.options.onStop?.();
+  }
+
+  private checkEveryMs(): number {
+    return Math.min(60_000, this.quietMs());
   }
 
   /** How long unused before it ends when no sandbox runs. */

@@ -39,8 +39,6 @@ interface Subscription {
 }
 
 const WAITS_MS = [500, 1000, 2000, 4000, 8000];
-/** A tab hidden this long lets go of its socket (when no call is running); showing it again reconnects. */
-const HIDDEN_RELEASE_MS = 60_000;
 
 export class RpcClient {
   private socket: WebSocket | null = null;
@@ -53,22 +51,17 @@ export class RpcClient {
   private readonly shared = new Map<string, SharedSubscription>();
   private readonly listeners = new Set<(connected: boolean) => void>();
   private hidden = false;
-  private releaseTimer: number | undefined;
 
   /**
-   * The tab was hidden or shown. Hidden: live queries stop (nothing is read for a page nobody sees) and after a minute
-   * the socket is let go. Shown: live queries start again, fresh.
+   * The tab was hidden or shown. Hidden: live queries stop (nothing is read for a page nobody sees); the idle socket
+   * stays, so the server knows the page is still open and does not end. Shown: live queries start again, fresh.
    */
   setHidden(hidden: boolean): void {
     if (hidden === this.hidden) return;
     this.hidden = hidden;
-    window.clearTimeout(this.releaseTimer);
     if (hidden) {
       if (this.socket?.readyState === WebSocket.OPEN)
         for (const id of this.subscriptions.keys()) this.send({ t: 'unsubscribe', id });
-      this.releaseTimer = window.setTimeout(() => {
-        if (this.hidden && this.calls.size === 0) this.release();
-      }, HIDDEN_RELEASE_MS);
       return;
     }
     if (this.socket?.readyState === WebSocket.OPEN)
@@ -76,7 +69,13 @@ export class RpcClient {
     else if (this.subscriptions.size) this.connect();
   }
 
-  /** Closes the socket without reconnecting (the page is going away, or a hidden tab lets go). */
+  /** The page is back (from the browser's cache): connects again, with its live queries. */
+  resume(): void {
+    this.hidden = false;
+    this.connect();
+  }
+
+  /** Closes the socket without reconnecting (the page is going away). */
   release(): void {
     const socket = this.socket;
     this.socket = null;
@@ -114,7 +113,7 @@ export class RpcClient {
       const parsed = ServerMessageSchema.safeParse(value);
       if (parsed.success) void this.receive(parsed.data);
     };
-    socket.onclose = () => {
+    socket.onclose = (event: CloseEvent) => {
       if (this.socket !== socket) return;
       this.socket = null;
       this.listeners.forEach((l) => l(false));
@@ -122,8 +121,11 @@ export class RpcClient {
       for (const call of this.calls.values())
         call.reject(new Error('The connection to the sandbox web server dropped.'));
       this.calls.clear();
+      // 4000 (a newer page took this one's place) and 4001 (signed out, access changed) are meant: no way back.
+      if (event.code === 4000 || event.code === 4001) return;
+      // Back again while the page is open, hidden or not (after sleep, or a server restarted by sandbox web open).
       const wait = WAITS_MS[Math.min(this.attempt++, WAITS_MS.length - 1)];
-      if (this.subscriptions.size && !this.hidden) window.setTimeout(() => this.connect(), wait);
+      window.setTimeout(() => this.connect(), wait);
     };
     return socket;
   }

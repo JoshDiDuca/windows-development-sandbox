@@ -7,6 +7,14 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.13.3
+
+- **The web UI no longer closes while you have it open.** A tab in the background let go of its connection after a
+  minute, so the server counted it as gone and ended 5 minutes later (20 while a sandbox ran); the page then could not
+  reconnect. A hidden tab now keeps its idle connection (live updates still pause), any page reconnects by itself after
+  a drop, and after the PC wakes from sleep the server waits for its pages instead of ending at once. A page the
+  browser brings back from its back/forward cache connects again too.
+
 ## 1.13.2
 
 - **The menu is fast.** Measured, then fixed:

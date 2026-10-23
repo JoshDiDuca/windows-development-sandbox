@@ -318,7 +318,11 @@ export const webSuite: Suite = {
 
     t.section('an unused server ends by itself (no process left behind)');
     {
-      const idleServer = async (sandbox: 'running' | 'stopped', limits: { exit: number; quiet: number }) => {
+      const idleServer = async (
+        sandbox: 'running' | 'stopped',
+        limits: { exit: number; quiet: number },
+        sleepMs = 0,
+      ): Promise<boolean> => {
         let ended = false;
         const idle = new WebServer({
           port: 0,
@@ -342,6 +346,15 @@ export const webSuite: Suite = {
           onStop: () => (ended = true),
         });
         await idle.start();
+        if (sleepMs) {
+          // The PC "sleeps": no timer runs, then the overdue check fires at once on waking.
+          const until = Date.now() + sleepMs;
+          while (Date.now() < until);
+          await new Promise((r) => setTimeout(r, 20));
+          const endedOnWaking = ended;
+          await idle.stop();
+          return endedOnWaking;
+        }
         await new Promise((r) => setTimeout(r, 1500));
         await idle.stop();
         return ended;
@@ -357,6 +370,10 @@ export const webSuite: Suite = {
       t.check(
         await idleServer('running', { exit: 300, quiet: 200 }),
         'no browser for the long wait: it ends even while a sandbox runs',
+      );
+      t.check(
+        !(await idleServer('stopped', { exit: 60_000, quiet: 200 }, 1200)),
+        'after the PC slept, it does not end on waking: open pages get time to reconnect',
       );
     }
 

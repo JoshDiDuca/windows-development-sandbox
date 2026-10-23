@@ -3,7 +3,8 @@
 Status: **Beta, off by default** (`web.enabled`; `sandbox web start` works either way; with `web.enabled` on, every
 sandbox start also starts it, and `web.openOnLaunch` opens it signed in). Every area of the menu is in it: agents,
 sessions with live terminals, the sandbox, projects, apps, accounts, settings (with VPN and GitHub as categories) and
-maintenance. It ends by itself after 20 minutes with no browser (5 when no sandbox runs). How every page looks and how
+maintenance. It stays while a page of it is open, also in a hidden tab, and ends by itself 20 minutes after the last page closed (5
+when no sandbox runs). How every page looks and how
 to check it: [design/web-ui-standard.md](design/web-ui-standard.md).
 
 ## What it is for

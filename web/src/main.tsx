@@ -16,11 +16,12 @@ import './app.css';
 
 const queries = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 const rpc = new RpcClient();
-// A hidden tab reads nothing and lets go of its connection; a closed one closes it at once (the server frees it).
+// A hidden tab reads nothing but keeps its idle connection (the server stays while a page is open); a closed one closes
+// it at once (the server frees it), and one the browser brings back from its cache connects again.
 document.addEventListener('visibilitychange', () => rpc.setHidden(document.hidden));
 window.addEventListener('pagehide', () => rpc.release());
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted) rpc.setHidden(false);
+  if (event.persisted) rpc.resume();
 });
 
 const root = document.getElementById('root');

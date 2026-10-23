@@ -2,13 +2,15 @@
 # Live folders (opt-in alpha, docs/design/hcs-live-folders.md): adds or removes one folder share on the running Windows
 # Sandbox through HcsHost.exe wsb-share. Run elevated (host/engines/hcs/live-folders.ts starts it through
 # run-elevated.ps1: one Windows permission prompt per add or remove). The request is a JSON file in a private temp
-# folder: { action, id, name, path, readOnly, storageRoot, dataPath, userSid, exe, exeSha256 }; its SHA-256 is on the
-# command line, and HcsHost hashes the exact bytes it parses again.
-# Safety, all checked here again: the temp folder is the user's and not a link; HcsHost.exe is copied into a fresh
-# folder under %ProgramData%\AgentSandboxLiveFolders (only administrators and SYSTEM may change it; checked every run)
-# and its copy must have the SHA-256 the request names before it runs; one add or remove at a time (a machine-wide
-# lock). HcsHost does the rest (which compute system, which folder, the canary). -DryRun checks the request and prints
-# what it would do, and does nothing else. The result goes to result.json next to the request file.
+# folder: { action, id, name, path, readOnly, storageRoot, dataPath, userSid }; its SHA-256 is on the command line, and
+# HcsHost hashes the exact bytes it parses again.
+# Safety, all checked here again: the temp folder is the user's and not a link; HcsHost.exe is compiled here, from the
+# sources next to this script (copied first), into a fresh folder under %ProgramData%\AgentSandboxLiveFolders that only
+# administrators and SYSTEM may use (checked, and repaired when someone else made it, on every run), never taken from
+# the caller; one add or remove at a time (a machine-wide lock). HcsHost does the rest (the caller must be the account
+# that answered the prompt, which compute system, which folder, the canary). Work folders left by an earlier run (a
+# canary the sandbox kept busy) are swept. -DryRun checks the request and prints what it would do, and does nothing
+# else. The result goes to result.json next to the request file.
 param(
     [Parameter(Mandatory = $true)][string]$Json,
     [string]$Sha256 = '',
@@ -22,16 +24,12 @@ $result = @{ ok = $false; message = ''; id = ''; canary = '' }
 $AdminSids = @('S-1-5-18', 'S-1-5-32-544')
 
 function Assert-LiveRequest($Req) {
-    foreach ($name in @('action', 'name', 'userSid', 'exe', 'exeSha256')) {
+    foreach ($name in @('action', 'name', 'userSid')) {
         if (-not ($Req.PSObject.Properties.Name -contains $name) -or -not $Req.$name) { throw "The request has no $name." }
     }
     if (@('add', 'remove') -notcontains [string]$Req.action) { throw 'The action must be add or remove.' }
     if ([string]$Req.name -cnotmatch '^agentsbx-[0-9a-f]{8,32}$') { throw "Not one of this tool's share names: $($Req.name)" }
     if ([string]$Req.userSid -notmatch '^S-1-[0-9-]{3,120}$') { throw 'The request has no valid user.' }
-    if ([string]$Req.exeSha256 -notmatch '^[0-9A-Fa-f]{64}$') { throw 'The request has no valid checksum for HcsHost.exe.' }
-    if (-not (Test-PlainAbsolute $Req.exe) -or -not ([string]$Req.exe).EndsWith('\HcsHost.exe', [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Not a plain full path to HcsHost.exe: $($Req.exe)"
-    }
     if ($Req.PSObject.Properties.Name -contains 'id' -and $Req.id -and ([string]$Req.id -notmatch '^[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}$')) {
         throw 'The sandbox id must be a GUID.'
     }
@@ -39,6 +37,9 @@ function Assert-LiveRequest($Req) {
     if ($Req.action -eq 'add') {
         if (-not ($Req.PSObject.Properties.Name -contains 'path') -or -not (Test-PlainAbsolute $Req.path)) { throw 'The request has no plain full path to share.' }
         if (-not ($Req.PSObject.Properties.Name -contains 'readOnly') -or -not ($Req.readOnly -is [bool])) { throw 'readOnly must be true or false.' }
+        foreach ($name in @('storageRoot', 'dataPath')) {
+            if (-not ($Req.PSObject.Properties.Name -contains $name) -or -not (Test-PlainAbsolute $Req.$name)) { throw "The request has no plain full $name." }
+        }
     }
 }
 
@@ -54,28 +55,6 @@ function Assert-PrivateTemp($Req, [string]$Dir) {
     }
 }
 
-# %ProgramData%\AgentSandboxLiveFolders: made once with an administrator-only DACL; checked on every run (a folder
-# someone else made first is refused, never used).
-function Get-AdminParent {
-    $base = $(if ($env:ProgramData) { $env:ProgramData } else { 'C:\ProgramData' })
-    $parent = Join-Path $base 'AgentSandboxLiveFolders'
-    if (Test-ReparsePoint $base) { throw "Refusing a link: $base" }
-    if (-not (Test-Path -LiteralPath $parent)) {
-        [void][IO.Directory]::CreateDirectory($parent, (New-AdminSecurity))
-    }
-    if (Test-ReparsePoint $parent) { throw "Refusing a link: $parent" }
-    $acl = Get-Acl -LiteralPath $parent
-    $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
-    if ($AdminSids -notcontains $owner) { throw "$parent belongs to $owner, not to administrators; delete it as an administrator and try again." }
-    if (-not $acl.AreAccessRulesProtected) { throw "$parent inherits permissions; delete it as an administrator and try again." }
-    foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
-        if ($rule.AccessControlType -eq 'Allow' -and $AdminSids -notcontains $rule.IdentityReference.Value) {
-            throw "$($rule.IdentityReference.Value) may use $parent; delete it as an administrator and try again."
-        }
-    }
-    return $parent
-}
-
 function New-AdminSecurity {
     $acl = New-Object Security.AccessControl.DirectorySecurity
     $acl.SetOwner((New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')))
@@ -88,25 +67,68 @@ function New-AdminSecurity {
     return $acl
 }
 
-function Get-FileSha256([string]$Path) {
-    $stream = [IO.File]::OpenRead($Path)
-    try {
-        return [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
-    } finally {
-        $stream.Dispose()
+function Test-AdminOnly([string]$Path) {
+    $acl = Get-Acl -LiteralPath $Path
+    if ($AdminSids -notcontains $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value) { return $false }
+    if (-not $acl.AreAccessRulesProtected) { return $false }
+    foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+        if ($rule.AccessControlType -eq 'Allow' -and $AdminSids -notcontains $rule.IdentityReference.Value) { return $false }
     }
+    return $true
+}
+
+# %ProgramData%\AgentSandboxLiveFolders: made with an administrator-only DACL. One that someone else made first (any
+# user may create folders in ProgramData) is taken over: owner Administrators and the DACL written whole; its old
+# content stays, unused (each run works in a new random folder made with its own DACL).
+function Get-AdminParent {
+    $base = [Environment]::GetFolderPath('CommonApplicationData')
+    if (-not $base -or (Test-ReparsePoint $base)) { throw "ProgramData is missing or a link: $base" }
+    $parent = Join-Path $base 'AgentSandboxLiveFolders'
+    if (-not (Test-Path -LiteralPath $parent)) {
+        [void][IO.Directory]::CreateDirectory($parent, (New-AdminSecurity))
+    }
+    if (Test-ReparsePoint $parent) { throw "Refusing a link: $parent" }
+    if (-not (Test-AdminOnly $parent)) {
+        Add-Note "taking over $parent (someone else made it or may use it)"
+        Set-Acl -LiteralPath $parent -AclObject (New-AdminSecurity)
+        if ((Test-ReparsePoint $parent) -or -not (Test-AdminOnly $parent)) { throw "$parent could not be made administrator-only." }
+    }
+    # Work folders an earlier run could not delete (the sandbox kept its canary busy): gone after an hour.
+    foreach ($old in @(Get-ChildItem -LiteralPath $parent -Force -Directory -ErrorAction SilentlyContinue)) {
+        if ($old.Name -match '^[0-9a-f]{32}$' -and -not ($old.Attributes -band [IO.FileAttributes]::ReparsePoint) -and $old.CreationTimeUtc -lt [DateTime]::UtcNow.AddHours(-1)) {
+            Remove-Item -LiteralPath $old.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    return $parent
+}
+
+# HcsHost.exe built here from this package's sources (copied into the admin-only work folder first), with the
+# compiler that ships with Windows: nothing the caller names is ever run elevated.
+function Build-HcsHost([string]$Work) {
+    $sources = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\csharp\HcsHost'))
+    if (-not (Test-Path -LiteralPath $sources -PathType Container) -or (Test-ReparsePoint $sources)) { throw "The HcsHost sources are missing or a link: $sources" }
+    $copy = Join-Path $Work 'src'
+    [void][IO.Directory]::CreateDirectory($copy)
+    foreach ($file in @(Get-ChildItem -LiteralPath $sources -Filter '*.cs' -File)) {
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Refusing a link: $($file.FullName)" }
+        [IO.File]::Copy($file.FullName, (Join-Path $copy $file.Name), $false)
+    }
+    $csc = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+    $exe = Join-Path $Work 'HcsHost.exe'
+    $files = @(Get-ChildItem -LiteralPath $copy -Filter '*.cs' -File | ForEach-Object { $_.FullName })
+    if ($files.Count -eq 0) { throw 'No HcsHost sources were found.' }
+    & $csc '/nologo' '/optimize' '/target:exe' '/r:System.Web.Extensions.dll' ('/out:' + $exe) @files | Out-Null
+    if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'HcsHost.exe could not be built (the .NET Framework compiler that ships with Windows is needed).' }
+    return $exe
 }
 
 function Invoke-Live($Req, [string]$JsonPath, [string]$Checksum) {
-    if (-not (Test-Path -LiteralPath $Req.exe -PathType Leaf) -or (Test-ReparsePoint $Req.exe)) { throw "HcsHost.exe is missing or a link: $($Req.exe)" }
     $parent = Get-AdminParent
     $work = Join-Path $parent ([Guid]::NewGuid().ToString('N'))
     if (Test-Path -LiteralPath $work) { throw "The work folder exists already: $work" }
     [void][IO.Directory]::CreateDirectory($work, (New-AdminSecurity))
     try {
-        $exe = Join-Path $work 'HcsHost.exe'
-        [IO.File]::Copy($Req.exe, $exe, $false)
-        if ((Get-FileSha256 $exe) -ne ([string]$Req.exeSha256).ToLowerInvariant()) { throw 'HcsHost.exe is not the file the request names (its checksum differs); nothing was done.' }
+        $exe = Build-HcsHost $work
         $out = Join-Path $work 'reply.json'
         & $exe 'wsb-share' $JsonPath '--sha256' $Checksum '--out' $out | Out-Null
         if (-not (Test-Path -LiteralPath $out)) { throw 'HcsHost.exe gave no answer.' }
@@ -115,11 +137,22 @@ function Invoke-Live($Req, [string]$JsonPath, [string]$Checksum) {
         $reply = [Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
         $script:result.ok = [bool]$reply.ok
         $script:result.message = [string]$reply.message
-        if ($reply.values.PSObject.Properties.Name -contains 'id') { $script:result.id = [string]$reply.values.id }
-        if ($reply.values.PSObject.Properties.Name -contains 'canary') { $script:result.canary = [string]$reply.values.canary }
+        $names = @($reply.values.PSObject.Properties | ForEach-Object { $_.Name })
+        if ($names -contains 'id') { $script:result.id = [string]$reply.values.id }
+        if ($names -contains 'canary') { $script:result.canary = [string]$reply.values.canary }
     } finally {
         if (-not (Test-ReparsePoint $work)) { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
     }
+}
+
+# result.json in the caller's folder: checked for a link right before, and only made as a new file.
+function Write-LiveResult([hashtable]$Result, [string]$JsonPath) {
+    $Result.notes = @($script:Lines)
+    $dir = Split-Path -Parent $JsonPath
+    if (Test-ReparsePoint $dir) { return }
+    $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes(($Result | ConvertTo-Json -Compress))
+    $stream = New-Object IO.FileStream((Join-Path $dir 'result.json'), [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
 }
 
 $mutex = $null
@@ -136,7 +169,7 @@ try {
         Assert-PrivateTemp $request (Split-Path -Parent $Json)
         $mutex = New-Object System.Threading.Mutex($false, 'Global\AgentSandboxLiveFolders')
         try { $owned = $mutex.WaitOne(120000) } catch [System.Threading.AbandonedMutexException] { $owned = $true }
-        if (-not $owned) { throw 'Another live folder is being added or removed. Try again in a minute.' }
+        if (-not $owned) { throw 'Another live folder is being added or removed (maybe by another user of this PC). Try again in a few minutes.' }
         Invoke-Live $request $Json $Sha256
     }
 } catch {
@@ -148,7 +181,11 @@ try {
         $mutex.Dispose()
     }
 }
-Write-ContainedResult $result $Json $DryRun.IsPresent
+if ($DryRun) {
+    Write-ContainedResult $result $Json $true
+} else {
+    try { Write-LiveResult $result $Json } catch { [Console]::Error.WriteLine('The result could not be written: ' + $_.Exception.Message) }
+}
 if ($result.ok) { exit 0 }
 if ($DryRun) { [Console]::Error.WriteLine($result.message) }
 exit 1

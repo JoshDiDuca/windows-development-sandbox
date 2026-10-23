@@ -15,6 +15,8 @@ namespace AgentSandbox.HcsHost
     {
         private const uint FileReadAttributes = 0x80;
         private const uint FileShareAll = 0x7;
+        /// <summary>Read and write, never delete: while the handle is held the folder cannot be renamed or replaced.</summary>
+        private const uint FileShareReadWrite = 0x3;
         private const uint OpenExisting = 3;
         private const uint FlagBackupSemantics = 0x02000000;
         private const uint FlagOpenReparsePoint = 0x00200000;
@@ -93,12 +95,18 @@ namespace AgentSandbox.HcsHost
         }
 
         /// <summary>
-        /// Null (with the path to share in `finalPath`) when the folder may be shared with Windows Sandbox; otherwise why
-        /// not.
+        /// Null (with the path to share in `finalPath` and the folder still open in `held`, without delete sharing, so it
+        /// cannot be renamed or swapped for a link until the caller closes it after the share) when the folder may be
+        /// shared with Windows Sandbox; otherwise why not.
         /// </summary>
-        public static string Problem(string path, bool readOnly, string storageRoot, string dataPath, out string finalPath)
+        public static string Problem(string path, bool readOnly, string storageRoot, string dataPath, out string finalPath, out IntPtr held)
         {
             finalPath = null;
+            held = IntPtr.Zero;
+            if (string.IsNullOrEmpty(storageRoot) || string.IsNullOrEmpty(dataPath))
+            {
+                return "the request must name this tool's storage and data folders (they are never shared)";
+            }
             string problem = ShareRequest.FolderProblem(path);
             if (problem != null)
             {
@@ -110,11 +118,25 @@ namespace AgentSandbox.HcsHost
                 return "the folder is on a subst drive: give its real path";
             }
             string real;
-            problem = RealPath(folder, out real);
+            problem = Open(folder, out real, out held);
             if (problem != null)
             {
                 return problem;
             }
+            problem = CheckOpened(folder, real, readOnly, storageRoot, dataPath);
+            if (problem != null)
+            {
+                Close(held);
+                held = IntPtr.Zero;
+                return problem;
+            }
+            finalPath = real;
+            return null;
+        }
+
+        private static string CheckOpened(string folder, string real, bool readOnly, string storageRoot, string dataPath)
+        {
+            string problem;
             if (!string.Equals(real, folder, StringComparison.OrdinalIgnoreCase))
             {
                 return "the folder's real path is " + real + ": give that one";
@@ -124,13 +146,27 @@ namespace AgentSandbox.HcsHost
             {
                 return problem;
             }
-            problem = UserAccessProblem(real, readOnly);
+            return UserAccessProblem(real, readOnly);
+        }
+
+        public static void Close(IntPtr held)
+        {
+            if (held != IntPtr.Zero && held != InvalidHandle)
+            {
+                NativeMethods.CloseHandle(held);
+            }
+        }
+
+        /// <summary>After the share: the held folder is still at `path` (null), or why not.</summary>
+        public static string MovedProblem(IntPtr held, string path)
+        {
+            string now;
+            string problem = FinalPath(held, out now);
             if (problem != null)
             {
                 return problem;
             }
-            finalPath = real;
-            return null;
+            return string.Equals(now, path, StringComparison.OrdinalIgnoreCase) ? null : "the folder moved while it was being shared";
         }
 
         private static bool IsSubst(string drive)
@@ -143,15 +179,20 @@ namespace AgentSandbox.HcsHost
             return target.ToString().StartsWith("\\??\\", StringComparison.Ordinal);
         }
 
-        /// <summary>The path Windows reports for the folder itself, opened without following a link.</summary>
-        private static string RealPath(string folder, out string real)
+        /// <summary>
+        /// Opens the folder itself without following a link and without delete sharing (kept open in `handle`), and
+        /// says the path Windows reports for it.
+        /// </summary>
+        private static string Open(string folder, out string real, out IntPtr handle)
         {
             real = null;
-            IntPtr handle = NativeMethods.CreateFileW(folder, FileReadAttributes, FileShareAll, IntPtr.Zero, OpenExisting, FlagBackupSemantics | FlagOpenReparsePoint, IntPtr.Zero);
+            handle = NativeMethods.CreateFileW(folder, FileReadAttributes, FileShareReadWrite, IntPtr.Zero, OpenExisting, FlagBackupSemantics | FlagOpenReparsePoint, IntPtr.Zero);
             if (handle == InvalidHandle)
             {
-                return "the folder cannot be opened: " + new Win32Exception(Marshal.GetLastWin32Error()).Message;
+                handle = IntPtr.Zero;
+                return "the folder cannot be opened (or something is renaming it): " + new Win32Exception(Marshal.GetLastWin32Error()).Message;
             }
+            bool keep = false;
             try
             {
                 ByHandleFileInformation info;
@@ -163,23 +204,37 @@ namespace AgentSandbox.HcsHost
                 {
                     return "only a plain folder (not a file or a link) can be shared";
                 }
-                StringBuilder sb = new StringBuilder(1024);
-                uint length = NativeMethods.GetFinalPathNameByHandleW(handle, sb, (uint)sb.Capacity, 0);
-                if (length == 0 || length >= sb.Capacity)
+                string problem = FinalPath(handle, out real);
+                keep = problem == null;
+                return problem;
+            }
+            finally
+            {
+                if (!keep)
                 {
-                    return "the folder's real path cannot be read";
+                    NativeMethods.CloseHandle(handle);
+                    handle = IntPtr.Zero;
                 }
-                string text = sb.ToString();
+            }
+        }
+
+        private static string FinalPath(IntPtr handle, out string real)
+        {
+            real = null;
+            StringBuilder sb = new StringBuilder(1024);
+            uint length = NativeMethods.GetFinalPathNameByHandleW(handle, sb, (uint)sb.Capacity, 0);
+            if (length == 0 || length >= sb.Capacity)
+            {
+                return "the folder's real path cannot be read";
+            }
+            string text = sb.ToString();
+            {
                 if (!text.StartsWith("\\\\?\\", StringComparison.Ordinal) || text.StartsWith("\\\\?\\UNC\\", StringComparison.OrdinalIgnoreCase))
                 {
                     return "only folders on a local drive can be shared";
                 }
                 real = text.Substring(4).TrimEnd('\\');
                 return null;
-            }
-            finally
-            {
-                NativeMethods.CloseHandle(handle);
             }
         }
 

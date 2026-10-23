@@ -42,6 +42,14 @@ namespace AgentSandbox.HcsHost
                 message = "Refused: " + problem;
                 return false;
             }
+            // Elevated with another account's password (a standard user's prompt): the profile, access and ownership
+            // checks would be that account's, so it is refused. Live folders need your own administrator account.
+            string me = WindowsIdentity.GetCurrent().User.Value;
+            if (string.IsNullOrEmpty(request.UserSid) || !string.Equals(request.UserSid, me, StringComparison.OrdinalIgnoreCase))
+            {
+                message = "Refused: the permission prompt was answered with another account; live folders need your own administrator account";
+                return false;
+            }
             string wanted = string.IsNullOrEmpty(request.Id) ? null : request.Id;
             if (wanted != null && (problem = WsbGuard.IdProblem(wanted)) != null)
             {
@@ -54,11 +62,26 @@ namespace AgentSandbox.HcsHost
                 return false;
             }
             string folder = null;
-            if (request.Add && (problem = FolderAccess.Problem(request.Path, request.ReadOnly, request.StorageRoot, request.DataPath, out folder)) != null)
+            IntPtr held = IntPtr.Zero;
+            if (request.Add && (problem = FolderAccess.Problem(request.Path, request.ReadOnly, request.StorageRoot, request.DataPath, out folder, out held)) != null)
             {
                 message = "Refused: " + problem;
                 return false;
             }
+            try
+            {
+                return WithFolder(request, requestFile, folder, held, wanted, values, out message);
+            }
+            finally
+            {
+                FolderAccess.Close(held);
+            }
+        }
+
+        /// <summary>The rest of Run, while the folder to share is held open (it cannot be renamed or replaced).</summary>
+        private static bool WithFolder(ShareRequest request, string requestFile, string folder, IntPtr held, string wanted, IDictionary<string, string> values, out string message)
+        {
+            string problem;
             string id;
             if ((problem = WsbGuard.Find(out id)) != null || (problem = WsbGuard.MatchProblem(id, wanted)) != null)
             {
@@ -89,7 +112,7 @@ namespace AgentSandbox.HcsHost
                     values["request"] = remove;
                     return Reply(Hcs.ModifyOn(system, remove, OperationMs), "removed", out message);
                 }
-                return AddWithCanary(system, request, folder, Path.GetDirectoryName(Path.GetFullPath(requestFile)), values, out message);
+                return AddWithCanary(system, request, folder, held, Path.GetDirectoryName(Path.GetFullPath(requestFile)), values, out message);
             }
             finally
             {
@@ -137,8 +160,19 @@ namespace AgentSandbox.HcsHost
         /// <summary>Writes a small file whole: a temp name first, then moved into place.</summary>
         private static void WriteWhole(string file, string text)
         {
+            // The caller's own temp folder: checked for a link right before writing, and only a new file is made there
+            // (never over an existing file or link).
+            string dir = Path.GetDirectoryName(file);
+            if ((File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException("the request folder became a link");
+            }
             string temp = file + "." + RandomHex(4) + ".tmp";
-            File.WriteAllText(temp, text, new UTF8Encoding(false));
+            byte[] bytes = new UTF8Encoding(false).GetBytes(text);
+            using (FileStream stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+            }
             File.Move(temp, file);
         }
 
@@ -179,7 +213,7 @@ namespace AgentSandbox.HcsHost
             return diff == 0;
         }
 
-        private static bool AddWithCanary(IntPtr system, ShareRequest request, string folder, string exchange, IDictionary<string, string> values, out string message)
+        private static bool AddWithCanary(IntPtr system, ShareRequest request, string folder, IntPtr held, string exchange, IDictionary<string, string> values, out string message)
         {
             string token = RandomHex(16);
             string canaryName = "agentsbx-" + RandomHex(8);
@@ -188,13 +222,14 @@ namespace AgentSandbox.HcsHost
             try
             {
                 canaryDir = MakeCanaryFolder(token);
+                // Removed in finally even when the add fails: an add that timed out may still complete.
+                canaryAdded = true;
                 HcsReply added = Hcs.ModifyOn(system, ShareRequest.Build(true, canaryName, canaryDir, true), OperationMs);
                 if (!added.Ok)
                 {
                     values["canary"] = "not added";
                     return Reply(added, "", out message);
                 }
-                canaryAdded = true;
                 WriteWhole(Path.Combine(exchange, CanaryFile), "{\"share\":" + Json.Quote(canaryName) + "}");
                 string answer = null;
                 for (int waited = 0; waited < CanaryWaitMs && answer == null; waited += PollMs)
@@ -217,7 +252,20 @@ namespace AgentSandbox.HcsHost
                 values["canary"] = "matched";
                 string add = ShareRequest.Build(true, request.Name, folder, request.ReadOnly);
                 values["request"] = add;
-                return Reply(Hcs.ModifyOn(system, add, OperationMs), "added", out message);
+                HcsReply real = Hcs.ModifyOn(system, add, OperationMs);
+                string moved = real.Ok ? FolderAccess.MovedProblem(held, folder) : null;
+                if (!real.Ok || moved != null)
+                {
+                    // Failed, timed out (it may still complete) or the folder moved: the share is taken away again.
+                    HcsReply undone = Hcs.ModifyOn(system, ShareRequest.Build(false, request.Name, null, true), OperationMs);
+                    values["undone"] = undone.Ok ? "yes" : undone.Message();
+                    if (moved != null)
+                    {
+                        message = "Refused: " + moved;
+                        return false;
+                    }
+                }
+                return Reply(real, "added", out message);
             }
             finally
             {

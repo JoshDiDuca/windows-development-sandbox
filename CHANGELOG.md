@@ -14,7 +14,7 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   instead of offering a restart. Each add or remove asks for administrator permission once. A helper finds the one
   running Windows Sandbox (two candidates, such as another user's sandbox or Application Guard, mean no), proves it is
   yours with a test share whose random token must come back through the sandbox's daemon, and only then shares the
-  folder: read-only unless the project is writable, never a system folder, your profile itself, this tool's storage or
+  folder: always read-only in this alpha, never a system folder, your profile itself, this tool's storage or
   a folder you cannot use yourself. Inside, it appears at `C:\Workspace\<name>` as a plain folder; `sandbox projects
   remove` hides it and removes the share. Turn it on before the sandbox starts. If it fails, the sandbox may close:
   save your work first. It replaces the restart only after the real-PC tests in

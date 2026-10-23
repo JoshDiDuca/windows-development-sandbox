@@ -329,20 +329,41 @@ Decisions where this note left room (an Opus advisor was asked; its answers were
   Administrators, SYSTEM and Virtual Machines (`S-1-5-83-0`, the VM worker) read only; the user is left off. The
   unelevated host relays the token through `answer.txt` in the request's private temp folder; HcsHost compares it in
   fixed time. Cleanup is in `finally`.
-- **The exe copy** goes to a fresh random folder under `%ProgramData%\AgentSandboxLiveFolders` (made once with a
-  protected Administrators + SYSTEM DACL, owner Administrators; checked on every run, refused if anyone else may use
-  it), its SHA-256 compared with the request's, and the folder removed afterwards. The `.ps1` itself runs from the
-  package folder (same-user malware is out of scope; UAC is not a boundary).
+- **The exe** (changed after the security review): the elevated script compiles HcsHost.exe itself, from copies of
+  this package's sources, into a fresh random folder under `%ProgramData%\AgentSandboxLiveFolders` (found with
+  `GetFolderPath`, made with a protected Administrators + SYSTEM DACL and owner Administrators, checked on every run and
+  taken over when someone else made it), and removes the folder afterwards; work folders older than an hour are swept.
+  Nothing the caller names is run elevated. The `.ps1` and the sources run from the package folder (same-user malware
+  is out of scope; UAC is not a boundary).
 - **Folder checks in the elevated process**: the real path is resolved unelevated first (a subst drive is not visible
   to the elevated session and is refused there); HcsHost opens the folder without following links, compares
   `GetFinalPathNameByHandle`, refuses drives, Windows, Program Files, ProgramData, the users folder, the profile root
   and other profiles, the storage and data folders (and folders holding them), and runs `AccessCheck` with the linked
   (unelevated) token for read and traverse, plus write for a writable share. `identity` stays `NULL` (PC test 8).
-- **Writable or not**: the project's own `readOnly` setting decides (as at a launch); read-only when it is not known.
+- **Writable or not**: always read-only in this alpha (the security review: the project's `readOnly` defaults to false, and
+  whose rights the share uses with `identity` NULL is unproven). HcsHost and the daemon still take `readOnly: false`,
+  so a writable share can follow once PC tests 8 and 9 pass, with an explicit way to ask for it.
 - **Concurrency**: the mutex `Global\AgentSandboxLiveFolders` (two minutes, an abandoned one counts as taken).
 - **Remove**: the daemon hides the folder and confirms the mapping is gone, then the share is removed; any failure keeps
   the record and the project. Each add and remove is logged in `<storage>\state\live-folders.log`. A stop clears the
   record and its key (the watcher); the next launch makes a new key.
+
+An Opus security review of the whole change found no high-severity issue; every confirmed finding was fixed:
+- guest reply text is passed through `safeText` before it can reach a message or the terminal;
+- live folders are always read-only in this alpha (they were writable by default through the project's `readOnly`);
+- the folder stays open without delete sharing from the check until the share is added, its final path is compared
+  again afterwards, and a moved folder's share is taken away;
+- HcsHost refuses when the prompt was answered with another account (the request's `userSid` must be the elevated
+  user), so the profile and access checks are always the caller's;
+- HcsHost is built on the elevated side instead of taking a caller-named exe and hash; ProgramData is found with
+  `GetFolderPath`;
+- the elevated writes into the caller's temp folder (`canary.json`, `result.json`) check for a link right before and
+  only make new files;
+- a canary or real add that fails or times out is removed anyway; a share the helper added is recorded before any later
+  check can fail; old work folders are swept;
+- a squatted `AgentSandboxLiveFolders` folder is taken over instead of blocking the feature; the busy-lock message says
+  another user may hold it;
+- an add without the storage and data folders is refused by HcsHost itself.
 
 ## Sources
 

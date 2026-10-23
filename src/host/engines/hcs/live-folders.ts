@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
-import { assertNoLinks, fail, sleep } from '../../../core/util/index.js';
+import { assertNoLinks, fail, safeText, sleep } from '../../../core/util/index.js';
 import {
   LIVE_SHARE_NAME,
   LIVE_TOKEN,
@@ -34,7 +34,6 @@ import { refuseInSelfTest } from '../../test-guard.js';
 import { SecretStore } from '../../secrets/index.js';
 import { isSandboxRunning } from '../../sandbox/index.js';
 import { currentUserSid } from '../../sharing/index.js';
-import { hcsHostExe } from './helper.js';
 
 const GUID = /^[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}$/;
 /** The prompt, the canary (45 s at most in HcsHost) and three HCS operations of 60 s at most. */
@@ -77,8 +76,6 @@ export interface LiveShareRequest {
   readonly storageRoot: string;
   readonly dataPath: string;
   readonly userSid: string;
-  readonly exe: string;
-  readonly exeSha256: string;
 }
 
 const OutcomeSchema = z.object({
@@ -191,8 +188,6 @@ export interface LiveFolderDeps {
   readonly dataPath: string;
   readonly secrets: SecretStore;
   readonly elevated: ElevatedLivePort;
-  /** HcsHost.exe and its SHA-256 (built when needed), or null when it cannot be built. */
-  readonly exe: () => { path: string; sha256: string } | null;
   readonly userSid: () => string;
   readonly isAlive?: () => boolean;
   readonly pollMs?: number;
@@ -291,7 +286,8 @@ export class LiveFolders {
       const answer = readValid(LiveReplySchema, reply);
       if (answer && answer.id === id) {
         fs.rmSync(reply, { force: true });
-        return answer;
+        // Guest text: printable only before it can reach a message or the terminal.
+        return { ...answer, message: safeText(answer.message).slice(0, 300) };
       }
       if (round % 10 === 9 && this.d.isAlive && !this.d.isAlive()) break;
       await sleep(this.d.pollMs ?? 300);
@@ -306,9 +302,6 @@ export class LiveFolders {
     name: string,
     extra: { path?: string; readOnly?: boolean },
   ): LiveShareRequest {
-    const exe =
-      this.d.exe() ??
-      fail('HcsHost.exe could not be built.', 'It needs the .NET Framework compiler that ships with Windows.');
     return {
       action,
       id: record.systemId ?? '',
@@ -317,8 +310,6 @@ export class LiveFolders {
       storageRoot: this.d.storageRoot,
       dataPath: this.d.dataPath,
       userSid: this.d.userSid(),
-      exe: exe.path,
-      exeSha256: exe.sha256,
     };
   }
 
@@ -365,13 +356,12 @@ export class LiveFolders {
         ' ' +
         (outcome.ok ? 'ok' : 'failed: ' + outcome.message),
     );
-    if (!outcome.ok) fail('The folder was not shared: ' + outcome.message + '.');
-    if (
-      !outcome.id ||
-      !GUID.test(outcome.id) ||
-      (record.systemId && record.systemId.toLowerCase() !== outcome.id.toLowerCase())
-    )
-      fail('The live-folder helper answered for an unexpected sandbox; nothing more is done.');
+    if (!outcome.ok) fail('The folder was not shared: ' + safeText(outcome.message) + '.');
+    if (!outcome.id || !GUID.test(outcome.id))
+      fail(
+        'The live-folder helper did not say which sandbox it shared the folder with; it ends when the sandbox stops.',
+      );
+    const unexpected = Boolean(record.systemId && record.systemId.toLowerCase() !== outcome.id.toLowerCase());
     const share: LiveShare = {
       name,
       host: o.host,
@@ -381,7 +371,9 @@ export class LiveFolders {
       addedAt: new Date().toISOString(),
     };
     const latest = this.read() ?? record;
-    this.file.write({ ...latest, systemId: outcome.id, shares: [...latest.shares, share] });
+    // Recorded before anything else can fail, so remove can still take it away.
+    this.file.write({ ...latest, systemId: latest.systemId ?? outcome.id, shares: [...latest.shares, share] });
+    if (unexpected) fail('The live-folder helper answered for an unexpected sandbox; nothing more is done.');
     const mapped = await this.ask(
       record,
       { kind: 'map', share: name, folder: o.folder, readOnly: o.readOnly },
@@ -406,7 +398,8 @@ export class LiveFolders {
       fail('That share is not in the live-folder record.');
     const outcome = await this.d.elevated.run(this.request(record, 'remove', share.name, {}), async () => null);
     this.log('remove ' + share.name + ' ' + share.host + ' ' + (outcome.ok ? 'ok' : 'failed: ' + outcome.message));
-    if (!outcome.ok) fail('The share could not be removed: ' + outcome.message + '. It ends when the sandbox stops.');
+    if (!outcome.ok)
+      fail('The share could not be removed: ' + safeText(outcome.message) + '. It ends when the sandbox stops.');
     const latest = this.read() ?? record;
     this.file.write({ ...latest, shares: latest.shares.filter((s) => s.name !== share.name) });
     return true;
@@ -437,20 +430,13 @@ export class LiveFolders {
   }
 }
 
-/** HcsHost.exe (built on first use in <storage>\bin\hcs) with its SHA-256, for the elevated script to check. */
-function hcsHostWithHash(storageRoot: string): { path: string; sha256: string } | null {
-  const exe = hcsHostExe(storageRoot);
-  return exe ? { path: exe, sha256: crypto.createHash('sha256').update(fs.readFileSync(exe)).digest('hex') } : null;
-}
-
-/** The real thing: DPAPI, the elevated script, HcsHost.exe, this user's SID. */
+/** The real thing: DPAPI, the elevated script (it builds HcsHost.exe itself), this user's SID. */
 export function realLiveFolders(storageRoot: string, dataPath: string): LiveFolders {
   return new LiveFolders({
     storageRoot,
     dataPath,
     secrets: SecretStore.standard(),
     elevated: new ScriptLivePort(),
-    exe: () => hcsHostWithHash(storageRoot),
     userSid: currentUserSid,
     isAlive: isSandboxRunning,
   });

@@ -161,7 +161,8 @@ export async function joinRunning(o: {
   new RepoGuardStore(o.dataPath).add(root, {
     empty: Boolean(here) || Boolean(registryFile.rootHere(root)),
   });
-  const entry = await mapper.register(root, { readOnly: run.config.readOnly, onNote: o.onNote });
+  // A live folder (HCS alpha) is always read-only until the real-PC test shows whose rights the share uses.
+  const entry = await mapper.register(root, { readOnly: true, onNote: o.onNote });
   new KnownProjects(o.storageRoot).remember(entry.host);
   // Your hooks in ~/.agent-sandbox/hooks ran at boot (once per sandbox); the project's own scripts ("scripts" in its
   // .sandbox-config.json, --script) run before its first agent. The launch folder is read-only for the sandbox, but

@@ -29,6 +29,8 @@ namespace AgentSandbox.HcsHost
         /// <summary>wsb-share: this tool's storage and data folders, never shared (the data folder holds secrets\).</summary>
         public string StorageRoot;
         public string DataPath;
+        /// <summary>wsb-share: the Windows user who asked (must be the one running HcsHost: no other account's prompt).</summary>
+        public string UserSid;
 
         /// <summary>Reads and checks a request file. Null with `problem` set when it is not allowed.</summary>
         public static ShareRequest Read(string file, out string problem)
@@ -87,6 +89,7 @@ namespace AgentSandbox.HcsHost
             r.Path = Text(raw, "path");
             r.StorageRoot = Text(raw, "storageRoot");
             r.DataPath = Text(raw, "dataPath");
+            r.UserSid = Text(raw, "userSid");
             object ro;
             if (raw != null && raw.TryGetValue("readOnly", out ro))
             {

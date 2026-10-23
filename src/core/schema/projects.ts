@@ -31,6 +31,6 @@ export const ProjectsSchema = z.strictObject({
   liveFolders: z
     .enum(['off', 'hcs'])
     .describe(
-      'ALPHA, UNTESTED ON A REAL PC: "hcs" adds a project folder to the running sandbox through the Host Compute Service where `wsb share` is missing (one administrator prompt per add or remove; read-only unless the project was writable). If it fails, the sandbox may close: save your work first. Turn it on before the sandbox starts. "off" (default) offers a restart instead. The real-PC tests still to pass are in docs/design/hcs-live-folders.md ("Test plan").',
+      'ALPHA, UNTESTED ON A REAL PC: "hcs" adds a project folder to the running sandbox through the Host Compute Service where `wsb share` is missing (one administrator prompt per add or remove; always read-only in this alpha). If it fails, the sandbox may close: save your work first. Turn it on before the sandbox starts. "off" (default) offers a restart instead. The real-PC tests still to pass are in docs/design/hcs-live-folders.md ("Test plan").',
     ),
 });

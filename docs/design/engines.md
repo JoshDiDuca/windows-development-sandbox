@@ -59,7 +59,7 @@ launch (cli) ──> LaunchPlan (neutral, pure) ──> engine.plan() ──> en
   `create-vhdx <path> <maxGb>` (CreateVirtualDisk; never attaches to the host), `share <request.json>` (a vSMB share on
   one of OUR running systems), and for live folders (alpha, [hcs-live-folders.md](hcs-live-folders.md)) `wsb-share
   <request.json> --sha256 <hex>` (the one exception: the running Windows Sandbox, exactly one candidate, a canary
-  first; run only by `native/scripts/hcs-live-share.ps1` from an administrator-only, hash-checked copy) and `wsb-rules
+  first; run only by `native/scripts/hcs-live-share.ps1` which compiles it into an administrator-only folder first) and `wsb-rules
   <enumerate.json> [id]` (pure: the Windows Sandbox rules on a recorded list, for tests). `share` refuses GUIDs and
   `wsb-share` refuses our ids, so neither reaches the other's systems. JSON in and out through files; every handle
   closed in `finally`; failures as Win32Exception messages.

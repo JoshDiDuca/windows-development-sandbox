@@ -140,9 +140,9 @@ What happens when `sandbox claude` (or `start`, `exec`, `db`) runs in a folder o
    user's sandbox or Application Guard, means no), then shares a test folder holding a random token. Only when the
    sandbox's own daemon reads that token back is your folder shared. Otherwise nothing is shared and a restart is
    offered.
-3. The folder appears at `C:\Workspace\<name>` inside (the name in lower case: letters, digits, `-` and `_`), read-only
-   unless the project is writable (its `readOnly` setting decides, as at a launch). `sandbox projects` and
-   `sandbox status` list it as "live folder through HCS, alpha".
+3. The folder appears at `C:\Workspace\<name>` inside (the name in lower case: letters, digits, `-` and `_`), always
+   read-only in this alpha (whose rights a share added this way uses is still a real-PC test; agents can read the
+   project but not change it). `sandbox projects` and `sandbox status` list it as "live folder through HCS, alpha".
 4. `sandbox projects remove <folder>` hides it inside first, then removes the share (another prompt). If files in it are
    open in the sandbox, it stays until the sandbox stops.
 

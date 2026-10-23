@@ -21,6 +21,7 @@ import { SecretStore } from '../host/secrets/index.js';
 import { addFoldersRow, NeedsRestart, ProjectRegistry, projectMapper, type LivePort } from '../host/projects/index.js';
 import { nativeFile } from '../host/native.js';
 import { insideSandbox } from '../host/sandbox/index.js';
+import { currentUserSid } from '../host/sharing/index.js';
 import { LiveReplySchema, newLiveKey, openLive, RunDir, signLive, type LivePayload } from '../shared/channel/index.js';
 import { liveGuestFolder } from '../shared/paths/index.js';
 import { SYSTEM } from '../shared/system.js';
@@ -288,7 +289,6 @@ export const liveFoldersSuite: Suite = {
       dataPath: hostData,
       secrets: SecretStore.memory(),
       elevated,
-      exe: () => ({ path: 'C:\\x\\HcsHost.exe', sha256: 'a'.repeat(64) }),
       userSid: () => 'S-1-5-21-1-2-3-1001',
       pollMs: 20,
       canaryMs: 3000,
@@ -431,8 +431,6 @@ export const liveFoldersSuite: Suite = {
           storageRoot: storage,
           dataPath: hostData,
           userSid: 'S-1-5-21-1',
-          exe: 'C:\\x\\HcsHost.exe',
-          exeSha256: 'a'.repeat(64),
         },
         async () => token,
       );
@@ -539,7 +537,7 @@ export const liveFoldersSuite: Suite = {
         viaHcs.guest === 'C:\\Workspace\\live-map-outside' &&
         liveCalls[0]?.endsWith(' rw') &&
         notes.some((n) => /save your work first/.test(n)),
-      'no wsb share and liveFolders "hcs": HCS adds it (writable as the project would be), after the warning',
+      'no wsb share and liveFolders "hcs": HCS adds it (writable only when the caller asks; joining always asks read-only), after the warning',
       JSON.stringify(liveCalls),
     );
     liveFails = true;
@@ -617,8 +615,6 @@ export const liveFoldersSuite: Suite = {
         storageRoot: storage,
         dataPath: hostData,
         userSid: 'S-1-5-21-1-2-3-1001',
-        exe: 'C:\\x\\HcsHost.exe',
-        exeSha256: 'a'.repeat(64),
       };
       const good2 = dry(base);
       t.check(
@@ -629,9 +625,9 @@ export const liveFoldersSuite: Suite = {
       const bad = [
         dry({ ...base, name: '3ad483dec1a233132da4197c9790dcda06668793230cd6d9e94b1882e0f7f29c' }),
         dry({ ...base, action: 'update' }),
-        dry({ ...base, exe: 'C:\\x\\other.exe' }),
-        dry({ ...base, exe: 'C:\\x\\..\\HcsHost.exe' }),
-        dry({ ...base, exeSha256: 'x' }),
+        dry({ ...base, storageRoot: '' }),
+        dry({ ...base, dataPath: 'C:\\x\\..\\data' }),
+        dry({ ...base, userSid: 'me' }),
         dry({ ...base, id: 'agent-sandbox-1' }),
         dry({ ...base, action: 'remove', id: '' }),
         dry({ ...base, readOnly: 'yes' }),
@@ -639,7 +635,7 @@ export const liveFoldersSuite: Suite = {
       ];
       t.check(
         bad.every((b) => !b.ok && /refused/.test(b.out)),
-        'it refuses a foreign share name, an update, another exe, a dotted path, a bad checksum or id, a remove without id, a non-boolean readOnly and a relative path',
+        'it refuses a foreign share name, an update, no storage folder, a dotted data path, no valid user, a foreign id, a remove without id, a non-boolean readOnly and a relative path',
         bad.map((b) => b.out.trim()).join(' | '),
       );
     }
@@ -686,14 +682,21 @@ export const liveFoldersSuite: Suite = {
       const hash = sha ?? crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
       return raw.call(['wsb-share', file, '--sha256', hash]);
     };
+    // Long forms (the temp folder may be a short WDAGUT~1 path, which HcsHost refuses on its own): each refusal below
+    // is then for the reason it names.
+    const long = (p: string): string => fs.realpathSync.native(p);
+    const lFolder = long(hostFolder);
+    const lStorage = long(storage);
+    const lData = long(hostData);
     const req = {
       id: '',
       action: 'add',
       name: 'agentsbx-0123abcd',
-      path: hostFolder,
+      path: lFolder,
       readOnly: true,
-      storageRoot: storage,
-      dataPath: hostData,
+      storageRoot: lStorage,
+      dataPath: lData,
+      userSid: currentUserSid(),
     };
     const usage = raw.call(['wsb-share', t.writeJson(t.at('live-req', 'nosha.json'), req)]);
     const changed = wsbShare(req, 'b'.repeat(64));
@@ -712,17 +715,24 @@ export const liveFoldersSuite: Suite = {
       wsbShare({ ...req, path: process.env.SystemRoot ?? 'C:\\Windows' }),
       // The profile root (from the temp folder: C:\Users\<you>\AppData\Local\Temp), never HOME/USERPROFILE.
       wsbShare({ ...req, path: fs.realpathSync.native(path.resolve(os.tmpdir(), '..', '..', '..')) }),
-      wsbShare({ ...req, path: storage }),
-      wsbShare({ ...req, path: hostData }),
-      wsbShare({ ...req, path: path.dirname(storage), storageRoot: storage }),
-      wsbShare({ ...req, path: hostFolder + ':stream' }),
-      wsbShare({ ...req, path: hostFolder + '.' }),
+      wsbShare({ ...req, path: lStorage }),
+      wsbShare({ ...req, path: lData }),
+      wsbShare({ ...req, path: path.dirname(lStorage) }),
+      wsbShare({ ...req, path: lFolder + ':stream' }),
+      wsbShare({ ...req, path: lFolder + '.' }),
       wsbShare({ ...req, readOnly: 'yes' }),
+      wsbShare({ ...req, storageRoot: '' }),
     ];
     t.check(
-      refusedAll.every((r) => !r.ok && /^Refused: /.test(r.message)),
-      'wsb-share refuses our own ids, a non-GUID, a remove without id, an update, a foreign share name, a drive, Windows, the profile root, the storage or data folder (or one that holds them), a stream, a trailing dot and a non-boolean readOnly',
+      refusedAll.every((r) => !r.ok && /^Refused: /.test(r.message) && !/another account/.test(r.message)),
+      'wsb-share refuses our own ids, a non-GUID, a remove without id, an update, a foreign share name, a drive, Windows, the profile root, the storage or data folder (or one that holds them), a stream, a trailing dot, a non-boolean readOnly and a request without the storage folder',
       refusedAll.map((r) => r.message).join(' | '),
+    );
+    const otherUser = wsbShare({ ...req, userSid: 'S-1-5-21-1-2-3-1001' });
+    t.check(
+      !otherUser.ok && /another account/.test(otherUser.message),
+      'a prompt answered with another account (or a request for another user) is refused',
+      otherUser.message,
     );
     const shareGuid = raw.call(['share'], { id: GUID, action: 'add', name: 'agentsbx-0123abcd', path: hostFolder });
     t.check(

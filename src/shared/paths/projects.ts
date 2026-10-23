@@ -4,7 +4,8 @@
 //  - a folder inside a project root (projects.roots: whole folders of projects, mapped at every start), including
 //    projects created after boot;
 //  - projects mapped at boot because they were in use when the sandbox was restarted to add them;
-//  - a folder shared into the running sandbox with `wsb share` (Windows 11 24H2+, untested).
+//  - a folder shared into the running sandbox with `wsb share` (Windows 11 24H2+, untested);
+//  - a folder shared into the running sandbox through HCS (projects.liveFolders "hcs", alpha, untested on a PC).
 // A project is at the same place inside the sandbox whichever project started it (git worktrees and Claude's project
 // folders store absolute paths):
 //  - a project inside a root is always under the root's folder, C:\Projects\<root>\<name> (also as the launch folder);
@@ -35,7 +36,7 @@ export function autoGuestFolder(hostDir: string): string {
 }
 
 /** How a project got into the sandbox. */
-export type Mechanism = 'launch' | 'root' | 'boot' | 'wsb';
+export type Mechanism = 'launch' | 'root' | 'boot' | 'wsb' | 'hcs';
 
 /** One project the running sandbox works on. */
 export interface ProjectEntry {
@@ -141,6 +142,24 @@ export function ownGuestFolder(hostDir: string, mirror: boolean, taken: string[]
   const base = autoGuestFolder(host);
   if (free(base)) return base;
   for (let i = 2; ; i++) if (free(base + '-' + i)) return base + '-' + i;
+}
+
+/**
+ * Where a live folder (projects.liveFolders "hcs") appears: C:\Workspace\<name>, the name in the strict form the guest
+ * daemon accepts (lower-case letters, digits, '-' and '_'; no dots or spaces), -2, -3, ... when it overlaps `taken`.
+ */
+export function liveGuestFolder(hostDir: string, taken: string[] = []): string {
+  const base =
+    path.win32
+      .basename(resolveDir(hostDir))
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^[-_]+|-+$/g, '')
+      .slice(0, 56) || 'project';
+  const free = (guest: string): boolean => !taken.some((t) => isWithin(t, guest) || isWithin(guest, t));
+  const at = (name: string): string => WORKSPACES_GUEST + '\\' + name;
+  if (free(at(base))) return at(base);
+  for (let i = 2; ; i++) if (free(at(base + '-' + i))) return at(base + '-' + i);
 }
 
 /**

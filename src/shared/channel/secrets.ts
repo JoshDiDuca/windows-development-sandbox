@@ -30,6 +30,11 @@ export const SecretsFileSchema = z.strictObject({
     .optional(),
   /** The GitHub token you saved for sandboxes (github.shareToken), only with git access "full". */
   githubToken: GithubTokenSchema.optional(),
+  /** projects.liveFolders "hcs": this launch's key for signed live-folder requests (live.ts). */
+  liveFoldersKey: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
 });
 
 export type SecretsFile = z.output<typeof SecretsFileSchema>;

@@ -70,6 +70,9 @@ export class RunDir {
   readonly treesDir: string;
   /** One-shot secrets the host hands over (see secrets.ts). Next to run, not in it: shared-use users can change run. */
   readonly secretsDir: string;
+  /** Live folders (live.ts): signed host requests, and the daemon's replies. */
+  readonly liveDir: string;
+  readonly liveRepliesDir: string;
 
   constructor(dataDir: string) {
     this.root = path.join(dataDir, 'run');
@@ -84,6 +87,15 @@ export class RunDir {
     this.auditDir = path.join(this.root, 'audit');
     this.treesDir = path.join(this.root, 'trees');
     this.secretsDir = path.join(dataDir, 'secrets');
+    this.liveDir = path.join(this.root, 'live');
+    this.liveRepliesDir = path.join(this.root, 'live-replies');
+  }
+
+  liveFile(id: string): string {
+    return path.join(this.liveDir, safeId(id) + '.json');
+  }
+  liveReplyFile(id: string): string {
+    return path.join(this.liveRepliesDir, safeId(id) + '.json');
   }
 
   requestFile(id: string): string {

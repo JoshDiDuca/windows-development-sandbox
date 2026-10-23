@@ -77,8 +77,14 @@ function startDaemon(env: NodeJS.ProcessEnv, secrets: SecretsFile): void {
       ...env,
       AGENT_LOG_PREFIX: 'daemon',
       // The agent's environment (it may hold API keys): the daemon moves it into memory and removes this at once.
-      ...(secrets.harnessEnvironment
-        ? { [BOOT_SECRETS_VARIABLE]: JSON.stringify({ harnessEnvironment: secrets.harnessEnvironment }) }
+      // The live-folder key (projects.liveFolders "hcs") goes the same way into the daemon's own state.
+      ...(secrets.harnessEnvironment || secrets.liveFoldersKey
+        ? {
+            [BOOT_SECRETS_VARIABLE]: JSON.stringify({
+              ...(secrets.harnessEnvironment ? { harnessEnvironment: secrets.harnessEnvironment } : {}),
+              ...(secrets.liveFoldersKey ? { liveFoldersKey: secrets.liveFoldersKey } : {}),
+            }),
+          }
         : {}),
     },
   }).unref();

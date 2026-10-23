@@ -23,6 +23,7 @@ const SOURCES = {
   linkgate: 'LinkGate.cs',
   pathsync: 'PathSync.cs',
   memgov: 'MemGov.cs',
+  bindmount: 'BindMount.cs',
 } as const;
 
 export type Helper = keyof typeof SOURCES;

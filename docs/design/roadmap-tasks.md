@@ -52,25 +52,6 @@ Design (binding; ask the advisor before deviating):
   user, another user, or a process in the sandbox make this service mount, attach or open anything else, or run
   anything as SYSTEM?" and fix everything it finds.
 
-### R3. Code signing, ready for a certificate — Sonnet
-
-Status: built (release.yml signing step, Azure Artifact Signing action pinned to v2.0.0, docs/development.md "Signing
-releases"). Waiting for the owner's signing account and the six secrets; nothing is signed until then.
-
-Why: antivirus heuristics flagged unsigned files before (a Start menu shortcut; HostTools.exe). Signing needs the
-owner's account (Azure Trusted Signing is the cheapest), so the pipeline must exist and do nothing until it is set up.
-
-- `.github/workflows/release.yml`: an optional signing step using `azure/trusted-signing-action` (pin the version by
-  commit SHA) that runs only when the secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
-  `TRUSTED_SIGNING_ENDPOINT`, `TRUSTED_SIGNING_ACCOUNT`, `TRUSTED_SIGNING_PROFILE` exist; signs `scripts/install.ps1`
-  (Authenticode for scripts) before it is uploaded. Without the secrets: skipped, the release works as today.
-- HostTools.exe, HcsHost.exe and memgov.exe are compiled on the user's PC and cannot be signed by us; document that and
-  keep their file details accurate (a test already checks the version).
-- docs/development.md "Signing releases": what to create in Azure, which secrets to add, how to check a signature
-  (`Get-AuthenticodeSignature`).
-- Ask the advisor before choosing anything that would sign files on the user's PC (it would need a private key there:
-  do not do that).
-
 ### R4. Raw mouse input for agents (done, unreleased)
 
 Findings (October 2026):

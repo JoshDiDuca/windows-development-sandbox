@@ -33,12 +33,6 @@ These shipped, but have only been tested inside a Windows Sandbox.
 - **NordLynx** (NordVPN over WireGuard, later): only after NordVPN has been tried on a real PC. Spec: task R5 in
   [design/roadmap-tasks.md](design/roadmap-tasks.md).
 
-### Release and install
-
-- **Code signing** (built, waiting for the signing account): the release workflow signs `install.ps1` with Azure
-  Artifact Signing once its six secrets exist, and does nothing until then. Setup and checks:
-  [development.md](development.md#signing-releases). Spec: task R3 in [design/roadmap-tasks.md](design/roadmap-tasks.md).
-
 ### Web UI
 
 - **Plain shell sessions** (done, 1.13.0): PowerShell and cmd through ptyhost (`sandbox shell`, New shell in the

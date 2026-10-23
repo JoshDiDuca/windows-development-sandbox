@@ -9,6 +9,10 @@
 #   -AddUsers a,b                 AllUsers: also put these Windows users in the group "Agent Sandbox Users" (env WDS_ADDUSERS).
 #   -Share / -NoShare             AllUsers: let the group use a sandbox you start, or not (env WDS_SHARE=1 / 0); asked
 #                                 once when neither is given.
+#   -ContainedStorageHelper / -NoContainedStorageHelper
+#                                 AllUsers: install the storage helper (the Windows service AgentSandboxStorage), so
+#                                 contained storage mounts its disk image without a permission prompt each time, or remove
+#                                 it (env WDS_STORAGEHELPER=1 / 0); asked once when neither is given (default no).
 #   -Uninstall [-RemoveData]      Remove the program (and, with -RemoveData, the saved data, after you type DELETE; or
 #                                 pass -Confirm:$false). Env WDS_UNINSTALL=1, WDS_REMOVEDATA=1.
 #   -Version x.y.z                Install this release instead of the latest, also an older one than the installed one
@@ -31,6 +35,8 @@ param(
   [string[]]$AddUsers,
   [switch]$Share,
   [switch]$NoShare,
+  [switch]$ContainedStorageHelper,
+  [switch]$NoContainedStorageHelper,
   [switch]$Uninstall,
   [switch]$RemoveData,
   # An exact release to install (also an older one than the installed version); empty: the latest.
@@ -135,6 +141,8 @@ param(
   if ($env:WDS_AUTOUPDATE -eq '0') { $NoAutoUpdate = [switch]$true }
   if ($env:WDS_SHARE -eq '1') { $Share = [switch]$true }
   if ($env:WDS_SHARE -eq '0') { $NoShare = [switch]$true }
+  if ($env:WDS_STORAGEHELPER -eq '1') { $ContainedStorageHelper = [switch]$true }
+  if ($env:WDS_STORAGEHELPER -eq '0') { $NoContainedStorageHelper = [switch]$true }
   if ($env:WDS_SHORTCUT -eq '1') { $StartMenuShortcut = [switch]$true }
   if ($env:WDS_ADDUSERS -and -not $AddUsers) { $AddUsers = @($env:WDS_ADDUSERS -split ',') }
   $usersToAdd = @($AddUsers | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -195,6 +203,22 @@ param(
     return $expected -match '^[0-9a-fA-F]{64}$' -and (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ieq $expected
   }
   function Test-SandboxRunning { return [bool](Get-Process -Name 'WindowsSandbox*' -ErrorAction SilentlyContinue) }
+  function Remove-StorageHelper($packageDir) {
+    # The storage helper service (installs for everyone only): its own script stops it, dismounts what it mounted and
+    # deletes it. A version without that script but a service left behind: stopped and deleted here. Nothing installed:
+    # nothing to do.
+    if (-not (Get-Service -Name 'AgentSandboxStorage' -ErrorAction SilentlyContinue) -and -not (Test-Path -LiteralPath (Join-Path $toolFolder 'helper'))) { return }
+    $helperScript = if ($packageDir) { Join-Path $packageDir 'native\scripts\set-storage-helper.ps1' } else { $null }
+    if ($helperScript -and (Test-Path -LiteralPath $helperScript)) {
+      $output = & $powershellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $helperScript -Remove -InstallRoot $toolFolder 2>&1 | Out-String
+      if ($output.Trim()) { Write-Host "   $($output.Trim())" }
+      if ($LASTEXITCODE -eq 0) { Ok 'storage helper removed' } else { Warn "Could not remove the storage helper service AgentSandboxStorage (exit $LASTEXITCODE)." }
+    } elseif (Get-Service -Name 'AgentSandboxStorage' -ErrorAction SilentlyContinue) {
+      Stop-Service -Name 'AgentSandboxStorage' -Force -ErrorAction SilentlyContinue
+      & (Join-Path $env:SystemRoot 'System32\sc.exe') delete AgentSandboxStorage | Out-Null
+      if ($LASTEXITCODE -eq 0) { Ok 'storage helper removed' } else { Warn "Could not delete the service AgentSandboxStorage (exit $LASTEXITCODE)." }
+    }
+  }
   function Stop-Watchers {
     # A background watcher left by an older version (it outlived its sandbox) holds files that must be replaced. Stopped
     # only when no Windows Sandbox runs: while one does, its watcher is still needed.
@@ -279,10 +303,11 @@ param(
       & $powershellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $taskScript -Remove | Out-Null
       if ($LASTEXITCODE -eq 0) { Ok 'automatic updates removed' } else { Warn "Could not remove the scheduled task \WindowsDevelopmentSandbox\Update (exit $LASTEXITCODE)." }
     }
+    if ($machine) { Remove-StorageHelper $(if ($active) { Join-Path $toolFolder "versions\$active\package" } else { $null }) }
     Remove-PathEntry $binFolder $machine
     Ok 'taken off the PATH'
     if (Test-Path -LiteralPath $shortcutFile) { Remove-Item -LiteralPath $shortcutFile -Force -ErrorAction SilentlyContinue; Ok 'Start menu shortcut removed' }
-    foreach ($name in 'bin', 'node', 'versions', 'staging', 'active-version', 'active-node', 'install.json', 'update-state.json', 'update.lock') {
+    foreach ($name in 'bin', 'node', 'versions', 'staging', 'helper', 'active-version', 'active-node', 'install.json', 'update-state.json', 'update.lock') {
       Remove-Inside (Join-Path $toolFolder $name) $toolFolder
     }
     if ((Test-Path -LiteralPath $toolFolder) -and -not (Get-ChildItem -LiteralPath $toolFolder -Force)) { Remove-Item -LiteralPath $toolFolder -Force -ErrorAction SilentlyContinue }
@@ -734,6 +759,37 @@ param(
     }
   }
 
+  # 8b. Everyone: the storage helper, asked once ---------------------------------------------------------------------
+  # A Windows service that mounts contained storage (a beta feature) without a permission prompt each time. It runs as
+  # SYSTEM and answers only members of the group, for their own disk image in their own folder (docs/security.md).
+  $helperOn = $false
+  if ($machine) {
+    if ($ContainedStorageHelper) { $helperOn = $true }
+    elseif ($NoContainedStorageHelper) { $helperOn = $false }
+    elseif ($record -and $null -ne $record.storageHelper) { $helperOn = [bool]$record.storageHelper }
+    else {
+      Step 'Storage helper (for contained storage, beta)'
+      Write-Host '   Contained storage keeps sandbox tools and logs in one disk image; mounting it needs administrator rights.'
+      $helperOn = Ask 'Install a small Windows service so that it mounts without a Windows permission prompt each time?'
+    }
+    if ($helperOn -and -not $groupSid) {
+      Warn 'The storage helper needs the group Agent Sandbox Users, which could not be set up; it was not installed.'
+      $helperOn = $false
+    } elseif ($helperOn) {
+      Step 'Installing the storage helper'
+      $helperScript = Join-Path $packageDir 'native\scripts\set-storage-helper.ps1'
+      $output = & $powershellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $helperScript -Install -GroupSid $groupSid -InstallRoot $toolFolder -Sources (Join-Path $packageDir 'native\csharp\StorageHelper') 2>&1 | Out-String
+      if ($LASTEXITCODE -eq 0) { Ok 'the service AgentSandboxStorage runs; contained storage mounts without a permission prompt' }
+      else {
+        Problem "Could not install the storage helper (exit $LASTEXITCODE): $($output.Trim())"
+        Write-Host '   Contained storage still works; it asks for permission each time.'
+        $helperOn = $false
+      }
+    } else {
+      Remove-StorageHelper $packageDir
+    }
+  }
+
   # 9. Automatic updates: asked once ----------------------------------------------------------------------------------
   # PowerShell names ignore case: this must not be called $autoUpdate, which IS the -AutoUpdate switch.
   $updatesOn = $false
@@ -745,7 +801,7 @@ param(
     $updatesOn = Ask 'Install new versions by itself when no sandbox is running?'
   }
   $installedAt = if ($record -and $record.installedAt) { [string]$record.installedAt } else { (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
-  Write-JsonAtomic (Join-Path $toolFolder 'install.json') ([ordered]@{ scope = $(if ($machine) { 'machine' } else { 'user' }); groupSid = $groupSid; autoUpdate = [bool]$updatesOn; installedAt = $installedAt })
+  Write-JsonAtomic (Join-Path $toolFolder 'install.json') ([ordered]@{ scope = $(if ($machine) { 'machine' } else { 'user' }); groupSid = $groupSid; autoUpdate = [bool]$updatesOn; storageHelper = [bool]$helperOn; installedAt = $installedAt })
   $cli = Join-Path $binFolder 'sandbox.cmd'
   if ($machine -and ($updatesOn -or $NoAutoUpdate)) {
     # The new version creates (or removes) the scheduled task itself.

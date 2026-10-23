@@ -18,7 +18,7 @@ const ProjectSchema = z.object({
   name: z.string().describe('The project'),
   host: z.string().describe('Its folder on this PC'),
   guest: z.string().describe('Its folder in the sandbox'),
-  mechanism: z.string().describe('How it got into the sandbox (launch, root, boot or share)'),
+  mechanism: z.string().describe('How it got into the sandbox (launch, root, boot, wsb or hcs)'),
   here: z.boolean().describe('The project of the current folder'),
   setup: z.object({ phase: z.string(), message: z.string() }).describe('How far its setup is'),
   databases: z.array(z.object({ database: z.string(), port: z.number(), state: z.string() })),
@@ -145,6 +145,8 @@ const MECHANISM_TEXT: Readonly<Record<string, string>> = {
   launch: 'started from here',
   root: 'in a project root',
   boot: 'mapped at start',
+  wsb: 'wsb share',
+  hcs: 'live folder through HCS, alpha',
 };
 
 function projectItem(p: SandboxStatus['projects'][number]): Item {

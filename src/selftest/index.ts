@@ -37,6 +37,7 @@ import { engineSuite } from './engine.test.js';
 import { containedSuite } from './contained.test.js';
 import { storageHelperSuite } from './storage-helper.test.js';
 import { hcsSuite } from './hcs.test.js';
+import { liveFoldersSuite } from './live-folders.test.js';
 import { gitAccessSuite } from './git-access.test.js';
 import { guestBootSuite } from './guest-boot.test.js';
 import { hostileInputSuite } from './hostile-input.test.js';
@@ -91,6 +92,7 @@ export const SUITES: Suite[] = [
   containedSuite,
   storageHelperSuite,
   hcsSuite,
+  liveFoldersSuite,
   guestBootSuite,
   mirrorSuite,
   projectsSuite,

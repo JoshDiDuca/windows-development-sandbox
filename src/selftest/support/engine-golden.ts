@@ -56,6 +56,7 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'sandbox/boot/bootstrap/status.ps1',
   'sandbox/boot/logon.cmd',
   'sandbox/boot/trust.cmd',
+  'sandbox/csharp/BindMount.cs',
   'sandbox/csharp/CargoShim.cs',
   'sandbox/csharp/Desktop.cs',
   'sandbox/csharp/EnvBroadcast.cs',

@@ -574,6 +574,7 @@
     "askToAddRoot": true,
     "declinedRoots": [],
     "allowOutsideMappings": "ask",
-    "wsbShare": true
+    "wsbShare": true,
+    "liveFolders": "off"
   }
 }

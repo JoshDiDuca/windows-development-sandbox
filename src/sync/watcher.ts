@@ -35,6 +35,7 @@ import { SandboxChannel } from '../host/channel/index.js';
 import { ProjectRegistry } from '../host/projects/registry.js';
 import { ContainedStorage, setNameOf, storageOf } from '../host/storage/index.js';
 import { clearSecrets } from '../host/secrets/index.js';
+import { clearLiveRecord } from '../host/engines/index.js';
 import { endSharing, sharingDeps } from '../host/sharing/index.js';
 import { PACKAGE_ROOT } from '../core/package-info.js';
 import { syncBack } from './sync-cycle.js';
@@ -405,6 +406,13 @@ export class Watcher {
       if (!isSandboxRunning()) clearSecrets(this.storageRoot, this.dataPath);
     } catch (e) {
       this.note('could not remove the one-shot secrets: ' + errMsg(e));
+    }
+    // Live folders (HCS): their shares ended with the sandbox, so their record and key go too.
+    try {
+      if (!isSandboxRunning() && clearLiveRecord(this.storageRoot, this.dataPath))
+        this.note('live folders: record cleared');
+    } catch (e) {
+      this.note('could not clear the live-folder record: ' + errMsg(e));
     }
     // An all-users install: the record of whose sandbox this was goes, and the group loses access to the folders.
     const sharing = sharingDeps(PACKAGE_ROOT);

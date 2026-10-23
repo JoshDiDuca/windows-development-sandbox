@@ -7,7 +7,7 @@ import os from 'node:os';
 import type { GenerateOptions, Generated, ProfileResult } from '../../core/types.js';
 import { widenForProjects } from '../../core/local-config/index.js';
 import { dirExists, ensureDir, fail, writeJson } from '../../core/util/index.js';
-import { engineFor, type EnginePlan, type SandboxEngine } from '../engines/index.js';
+import { engineFor, realLiveFolders, type EnginePlan, type SandboxEngine } from '../engines/index.js';
 import { capturePersonalization, stageClaudeProfile } from '../profile/index.js';
 import { clearSecrets, writeSecrets } from '../secrets/index.js';
 import { githubTokenAllowed } from '../github/index.js';
@@ -118,7 +118,14 @@ export function generateSandbox(
     profile: loadProfileOf(config),
     reserveHostMb: config.sandbox.reserveHostMb,
   });
+  // Live folders through HCS (opt-in alpha, Windows Sandbox only): a new key per launch, sealed on this side and handed
+  // over in the one-shot file; without the setting, an earlier launch's record goes.
+  const live = realLiveFolders(storageRoot, dataPath);
+  const liveFoldersKey =
+    config.projects.liveFolders === 'hcs' && engine.id === 'windows-sandbox' ? live.startLaunch(launchId) : undefined;
+  if (!liveFoldersKey) live.clear();
   writeSecrets(dataPath, launchId, {
+    ...(liveFoldersKey ? { liveFoldersKey } : {}),
     ...(harness && Object.keys(harness.environment).length ? { harnessEnvironment: harness.environment } : {}),
     ...(claudeCredentials ? { claudeCredentials } : {}),
     ...(o.vpn?.credentials ? { vpn: o.vpn.credentials } : {}),

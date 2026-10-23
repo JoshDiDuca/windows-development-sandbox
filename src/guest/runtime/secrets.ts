@@ -39,17 +39,27 @@ export function applyBootEnvironment(environment: Record<string, string> | undef
   if (session.harness && environment) session.harness.environment = { ...environment };
 }
 
-/** The daemon takes what main.js passed it, and removes it from its own environment before any session starts. */
-export function adoptBootSecrets(): void {
+/**
+ * The daemon takes what main.js passed it, and removes it from its own environment before any session starts. Returns
+ * the live-folder key, if the launch made one (the daemon keeps it in its own state).
+ */
+export function adoptBootSecrets(): string | undefined {
   const text = process.env[BOOT_SECRETS_VARIABLE];
   delete process.env[BOOT_SECRETS_VARIABLE];
-  if (!text) return;
+  if (!text) return undefined;
   try {
-    const parsed = SecretsFileSchema.pick({ harnessEnvironment: true }).safeParse(JSON.parse(text));
-    if (parsed.success) applyBootEnvironment(parsed.data.harnessEnvironment);
+    const parsed = SecretsFileSchema.pick({ harnessEnvironment: true, liveFoldersKey: true }).safeParse(
+      JSON.parse(text),
+    );
+    if (parsed.success) {
+      applyBootEnvironment(parsed.data.harnessEnvironment);
+      return parsed.data.liveFoldersKey;
+    }
   } catch {
-    warn('The boot secrets given to the daemon were not valid.');
+    // Reported below.
   }
+  warn('The boot secrets given to the daemon were not valid.');
+  return undefined;
 }
 
 /** A request with the agent environment values that travelled in its own secrets file put back (in memory only). */

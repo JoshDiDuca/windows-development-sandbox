@@ -109,6 +109,8 @@ export async function joinHere(ctx: Context, status: SandboxStatus, o: { noResta
     packageRoot,
     hostDir: dir,
     wsbShare: loaded.config.projects.wsbShare,
+    liveFolders: loaded.config.projects.liveFolders,
+    onNote: (note) => console.log(c.yellow(note)),
     resolve: (root) =>
       resolveRun({
         packageRoot,

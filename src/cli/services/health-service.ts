@@ -4,7 +4,8 @@ import { spawnSync } from 'node:child_process';
 import { expandPath, fail, isWin } from '../../core/util/index.js';
 import { detectWsb, doctorRows, insideSandbox, isSandboxRunning } from '../../host/sandbox/index.js';
 import { machineDoctorRows } from '../../host/sharing/index.js';
-import { KnownProjects, ProjectRegistry } from '../../host/projects/index.js';
+import { addFoldersRow, KnownProjects, ProjectRegistry } from '../../host/projects/index.js';
+import { realLiveFolders } from '../../host/engines/index.js';
 import { nativeScript } from '../../host/native.js';
 import { refuseInSelfTest } from '../../host/test-guard.js';
 import { SYSTEM } from '../../shared/system.js';
@@ -42,7 +43,10 @@ export class HealthService {
     // Several projects: the roots mapped at every start, what the running sandbox has, and whether wsb share is there.
     const p = ctx.loaded.config.projects;
     const registry = isSandboxRunning() ? new ProjectRegistry(ctx.storageRoot).read() : null;
-    const wsb = p.wsbShare ? detectWsb() : null;
+    const wsb = p.wsbShare || p.liveFolders === 'hcs' ? detectWsb() : null;
+    const launchId = registry?.launchId ?? null;
+    const liveUnavailable =
+      p.liveFolders === 'hcs' && launchId ? realLiveFolders(ctx.storageRoot, ctx.dataPath).unavailable(launchId) : null;
     return [
       ...rows,
       ...machineDoctorRows(ctx.packageRoot, ctx.dataPath),
@@ -72,7 +76,16 @@ export class HealthService {
               wsb.exe +
               (wsb.version ? ' ' + wsb.version : '') +
               ' (untested; a failure offers a restart instead)'
-            : 'not on this Windows (needs Windows 11 24H2+ with the updated Windows Sandbox): folders outside your roots need a restart',
+            : 'not on this Windows (needs Windows 11 24H2+ with the updated Windows Sandbox)',
+      ],
+      [
+        'Add folders while the sandbox runs',
+        addFoldersRow({
+          wsbShare: p.wsbShare,
+          liveFolders: p.liveFolders,
+          wsbHasShare: wsb?.has('share') === true,
+          liveUnavailable,
+        }),
       ],
     ];
   }

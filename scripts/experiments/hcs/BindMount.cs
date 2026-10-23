@@ -64,6 +64,19 @@ namespace AgentSandbox.Experiments
                 Console.WriteLine("BfSetupFilter 0x" + hr.ToString("X8"));
                 return hr == 0 ? ExitOk : ExitFailed;
             }
+            if (args.Length == 3 && args[0] == "map-existing")
+            {
+                // Manual test only (Test-LiveGuest.ps1): one of Windows Sandbox's own shares (64 hex digits), read-only, at
+                // a new C:\Workspace\<plain name>. The shipped helper (sandbox\csharp\BindMount.cs) has no such verb.
+                if (!GuestFolder.IsMatch(args[1]) || !Regex.IsMatch(args[2], "^[0-9a-f]{64}$"))
+                {
+                    Console.WriteLine("Refused: map-existing C:\\Workspace\\<plain name> <64 hex digits>");
+                    return ExitUsage;
+                }
+                int hr = NativeMethods.BfSetupFilter(IntPtr.Zero, NoMultipleTargets | ReadOnlyMapping, args[1], VsmbRoot + args[2] + "\\", IntPtr.Zero, 0);
+                Console.WriteLine("BfSetupFilter 0x" + hr.ToString("X8"));
+                return hr == 0 ? ExitOk : ExitFailed;
+            }
             if (args.Length == 2 && args[0] == "unmap")
             {
                 if (!GuestFolder.IsMatch(args[1]))

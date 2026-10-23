@@ -76,21 +76,39 @@ export class ProjectsService {
     return dir;
   }
 
-  /** Forgets a project, in the running sandbox too (its folder stays visible until the sandbox stops). */
-  forget(folder: string): { dir: string; removed: boolean } {
+  /**
+   * Forgets a project, in the running sandbox too (a mapped folder stays visible until the sandbox stops; a live folder
+   * is hidden and its share removed, with one permission prompt).
+   */
+  async forget(folder: string): Promise<{ dir: string; removed: boolean }> {
     const { ctx } = this;
     const dir = path.resolve(folder);
-    const forgot = new KnownProjects(ctx.storageRoot).forget(dir);
     const registered = isSandboxRunning()
       ? new ProjectRegistry(ctx.storageRoot)
           .read()
           ?.projects.find((p) => !p.primary && p.host.toLowerCase() === dir.toLowerCase())
       : undefined;
+    // The live folder first: when it cannot be removed, the project stays (in the list and in the sandbox).
     if (registered)
-      projectMapper({ storageRoot: ctx.storageRoot, packageRoot: ctx.packageRoot, wsbShare: false }).unregister(
-        registered.name,
-      );
+      await projectMapper({
+        storageRoot: ctx.storageRoot,
+        packageRoot: ctx.packageRoot,
+        wsbShare: false,
+        dataPath: ctx.dataPath,
+      }).unregister(registered.name);
+    const forgot = new KnownProjects(ctx.storageRoot).forget(dir);
     return { dir, removed: forgot || Boolean(registered) };
+  }
+
+  /** The folder is a live folder (HCS) of the running sandbox: forgetting it removes its share (one prompt). */
+  isLive(folder: string): boolean {
+    const dir = path.resolve(folder);
+    return (
+      isSandboxRunning() &&
+      new ProjectRegistry(this.ctx.storageRoot)
+        .read()
+        ?.projects.some((p) => p.mechanism === 'hcs' && p.host.toLowerCase() === dir.toLowerCase()) === true
+    );
   }
 
   /** Excludes a folder from the projects mapped at every start. True when that changed anything. */

@@ -9,6 +9,7 @@ import { governor } from '../governor/index.js';
 import { respond, safely } from './state.js';
 import { run } from '../runtime/paths.js';
 import { withRequestSecrets } from '../runtime/secrets.js';
+import { liveFolders } from './live.js';
 import { warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
 
@@ -42,6 +43,8 @@ export class Daemon {
         respond(req.id, { ok: false, message: errMsg(e) }),
       );
     }
+    // Live folders (signed host requests in run\live): claimed here, handled one after another.
+    safely('live folders', () => liveFolders.tick());
     if (Date.now() - this.lastMemSave > MEM_SAVE_MS) {
       this.lastMemSave = Date.now();
       safely('claude-mem save', saveClaudeMem);

@@ -294,5 +294,6 @@ export const DEFAULTS: Config = {
     declinedRoots: [],
     allowOutsideMappings: 'ask',
     wsbShare: true,
+    liveFolders: 'off',
   },
 };

@@ -33,7 +33,7 @@ const RegistryEntrySchema = z.object({
   host: AbsolutePathSchema,
   guest: z.string().max(1024),
   primary: z.boolean(),
-  mechanism: z.enum(['launch', 'root', 'boot', 'wsb']).catch('root'),
+  mechanism: z.enum(['launch', 'root', 'boot', 'wsb', 'hcs']).catch('root'),
   registeredAt: z.string().max(64),
 });
 const RegistrySchema = z.object({

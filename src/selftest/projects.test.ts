@@ -46,9 +46,9 @@ import { describeSessions } from '../cli/commands/projects/index.js';
 import type { Suite } from './support/suite.js';
 
 /** The error `fn` throws, or null. */
-const caught = (fn: () => unknown): unknown => {
+const caught = async (fn: () => unknown): Promise<unknown> => {
   try {
-    fn();
+    await fn();
     return null;
   } catch (e) {
     return e;
@@ -176,11 +176,11 @@ export const projectsSuite: Suite = {
       'at launch the registry holds the launch folder (primary) and the projects mapped with it; a folder inside a project finds it, one in no project does not',
     );
     const noWsb = projectMapper({ storageRoot: storage, packageRoot: f.install, wsbShare: true, detect: () => null });
-    const web = noWsb.register(inRoot);
+    const web = await noWsb.register(inRoot);
     t.check(
       web.mechanism === 'root' &&
         web.guest === 'C:\\Projects\\proj-root\\web' &&
-        noWsb.register(inRoot).name === web.name &&
+        (await noWsb.register(inRoot)).name === web.name &&
         new ProjectRegistry(storage).read()?.projects.filter((p) => p.host === inRoot).length === 1,
       'a folder inside a root joins at once, and only once',
     );
@@ -245,11 +245,11 @@ export const projectsSuite: Suite = {
       runningRegistry(lostStorage, lostData, base) === null,
       'no launch folder for the running sandbox: no registry (never an earlier sandbox one)',
     );
-    const needs = caught(() => noWsb.register(outside));
-    const shareOff = caught(() =>
+    const needs = await caught(() => noWsb.register(outside));
+    const shareOff = await caught(() =>
       projectMapper({ storageRoot: storage, packageRoot: f.install, wsbShare: false }).register(outside),
     );
-    const listFails = caught(() =>
+    const listFails = await caught(() =>
       projectMapper({
         storageRoot: storage,
         packageRoot: f.install,

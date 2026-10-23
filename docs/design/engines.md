@@ -56,8 +56,13 @@ launch (cli) ──> LaunchPlan (neutral, pure) ──> engine.plan() ──> en
   because the host must read it; `tools\`, `state\`, `logs\` go into the container image.
 - `native/csharp/HcsHost/` (C# 5, built on first use like HostTools, file details set): verbs `check`, `enumerate`,
   `properties <id>`, `create <doc.json>`, `start <id>`, `terminate <id>`, `grant-vm-access <id> <vhdx>`,
-  `create-vhdx <path> <maxGb>` (CreateVirtualDisk; never attaches to the host). JSON in and out through files; every
-  handle closed in `finally`; failures as Win32Exception messages.
+  `create-vhdx <path> <maxGb>` (CreateVirtualDisk; never attaches to the host), `share <request.json>` (a vSMB share on
+  one of OUR running systems), and for live folders (alpha, [hcs-live-folders.md](hcs-live-folders.md)) `wsb-share
+  <request.json> --sha256 <hex>` (the one exception: the running Windows Sandbox, exactly one candidate, a canary
+  first; run only by `native/scripts/hcs-live-share.ps1` which compiles it into an administrator-only folder first) and `wsb-rules
+  <enumerate.json> [id]` (pure: the Windows Sandbox rules on a recorded list, for tests). `share` refuses GUIDs and
+  `wsb-share` refuses our ids, so neither reaches the other's systems. JSON in and out through files; every handle
+  closed in `finally`; failures as Win32Exception messages.
 - Contained storage for Windows Sandbox: `native/scripts/mount-contained.ps1` (fixed, run elevated with one UAC prompt
   per launch; mounts only `<storage>\images\<set>.vhdx` at `<storage>\mounts\<set>` after checking both are inside your
   private storage, not links, owned by you; no drive letter; mount folder ACL you + SYSTEM) and `dismount-contained.ps1`;

@@ -802,12 +802,15 @@ export const hcsSuite: Suite = {
     const version = (
       JSON.parse(fs.readFileSync(path.join(t.packageRoot, 'package.json'), 'utf8')) as { version: string }
     ).version;
-    for (const helper of ['HostTools', 'HcsHost']) {
+    for (const helper of ['HostTools', 'HcsHost', 'StorageHelper']) {
       const info = fs.readFileSync(path.join(t.packageRoot, 'native', 'csharp', helper, 'AssemblyInfo.cs'), 'utf8');
       t.check(
         info.includes('AssemblyInformationalVersion("' + version + '")') &&
           info.includes('AssemblyFileVersion("' + version + '.0")'),
-        helper + '.exe file version is ' + version + ' (update AssemblyInfo.cs with package.json)',
+        (helper === 'StorageHelper' ? 'AgentSandboxStorage' : helper) +
+          '.exe file version is ' +
+          version +
+          ' (update AssemblyInfo.cs with package.json)',
       );
     }
 

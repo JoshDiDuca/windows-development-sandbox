@@ -45,47 +45,9 @@ import type { Runner } from '../host/storage/contained/disk-port.js';
 import { EMPTY_STATE } from '../host/storage/contained/state.js';
 import { SYSTEM } from '../shared/system.js';
 import type { Suite } from './support/suite.js';
+import { fakeVhdx } from './support/vhdx.js';
 
 const SCRIPTS = ['contained-common', 'mount-contained', 'dismount-contained', 'check-contained', 'run-elevated'];
-
-/** Mixed-endian GUID bytes, as VHDX (and .NET's Guid) store them. */
-function guidBytes(text: string): Buffer {
-  const hex = text.replace(/-/g, '');
-  const raw = Buffer.from(hex, 'hex');
-  return Buffer.concat([
-    Buffer.from(raw.subarray(0, 4)).reverse(),
-    Buffer.from(raw.subarray(4, 6)).reverse(),
-    Buffer.from(raw.subarray(6, 8)).reverse(),
-    raw.subarray(8, 16),
-  ]);
-}
-
-/** A file with the parts of a VHDX header the scripts read (signature, region table, metadata table). */
-function fakeVhdx(file: string, o: { gb: number; parent?: boolean }): void {
-  const buf = Buffer.alloc(2 * 1024 * 1024);
-  buf.write('vhdxfile', 0, 'ascii');
-  const table = 196608;
-  buf.write('regi', table, 'ascii');
-  buf.writeUInt32LE(1, table + 8);
-  guidBytes('8b7ca206-4790-4b9a-b8fe-575f050f886e').copy(buf, table + 16);
-  buf.writeBigUInt64LE(BigInt(1048576), table + 32);
-  buf.writeUInt32LE(65536, table + 40);
-  const md = 1048576;
-  buf.write('metadata', md, 'ascii');
-  const items = [
-    { guid: '2fa54224-cd1b-4876-b211-5dbed83bf4b8', offset: 65536 },
-    ...(o.parent ? [{ guid: 'a8d35f2d-b30b-454d-abf7-d3d84834ab0c', offset: 65600 }] : []),
-  ];
-  buf.writeUInt16LE(items.length, md + 10);
-  items.forEach((item, i) => {
-    const at = md + 32 + 32 * i;
-    guidBytes(item.guid).copy(buf, at);
-    buf.writeUInt32LE(item.offset, at + 16);
-    buf.writeUInt32LE(8, at + 20);
-  });
-  buf.writeBigUInt64LE(BigInt(o.gb) * 1024n ** 3n, md + 65536);
-  fs.writeFileSync(file, buf);
-}
 
 class FakePort implements DiskPort {
   readonly calls: string[] = [];

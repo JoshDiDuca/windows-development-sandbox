@@ -35,6 +35,7 @@ import { detectSuite } from './detect.test.js';
 import { generateSuite } from './generate.test.js';
 import { engineSuite } from './engine.test.js';
 import { containedSuite } from './contained.test.js';
+import { storageHelperSuite } from './storage-helper.test.js';
 import { hcsSuite } from './hcs.test.js';
 import { gitAccessSuite } from './git-access.test.js';
 import { guestBootSuite } from './guest-boot.test.js';
@@ -88,6 +89,7 @@ export const SUITES: Suite[] = [
   generateSuite,
   engineSuite,
   containedSuite,
+  storageHelperSuite,
   hcsSuite,
   guestBootSuite,
   mirrorSuite,

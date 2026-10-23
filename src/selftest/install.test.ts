@@ -37,6 +37,33 @@ function installerText(t: Harness, script: string): void {
   });
   t.equal(parse.status, 0, 'it parses under the PowerShell 5.1 parser' + (parse.stderr ? ': ' + parse.stderr : ''));
 
+  t.section('install.ps1: the storage helper (installs for everyone only)');
+  t.check(
+    /\[switch\]\$ContainedStorageHelper,/.test(source) &&
+      /\[switch\]\$NoContainedStorageHelper,/.test(source) &&
+      source.includes("$env:WDS_STORAGEHELPER -eq '1'"),
+    'it has -ContainedStorageHelper / -NoContainedStorageHelper (and WDS_STORAGEHELPER)',
+  );
+  const helperStep = source.slice(source.indexOf('# 8b.'), source.indexOf('# 9. Automatic updates'));
+  t.check(
+    helperStep.includes('if ($machine) {') &&
+      helperStep.includes('set-storage-helper.ps1') &&
+      helperStep.includes('-Install -GroupSid $groupSid -InstallRoot $toolFolder'),
+    'the helper is installed by its own script, only for an install for everyone, for the group',
+  );
+  t.check(
+    helperStep.includes("Ask 'Install a small Windows service") && helperStep.includes('$record.storageHelper'),
+    'asked once (default no), then the answer in install.json is kept',
+  );
+  t.check(
+    source.includes('storageHelper = [bool]$helperOn') && /'staging', 'helper', 'active-version'/.test(source),
+    'install.json records it, and uninstall removes the helper folder',
+  );
+  t.check(
+    /if \(\$machine\) \{ Remove-StorageHelper/.test(source),
+    'uninstall stops and deletes the service (and dismounts what it mounted) first',
+  );
+
   t.section('install.ps1: the shims equal shimText()');
   const cases: [string, string | undefined][] = [
     ['sandbox', undefined],

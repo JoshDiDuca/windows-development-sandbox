@@ -22,7 +22,7 @@ import {
   WebStore,
   type WebBackend,
 } from '../host/web/index.js';
-import { encodeFrame, FrameReader, FrameType, type Endpoint } from '../shared/pty/index.js';
+import { encodeFrame, FrameReader, FrameType, MOUSE_OFF, type Endpoint } from '../shared/pty/index.js';
 import { CSRF_HEADER, CSRF_VALUE, parseClientMessage, type WebSession } from '../shared/web/index.js';
 import type { Suite } from './support/suite.js';
 
@@ -518,6 +518,10 @@ export const webSuite: Suite = {
       tab.socket.send(Buffer.from('x'));
       await t.waitFor(() => tab.closeCode !== null, 5000);
       t.check(tab.texts.includes('{"t":"exit","code":3}'), 'EXIT reaches the browser with its code');
+      t.check(
+        Buffer.concat(tab.binary).toString('latin1').endsWith(MOUSE_OFF),
+        "before it, the browser's terminal is told to stop tracking the mouse (a drag selects text again)",
+      );
       t.equal(tab.closeCode, 1000, 'and the socket closes cleanly');
 
       const rude = new Tab(url, { Origin: origin, Cookie });

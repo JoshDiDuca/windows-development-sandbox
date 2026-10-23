@@ -2,8 +2,8 @@
 // Windows Terminal's own pseudo console) and runs the real viewer/attach client (runTerminalClient), which is attached
 // to an inner ptyhost running a stand-in agent. The agent turns SGR mouse tracking on and echoes every byte it reads.
 // Checks: clicks and the wheel reach the agent, Backspace stays Backspace, a split escape sequence arrives whole,
-// 500 printed lines scroll through as lines (no alternate screen, no scrollback clear), and a viewer that joins after
-// a screen clear still gets mouse tracking.
+// 500 printed lines scroll through as lines (no alternate screen, no scrollback clear), a viewer that joins after
+// a screen clear still gets mouse tracking, and drag and motion reports reach the agent only once it asked for them.
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import type { Suite } from './support/suite.js';
 
 /**
  * The stand-in agent: VT input and SGR mouse tracking on, echoes what it reads ("got <1b>[<0;10;5M"). L prints 500
- * lines, K clears the screen, q quits.
+ * lines, K clears the screen, D turns drag reports on (1002), A every motion (1003), q quits.
  */
 const AGENT_CS = String.raw`
 using System;
@@ -46,6 +46,8 @@ static class MouseAgent
             Say("got " + got + "\r\n");
             if (got == "L") { var lines = new StringBuilder(); for (int i = 1; i <= 500; i++) lines.Append("line " + i + "\r\n"); Say(lines.ToString() + "LINES-DONE\r\n"); }
             if (got == "K") Say("\x1b[2J\x1b[HCLEARED\r\n");
+            if (got == "D") Say("\x1b[?1002hDRAG-ON\r\n");
+            if (got == "A") Say("\x1b[?1003hMOVE-ON\r\n");
             if (got == "q") break;
         }
         // Exits with mouse tracking still on (like a crash): the client must turn it off.
@@ -354,11 +356,57 @@ export const liveTerminalSuite: Suite = {
           late.close();
         }
 
+        if (kind) {
+          // Raw mouse input (passed through, the client sees the agent's modes): a drag and a move are dropped while
+          // the agent tracks clicks only (1000), the drag passes with 1002, every move with 1003.
+          const drag = '\x1b[<32;11;5M';
+          const move = '\x1b[<35;12;6M';
+          const round = async (setup: string, ready: string, marker: string): Promise<string> => {
+            if (setup) {
+              send(setup);
+              await t.waitFor(() => screen().includes(ready), WAIT.screen);
+            }
+            const from = screen().length;
+            send(drag);
+            await new Promise((r) => setTimeout(r, 50));
+            send(move);
+            await new Promise((r) => setTimeout(r, 50));
+            send(marker);
+            await t.waitFor(
+              () =>
+                screen()
+                  .slice(from)
+                  .includes('got ' + marker),
+              WAIT.screen,
+            );
+            return screen().slice(from);
+          };
+          const clicksOnly = await round('', '', 'y');
+          const drags = await round('D', 'DRAG-ON', 'z');
+          const moves = await round('A', 'MOVE-ON', 'w');
+          // (Two reports read at once are echoed on one line.)
+          const has = (text: string, report: string): boolean => text.includes('<1b>' + report.slice(1));
+          t.check(
+            clicksOnly.includes('got y') &&
+              !has(clicksOnly, drag) &&
+              !has(clicksOnly, move) &&
+              drags.includes('got z') &&
+              has(drags, drag) &&
+              !has(drags, move) &&
+              has(moves, drag) &&
+              has(moves, move),
+            'drag and motion reports reach the agent only once it asked for them (1002 drags, 1003 every move)',
+            JSON.stringify({ clicksOnly: tail(clicksOnly, 200), drags: tail(drags, 200), moves: tail(moves, 200) }),
+          );
+        }
+
         send('q');
         const ended = await t.waitFor(() => screen().includes('CLIENT-DONE'), WAIT.exit);
+        const last = screen().slice(screen().lastIndexOf('got q'));
         t.check(
-          Boolean(ended) && (!kind || screen().slice(screen().lastIndexOf('got q')).includes('\x1b[?1000l')),
-          'the client ends with the agent' + (kind ? ' and turns mouse tracking off in the terminal again' : ''),
+          Boolean(ended) && (!kind || (last.includes('\x1b[?1000l') && last.includes('\x1b[?1003l'))),
+          'the client ends with the agent' +
+            (kind ? ' and turns mouse tracking (clicks, drags, motion) off in the terminal again' : ''),
           'screen: ' + tail(screen()),
         );
       } finally {

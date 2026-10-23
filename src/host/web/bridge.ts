@@ -10,6 +10,7 @@ import {
   FrameReader,
   FrameType,
   helloFrame,
+  MOUSE_OFF,
   OutputFilter,
   PING_INTERVAL_MS,
   resizeFrame,
@@ -103,9 +104,11 @@ export class TerminalBridge {
           break;
         }
         case FrameType.Restarting:
+          this.mouseOff();
           this.tell({ t: 'restarting' });
           break;
         case FrameType.Exit:
+          this.mouseOff();
           this.tell({ t: 'exit', code: frame.payload.length >= 4 ? frame.payload.readInt32LE(0) : 1 });
           this.finish(1000, 'exit');
           return;
@@ -118,6 +121,14 @@ export class TerminalBridge {
       }
     }
     if (this.ws.bufferedAmount > MAX_BUFFERED_BYTES) this.hold();
+  }
+
+  /**
+   * The program's mouse tracking ends with it: the browser's terminal stops sending clicks and moves, and a drag
+   * selects text again (an ended terminal stays on screen).
+   */
+  private mouseOff(): void {
+    if (this.ws.readyState === this.ws.OPEN) this.ws.send(Buffer.from(MOUSE_OFF, 'latin1'), { binary: true });
   }
 
   /** Stops reading from the session until the browser has taken what it was sent. */

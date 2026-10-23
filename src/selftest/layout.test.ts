@@ -35,6 +35,7 @@ const PURE_GUEST = [
   'guest/toolchains/tools/vscode-profile.js',
   'guest/governor/decide.js',
   'guest/governor/core.js',
+  'guest/daemon/live-folders.js',
 ];
 const SIDE_EFFECTS = ['guest/runtime/session.js', 'guest/runtime/log.js'];
 

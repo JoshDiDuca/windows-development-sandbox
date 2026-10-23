@@ -88,6 +88,20 @@ function Test-LiveFolders([string]$UvmId) {
   if ($roAdded) { Add-Step 'live folder: remove the read-only share (informational)' $false @('share', (New-ShareRequest $UvmId 'remove' $ro $folder $true)) | Out-Null }
   if ($rwAdded) { Add-Step 'live folder: remove the writable share (informational)' $false @('share', (New-ShareRequest $UvmId 'remove' $rw $folder $false)) | Out-Null }
   if ($roAdded) { Add-ExpectedFailure 'live folder: removing a share that is gone fails cleanly (informational)' @('share', (New-ShareRequest $UvmId 'remove' $ro $folder $true)) }
+  # wsb-share (the Windows Sandbox exception) never reaches our own utility VM, and on a runner (no Windows Sandbox)
+  # its rules find no candidate in the real list of compute systems.
+  $wsbRequest = Join-Path $DocumentsDir 'wsb-share-own.json'
+  @{ id = $UvmId; action = 'add'; name = 'agentsbx-0000000c'; path = $folder; readOnly = $true } | ConvertTo-Json -Compress | Set-Content -Path $wsbRequest -Encoding UTF8
+  $wsbHash = (Get-FileHash -Algorithm SHA256 $wsbRequest).Hash
+  $wsbOwn = Invoke-Host @('wsb-share', $wsbRequest, '--sha256', $wsbHash)
+  $steps.Add([pscustomobject]@{ name = 'live folder: wsb-share refuses our own utility VM (informational)'; ok = ((-not $wsbOwn.ok) -and ([string]$wsbOwn.message).StartsWith('Refused:')); required = $false; message = [string]$wsbOwn.message })
+  $listing = Invoke-Host @('enumerate')
+  if ($listing.ok) {
+    $listFile = Join-Path $DocumentsDir 'enumerate.json'
+    [IO.File]::WriteAllText($listFile, [string]$listing.json)
+    $rules = Invoke-Host @('wsb-rules', $listFile)
+    $steps.Add([pscustomobject]@{ name = 'live folder: no Windows Sandbox candidate on a runner (informational)'; ok = (-not $rules.ok); required = $false; message = [string]$rules.message })
+  }
   # Still alive after all of it: properties answer and the state is Running.
   $after = Invoke-Host @('properties', $UvmId)
   $running = $after.ok -and ([string]$after.json -match '"State"\s*:\s*"Running"')

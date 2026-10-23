@@ -209,7 +209,7 @@ jobs:
           $po = Outcome 'process'
           $md.Add(('Docker process isolation: {0}. Process isolation is NOT what the engine ships (it shares the host kernel); it only shows the image runs.' -f (Mark $po)))
           $md.Add('Not tested here: terminal bridge, Node and csc inside Server Core, agent VHDX formatting, the writable layer (HcsHost cannot make one yet), networking.')
-          $md.Add('Live folders (docs/design/hcs-live-folders.md): the "live folder" steps send the vSMB share request to OUR utility VM. Windows Sandbox itself (Containers-DisposableClientVM) is a Windows client feature and cannot run on these Windows Server runners, so adding a folder to a running Windows Sandbox is only tested on a real PC.')
+          $md.Add('Live folders (docs/design/hcs-live-folders.md): the "live folder" steps send the vSMB share request to OUR utility VM. Windows Sandbox itself (Containers-DisposableClientVM) is a Windows client feature and cannot run on these Windows Server runners, so adding a folder to a running Windows Sandbox is only tested on a real PC. The wsb-share steps check that the Windows Sandbox verb refuses our own VM and finds no Windows Sandbox on a runner.')
           if (Test-Path "$env:LOGS\lifecycle.json") {
             $md.Add('')
             $md.Add('### Lifecycle steps')

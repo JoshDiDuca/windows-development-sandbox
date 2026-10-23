@@ -13,7 +13,7 @@ These shipped, but have only been tested inside a Windows Sandbox.
 | --- | --- |
 | VPN (alpha, 1.7.0 and 1.8.0): NordVPN, your own OpenVPN or WireGuard file, the kill switch | [vpn.md](vpn.md#what-is-not-tested-yet): the driver in Windows Sandbox, traffic through the tunnel, nothing leaks with the tunnel down |
 | Contained storage (beta, 1.9.0) | `scripts/experiments/Test-ContainedStorage.ps1`, then the checklist in [design/engines.md](design/engines.md) |
-| Storage helper (unreleased) | an all-users install with `-ContainedStorageHelper`: a launch with contained storage mounts with no prompt, a second user's launch, the log, uninstall dismounts; the checklist in [design/engines.md](design/engines.md) |
+| Storage helper (beta, 1.14.0) | an all-users install with `-ContainedStorageHelper`: a launch with contained storage mounts with no prompt, a second user's launch, the log, uninstall dismounts; the checklist in [design/engines.md](design/engines.md) |
 | Remote access (beta, 1.12.0) | `sandbox web lan-on` and the firewall rule, a phone signing in with a device code, a second Windows user with `sandbox remote` ([web-ui.md](web-ui.md#remote-access)) |
 | HCS engine (alpha, 1.9.0; starting it is disabled) | `scripts/experiments/hcs/Test-Hcs.ps1` and the go/no-go test in [design/engines.md](design/engines.md) |
 
@@ -24,7 +24,7 @@ These shipped, but have only been tested inside a Windows Sandbox.
 - **HCS engine, next phases** (planned, after the go/no-go test passes): the writable layer and layer import, running the
   logon command in the container, the control channel over Hyper-V sockets, networking, our own image importer. What is
   built and what is missing: [design/engines.md](design/engines.md#phase-3-status-hcs-engine-built-start-disabled).
-- **Storage helper** (done, unreleased): a small service installed by the all-users installer, so contained storage
+- **Storage helper** (done, 1.14.0): a small service installed by the all-users installer, so contained storage
   needs no admin prompt per launch. Waits for a test on a real PC (above). Spec: task R2 in
   [design/roadmap-tasks.md](design/roadmap-tasks.md).
 - **Mounting folders into a running sandbox** (idea): Windows Sandbox cannot add a folder while it runs, so a project
@@ -54,7 +54,7 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 ### Terminal input
 
-- **Raw mouse input for agents** (done, unreleased): drag and motion reports reach a program while it asks for them
+- **Raw mouse input for agents** (done, 1.14.0): drag and motion reports reach a program while it asks for them
   (DECSET 1002 / 1003) in the sandbox's tab, `sandbox attach` and the web UI, with conpty.dll (the default). Reports it
   did not ask for are dropped, and leaving a session turns mouse tracking off in your terminal. Windows' own pseudo
   console (`provisioning.conpty.enabled: false`) still passes no mouse modes. Findings: task R4 in
@@ -64,6 +64,8 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 Details are in the [changelog](../CHANGELOG.md).
 
+- **1.14.0**: the storage helper (contained storage with no prompt per launch); drag and motion for agents; Backspace
+  right from the first key; a killed session host's programs ended.
 - **1.13.1 to 1.13.3**: the default account applies at once and to every agent; a fast menu; the web UI stays while a
   page is open.
 - **1.13.0**: plain shell sessions and closing a session from the command line, the menu and the web UI.

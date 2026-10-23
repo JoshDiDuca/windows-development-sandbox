@@ -13,7 +13,7 @@ import { ok } from './common.js';
 function storageOf(env: RepairEnv): ContainedStorage {
   const { config } = env.ctx.loaded;
   return new ContainedStorage(
-    realContainedDeps(env.storageRoot, config.storage.containedMaxGb),
+    realContainedDeps(env.storageRoot, config.storage.containedMaxGb, Boolean(env.ctx.options.config)),
     config.storage.dataName,
   );
 }

@@ -65,7 +65,7 @@ function requireNoSandbox(): void {
 function storageFor(ctx: Context): ContainedStorage {
   const { config } = ctx.loaded;
   return new ContainedStorage(
-    realContainedDeps(ctx.storageRoot, config.storage.containedMaxGb),
+    realContainedDeps(ctx.storageRoot, config.storage.containedMaxGb, Boolean(ctx.options.config)),
     config.storage.dataName,
   );
 }

@@ -16,7 +16,8 @@ export function writeSecrets(dataPath: string, id: string, secrets: SecretsFile)
     !secrets.claudeCredentials &&
     !secrets.vpn &&
     !secrets.wireguardConfig &&
-    !secrets.githubToken;
+    !secrets.githubToken &&
+    !secrets.liveFoldersKey;
   if (empty) return null;
   const run = new RunDir(dataPath);
   assertNoLinks(dataPath, run.secretsDir);

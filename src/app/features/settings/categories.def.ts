@@ -142,6 +142,7 @@ const LABELS: Readonly<Record<string, string>> = {
   'sandbox.pressureResponse': 'Slow builds down when memory runs low',
   'network.dns': 'DNS servers',
   'projects.wsbShare': 'Add folders while the sandbox runs',
+  'projects.liveFolders': 'Add folders through HCS (alpha, untested)',
   'projects.all': 'Map all known projects at start',
   'claudeProfile.hostDir': 'Claude folder on this PC',
   'claudeProfile.globalStateFile': 'Claude state file on this PC',

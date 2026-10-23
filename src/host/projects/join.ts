@@ -1,7 +1,7 @@
 // Joining the running sandbox from another folder. The folder's run is resolved exactly as a fresh launch would
 // resolve it (its approved .sandbox-config.json, versions, toolchain detection, database plan), checked against the
 // running sandbox's machine-wide protections, made visible inside (host/projects: a project root, a project
-// mapped at boot, or wsb share) and described to the guest, which provisions what is missing before its session.
+// mapped at boot, wsb share, or HCS) and described to the guest, which provisions what is missing before its session.
 // When none of those can make it visible, NeedsRestart reaches the caller, which offers a restart. So does a project
 // that wants what the sandbox only gets at its start (a .wsb device, more memory, its mappings) when you choose to
 // restart for it; otherwise it joins without them and they are named.
@@ -99,6 +99,10 @@ export async function joinRunning(o: {
   packageRoot: string;
   hostDir: string;
   wsbShare: boolean;
+  /** projects.liveFolders ("hcs": the opt-in alpha that adds folders through HCS where wsb share is missing). */
+  liveFolders?: 'off' | 'hcs';
+  /** Shown at once (the live-folder warning comes before its permission prompt). */
+  onNote?: (note: string) => void;
   resolve: (projectRoot: string) => Promise<ResolvedRun>;
   mapper?: ProjectMapper;
   /** Asked before anything is registered when something is missing (default: continue without it). */
@@ -143,14 +147,21 @@ export async function joinRunning(o: {
     if (choice === 'restart') throw new NeedsRestart(root, 'it wants what the sandbox only gets at its start', missing);
   }
   const mapper =
-    o.mapper ?? projectMapper({ storageRoot: o.storageRoot, packageRoot: o.packageRoot, wsbShare: o.wsbShare });
+    o.mapper ??
+    projectMapper({
+      storageRoot: o.storageRoot,
+      packageRoot: o.packageRoot,
+      wsbShare: o.wsbShare,
+      liveFolders: o.liveFolders,
+      dataPath: o.dataPath,
+    });
   // Guarded from now on. A folder the sandbox could already write (inside a root, or mapped at boot) and that has no
   // snapshot from the launch gets an empty one: what is there now may have been planted, so it counts as new.
   // Anything else is snapshotted before it becomes visible.
   new RepoGuardStore(o.dataPath).add(root, {
     empty: Boolean(here) || Boolean(registryFile.rootHere(root)),
   });
-  const entry = mapper.register(root);
+  const entry = await mapper.register(root, { readOnly: run.config.readOnly, onNote: o.onNote });
   new KnownProjects(o.storageRoot).remember(entry.host);
   // Your hooks in ~/.agent-sandbox/hooks ran at boot (once per sandbox); the project's own scripts ("scripts" in its
   // .sandbox-config.json, --script) run before its first agent. The launch folder is read-only for the sandbox, but

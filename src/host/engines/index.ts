@@ -22,3 +22,17 @@ export {
   type LeftoverOutcome,
   type LeftoverSystem,
 } from './hcs/leftovers.js';
+export {
+  LiveFolders,
+  ScriptLivePort,
+  clearLiveRecord,
+  realLiveFolders,
+  liveRecordFile,
+  LIVE_FOLDERS_WARNING,
+  type LiveRecord,
+  type LiveShare,
+  type LiveShareRequest,
+  type LiveOutcome,
+  type ElevatedLivePort,
+  type LiveRunner,
+} from './hcs/live-folders.js';

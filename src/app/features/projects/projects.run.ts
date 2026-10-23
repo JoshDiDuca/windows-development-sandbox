@@ -82,13 +82,21 @@ export const removeProjectRun = implement(removeProject, async (ctx, input, io) 
   const dir = await pickFolder(ctx, io, input.projectFolder);
   const yes = await io.confirm({
     title: 'Forget ' + path.basename(dir) + '?',
-    lines: ['The project is dropped from your list of projects.', 'Nothing in ' + dir + ' is touched.'],
+    lines: [
+      'The project is dropped from your list of projects.',
+      'Nothing in ' + dir + ' is touched.',
+      ...(new ProjectsService(ctx).isLive(dir)
+        ? [
+            'It is a live folder: it is hidden in the running sandbox and its share removed (Windows asks for permission).',
+          ]
+        : []),
+    ],
     yes: 'Forget',
     danger: true,
     implied: true,
   });
   if (!yes) cancelled();
-  const { dir: forgotten, removed } = new ProjectsService(ctx).forget(dir);
+  const { dir: forgotten, removed } = await new ProjectsService(ctx).forget(dir);
   return {
     message: removed
       ? 'Removed ' + forgotten + ' from your projects (nothing in the folder was touched).'

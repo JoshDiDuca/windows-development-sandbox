@@ -141,6 +141,87 @@ export const liveTerminalSuite: Suite = {
         );
     }
 
+    t.section('a ptyhost ended from outside: what it recorded is ended, and nothing else');
+    {
+      // ptyhost records its program's process tree (PTYHOST_TREE_FILE); --end-tree ends it once ptyhost is gone,
+      // checking every process by id and start time.
+      const record = t.at('tree.json');
+      const ping = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE');
+      const holder = '"' + SYSTEM.cmd() + '" /c "' + ping + '" -n 120 127.0.0.1 >nul';
+      const host = spawn(ptyhost, [String(await freePort()), 'tok', '80', '24', t.at('tree.log'), holder], {
+        env: { ...process.env, PTYHOST_BIND: 'loopback', PTYHOST_TREE_FILE: record },
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      interface TreeRecord {
+        ptyhost: { pid: number; start: string };
+        processes: { pid: number; start: string }[];
+      }
+      const read = (file: string): TreeRecord | null => {
+        try {
+          return JSON.parse(fs.readFileSync(file, 'utf8')) as TreeRecord;
+        } catch {
+          return null;
+        }
+      };
+      const alive = (pid: number): boolean => {
+        try {
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      // The program (cmd) and the PING it started, once ptyhost has followed the tree (every 3 s).
+      const recorded = await t.waitFor(() => {
+        const r = read(record);
+        return r && r.ptyhost.pid === host.pid && r.processes.length >= 2 ? r : null;
+      }, WAIT.screen);
+      t.check(recorded !== null, 'ptyhost records its program and what it started', JSON.stringify(read(record)));
+      if (recorded) {
+        const endTree = (file: string): { status: number | null; stdout: string } => {
+          const r = spawnSync(ptyhost, ['--end-tree', file], { encoding: 'utf8', windowsHide: true });
+          return { status: r.status, stdout: (r.stdout ?? '').trim() };
+        };
+        const copy = t.at('tree-copy.json');
+        fs.writeFileSync(copy, JSON.stringify(recorded));
+        const whileRunning = endTree(copy);
+        // The same ids with other start times: what a reused id looks like.
+        const forged = t.at('tree-forged.json');
+        fs.writeFileSync(
+          forged,
+          JSON.stringify({
+            ptyhost: { pid: recorded.ptyhost.pid, start: '1' },
+            processes: recorded.processes.map((p) => ({ pid: p.pid, start: String(BigInt(p.start) + 1n) })),
+          }),
+        );
+        const reused = endTree(forged);
+        t.check(
+          whileRunning.status === 3 &&
+            reused.status === 0 &&
+            reused.stdout === 'ended 0 process(es)' &&
+            recorded.processes.every((p) => alive(p.pid)),
+          'nothing is ended while the ptyhost that recorded it runs, nor a process whose id was reused (start time)',
+          JSON.stringify({ whileRunning, reused }),
+        );
+        host.kill();
+        await t.waitFor(() => host.exitCode !== null, 10000);
+        const left = fs.existsSync(record);
+        const ended = endTree(record);
+        await t.waitFor(() => recorded.processes.every((p) => !alive(p.pid)), 10000);
+        t.check(
+          left && ended.status === 0 && recorded.processes.every((p) => !alive(p.pid)),
+          'a ptyhost ended from outside leaves its record, and --end-tree ends the processes in it',
+          JSON.stringify({ left, ended, alive: recorded.processes.filter((p) => alive(p.pid)) }),
+        );
+      }
+      try {
+        if (host.exitCode === null) host.kill();
+      } catch {
+        /* it ended between the check and the kill: nothing left to stop */
+      }
+    }
+
     t.section("the agents' job: a last-resort backstop, set once");
     {
       // A job of the test's own (PTYHOST_JOB_NAME), never the agents' real one.

@@ -17,7 +17,14 @@ import { commandLine, shellLaunch, type ShellLaunch } from '../sessions/cmdline.
 import { pwshDir } from '../toolchains/tools/pwsh.js';
 import { freePort } from '../runtime/ports.js';
 import { primaryProject } from '../boot/project-status.js';
-import { ensurePtyHost, ptyHostLogTail, startPtyHost, waitForPtyHost } from '../sessions/pty-host.js';
+import {
+  endLeftoverTree,
+  ensurePtyHost,
+  ptyHostLogTail,
+  recordedTrees,
+  startPtyHost,
+  waitForPtyHost,
+} from '../sessions/pty-host.js';
 import { agents } from '../agents/agent-installer.js';
 import { saveClaudeMem } from '../setup/claude-mem.js';
 import { saveLocalState } from '../agents/local-state.js';
@@ -266,7 +273,27 @@ export class SessionManager {
 
   private rootStarted(id: string, child: ChildProcess, from: number): void {
     if (child.pid) this.ptyHosts.set(id, { session: id, pid: child.pid, from });
-    child.once('exit', () => this.rootEnded(id));
+    child.once('exit', () => {
+      this.rootEnded(id);
+      this.endLeftovers(id);
+    });
+  }
+
+  /** What a session's ptyhost left running when it was itself ended (Task Manager, a crash) is ended now. */
+  private endLeftovers(id: string): void {
+    void endLeftoverTree(id)
+      .then((done) => {
+        if (done) log('Session ' + id + ': its session host was ended from outside; ' + done + ' it left running');
+      })
+      .catch((e: unknown) => warn('Ending what session ' + id + ' left running failed: ' + errMsg(e)));
+  }
+
+  /**
+   * At the daemon's start: trees recorded by session hosts that are gone (a daemon that ended with them) are ended
+   * too. One whose session host still runs is left alone (ptyhost --end-tree checks).
+   */
+  sweepLeftovers(): void {
+    for (const id of recordedTrees()) if (!this.live.has(id)) this.endLeftovers(id);
   }
 
   private rootEnded(id: string): void {

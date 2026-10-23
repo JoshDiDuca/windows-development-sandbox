@@ -304,7 +304,7 @@ export class SandboxChannel {
       removeLink(p.root);
       return;
     }
-    for (const target of [p.sandboxFile, p.requestsDir, p.responsesDir, p.sessionsDir, p.projectsDir]) {
+    for (const target of [p.sandboxFile, p.requestsDir, p.responsesDir, p.sessionsDir, p.projectsDir, p.treesDir]) {
       safeRemove(target, this.dataPath);
     }
   }

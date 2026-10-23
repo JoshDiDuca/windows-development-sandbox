@@ -19,6 +19,7 @@ adoptBootSecrets();
 log('Session daemon started (pid ' + process.pid + ').');
 safely('port forwards', startRelays);
 safely('audit', () => startProcessCollector(() => sessions.roots()));
+safely('leftover processes', () => sessions.sweepLeftovers());
 safely('memory governor', () => governor.start());
 log('Memory governor: ' + governor.describe());
 new Daemon().start();

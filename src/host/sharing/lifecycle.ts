@@ -62,7 +62,15 @@ export function beginSharing(deps: SharingDeps, start: SharingStart, now: Date =
   // The owner creates the run folder and every channel folder in it before others may write there: a folder another
   // user created would stay theirs, and writable by them, after sharing is turned off.
   const run = new RunDir(start.dataPath);
-  for (const dir of [run.root, run.requestsDir, run.responsesDir, run.sessionsDir, run.projectsDir, run.auditDir])
+  for (const dir of [
+    run.root,
+    run.requestsDir,
+    run.responsesDir,
+    run.sessionsDir,
+    run.projectsDir,
+    run.auditDir,
+    run.treesDir,
+  ])
     fs.mkdirSync(dir, { recursive: true });
   const plan = sharingAclPlan({
     storageUserDir: storageOf(start.dataPath),

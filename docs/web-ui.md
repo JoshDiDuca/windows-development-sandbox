@@ -34,6 +34,10 @@ browser (React app, xterm.js)  ──HTTP + WebSocket──>  sandbox web (Node,
 - **The browser never gets a session's attach token.** The server holds it, connects to the session's ptyhost (only to
   sandbox addresses, `isSandboxAddress`, as `attach` does) and passes frames both ways: OUTPUT to the browser; INPUT,
   RESIZE and PING from it. Several browsers may watch one session, as several `attach` terminals can.
+- **Mouse:** xterm.js reports clicks, the wheel, drags and moves exactly as the program asked (DECSET 1000, 1002,
+  1003 with SGR 1006), which with conpty.dll reaches the browser as it does any terminal. When the program restarts or
+  exits, the server first tells the browser's terminal to stop tracking the mouse, so a drag in an ended terminal
+  selects text again. Shift+drag selects text while the program tracks the mouse.
 
 ## Security
 

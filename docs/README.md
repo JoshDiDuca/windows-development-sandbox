@@ -27,4 +27,4 @@ Start with the [README](../README.md). Version history is in the [changelog](../
 | [design/shared-core.md](design/shared-core.md) | One core for the CLI, the menu and the web UI: how a feature is written and drawn on each surface |
 | [design/web-ui-standard.md](design/web-ui-standard.md) | How every web page looks, the Page hints, checking with screenshots |
 | [design/engines.md](design/engines.md) | Sandbox engines and storage providers: contained storage (beta), the HCS engine (alpha, start disabled), the go/no-go test |
-| [design/roadmap-tasks.md](design/roadmap-tasks.md) | Task specs for the open roadmap items (storage helper, code signing, raw mouse input, NordLynx) |
+| [design/roadmap-tasks.md](design/roadmap-tasks.md) | Task specs for the open roadmap items (storage helper, code signing, NordLynx) and the findings of raw mouse input |

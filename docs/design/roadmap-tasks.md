@@ -67,7 +67,35 @@ owner's account (Azure Trusted Signing is the cheapest), so the pipeline must ex
 - Ask the advisor before choosing anything that would sign files on the user's PC (it would need a private key there:
   do not do that).
 
-### R4. Raw mouse input for agents (backlog) — Sonnet
+### R4. Raw mouse input for agents (done, unreleased)
+
+Findings (October 2026):
+- **Input path.** The viewer and `sandbox attach` put their console in raw mode and turn on
+  `ENABLE_VIRTUAL_TERMINAL_INPUT` (`console-input.ts` runs `sandbox/scripts/enable-vt-input.ps1`, about 2 s); from then
+  on Node reads the terminal's bytes as they are, mouse reports included (SGR, X10, urxvt). Before that it reads
+  console key records, and ConPTY hands a terminal's DEL over as 0x7f; keys typed in that window used to be swapped
+  (DEL became ^H, deleting a word: the live-terminal check that kept failing). They now wait (`KeyGate`).
+- **ConPTY.** conpty.dll (OpenConsole, passthrough) forwards the program's DECSET 1000 / 1002 / 1003 / 1006 to the
+  terminal and passes the reports back unchanged to a program in VT input mode; the stand-in agent got drags
+  (`ESC[<32;..M`) and moves (`ESC[<35;..M`) through both hops. Windows' own pseudo console (inbox conhost) swallows
+  every mouse mode request, so a real terminal never sends reports to a program behind it.
+- **The web terminal.** xterm.js reports per the modes it sees in the output (1000, 1002, 1003, 1006), so it needed no
+  change except turning tracking off when the program restarts or exits.
+- **What programs ask for.** Claude Code turns on click tracking with SGR (1000 + 1006) for its buttons; vim
+  (`mouse=a`, `ttymouse=sgr`) and neovim use button-event tracking (1002, 1003 with `mousemoveevent`); crossterm
+  programs (helix and other Rust TUIs) turn on 1000, 1002, 1003, 1015 and 1006 together; tmux asks for what its own
+  clients need. (From their documentation and source; only Claude Code's request was seen here.)
+- **Selection and Ctrl+C.** Shift+drag selects in Windows Terminal while a program tracks the mouse; Ctrl+C arrives
+  as 0x03 (no signal in raw mode) and `attach.confirmCtrlC` still applies.
+
+Built: `MouseModes` (shared/pty) follows the mouse modes in the output the client already filters (and RIS / DECSTR
+resets) and drops the reports the program did not ask for: moves only with 1003, drags only with 1002 or 1003, none
+without tracking. Only with conpty.dll, where the modes are visible; with Windows' own console input passes as before.
+Leaving a session writes mouse-off (and bracketed paste off when the program had it on), then drops reports still on
+their way until input is quiet. The web bridge sends mouse-off before "restarting" and "exit". Tests: `channel`
+(MouseModes, KeyGate), `web` (the bridge), `live-terminal` (a drag and a move reach the agent only after it asked).
+
+The original task:
 
 Why: `sandbox attach` passes the mouse clicks 1.4.1 supports; programs that need raw mouse input (drag, motion
 reports) get nothing.

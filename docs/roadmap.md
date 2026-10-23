@@ -50,8 +50,11 @@ These shipped, but have only been tested inside a Windows Sandbox.
 
 ### Terminal input
 
-- **Raw mouse input for agents** (idea, backlog): programs that need motion and drag reports get none of them today.
-  Investigate first. Spec: task R4 in [design/roadmap-tasks.md](design/roadmap-tasks.md).
+- **Raw mouse input for agents** (done, unreleased): drag and motion reports reach a program while it asks for them
+  (DECSET 1002 / 1003) in the sandbox's tab, `sandbox attach` and the web UI, with conpty.dll (the default). Reports it
+  did not ask for are dropped, and leaving a session turns mouse tracking off in your terminal. Windows' own pseudo
+  console (`provisioning.conpty.enabled: false`) still passes no mouse modes. Findings: task R4 in
+  [design/roadmap-tasks.md](design/roadmap-tasks.md).
 
 ## Recently shipped
 

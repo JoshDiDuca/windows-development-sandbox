@@ -12,7 +12,7 @@ import { takeHiddenInstallNotice } from '../host/install/index.js';
 import { c } from './output/index.js';
 import { dropInheritedModulePath } from '../shared/system.js';
 import { withConfig, hoistConfig, withoutConfig } from './argv.js';
-import { report } from './report.js';
+import { recordUnexpected, report } from './report.js';
 import { versionText } from './version.js';
 import { HANDLERS } from './commands/index.js';
 import { definitionHandler, operationHandler } from './operations/index.js';
@@ -133,6 +133,9 @@ export async function main(rawArgv: string[], preset: Preset = {}): Promise<numb
 
 export function run(argv: string[], preset?: Preset): void {
   dropInheritedModulePath();
+  // Background work that throws must not end the menu or the web server: the error is kept with its stack instead.
+  process.on('unhandledRejection', (e) => recordUnexpected(e, 'unhandled rejection'));
+  process.on('uncaughtException', (e) => recordUnexpected(e, 'uncaught exception'));
   main(argv, preset).then(
     (code) => {
       process.exitCode = code;

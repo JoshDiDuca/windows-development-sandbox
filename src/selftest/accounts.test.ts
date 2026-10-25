@@ -2,6 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AccountStore } from '../host/profile/index.js';
+import { DEFAULTS } from '../core/config/index.js';
+import { defaultAccount } from '../app/features/accounts/index.js';
+import { MenuOperations } from '../cli/menu/io-menu.js';
+import type { AppContext } from '../app/context.js';
 import type { Suite } from './support/suite.js';
 
 export const accountsSuite: Suite = {
@@ -47,6 +51,33 @@ export const accountsSuite: Suite = {
       JSON.stringify(new AccountStore(storage).read('personal')?.credentials),
       'personal-2',
       "the outgoing account's refreshed tokens are saved back before switching",
+    );
+
+    t.section('make default, as the menu runs it');
+    const menuCtx = {
+      packageRoot: t.dir('acct-menu', 'package'),
+      options: {},
+      loaded: { config: structuredClone(DEFAULTS), configPath: null, base: t.temp },
+      storageRoot: storage,
+      dataPath: dataA,
+    } as unknown as AppContext;
+    let said: string | undefined;
+    let error: unknown = null;
+    try {
+      said = await new MenuOperations({} as never, menuCtx).run(
+        defaultAccount,
+        { agent: 'claude', name: 'personal', noRestart: false },
+        [],
+      );
+    } catch (e) {
+      error = e;
+    }
+    t.check(
+      error === null &&
+        new AccountStore(storage).defaultName() === 'personal' &&
+        new AccountStore(storage).activeFor(dataA) === 'personal',
+      'make default from the menu sets the default and switches the sandbox to it',
+      String(error instanceof Error ? error.stack : (error ?? said)),
     );
 
     t.section('sharing plugins between data sets');

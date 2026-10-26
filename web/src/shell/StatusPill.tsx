@@ -1,5 +1,5 @@
 // The sandbox's state at the top of the sidebar, always in view: a dot (green ready, amber while it sets up, grey when
-// stopped), its phase, how long it has run and how many agents run in it. A click opens the Sandbox page. It reads the
+// stopped), its phase, how long it has run and how many sessions run in it. A click opens the Sandbox overview. It reads the
 // same live query as that page (sandbox.status).
 import { Group, Skeleton, Stack, Text, UnstyledButton } from '@mantine/core';
 import { queryById, type SandboxStatus } from '../../../src/app/features/defs';
@@ -12,15 +12,15 @@ const STATUS = queryById('sandbox.status');
 function describe(status: SandboxStatus): { color: string; title: string; line: string; busy: boolean } {
   const s = status.sandbox;
   if (status.shared?.limited)
-    return { color: 'gray', title: 'Another user’s sandbox', line: 'Not shared', busy: false };
-  if (!s.running) return { color: 'gray', title: 'Stopped', line: 'Start an agent to start it', busy: false };
+    return { color: 'gray', title: 'Another user’s sandbox', line: 'Not shared with you', busy: false };
+  if (!s.running) return { color: 'gray', title: 'Stopped', line: 'Starts with the next agent', busy: false };
   const sessions = status.projects.reduce((n, p) => n + p.sessions.length, 0) + status.otherSessions.length;
   const ready = s.phase === 'ready';
-  const up = s.startedAt ? 'up ' + ago(s.startedAt).replace(' ago', '') : 'running';
+  const up = s.startedAt ? 'Up ' + ago(s.startedAt).replace(' ago', '') : 'Running';
   return {
     color: ready ? 'green' : 'yellow',
     title: ready ? 'Running' : s.phase.charAt(0).toUpperCase() + s.phase.slice(1),
-    line: up + ' · ' + sessions + (sessions === 1 ? ' agent' : ' agents'),
+    line: up + ' · ' + sessions + (sessions === 1 ? ' session' : ' sessions'),
     busy: !ready,
   };
 }
@@ -30,15 +30,13 @@ export function SandboxStatusCard() {
   const shown = data
     ? describe(data as SandboxStatus)
     : error
-      ? { color: 'red', title: 'Cannot reach the sandbox', line: 'Is sandbox web still running?', busy: false }
+      ? { color: 'red', title: 'Not connected', line: 'Check that sandbox web is running', busy: false }
       : null;
   return (
     <UnstyledButton
       onClick={() => navigate(viewPath('sandbox'))}
-      p="sm"
-      w="100%"
-      style={{ border: '1px solid var(--app-border)', borderRadius: 'var(--mantine-radius-md)' }}
-      aria-label="Sandbox status"
+      className="status-card"
+      aria-label={shown ? 'Sandbox: ' + shown.title + ', ' + shown.line + '. Open the overview' : 'Sandbox status'}
     >
       {shown ? (
         <Group gap="sm" wrap="nowrap">
@@ -46,8 +44,8 @@ export function SandboxStatusCard() {
             className={'status-dot' + (shown.busy ? ' pulse' : '')}
             style={{ ['--dot' as string]: `var(--mantine-color-${shown.color}-6)` }}
           />
-          <Stack gap={0} style={{ minWidth: 0 }}>
-            <Text size="sm" fw={600} truncate>
+          <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+            <Text size="sm" fw={600} truncate lh={1.35}>
               {shown.title}
             </Text>
             <Text size="xs" c="dimmed" truncate>

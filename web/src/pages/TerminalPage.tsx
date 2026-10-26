@@ -42,7 +42,7 @@ const STATE_TEXT: Record<ConnectionState, { text: string; color: MantineColor }>
   connected: { text: 'Connected', color: 'green' },
   reconnecting: { text: 'Reconnecting', color: 'orange' },
   ended: { text: 'Ended', color: 'gray' },
-  failed: { text: 'Cannot connect', color: 'red' },
+  failed: { text: 'Connection failed', color: 'red' },
 };
 
 /** The keys a phone keyboard does not have, as the bytes a terminal sends. */
@@ -74,7 +74,7 @@ function SearchBox({ terminal, close }: { readonly terminal: TerminalHandle | nu
           size="xs"
           w={220}
           autoFocus
-          placeholder="Find in the terminal"
+          placeholder="Find in terminal"
           value={text}
           error={missing}
           onChange={(e) => setText(e.currentTarget.value)}
@@ -84,10 +84,10 @@ function SearchBox({ terminal, close }: { readonly terminal: TerminalHandle | nu
           }}
           aria-label="Find in the terminal"
         />
-        <ActionIcon aria-label="Previous" onClick={() => find(true)}>
+        <ActionIcon aria-label="Previous match" onClick={() => find(true)}>
           <IconChevronUp size={16} />
         </ActionIcon>
-        <ActionIcon aria-label="Next" onClick={() => find(false)}>
+        <ActionIcon aria-label="Next match" onClick={() => find(false)}>
           <IconChevronDown size={16} />
         </ActionIcon>
         <ActionIcon aria-label="Close search" onClick={done}>
@@ -134,11 +134,11 @@ export function TerminalPage({ id }: { readonly id: string }) {
   const close: OperationAction = {
     kind: 'operation',
     op: 'sessions.close',
-    label: 'Close',
-    verb: 'close',
+    label: 'End session',
+    verb: 'end',
     input: { session: id },
     danger: true,
-    description: 'End this session and every program it started',
+    description: 'Stop this session and every program it started',
   };
   const leave = (): void => {
     detach.current();
@@ -148,7 +148,7 @@ export function TerminalPage({ id }: { readonly id: string }) {
     <div className="terminal-page" style={{ position: 'relative' }}>
       <Group gap="sm" px="sm" py={6} wrap="nowrap" className="terminal-toolbar">
         <Tooltip label="Back to sessions (the session keeps running)">
-          <ActionIcon size="lg" aria-label="Back" onClick={leave}>
+          <ActionIcon size="lg" aria-label="Back to sessions" onClick={leave}>
             <IconArrowLeft size={18} />
           </ActionIcon>
         </Tooltip>
@@ -172,30 +172,32 @@ export function TerminalPage({ id }: { readonly id: string }) {
             />
           </Box>
         </Tooltip>
-        <Group gap={2} ml="auto" wrap="nowrap">
-          <Tooltip label="Find (Ctrl+Shift+F)">
-            <ActionIcon size="lg" aria-label="Find" onClick={() => setSearching((s) => !s)}>
-              <IconSearch size={18} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Smaller text">
-            <ActionIcon size="lg" aria-label="Smaller text" onClick={() => resize(-1)} visibleFrom="xs">
-              <IconTextDecrease size={18} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Bigger text">
-            <ActionIcon size="lg" aria-label="Bigger text" onClick={() => resize(1)} visibleFrom="xs">
-              <IconTextIncrease size={18} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label={fullscreen ? 'Leave full screen' : 'Full screen'}>
-            <ActionIcon size="lg" aria-label="Full screen" onClick={() => void toggleFullscreen()}>
-              {fullscreen ? <IconMinimize size={18} /> : <IconMaximize size={18} />}
-            </ActionIcon>
-          </Tooltip>
-          {session?.phase === 'running' && <ActionButton action={close} size="xs" ml={6} />}
-          <Tooltip label="Close this view; the session keeps running">
-            <Button size="xs" variant="default" ml={6} onClick={leave}>
+        <Group gap="xs" ml="auto" wrap="nowrap">
+          <div className="terminal-tools" role="toolbar" aria-label="Terminal">
+            <Tooltip label="Find (Ctrl+Shift+F)">
+              <ActionIcon aria-label="Find" onClick={() => setSearching((s) => !s)} data-active={searching || undefined}>
+                <IconSearch size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Smaller text">
+              <ActionIcon aria-label="Smaller text" onClick={() => resize(-1)} visibleFrom="xs">
+                <IconTextDecrease size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Larger text">
+              <ActionIcon aria-label="Larger text" onClick={() => resize(1)} visibleFrom="xs">
+                <IconTextIncrease size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label={fullscreen ? 'Exit full screen' : 'Full screen'}>
+              <ActionIcon aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} onClick={() => void toggleFullscreen()}>
+                {fullscreen ? <IconMinimize size={16} /> : <IconMaximize size={16} />}
+              </ActionIcon>
+            </Tooltip>
+          </div>
+          {session?.phase === 'running' && <ActionButton action={close} size="xs" />}
+          <Tooltip label="Leave this page; the session keeps running">
+            <Button size="xs" variant="default" onClick={leave} visibleFrom="xs">
               Detach
             </Button>
           </Tooltip>

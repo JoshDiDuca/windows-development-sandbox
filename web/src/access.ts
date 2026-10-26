@@ -14,6 +14,12 @@ export function isOwner(): boolean {
   return caller.kind === 'owner';
 }
 
+/** Who this browser is signed in as, in a few words for the sidebar. */
+export function accessLabel(): string {
+  if (caller.kind === 'owner') return 'Signed in as owner';
+  return caller.kind === 'device' && caller.role === 'control' ? 'Signed in · full control' : 'Signed in · view only';
+}
+
 /** May this browser run the action? Links always (a terminal opens read-only for view); operations by their need. */
 export function mayRun(action: Action): boolean {
   if (action.kind === 'link') return action.target.kind !== 'start-agent' || allows(caller, 'control');

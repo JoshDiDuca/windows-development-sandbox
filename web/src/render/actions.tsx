@@ -4,7 +4,18 @@
 // icon from the action's verb.
 import { ActionIcon, Button, Menu, Tooltip, type ButtonProps } from '@mantine/core';
 import {
+  IconArrowBackUp,
   IconCheck,
+  IconCloudDownload,
+  IconDeviceMobilePlus,
+  IconFileExport,
+  IconFileImport,
+  IconFolderShare,
+  IconFolders,
+  IconLogout,
+  IconMessagePlus,
+  IconPower,
+  IconTool,
   IconCircleMinus,
   IconCirclePlus,
   IconDeviceFloppy,
@@ -58,6 +69,22 @@ const VERB_ICONS: Readonly<Record<string, Icon>> = {
   save: IconDeviceFloppy,
   choose: IconListCheck,
   close: IconX,
+  end: IconX,
+  sign: IconLogout,
+  check: IconRefresh,
+  update: IconCloudDownload,
+  roll: IconArrowBackUp,
+  export: IconFileExport,
+  import: IconFileImport,
+  allow: IconDeviceMobilePlus,
+  turn: IconPower,
+  move: IconFolderShare,
+  clean: IconTrash,
+  run: IconPlayerPlay,
+  repair: IconTool,
+  request: IconMessagePlus,
+  map: IconFolders,
+  pick: IconListCheck,
 };
 
 /** The session a started agent runs in, from what agents.start returned. */
@@ -125,16 +152,19 @@ export function ActionButton({ action, primary = false, ...props }: ActionButton
   if (!offered(action)) return null;
   const danger = isDanger(action);
   const Picture = actionIcon(action);
+  // Danger is red words on a quiet button (the red fill is kept for the confirmation that follows); subtle stays subtle.
+  const variant = danger ? (props.variant === 'subtle' ? 'subtle' : 'default') : primary ? 'filled' : props.variant;
   const button = (
     <Button
-      variant={primary ? 'filled' : danger ? 'light' : 'default'}
-      color={danger ? 'red' : undefined}
       leftSection={Picture ? <Picture size={16} stroke={1.8} /> : undefined}
       onClick={(e) => {
         e.stopPropagation();
         void act(action);
       }}
       {...props}
+      variant={variant ?? 'default'}
+      color={danger ? 'red' : props.color}
+      className={danger ? 'danger-button' : undefined}
     >
       {action.label}
     </Button>
@@ -151,9 +181,10 @@ export function ActionIconButton({ action }: { readonly action: Action }) {
   if (!Picture)
     return (
       <Button
-        size="compact-xs"
-        variant="subtle"
-        color={isDanger(action) ? 'red' : 'gray'}
+        size="compact-sm"
+        variant="default"
+        className={isDanger(action) ? 'danger-button' : undefined}
+        color={isDanger(action) ? 'red' : undefined}
         onClick={(e) => {
           e.stopPropagation();
           void act(action);

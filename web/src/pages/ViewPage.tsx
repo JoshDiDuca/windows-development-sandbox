@@ -5,7 +5,7 @@
 // opens that page at their category.
 import { SegmentedControl, Select } from '@mantine/core';
 import { useEffect, type ReactNode } from 'react';
-import { embeddingOf, NAV, navSections, viewById } from '../../../src/app/features/defs';
+import { embeddingOf, NAV, navGroupOf, navSections, viewById } from '../../../src/app/features/defs';
 import { viewInputs, type AnyView } from '../../../src/app/kernel/index';
 import { PageView } from '../render/PageView';
 import { ErrorState, PageSkeleton } from '../render/states';
@@ -94,7 +94,8 @@ function LoadedView({ view, params, extras }: LoadedViewProps) {
         )}
       </>
     ) : undefined;
-  return <PageView page={page} summary={view.summary} toolbar={toolbar} extras={extras} />;
+  const eyebrow = navGroupOf(NAV, view.id)?.label;
+  return <PageView page={page} summary={view.summary} eyebrow={eyebrow} toolbar={toolbar} extras={extras} />;
 }
 
 /** A view drawn as a category of another page: its own Page, without tabs of its own. */
@@ -112,7 +113,13 @@ export function ViewPage({ view: id, params }: ViewPageProps) {
   }, [host, id]);
   if (host?.view) return <PageSkeleton />;
   const view = viewById(id);
-  if (!view) return <ErrorState message={'There is no page called ' + id + '.'} fix="Pick a page on the left." />;
+  if (!view)
+    return (
+      <ErrorState
+        message="Page not found"
+        fix={'There is no page called “' + id + '”. Check the address, or pick a page from the sidebar.'}
+      />
+    );
   const p = paramsOf(view, params);
   const embeds = navSections(NAV).find((n) => n.view === id)?.embeds ?? [];
   const extras = embeds.map((e) => ({ id: e.view, label: e.label, node: <EmbeddedView id={e.view} /> }));

@@ -217,7 +217,7 @@ export interface NavSection {
   readonly view?: ViewId;
   /** Where the area is today when it has no view yet. */
   readonly elsewhere?: string;
-  /** Entries under this one (Sandbox: Status, Projects). */
+  /** Entries under this one: a group of the navigation (Sandbox: Overview, Projects, Apps). */
   readonly children?: readonly NavSection[];
   /** Views shown as more categories inside this entry's page (Settings: VPN, GitHub), not as entries of their own. */
   readonly embeds?: readonly { readonly label: string; readonly view: ViewId }[];
@@ -233,33 +233,48 @@ export function navViews(nav: readonly NavSection[]): ViewId[] {
   return navSections(nav).flatMap((n) => [...(n.view ? [n.view] : []), ...(n.embeds ?? []).map((e) => e.view)]);
 }
 
+/** The group of the navigation a view's entry sits in (Updates: Maintenance), for the page's breadcrumb. */
+export function navGroupOf(nav: readonly NavSection[], view: string): NavSection | undefined {
+  return navSections(nav).find((n) => n.children?.some((c) => c.view === view));
+}
+
 /** The entry whose page shows this view as one of its categories (VPN: Settings), if any. */
 export function embeddingOf(nav: readonly NavSection[], view: string): NavSection | undefined {
   return navSections(nav).find((n) => n.embeds?.some((e) => e.view === view));
 }
 
 export const NAV: readonly NavSection[] = [
-  { label: 'Agents', view: 'agents' },
-  { label: 'Sessions', view: 'sessions' },
-  { label: 'Activity', view: 'audit' },
+  {
+    label: 'Workspace',
+    children: [
+      { label: 'Agents', view: 'agents' },
+      { label: 'Sessions', view: 'sessions' },
+      { label: 'Activity', view: 'audit' },
+    ],
+  },
   {
     label: 'Sandbox',
     children: [
-      { label: 'Status', view: 'sandbox' },
+      { label: 'Overview', view: 'sandbox' },
       { label: 'Projects', view: 'projects' },
+      { label: 'Apps', view: 'apps' },
     ],
   },
-  { label: 'Apps', view: 'apps' },
   {
-    label: 'Settings',
-    view: 'settings',
-    embeds: [
-      { label: 'VPN', view: 'vpn' },
-      { label: 'GitHub', view: 'github' },
+    label: 'Configuration',
+    children: [
+      {
+        label: 'Settings',
+        view: 'settings',
+        embeds: [
+          { label: 'VPN', view: 'vpn' },
+          { label: 'GitHub', view: 'github' },
+        ],
+      },
+      { label: 'Accounts', view: 'accounts' },
+      { label: 'Remote access', view: 'access' },
     ],
   },
-  { label: 'Accounts', view: 'accounts' },
-  { label: 'Remote access', view: 'access' },
   {
     label: 'Maintenance',
     children: [

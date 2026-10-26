@@ -5,7 +5,7 @@ import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { Spotlight, type SpotlightActionData, type SpotlightActionGroupData } from '@mantine/spotlight';
 import { IconAdjustments, IconMoon, IconPlus, IconSearch, IconTerminal2 } from '@tabler/icons-react';
 import { useMemo } from 'react';
-import { NAV, navSections, queryById, type SessionsList, type SettingsList } from '../../../src/app/features/defs';
+import { NAV, navGroupOf, navSections, queryById, type SessionsList, type SettingsList } from '../../../src/app/features/defs';
 import { AREA_ICONS, ItemIcon } from '../render/icons';
 import { itemAnchor } from '../render/CategoryPage';
 import { navigate, viewPath } from '../router';
@@ -21,17 +21,17 @@ export function CommandPalette() {
   const dark = useComputedColorScheme('light') === 'dark';
 
   const actions = useMemo((): (SpotlightActionGroupData | SpotlightActionData)[] => {
-    // Every page, nested ones included ("Status" and "Projects" under Sandbox), named with their parent.
+    // Every page, with the group it sits in ("Sandbox › Overview").
     const pages: SpotlightActionData[] = navSections(NAV)
       .filter((s) => s.view)
       .map((s) => {
-        const parent = NAV.find((p) => p.children?.includes(s))?.label;
-        const Picture = AREA_ICONS[parent ?? s.label] ?? IconSearch;
-        const name = parent ? parent + ' · ' + s.label : s.label;
+        const parent = navGroupOf(NAV, s.view as string)?.label;
+        const Picture = AREA_ICONS[s.label] ?? IconSearch;
         return {
           id: 'view:' + s.view,
-          label: name,
-          description: 'Go to ' + name,
+          label: s.label === 'Overview' && parent ? parent + ' overview' : s.label,
+          description: parent ? parent + ' › ' + s.label : undefined,
+          keywords: parent ? [parent] : undefined,
           leftSection: <Picture size={18} stroke={1.6} />,
           onClick: () => navigate(viewPath(s.view as string)),
         };
@@ -40,14 +40,14 @@ export function CommandPalette() {
       {
         id: 'new-session',
         label: 'New session',
-        description: 'Start an agent in a project of the sandbox',
+        description: 'Start an agent in one of the sandbox’s projects',
         leftSection: <IconPlus size={18} />,
         onClick: () => navigate(viewPath('agents')),
       },
       {
         id: 'scheme',
-        label: dark ? 'Light mode' : 'Dark mode',
-        description: 'Switch the colours of this page',
+        label: dark ? 'Switch to light mode' : 'Switch to dark mode',
+        description: 'Change the colour scheme of the web UI',
         leftSection: <IconMoon size={18} />,
         onClick: () => setColorScheme(dark ? 'light' : 'dark'),
       },
@@ -57,7 +57,7 @@ export function CommandPalette() {
       .map((s) => ({
         id: 'session:' + s.id,
         label: s.harness + ' · ' + (s.projectName ?? s.cwd),
-        description: 'Open the terminal of session ' + s.id,
+        description: 'Open the terminal · session ' + s.id,
         keywords: [s.id, s.cwd],
         leftSection: <ItemIcon name={s.harness} size={24} />,
         rightSection: <IconTerminal2 size={16} />,
@@ -87,7 +87,7 @@ export function CommandPalette() {
       highlightQuery
       scrollable
       maxHeight={480}
-      nothingFound="Nothing matches"
+      nothingFound="No pages, sessions or settings match"
       searchProps={{ leftSection: <IconSearch size={18} />, placeholder: 'Search pages, sessions and settings…' }}
     />
   );

@@ -20,6 +20,12 @@ function fieldSchema(action: OperationAction): z.ZodType<Values> | undefined {
   return z.object(Object.fromEntries(names.filter((n) => shape[n]).map((n) => [n, shape[n]]))) as z.ZodType<Values>;
 }
 
+/** The submit button's words: "Save" for a value changed in place, else the action's own label ("Add an agent"). */
+export function submitLabel(action: OperationAction): string {
+  if (action.inline || !action.label) return 'Save';
+  return action.label.replace(/\s*(…|\.\.\.)$/, '');
+}
+
 interface ActionFormProps {
   readonly action: OperationAction;
   readonly submit: (values: Values) => void;
@@ -59,7 +65,7 @@ function ActionForm({ action, submit, cancel }: ActionFormProps) {
             Cancel
           </Button>
           <Button type="submit" color={action.danger ? 'red' : undefined}>
-            Save
+            {submitLabel(action)}
           </Button>
         </Group>
       </Stack>

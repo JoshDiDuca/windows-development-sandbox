@@ -1,26 +1,40 @@
-/* The tokens and layout Mantine's components do not cover: the page background, the shell's sidebar, rows, cards and
-   the terminal. Colours come from Mantine's variables, so dark and light follow the theme. */
+/* The tokens and layout Mantine's components do not cover: surfaces, borders and text colours for light and dark, the
+   shell (sidebar, header), page headers and sections, rows, cards, tables, facts, details and the terminal. Colours
+   come from these tokens and Mantine's variables, so dark and light follow the theme (docs/design/web-ui-standard.md).
+   Spacing follows the theme's scale: 4 / 8 / 12 / 16 / 24 / 32 px. */
 :root {
-  --app-bg: #f6f7f9;
+  --app-bg: #f7f8fa;
   --app-surface: #ffffff;
   --app-sidebar: #fbfbfc;
   --app-border: #e4e6eb;
-  --app-hover: #f2f3f6;
-  --app-muted: #6b7080;
+  --app-border-strong: #d3d6dd;
+  --app-hover: #f3f4f7;
+  --app-subtle: #f6f7f9;
+  --app-text: #15171c;
+  --app-muted: #646a78;
   --app-accent-soft: color-mix(in srgb, var(--mantine-color-indigo-5) 10%, transparent);
+  --app-accent-text: var(--mantine-color-indigo-7);
   --app-terminal: #ffffff;
-  --app-content-width: 1080px;
+  --app-log: #f6f7f9;
+  --app-content-width: 1120px;
+  --app-focus: var(--mantine-color-indigo-5);
 }
 
 [data-mantine-color-scheme='dark'] {
   --app-bg: #0d0f13;
-  --app-surface: #15171c;
-  --app-sidebar: #111318;
-  --app-border: #262a33;
-  --app-hover: #1c1f26;
-  --app-muted: #9097a6;
+  --app-surface: #14161b;
+  --app-sidebar: #101216;
+  --app-border: #252831;
+  --app-border-strong: #343844;
+  --app-hover: #1b1e25;
+  --app-subtle: #171920;
+  --app-text: #e7e9ee;
+  --app-muted: #99a0ad;
   --app-accent-soft: color-mix(in srgb, var(--mantine-color-indigo-4) 16%, transparent);
+  --app-accent-text: var(--mantine-color-indigo-3);
   --app-terminal: #0e1015;
+  --app-log: #101216;
+  --app-focus: var(--mantine-color-indigo-4);
 }
 
 html,
@@ -33,10 +47,24 @@ html {
   background: var(--app-bg);
 }
 
+body {
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1.mantine-Title-root {
+  letter-spacing: -0.015em;
+}
+
 /* Compact controls: buttons and inputs of the default size are 32 px tall (Mantine's are 36). */
 .mantine-Button-root[data-size='sm'] {
   --button-height: 32px;
   --button-padding-x: 12px;
+}
+
+.mantine-Button-root {
+  font-weight: 550;
 }
 
 .mantine-Input-wrapper[data-size='sm'] .mantine-Input-input,
@@ -48,15 +76,59 @@ html {
   padding-block: 4px;
 }
 
-body {
-  background: var(--app-bg);
-  -webkit-font-smoothing: antialiased;
+/* Quiet buttons with a hairline border, the same in every place. */
+.mantine-Button-root[data-variant='default'] {
+  border-color: var(--app-border-strong);
+  background: var(--app-surface);
+}
+
+.mantine-Button-root[data-variant='default']:hover {
+  background: var(--app-hover);
+}
+
+/* Danger: red words on a quiet button; the red fill is kept for the confirmation. */
+.mantine-Button-root.danger-button[data-variant='default'] {
+  color: var(--mantine-color-red-text);
+}
+
+.mantine-Button-root.danger-button[data-variant='default']:hover {
+  background: color-mix(in srgb, var(--mantine-color-red-6) 8%, var(--app-surface));
+  border-color: color-mix(in srgb, var(--mantine-color-red-6) 40%, var(--app-border-strong));
+}
+
+/* One focus ring for everything that takes the keyboard. */
+:focus-visible {
+  outline: 2px solid var(--app-focus);
+  outline-offset: 2px;
 }
 
 .mantine-Card-root,
 .mantine-Paper-root {
   background: var(--app-surface);
   border-color: var(--app-border);
+}
+
+.mantine-Badge-root {
+  letter-spacing: 0;
+}
+
+.mantine-Alert-root {
+  border: 1px solid color-mix(in srgb, var(--alert-color, var(--mantine-color-gray-5)) 25%, transparent);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.machine {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.95em;
+  overflow-wrap: anywhere;
 }
 
 /* The shell */
@@ -66,7 +138,8 @@ body {
 }
 
 .app-header {
-  background: var(--app-sidebar);
+  background: color-mix(in srgb, var(--app-sidebar) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(8px);
   border-bottom: 1px solid var(--app-border);
 }
 
@@ -82,8 +155,6 @@ body {
     align-items: flex-start;
   }
 
-  /* The navbar column is as tall as the page (its background runs down the whole page); its contents stick to the
-     window and scroll on their own (.app-navbar-sticky). */
   .app-navbar {
     position: relative;
     top: auto;
@@ -109,37 +180,34 @@ body {
   }
 }
 
+@media (max-width: 48em) {
+  .app-navbar-sticky {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+}
+
+.app-navbar-footer {
+  border-top: 1px solid var(--app-border);
+  padding: 8px 8px 8px 16px;
+}
+
 .app-content {
   max-width: var(--app-content-width);
   margin: 0 auto;
-  padding: 24px 32px 64px;
+  padding: 32px 40px 72px;
 }
 
-.app-content.wide {
-  max-width: 1320px;
+@media (max-width: 62em) {
+  .app-content {
+    padding: 24px 24px 64px;
+  }
 }
 
 @media (max-width: 48em) {
   .app-content {
-    padding: 16px 16px 48px;
-  }
-
-  /* A page header's toolbar on a phone: the segmented control on its own row, the buttons below it in equal columns.
-     Targets the toolbar Group by its child (PageHeader in render/PageView.tsx has no class of its own). */
-  .app-content .mantine-Group-root:has(> .mantine-SegmentedControl-root) {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-    gap: var(--mantine-spacing-xs);
-    width: 100%;
-  }
-
-  .app-content .mantine-Group-root:has(> .mantine-SegmentedControl-root) > .mantine-SegmentedControl-root {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
-  .app-content .mantine-Group-root:has(> .mantine-SegmentedControl-root) > .mantine-Button-root {
-    width: 100%;
+    padding: 20px 16px 48px;
   }
 }
 
@@ -151,60 +219,229 @@ body {
   place-items: center;
   color: white;
   background: linear-gradient(135deg, var(--mantine-color-indigo-5), var(--mantine-color-violet-6));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, white 18%, transparent);
   flex: none;
 }
 
-.nav-group-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.status-card {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-surface);
+  transition: border-color 120ms ease;
+}
+
+.status-card:hover {
+  border-color: var(--app-border-strong);
+}
+
+.search-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-surface);
   color: var(--app-muted);
-  padding: 12px 10px 4px;
-}
-
-/* Navigation items (the sidebar and the Settings categories): one compact style, a soft accent when active. */
-.app-navbar .mantine-NavLink-root,
-.category-nav .mantine-NavLink-root {
-  min-height: 32px;
-  padding: 5px 10px;
-  border-radius: var(--mantine-radius-sm);
-  color: var(--mantine-color-text);
-}
-
-.app-navbar .mantine-NavLink-label,
-.category-nav .mantine-NavLink-label {
   font-size: var(--mantine-font-size-sm);
-  font-weight: 500;
+  transition: border-color 120ms ease;
 }
 
-.app-navbar .mantine-NavLink-root:hover,
-.category-nav .mantine-NavLink-root:hover {
-  background: var(--app-hover);
+.search-button:hover {
+  border-color: var(--app-border-strong);
 }
 
-.app-navbar .mantine-NavLink-root[data-active],
-.category-nav .mantine-NavLink-root[data-active] {
-  background: var(--app-accent-soft);
-  color: var(--mantine-color-indigo-light-color);
-}
-
-.app-navbar .mantine-NavLink-section[data-position='left'] {
-  margin-inline-end: 10px;
-  color: var(--app-muted);
-}
-
-.app-navbar .mantine-NavLink-root[data-active] .mantine-NavLink-section[data-position='left'] {
-  color: inherit;
+.search-button-text {
+  flex: 1;
 }
 
 .kbd-hint {
   font-family: var(--mantine-font-family-monospace);
   font-size: 11px;
-  padding: 1px 6px;
+  line-height: 16px;
+  padding: 0 5px;
   border-radius: 4px;
   border: 1px solid var(--app-border);
+  background: var(--app-subtle);
   color: var(--app-muted);
+}
+
+/* The sidebar's navigation: groups with a small heading, one row per page. */
+.nav-group {
+  padding-top: 12px;
+}
+
+.nav-group-label,
+.group-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
+.nav-group-label {
+  padding: 4px 10px 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--app-text);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 100ms ease;
+}
+
+.nav-item:hover {
+  background: var(--app-hover);
+}
+
+.nav-item[data-active] {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-text);
+  font-weight: 600;
+}
+
+.nav-item-icon {
+  flex: none;
+  color: var(--app-muted);
+}
+
+.nav-item[data-active] .nav-item-icon {
+  color: inherit;
+}
+
+.nav-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  color: var(--mantine-color-green-text);
+  background: color-mix(in srgb, var(--mantine-color-green-6) 14%, transparent);
+}
+
+.nav-elsewhere {
+  padding: 4px 10px 0 37px;
+  cursor: default;
+  width: fit-content;
+}
+
+/* Settings categories: the same rows as the sidebar. */
+.category-nav .mantine-NavLink-root {
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--app-text);
+}
+
+.category-nav .mantine-NavLink-label {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+}
+
+.category-nav .mantine-NavLink-root:hover {
+  background: var(--app-hover);
+}
+
+.category-nav .mantine-NavLink-root[data-active] {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-text);
+}
+
+.category-nav .mantine-NavLink-root[data-active] .mantine-NavLink-label {
+  font-weight: 600;
+}
+
+/* A page's header: the group, the title, one line about the page, and its actions on the right. */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.page-header.embedded {
+  padding-bottom: 16px;
+}
+
+.page-heading {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.page-eyebrow {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  color: var(--app-muted);
+  margin-bottom: 4px;
+}
+
+.page-toolbar {
+  flex: 0 1 auto;
+}
+
+/* A section: its heading with a short summary, then its card. */
+.section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.section-notes {
+  padding-inline: 2px;
+}
+
+@media (max-width: 48em) {
+  .page-header {
+    align-items: stretch;
+    padding-bottom: 20px;
+  }
+
+  /* A page's toolbar on a phone: the segmented control on its own row, the buttons below it in equal columns. */
+  .page-toolbar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--mantine-spacing-xs);
+    width: 100%;
+  }
+
+  .page-toolbar > .mantine-SegmentedControl-root {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .page-toolbar > .mantine-Button-root,
+  .page-toolbar > .mantine-Select-root,
+  .page-toolbar > div {
+    width: 100% !important;
+  }
 }
 
 /* Status dot: a small circle, pulsing while something is under way */
@@ -231,38 +468,53 @@ body {
 }
 
 /* Rows of a list inside a card */
+.list-card {
+  padding: 0;
+  overflow: hidden;
+}
+
 .item-row {
-  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 14px 16px;
   border-top: 1px solid var(--app-border);
-  transition: background 120ms ease;
+  transition: background 100ms ease;
 }
 
 .item-row:first-child {
   border-top: none;
 }
 
+.item-row .item-main {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.item-row .row-actions {
+  flex: none;
+  margin-left: auto;
+}
+
 .item-row.clickable {
   cursor: pointer;
 }
 
-.item-row.clickable:hover,
-.item-row:focus-visible {
+.item-row.clickable:hover {
   background: var(--app-hover);
-  outline: none;
 }
 
-.item-row .row-actions {
-  opacity: 0.85;
-}
-
-.item-row:hover .row-actions {
-  opacity: 1;
+.item-row[data-disabled],
+.item-card[data-disabled],
+.data-table tr[data-disabled] {
+  opacity: 0.65;
 }
 
 .item-card {
   transition:
     border-color 120ms ease,
-    transform 120ms ease,
     box-shadow 120ms ease;
 }
 
@@ -271,46 +523,113 @@ body {
 }
 
 .item-card.clickable:hover {
-  border-color: var(--mantine-color-indigo-4);
-  box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--mantine-color-indigo-5) 35%, transparent);
+  border-color: var(--app-border-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 6%, transparent);
 }
 
-.list-card {
-  padding: 0;
-  overflow: hidden;
+.add-card {
+  align-self: start;
+  border-style: dashed;
+  background: transparent;
 }
 
 .group-heading {
   font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--app-muted);
-  padding: 14px 16px 6px;
+  padding: 10px 16px 8px;
   border-top: 1px solid var(--app-border);
-  background: var(--app-hover);
+  background: var(--app-subtle);
 }
 
 .group-heading:first-child {
   border-top: none;
 }
 
+/* Details: a definition list, labels in a column of their own. */
+.details {
+  display: grid;
+  grid-template-columns: minmax(64px, max-content) minmax(0, 1fr);
+  gap: 3px 16px;
+  margin: 0;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.5;
+}
+
+.details dt {
+  color: var(--app-muted);
+  white-space: nowrap;
+}
+
+.details dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.details .detail-plain {
+  grid-column: 1 / -1;
+  color: var(--app-muted);
+  font-family: var(--mantine-font-family-monospace);
+}
+
+.details + .details {
+  margin-top: 3px;
+}
+
+.more-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 500;
+  color: var(--app-accent-text);
+}
+
+.more-toggle:hover {
+  text-decoration: underline;
+}
+
+/* Tables */
+.data-table thead th {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  color: var(--app-muted);
+  background: var(--app-subtle);
+  border-bottom: 1px solid var(--app-border);
+  white-space: nowrap;
+}
+
+.data-table tbody td {
+  border-top-color: var(--app-border);
+}
+
+.data-table .row-actions-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
 /* Settings: the categories beside the list */
 .category-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 32px;
   align-items: start;
 }
 
 .category-nav {
   position: sticky;
-  top: 20px;
+  top: 24px;
 }
 
 @media (max-width: 62em) {
   .category-layout {
     grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
   }
   .category-nav {
     position: static;
@@ -347,6 +666,7 @@ body {
   .setting-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
+    padding: 14px 16px;
   }
 }
 
@@ -364,17 +684,55 @@ body {
   flex: none;
 }
 
-/* Facts: label over value, in one card divided by hairlines (the lines are drawn on each tile's top and left, and the
-   card clips the ones on its outer edge). */
+/* Facts: label over value, in one card divided by hairlines (the lines are drawn on each tile's right and bottom, and
+   the grid clips the ones on its outer edge, so a short last row still closes the row above it). */
 .facts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   overflow: hidden;
+}
+
+.fact-tile {
+  padding: 14px 18px 16px;
+  min-width: 0;
+  box-shadow:
+    1px 0 0 0 var(--app-border),
+    0 1px 0 0 var(--app-border);
+}
+
+.fact-label {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 500;
+  color: var(--app-muted);
+  margin-bottom: 4px;
+}
+
+.fact-label::first-letter {
+  text-transform: uppercase;
+}
+
+.fact-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.fact-value > span:last-child {
+  min-width: 0;
+}
+
+.fact-value .status-dot {
+  align-self: flex-start;
+  margin-top: 0.45em;
 }
 
 @media (max-width: 48em) {
   .facts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 
   .fact-tile {
@@ -382,12 +740,22 @@ body {
   }
 }
 
-.fact-tile {
-  padding: 14px 18px;
-  min-width: 0;
-  box-shadow:
-    -1px 0 0 0 var(--app-border),
-    0 -1px 0 0 var(--app-border);
+/* A log: monospace lines on a quiet panel. */
+.text-block {
+  border: 1px solid var(--app-border);
+  border-radius: var(--mantine-radius-lg);
+  background: var(--app-log);
+  overflow: hidden;
+}
+
+.text-block pre {
+  margin: 0;
+  padding: 12px 16px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* The folder picker */
@@ -428,20 +796,30 @@ body {
 .terminal-toolbar {
   border-bottom: 1px solid var(--app-border);
   background: var(--app-sidebar);
-  min-height: 48px;
+  min-height: 52px;
+}
+
+.terminal-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-surface);
 }
 
 .terminal-host {
   flex: 1;
   min-height: 0;
-  padding: 8px 4px 4px 10px;
+  padding: 10px 6px 6px 14px;
   overflow: hidden;
   background: var(--app-terminal);
 }
 
 .terminal-search {
   position: absolute;
-  top: 56px;
+  top: 60px;
   right: 16px;
   z-index: 5;
 }
@@ -473,5 +851,37 @@ body {
 }
 
 .mantine-Spotlight-action[data-selected] .mantine-Spotlight-actionSection {
-  color: var(--mantine-color-indigo-light-color);
+  color: var(--app-accent-text);
+}
+
+/* The sign-in page */
+.signin-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: radial-gradient(ellipse 60% 40% at 50% 0%, var(--app-accent-soft), transparent 70%), var(--app-bg);
+}
+
+.command-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--app-subtle);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

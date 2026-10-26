@@ -2,28 +2,51 @@
 // letter avatar for agents without a picture of their own. Only the web shows these.
 import { Avatar } from '@mantine/core';
 import {
+  IconActivity,
   IconApps,
   IconBox,
+  IconBrandGithub,
+  IconCloudDownload,
+  IconCpu,
   IconDatabase,
+  IconDevices,
+  IconFileText,
   IconFolder,
   IconFolderCode,
+  IconFolders,
+  IconHeartbeat,
+  IconLayoutDashboard,
   IconRobot,
+  IconServer2,
   IconSettings,
+  IconShieldLock,
   IconTerminal2,
   IconTool,
   IconUsers,
   type Icon,
 } from '@tabler/icons-react';
 
-/** The navigation's areas by their label (the menu's sections). */
+/** The navigation's entries by their label: one picture per page, the same in the sidebar and the command palette. */
 export const AREA_ICONS: Readonly<Record<string, Icon>> = {
   Agents: IconRobot,
   Sessions: IconTerminal2,
+  Activity: IconActivity,
   Sandbox: IconBox,
+  Overview: IconLayoutDashboard,
+  Projects: IconFolders,
   Apps: IconApps,
   Settings: IconSettings,
   Accounts: IconUsers,
+  'Remote access': IconDevices,
   Maintenance: IconTool,
+  Updates: IconCloudDownload,
+  Data: IconDatabase,
+  Storage: IconServer2,
+  Health: IconHeartbeat,
+  Logs: IconFileText,
+  Engine: IconCpu,
+  VPN: IconShieldLock,
+  GitHub: IconBrandGithub,
 };
 
 const THING_ICONS: Readonly<Record<string, Icon>> = {

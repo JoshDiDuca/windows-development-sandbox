@@ -11,11 +11,12 @@ import {
   Stack,
   Text,
   TextInput,
+  ThemeIcon,
   Tooltip,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { useState, type FormEvent } from 'react';
-import { IconFolderOpen } from '@tabler/icons-react';
+import { IconAlertTriangle, IconFolderOpen } from '@tabler/icons-react';
 import type { Answer, Question } from '../../../src/app/kernel/index';
 import { pickPath } from './FolderPicker';
 
@@ -50,11 +51,32 @@ function QuestionForm({ question: q, said, done }: QuestionFormProps) {
   return (
     <form onSubmit={submit}>
       <Stack gap="sm">
-        {lines.map((line, i) => (
-          <Text key={i} size="sm">
-            {line}
-          </Text>
-        ))}
+        {q.kind === 'confirm' && q.danger ? (
+          <Group gap="sm" wrap="nowrap" align="flex-start">
+            <ThemeIcon color="red" variant="light" size={36} radius="md" style={{ flex: 'none' }}>
+              <IconAlertTriangle size={20} stroke={1.7} />
+            </ThemeIcon>
+            <Stack gap={4} style={{ minWidth: 0 }}>
+              {lines.length ? (
+                lines.map((line, i) => (
+                  <Text key={i} size="sm">
+                    {line}
+                  </Text>
+                ))
+              ) : (
+                <Text size="sm" c="dimmed">
+                  Check that this is what you want before you continue.
+                </Text>
+              )}
+            </Stack>
+          </Group>
+        ) : (
+          lines.map((line, i) => (
+            <Text key={i} size="sm">
+              {line}
+            </Text>
+          ))
+        )}
         {problem && (
           <Alert color="orange" variant="light" p="xs">
             {problem}
@@ -119,12 +141,12 @@ function QuestionForm({ question: q, said, done }: QuestionFormProps) {
             data-autofocus
           />
         )}
-        <Group justify="flex-end">
+        <Group justify="flex-end" mt="xs">
           <Button variant="default" onClick={() => done(declined(q))}>
             Cancel
           </Button>
           <Button type="submit" color={q.kind === 'confirm' && q.danger ? 'red' : undefined} disabled={!typedOk}>
-            {q.kind === 'confirm' ? (q.yes ?? 'Yes') : 'OK'}
+            {q.kind === 'confirm' ? (q.yes ?? 'Yes') : 'Continue'}
           </Button>
         </Group>
       </Stack>

@@ -10,6 +10,7 @@ import {
   Divider,
   Group,
   NavLink,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -21,7 +22,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Item, Page, Section } from '../../../src/app/kernel/index';
 import { ActionButton, offered } from './actions';
 import { InlineField } from './InlineField';
-import { filtered, ItemList, PageHeader, SecondaryActions, tidy } from './PageView';
+import { EmbeddedContext, filtered, ItemList, PageHeader, SecondaryActions, tidy } from './PageView';
 import { EmptyState } from './states';
 
 /** A category that is another view, drawn in place of the list (Settings > VPN). */
@@ -34,6 +35,7 @@ export interface CategoryExtra {
 interface CategoryPageProps {
   readonly page: Page;
   readonly summary?: string;
+  readonly eyebrow?: string;
   readonly toolbar?: ReactNode;
   readonly extras?: readonly CategoryExtra[];
 }
@@ -102,7 +104,7 @@ function CategoryRow({ item, flash }: { readonly item: Item; readonly flash: boo
     <div className={'setting-row' + (flash ? ' flash' : '')} id={itemAnchor(item.id)}>
       <Box style={{ minWidth: 0 }}>
         <Group gap={6} wrap="nowrap">
-          {changed && <span className="modified-dot" title="Changed from the default" />}
+          {changed && <span className="modified-dot" title="Changed from the default" aria-label="Changed" />}
           <Text fw={600} size="sm" truncate>
             {item.label}
           </Text>
@@ -136,9 +138,11 @@ function CategoryRow({ item, flash }: { readonly item: Item; readonly flash: boo
             </Group>
           )}
         </Box>
-        <Box w={28} style={{ flex: 'none' }}>
-          <SecondaryActions actions={item.actions ?? []} />
-        </Box>
+        {(item.actions ?? []).length > 0 && (
+          <Box style={{ flex: 'none' }}>
+            <SecondaryActions actions={item.actions ?? []} />
+          </Box>
+        )}
       </Group>
     </div>
   );
@@ -175,7 +179,7 @@ function fromHash(
   return { section: sections.find((s) => s.id === hash)?.id ?? extras.find((e) => e.id === hash)?.id };
 }
 
-export function CategoryPage({ page, summary, toolbar, extras = [] }: CategoryPageProps) {
+export function CategoryPage({ page, summary, eyebrow, toolbar, extras = [] }: CategoryPageProps) {
   const sections = useMemo(() => page.sections.filter((s) => s.items?.length), [page]);
   const [current, setCurrent] = useState<string | undefined>(
     () => fromHash(sections, extras).section ?? sections[0]?.id,
@@ -216,7 +220,7 @@ export function CategoryPage({ page, summary, toolbar, extras = [] }: CategoryPa
 
   return (
     <Stack gap="lg">
-      <PageHeader title={page.title} summary={summary} toolbar={toolbar} actions={page.actions} />
+      <PageHeader title={page.title} summary={summary} eyebrow={eyebrow} toolbar={toolbar} actions={page.actions} />
       {page.notice && <FileNotice text={page.notice.text} />}
       <div className="category-layout">
         <Stack gap="sm" className="category-nav">
@@ -259,23 +263,16 @@ export function CategoryPage({ page, summary, toolbar, extras = [] }: CategoryPa
             ))}
           </Stack>
           <Box hiddenFrom="md">
-            <Group gap={6}>
-              {[...sections.map((s) => ({ id: s.id, label: s.title ?? s.id })), ...extras].map((c) => {
-                const on = !results && c.id === (extra?.id ?? section?.id);
-                return (
-                  <Badge
-                    key={c.id}
-                    size="lg"
-                    variant={on ? 'filled' : 'light'}
-                    color={on ? 'indigo' : 'gray'}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => choose(c.id)}
-                  >
-                    {c.label}
-                  </Badge>
-                );
-              })}
-            </Group>
+            <Select
+              aria-label="Category"
+              data={[
+                ...sections.map((s) => ({ value: s.id, label: s.title ?? s.id })),
+                ...extras.map((e) => ({ value: e.id, label: e.label })),
+              ]}
+              value={extra?.id ?? section?.id ?? null}
+              onChange={(id) => id && choose(id)}
+              comboboxProps={{ withinPortal: true }}
+            />
           </Box>
         </Stack>
         <Stack gap="lg" style={{ minWidth: 0 }}>
@@ -283,19 +280,21 @@ export function CategoryPage({ page, summary, toolbar, extras = [] }: CategoryPa
             results.length ? (
               results.map((s) => (
                 <Stack key={s.id} gap="xs">
-                  <Text size="xs" fw={650} tt="uppercase" c="dimmed">
+                  <div className="group-label">
                     {s.title} · {s.items?.length ?? 0}
-                  </Text>
+                  </div>
                   <Card className="list-card">
                     <ItemList items={s.items ?? []} render={row} />
                   </Card>
                 </Stack>
               ))
             ) : (
-              <EmptyState icon={IconSearch} title="Nothing found" text={'No setting matches "' + search + '".'} />
+              <EmptyState icon={IconSearch} title="No results" text={'Nothing matches “' + search + '”.'} />
             )
           ) : extra ? (
-            <Box key={extra.id}>{extra.node}</Box>
+            <EmbeddedContext.Provider value={true}>
+              <Box key={extra.id}>{extra.node}</Box>
+            </EmbeddedContext.Provider>
           ) : (
             section && (
               <Stack gap="sm">

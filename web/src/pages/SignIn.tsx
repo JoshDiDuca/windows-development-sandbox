@@ -1,8 +1,21 @@
 // The page before signing in. On this PC: how to open the web UI signed in. On your network (HTTPS, LAN mode): the
 // one-time code the PC shows under Remote access > Allow a new device, and a name for this device; the server then
 // remembers the device for the days the owner chose.
-import { Alert, Button, Card, Center, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core';
-import { IconDeviceMobile, IconLock } from '@tabler/icons-react';
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Card,
+  CopyButton,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+  ThemeIcon,
+  Title,
+  Tooltip,
+} from '@mantine/core';
+import { IconBox, IconCheck, IconCopy, IconDeviceMobile, IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from '../api';
 
@@ -17,23 +30,40 @@ function guessName(): string {
   return 'Device';
 }
 
+/** A command to type, with a button that copies it. */
+function Command({ text }: { readonly text: string }) {
+  return (
+    <span className="command-chip">
+      {text}
+      <CopyButton value={text}>
+        {({ copied, copy }) => (
+          <Tooltip label={copied ? 'Copied' : 'Copy'}>
+            <ActionIcon size="sm" aria-label={'Copy ' + text} onClick={copy}>
+              {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+            </ActionIcon>
+          </Tooltip>
+        )}
+      </CopyButton>
+    </span>
+  );
+}
+
 function OnThisPc() {
   return (
-    <Stack gap="sm" align="center" ta="center">
-      <ThemeIcon size={52} radius="xl" variant="light">
-        <IconLock size={26} stroke={1.6} />
+    <Stack gap="md" align="center" ta="center">
+      <ThemeIcon size={48} radius="md" variant="light">
+        <IconLock size={24} stroke={1.6} />
       </ThemeIcon>
-      <Title order={2}>Not signed in</Title>
-      <Text c="dimmed" size="sm">
-        This page only opens from this PC. In a terminal, run{' '}
-        <Text span ff="monospace" fw={600}>
-          sandbox web open
-        </Text>{' '}
-        : it opens the web UI already signed in.
-      </Text>
-      <Text c="dimmed" size="xs">
-        Another Windows user of this PC, allowed by its owner, runs{' '}
-        <Text span ff="monospace" fw={600}>
+      <Stack gap={6} align="center">
+        <Title order={2}>Sign in to Sandbox</Title>
+        <Text c="dimmed" size="sm" maw={340}>
+          For your security, the web UI opens signed in from a terminal on this PC. Run:
+        </Text>
+      </Stack>
+      <Command text="sandbox web open" />
+      <Text c="dimmed" size="xs" maw={340}>
+        Another Windows user of this PC, if the owner allowed it, runs{' '}
+        <Text span ff="monospace" size="xs">
           sandbox remote --browser
         </Text>{' '}
         instead.
@@ -54,7 +84,7 @@ function OnYourNetwork({ onSignedIn }: { readonly onSignedIn: () => void }) {
       await api.pair(code, name);
       onSignedIn();
     } catch (e) {
-      setProblem(e instanceof Error ? e.message : 'That did not work.');
+      setProblem(e instanceof Error ? e.message : 'Sign-in failed. Check the code and try again.');
     } finally {
       setBusy(false);
     }
@@ -68,16 +98,18 @@ function OnYourNetwork({ onSignedIn }: { readonly onSignedIn: () => void }) {
     >
       <Stack gap="sm">
         <Stack gap={4} align="center" ta="center">
-          <ThemeIcon size={52} radius="xl" variant="light">
-            <IconDeviceMobile size={26} stroke={1.6} />
+          <ThemeIcon size={48} radius="md" variant="light">
+            <IconDeviceMobile size={24} stroke={1.6} />
           </ThemeIcon>
-          <Title order={2}>Sign in this device</Title>
+          <Title order={2} mt={6}>
+            Sign in this device
+          </Title>
           <Text c="dimmed" size="sm">
-            On the PC, open Remote access and choose Allow a new device. Type the code it shows.
+            On the PC, open Remote access and choose Allow a new device, then enter the code it shows.
           </Text>
         </Stack>
         <TextInput
-          label="Code"
+          label="Pairing code"
           placeholder="ABCD-EFGH"
           value={code}
           onChange={(e) => setCode(e.currentTarget.value.toUpperCase())}
@@ -90,7 +122,7 @@ function OnYourNetwork({ onSignedIn }: { readonly onSignedIn: () => void }) {
         />
         <TextInput
           label="Name for this device"
-          description="The PC lists it by this name."
+          description="Shown in the PC’s list of devices."
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           maxLength={40}
@@ -104,8 +136,7 @@ function OnYourNetwork({ onSignedIn }: { readonly onSignedIn: () => void }) {
           Sign in
         </Button>
         <Text c="dimmed" size="xs" ta="center">
-          Your browser warned about the certificate the first time: that is expected once. If it warns again later, stop
-          and ask the owner of the PC.
+          A certificate warning the first time is expected. If it appears again later, stop and ask the owner of the PC.
         </Text>
       </Stack>
     </form>
@@ -116,10 +147,18 @@ export function SignIn({ onSignedIn }: { readonly onSignedIn: () => void }) {
   // #device shows the device form on this PC too (the preview's screenshots); signing in still needs the LAN listener.
   const lan = location.protocol === 'https:' || location.hash === '#device';
   return (
-    <Center h="100dvh" p="md" style={{ background: 'var(--app-bg)' }}>
-      <Card maw={440} w="100%" p="xl">
-        {lan ? <OnYourNetwork onSignedIn={onSignedIn} /> : <OnThisPc />}
-      </Card>
-    </Center>
+    <main className="signin-page">
+      <Stack gap="lg" align="center" w="100%" maw={420}>
+        <Group gap={10}>
+          <div className="brand-mark" aria-hidden="true">
+            <IconBox size={16} stroke={2} />
+          </div>
+          <Text fw={650}>Sandbox</Text>
+        </Group>
+        <Card w="100%" p="xl">
+          {lan ? <OnYourNetwork onSignedIn={onSignedIn} /> : <OnThisPc />}
+        </Card>
+      </Stack>
+    </main>
   );
 }

@@ -175,7 +175,11 @@ export function TerminalPage({ id }: { readonly id: string }) {
         <Group gap="xs" ml="auto" wrap="nowrap">
           <div className="terminal-tools" role="toolbar" aria-label="Terminal">
             <Tooltip label="Find (Ctrl+Shift+F)">
-              <ActionIcon aria-label="Find" onClick={() => setSearching((s) => !s)} data-active={searching || undefined}>
+              <ActionIcon
+                aria-label="Find"
+                onClick={() => setSearching((s) => !s)}
+                data-active={searching || undefined}
+              >
                 <IconSearch size={16} />
               </ActionIcon>
             </Tooltip>
@@ -190,7 +194,10 @@ export function TerminalPage({ id }: { readonly id: string }) {
               </ActionIcon>
             </Tooltip>
             <Tooltip label={fullscreen ? 'Exit full screen' : 'Full screen'}>
-              <ActionIcon aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} onClick={() => void toggleFullscreen()}>
+              <ActionIcon
+                aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
+                onClick={() => void toggleFullscreen()}
+              >
                 {fullscreen ? <IconMinimize size={16} /> : <IconMaximize size={16} />}
               </ActionIcon>
             </Tooltip>

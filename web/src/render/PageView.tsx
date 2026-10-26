@@ -95,7 +95,7 @@ export function PageHeader({ title, summary, eyebrow, toolbar, actions = [] }: P
   return (
     <header className={embedded ? 'page-header embedded' : 'page-header'}>
       <Box className="page-heading">
-        {eyebrow && !embedded && <div className="page-eyebrow">{eyebrow}</div>}
+        {eyebrow && !embedded && eyebrow !== title && <div className="page-eyebrow">{eyebrow}</div>}
         <Title order={embedded ? 2 : 1}>{title}</Title>
         {summary && (
           <Text c="dimmed" size="sm" mt={6} maw={720}>
@@ -358,7 +358,12 @@ function ItemRow({ item }: { readonly item: Item }) {
         <Box style={{ minWidth: 0, flex: 1 }}>
           <Group gap={8} wrap="wrap" className="item-title">
             {item.tone !== 'muted' && <ToneDot tone={item.tone} />}
-            <Text fw={600} size="sm" c={item.tone === 'muted' ? 'dimmed' : undefined} style={{ overflowWrap: 'anywhere' }}>
+            <Text
+              fw={600}
+              size="sm"
+              c={item.tone === 'muted' ? 'dimmed' : undefined}
+              style={{ overflowWrap: 'anywhere' }}
+            >
               {tidy(item.label)}
             </Text>
             {item.marked && <MarkedBadge />}

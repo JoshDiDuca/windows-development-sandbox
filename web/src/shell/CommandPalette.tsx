@@ -5,7 +5,14 @@ import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { Spotlight, type SpotlightActionData, type SpotlightActionGroupData } from '@mantine/spotlight';
 import { IconAdjustments, IconMoon, IconPlus, IconSearch, IconTerminal2 } from '@tabler/icons-react';
 import { useMemo } from 'react';
-import { NAV, navGroupOf, navSections, queryById, type SessionsList, type SettingsList } from '../../../src/app/features/defs';
+import {
+  NAV,
+  navGroupOf,
+  navSections,
+  queryById,
+  type SessionsList,
+  type SettingsList,
+} from '../../../src/app/features/defs';
 import { AREA_ICONS, ItemIcon } from '../render/icons';
 import { itemAnchor } from '../render/CategoryPage';
 import { navigate, viewPath } from '../router';

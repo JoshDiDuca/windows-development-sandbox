@@ -136,8 +136,7 @@ function OnYourNetwork({ onSignedIn }: { readonly onSignedIn: () => void }) {
           Sign in
         </Button>
         <Text c="dimmed" size="xs" ta="center">
-          A certificate warning the first time is expected. If it appears again later, stop and ask the owner of the
-          PC.
+          A certificate warning the first time is expected. If it appears again later, stop and ask the owner of the PC.
         </Text>
       </Stack>
     </form>

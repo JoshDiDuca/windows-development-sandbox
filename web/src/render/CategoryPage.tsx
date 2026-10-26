@@ -265,7 +265,10 @@ export function CategoryPage({ page, summary, eyebrow, toolbar, extras = [] }: C
           <Box hiddenFrom="md">
             <Select
               aria-label="Category"
-              data={[...sections.map((s) => ({ value: s.id, label: s.title ?? s.id })), ...extras.map((e) => ({ value: e.id, label: e.label }))]}
+              data={[
+                ...sections.map((s) => ({ value: s.id, label: s.title ?? s.id })),
+                ...extras.map((e) => ({ value: e.id, label: e.label })),
+              ]}
               value={extra?.id ?? section?.id ?? null}
               onChange={(id) => id && choose(id)}
               comboboxProps={{ withinPortal: true }}

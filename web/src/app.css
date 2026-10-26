@@ -684,8 +684,8 @@ h1.mantine-Title-root {
   flex: none;
 }
 
-/* Facts: label over value, in one card divided by hairlines (the lines are drawn on each tile's top and left, and the
-   card clips the ones on its outer edge). */
+/* Facts: label over value, in one card divided by hairlines (the lines are drawn on each tile's right and bottom, and
+   the grid clips the ones on its outer edge, so a short last row still closes the row above it). */
 .facts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -696,8 +696,8 @@ h1.mantine-Title-root {
   padding: 14px 18px 16px;
   min-width: 0;
   box-shadow:
-    -1px 0 0 0 var(--app-border),
-    0 -1px 0 0 var(--app-border);
+    1px 0 0 0 var(--app-border),
+    0 1px 0 0 var(--app-border);
 }
 
 .fact-label {
@@ -860,9 +860,7 @@ h1.mantine-Title-root {
   display: grid;
   place-items: center;
   padding: 24px 16px;
-  background:
-    radial-gradient(ellipse 60% 40% at 50% 0%, var(--app-accent-soft), transparent 70%),
-    var(--app-bg);
+  background: radial-gradient(ellipse 60% 40% at 50% 0%, var(--app-accent-soft), transparent 70%), var(--app-bg);
 }
 
 .command-chip {

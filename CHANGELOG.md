@@ -7,6 +7,17 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.16.0
+
+- **A redesigned web UI.** The sidebar is grouped (Workspace, Sandbox, Configuration, Maintenance) with icons and a
+  running-sessions count, every page has a clear header with one primary action, facts are tiles, details line up in
+  columns, warnings are gathered in one box, dangerous actions are marked, and forms name what they do ("Add an
+  agent" instead of "Save"). A new theme (Segoe UI and Cascadia Mono, thin borders, one focus ring, a matching dark
+  mode), a phone layout with a folding sidebar, a cleaner terminal page ("End session"), and plainer wording on the
+  pages the menu shares (the sandbox status, accounts, sessions). The login in use no longer offers "Use this login".
+- **Errors no longer close the menu or the web server.** An error in background work is written in full to
+  `%TEMP%\windows-development-sandbox-errors.log` and named in one line, and the program keeps running.
+
 ## 1.15.0
 
 - **Live folders through HCS (alpha, off by default, untested on a real PC).** On Windows without `wsb share`

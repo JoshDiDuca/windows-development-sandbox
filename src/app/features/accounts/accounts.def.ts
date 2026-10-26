@@ -223,9 +223,10 @@ function loginItem(a: AgentAccounts, r: AgentAccounts['accounts'][number]): Item
       ...(r.isActive ? [{ text: 'in the sandbox', tone: 'ok' as const }] : []),
       ...(r.isDefault ? [{ text: 'default', tone: 'accent' as const }] : []),
     ],
-    description: 'Choose it to make the sandbox use this login.',
+    description: r.isActive ? 'The sandbox uses this login now.' : 'Choose it to make the sandbox use this login.',
     details: ['Agent  ' + a.name, 'Email  ' + (r.email ?? '-'), 'Saved  ' + r.savedAt.slice(0, 16).replace('T', ' ')],
-    primary: action(useAccount, { agent: a.name, name: r.name }, { verb: 'use' }),
+    // The login in use already offers nothing to switch to.
+    ...(r.isActive ? {} : { primary: action(useAccount, { agent: a.name, name: r.name }, { verb: 'use' }) }),
     actions: [
       action(defaultAccount, { agent: a.name, name: r.name }, { key: 'd', verb: 'make default', importance: 1 }),
       action(renameAccount, { agent: a.name, name: r.name }, { key: 'r', verb: 'rename', importance: 2 }),
@@ -287,7 +288,8 @@ export function agentPage(a: AgentAccounts): Page {
 export const accountsView = defineView({
   id: 'accounts',
   title: 'Accounts',
-  summary: 'Logins saved on this PC, per agent. Use puts one into the sandbox; new launches start with the default.',
+  summary:
+    'Logins saved on this PC for each agent. Every launch starts with the default; "Use this login" switches now.',
   queries: { accounts: listAccounts },
   operations: [saveAccount, useAccount, defaultAccount, renameAccount, removeAccount],
   build: ({ accounts }) => accountsPage(accounts),

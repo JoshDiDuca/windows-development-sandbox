@@ -465,9 +465,9 @@ export const appSuite: Suite = {
     const statusLines = pageLines(statusPage);
     t.check(
       statusLines.some((l) => /^State\s+\S/.test(l)) &&
-        statusLines.some((l) => /^Helper\s+responding, 2 sessions running$/.test(l)) &&
+        statusLines.some((l) => /^Helper\s+Responding$/.test(l)) &&
         statusLines.includes('* api  C:\\Projects\\api  ->  C:\\Projects\\api  (started from here)') &&
-        statusLines.some((l) => l.startsWith('Repo guard  1 folder(s) guarded')),
+        statusLines.some((l) => l.startsWith('Repo guard  Watching 1 folder.')),
       'status on the command line: facts as rows, projects with their details, the repo guard',
       statusLines.join('\n'),
     );

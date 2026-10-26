@@ -186,7 +186,8 @@ function facts(o: SandboxStatus): Fact[] {
       ? [
           fact('window', 'Window', s.headless ? 'hidden (sandbox show opens it)' : 'shown'),
           fact('uptime', 'Uptime', uptime(s) ?? '-'),
-          fact('helper', 'Helper', s.daemon === '-' ? '-' : helperText(s.daemon)),
+          // The session count is its own fact: the helper only says whether it answers.
+          fact('helper', 'Helper', s.daemon === '-' ? '-' : s.daemon.startsWith('pong') ? 'Responding' : s.daemon),
           fact('sessions', 'Sessions', String(sessions)),
         ]
       : []),
@@ -221,9 +222,12 @@ function guardSection(o: SandboxStatus): Section {
     id: 'guard',
     title: 'Repo guard',
     summary:
-      o.repoGuard.guarded +
-      ' folder(s) guarded; ' +
-      (findings.length ? findings.length + ' change(s) neutralised:' : 'nothing from the sandbox needed neutralising'),
+      'Watching ' +
+      plural(o.repoGuard.guarded, 'folder') +
+      '. ' +
+      (findings.length
+        ? plural(findings.length, 'change') + ' from the sandbox were blocked:'
+        : 'Nothing from the sandbox needed blocking.'),
     items: findings.slice(-10).map((f, i) => ({ id: 'guard:' + i, label: f, tone: 'warn' as const })),
   };
 }
@@ -276,7 +280,7 @@ export function sandboxPage(o: SandboxStatus): Page {
 export const sandboxView = defineView({
   id: 'sandbox',
   title: 'Sandbox',
-  summary: 'What the sandbox is doing, its window, and stopping it.',
+  summary: 'Status, projects and controls of the running sandbox.',
   queries: { status: sandboxStatus },
   operations: [showWindow, hideWindow, stopSandbox],
   build: ({ status }) => sandboxPage(status),

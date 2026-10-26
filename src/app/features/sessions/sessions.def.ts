@@ -272,7 +272,7 @@ export function sessionsPage(o: SessionsList): Page {
 export const sessionsView = defineView({
   id: 'sessions',
   title: 'Sessions',
-  summary: 'The sessions of the running sandbox: open one, restart the agents, open a shell, close one.',
+  summary: 'Agent and shell sessions in the running sandbox.',
   queries: { sessions: listSessions },
   operations: [restartSessions, startShell, closeSession],
   build: ({ sessions }) => sessionsPage(sessions),

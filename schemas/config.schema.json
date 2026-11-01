@@ -676,6 +676,39 @@
           },
           "additionalProperties": false
         },
+        "unreal": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "Unreal Engine development: Visual Studio Community 2022 with the C++ game workload (MSVC, a Windows 11 SDK, .NET Framework targeting packs, Unreal integration and the Epic Games Launcher) and the DirectX End-User Runtime. A real installer: it runs every boot (~10 GB on the sandbox disk). The engine itself comes from the Epic Games Launcher or its source. true, false, or \"auto\" = only when the project has a .uproject or .uplugin."
+            },
+            "acceptLicense": {
+              "type": "boolean",
+              "description": "Required to install: you accept the Visual Studio Community licence terms (https://visualstudio.microsoft.com/license-terms/) and the DirectX End-User Runtime licence."
+            },
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "More Visual Studio workload or component IDs to add, e.g. [\"Microsoft.VisualStudio.Component.VC.Llvm.Clang\"]."
+            },
+            "keepInstallFiles": {
+              "type": "boolean",
+              "description": "Keep an offline copy of the Visual Studio install files in tools\\visualstudio (~10 GB, made once), so later boots install without downloading them again. Skipped while that disk has too little room."
+            }
+          },
+          "additionalProperties": false
+        },
         "cpp": {
           "type": "object",
           "properties": {

@@ -18,6 +18,7 @@ config always win.
 | **Rust** ✅ | rustup, cargo: the msvc host when MSVC is on (like most PCs), else GNU; `rust.crates` prebuilt via cargo-binstall | `rust-toolchain.toml` |
 | **C / C++** ✅ | MinGW-w64 GCC, CMake, Ninja, premake5, win_flex/bison | |
 | MSVC | `cl`, `link` and the Windows SDK, portable (~1-2 GB once); `vcvars64.bat` and `vswhere` work. Needs `toolchains.msvc.acceptLicense` | `*.vcxproj`, `CMakePresets.json`, scripts calling vcvars/vswhere, Rust when your PC uses MSVC |
+| Unreal | Visual Studio Community 2022 with the C++ game workload, a Windows 11 SDK, Unreal support and the Epic Games Launcher; the DirectX End-User Runtime. Installed every boot. Needs `toolchains.unreal.acceptLicense` | `*.uproject`, `*.uplugin` |
 | **C# / .NET** ✅ | .NET SDK, workloads, global tools, .NET Framework reference assemblies (net48, net472 ...) | `global.json` |
 | Go | go.dev, `GOTOOLCHAIN=auto` | `go.mod` |
 | Java | Temurin JDK, Maven, Gradle | `.java-version`, `.sdkmanrc` |
@@ -42,9 +43,30 @@ against Microsoft's SHA-256). It takes about two minutes the first time and is r
 by the [Visual Studio licence terms](https://visualstudio.microsoft.com/license-terms/), so it is only installed with
 `toolchains.msvc.acceptLicense: true`. `msvcVersion` and `sdkVersion` pin versions (default: the newest).
 
+### Unreal Engine
+
+`toolchains.unreal` sets a sandbox up for Unreal Engine 5: Visual Studio Community 2022 with the "Game development
+with C++" workload, MSVC v143, a Windows 11 SDK, the C++ profiling tools, the .NET Framework 4.6.2 and 4.8 targeting
+packs, Visual Studio's Unreal support and the Unreal Engine installer (the Epic Games Launcher), and the June 2010
+DirectX End-User Runtime. Unreal's build tool finds Visual Studio through its installer, so the portable MSVC above is
+not enough; with `unreal` on, MSVC is left out (Visual Studio brings it) and Rust builds with Visual Studio's MSVC.
+
+- Visual Studio is a real installer, so it runs at every boot and takes about 10 GB of the sandbox disk.
+  `keepInstallFiles` (on) saves an offline copy of its install files in `toolsisualstudio` once (about 10 GB, only
+  when 15 GB are free there), so later boots install without downloading; otherwise each boot downloads 5-8 GB.
+- `acceptLicense: true` is required: Visual Studio Community and the DirectX runtime come under Microsoft's licence
+  terms. `components` adds more Visual Studio workload or component IDs.
+- The installers are kept in `toolsisualstudio` and run only when Microsoft's signature on them checks out.
+- The engine itself is not installed: sign in to the Epic Games Launcher (Start menu) and install it there, or build
+  it from Epic's GitHub source. For the GPU, turn on `sandbox.vGpu`.
+
+```json
+{ "toolchains": { "unreal": { "enabled": true, "acceptLicense": true } }, "sandbox": { "vGpu": true } }
+```
+
 ### Rust builds
 
-`rust.host` is the Rust target: `auto` (default) uses `x86_64-pc-windows-msvc` when MSVC is on and `-gnu` (MinGW)
+`rust.host` is the Rust target: `auto` (default) uses `x86_64-pc-windows-msvc` when MSVC (or Unreal) is on and `-gnu` (MinGW)
 otherwise. `rust.crates` lists cargo binaries to install; they are downloaded prebuilt (cargo-binstall) when the crate
 publishes a Windows build, else compiled once.
 
@@ -228,4 +250,5 @@ this off.
 - Git for Windows with Git Bash, your name and email only
 - Your Claude settings, CLAUDE.md, commands, agents, skills, plugins and MCP servers, with credentials stripped
 - Conversation history and claude-mem, synced both ways
-- For games: Mesa, or `sandbox.vGpu: true` for the GPU; audio; game data from a mapped folder
+- For games: Mesa, or `sandbox.vGpu: true` for the GPU; audio; game data from a mapped folder; Unreal Engine tools
+  (`toolchains.unreal`)

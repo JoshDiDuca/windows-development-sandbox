@@ -104,5 +104,7 @@ export function rustCaches(rust: Toolchains['rust']): Record<string, string> {
 export function rustHost(config: Toolchains): string {
   if (config.rust.host !== 'auto') return config.rust.host;
   const cpu = arch === 'arm64' ? 'aarch64' : 'x86_64';
-  return cpu + (wanted(config.msvc.enabled, 'msvc') ? '-pc-windows-msvc' : '-pc-windows-gnu');
+  // Unreal's Visual Studio is a full MSVC too (rustc finds it through the Setup API).
+  const msvc = wanted(config.msvc.enabled, 'msvc') || wanted(config.unreal.enabled, 'unreal');
+  return cpu + (msvc ? '-pc-windows-msvc' : '-pc-windows-gnu');
 }

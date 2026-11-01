@@ -14,6 +14,7 @@ import { setupCpp } from './native/cpp.js';
 import { setupDotnet } from './native/dotnet.js';
 import { setupMesa } from './native/mesa.js';
 import { setupMsvc } from './native/msvc/index.js';
+import { setupUnreal } from './native/unreal.js';
 import { setupRust } from './native/rust.js';
 import { setupNode } from './languages/node.js';
 import { setupPwsh } from './tools/pwsh.js';
@@ -31,6 +32,7 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
   const apps = Boolean(o.apps && (o.apps.install.length || Object.keys(o.apps.custom).length));
   const java = wanted(config.java.enabled, 'java');
   const python = wanted(config.python.enabled, 'python');
+  const unreal = wanted(config.unreal.enabled, 'unreal');
   return [
     {
       name: 'Git',
@@ -48,12 +50,18 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       enabled: wanted(config.cpp.enabled, 'cpp') || wanted(config.rust.enabled, 'rust'),
       install: (env) => setupCpp(env, config.cpp),
     },
-    { name: 'MSVC', enabled: wanted(config.msvc.enabled, 'msvc'), install: (env) => setupMsvc(env, config.msvc) },
+    // Unreal's Visual Studio brings MSVC and the real vswhere: the portable MSVC (and its stand-in vswhere) stays out.
+    { name: 'Unreal', enabled: unreal, shared: true, install: (env) => setupUnreal(env, config.unreal) },
+    {
+      name: 'MSVC',
+      enabled: wanted(config.msvc.enabled, 'msvc') && !unreal,
+      install: (env) => setupMsvc(env, config.msvc),
+    },
     // Rust links with MSVC (msvc host) or MinGW's gcc (GNU host): whichever it uses goes first.
     {
       name: 'Rust',
       enabled: wanted(config.rust.enabled, 'rust'),
-      after: ['C/C++', 'MSVC'],
+      after: ['C/C++', 'MSVC', 'Unreal'],
       install: async (env) => {
         await setupRust(env, { ...config.rust, host: rustHost(config) }, o.refresh);
         Object.assign(env.vars, rustCaches(config.rust));

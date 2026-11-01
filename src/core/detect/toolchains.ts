@@ -20,6 +20,7 @@ export const MARKERS = {
   ],
   rust: ['Cargo.toml', 'rust-toolchain', 'rust-toolchain.toml'],
   msvc: ['*.vcxproj', 'CMakePresets.json', 'CMakeUserPresets.json'],
+  unreal: ['*.uproject', '*.uplugin'],
   cpp: [
     'CMakeLists.txt',
     'Makefile',
@@ -103,6 +104,12 @@ export function decideToolchains(
     result.msvc = {
       on: false,
       reason: 'would be used (' + result.msvc.reason + '); set toolchains.msvc.acceptLicense to install it',
+    };
+  // Unreal is a ~10 GB licensed install every boot: "auto" only installs it once its licence is accepted.
+  if (settings.unreal.enabled === 'auto' && result.unreal.on && !settings.unreal.acceptLicense)
+    result.unreal = {
+      on: false,
+      reason: 'would be used (' + result.unreal.reason + '); set toolchains.unreal.acceptLicense to install it',
     };
   if (result.rust.on && !result.msvc.on && !result.cpp.on && settings.cpp.enabled !== false)
     result.cpp = { on: true, reason: 'the linker for Rust' };

@@ -109,6 +109,19 @@ export const detectSuite: Suite = {
       rusty.rust.on && rusty.cpp.on && rusty.python.on && rusty.python.reason === 'enabled in config',
       'Rust brings its C/C++ linker; true in config always wins',
     );
+    const game = ['ZombieGame.uproject', 'Source/ZombieGame.Target.cs'];
+    const accepted = { ...tc, unreal: { ...tc.unreal, acceptLicense: true } };
+    t.check(
+      decideToolchains(accepted, game, []).unreal.on &&
+        decideToolchains(accepted, ['Plugins/Kit.uplugin'], []).unreal.on &&
+        !decideToolchains(accepted, ['go.mod'], []).unreal.on,
+      'Unreal: "auto" follows a .uproject or .uplugin',
+    );
+    const unaccepted = decideToolchains(tc, game, []).unreal;
+    t.check(
+      !unaccepted.on && unaccepted.reason.includes('toolchains.unreal.acceptLicense'),
+      'Unreal is not installed until its licence is accepted, and the reason says how',
+    );
     const resolved = resolveToolchains(tc, goProject);
     t.check(
       resolved.go.enabled === true && resolved.python.enabled === false,

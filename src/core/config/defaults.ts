@@ -64,6 +64,7 @@ export const DEFAULTS: Config = {
       linkSlots: 'auto',
     },
     msvc: { enabled: 'auto', acceptLicense: false, msvcVersion: 'latest', sdkVersion: 'latest' },
+    unreal: { enabled: 'auto', acceptLicense: false, components: [], keepInstallFiles: true },
     cpp: { enabled: 'auto', flexBison: true },
     dotnet: {
       enabled: 'auto',

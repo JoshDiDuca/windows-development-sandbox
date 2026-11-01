@@ -7,6 +7,15 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.17.0
+
+- **Unreal Engine toolchain** (`toolchains.unreal`, needs `acceptLicense`). Every boot installs Visual Studio
+  Community 2022 with the C++ game workload, MSVC, a Windows 11 SDK, the .NET Framework targeting packs, Visual
+  Studio's Unreal support and the Epic Games Launcher, plus the DirectX End-User Runtime; installers are checked for
+  Microsoft's signature. `auto` turns it on for a project with a `.uproject` or `.uplugin`. With `keepInstallFiles`
+  (on) an offline copy of the install files is kept once there is room, so later boots skip the download. The engine
+  itself comes from the Epic Games Launcher. See [toolchains](docs/toolchains.md#unreal-engine).
+
 ## 1.16.1
 
 - **Setting a default account or switching login no longer freezes the menu.** Saved logins are encrypted and

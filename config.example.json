@@ -118,6 +118,12 @@
       "msvcVersion": "latest",
       "sdkVersion": "latest"
     },
+    "unreal": {
+      "enabled": "auto",
+      "acceptLicense": false,
+      "components": [],
+      "keepInstallFiles": true
+    },
     "cpp": {
       "enabled": "auto",
       "flexBison": true

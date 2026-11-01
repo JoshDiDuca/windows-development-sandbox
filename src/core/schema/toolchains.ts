@@ -87,6 +87,25 @@ export const ToolchainsSchema = z.strictObject({
     msvcVersion: z.string().min(1).describe('"latest" or an MSVC tools version prefix, e.g. "14.44".'),
     sdkVersion: z.string().min(1).describe('"latest" or a Windows SDK build, e.g. "26100" or "10.0.22621".'),
   }),
+  unreal: z.strictObject({
+    enabled: enabled(
+      'Unreal Engine development: Visual Studio Community 2022 with the C++ game workload (MSVC, a Windows 11 SDK, .NET Framework targeting packs, Unreal integration and the Epic Games Launcher) and the DirectX End-User Runtime. A real installer: it runs every boot (~10 GB on the sandbox disk). The engine itself comes from the Epic Games Launcher or its source.',
+      'a .uproject or .uplugin',
+    ),
+    acceptLicense: z
+      .boolean()
+      .describe(
+        'Required to install: you accept the Visual Studio Community licence terms (https://visualstudio.microsoft.com/license-terms/) and the DirectX End-User Runtime licence.',
+      ),
+    components: StringsSchema.describe(
+      'More Visual Studio workload or component IDs to add, e.g. ["Microsoft.VisualStudio.Component.VC.Llvm.Clang"].',
+    ),
+    keepInstallFiles: z
+      .boolean()
+      .describe(
+        'Keep an offline copy of the Visual Studio install files in tools\\visualstudio (~10 GB, made once), so later boots install without downloading them again. Skipped while that disk has too little room.',
+      ),
+  }),
   cpp: z.strictObject({
     enabled: enabled(
       "MinGW-w64 GCC with CMake, Ninja, premake5 and mingw32-make (also Rust's linker).",

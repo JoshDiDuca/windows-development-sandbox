@@ -10,12 +10,12 @@ import { downloadFile } from '../install.js';
 import { tool, type ToolEnv } from '../tool-env.js';
 
 const VC_REDIST = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
-const MICROSOFT_SIGNER = 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US';
+export const MICROSOFT_SIGNER = 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US';
 /** 1638: a newer version is already installed; 3010: installed, a restart would finish it (not needed for the DLLs). */
 const OK_EXIT_CODES: readonly number[] = [0, 1638, 3010];
 
 /** The subject of a valid Authenticode signature, or '' when the file is unsigned or tampered with. */
-const signerOf = (file: string): string => scriptOutput('get-signer.ps1', ['-Path', file]).trim();
+export const signerOf = (file: string): string => scriptOutput('get-signer.ps1', ['-Path', file]).trim();
 
 /**
  * A real installer (it writes to System32), so it runs on every boot; the installer itself is kept in persistent

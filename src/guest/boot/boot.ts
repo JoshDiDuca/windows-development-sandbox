@@ -19,6 +19,7 @@ import { writeManagedSettings } from '../setup/managed-policy.js';
 import { writeAddonMcpServers } from '../setup/addon-mcp.js';
 import { startHeadroom } from '../setup/headroom.js';
 import { applyPersonalization } from '../setup/desktop.js';
+import { keepBrowsersOffGpu } from '../setup/browser-gpu.js';
 import { setupGitConfig } from '../setup/git-identity.js';
 import { loginGithub, prepareGithubFolder } from '../setup/github-token.js';
 import { ensurePtyHost } from '../sessions/pty-host.js';
@@ -188,6 +189,7 @@ export class Boot {
     step(2, 'Pre-provision hooks and desktop');
     runHooks('pre-provision', process.env);
     await soft('Personalisation', applyPersonalization);
+    await soft('Browsers without the GPU', keepBrowsersOffGpu);
   }
 
   /** Toolchains, databases, apps, the network proxy and VS Code; then the agent environment, saved machine-wide. */

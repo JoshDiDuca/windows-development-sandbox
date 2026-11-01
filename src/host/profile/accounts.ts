@@ -108,7 +108,7 @@ export class AccountStore {
   constructor(
     private readonly storageRoot: string,
     private readonly sharePlugins = false,
-    private readonly secrets: SecretStore = SecretStore.standard(),
+    private readonly secrets: SecretStore = SecretStore.standard(storageRoot),
   ) {}
 
   /** With the setting on: refreshes the shared plugin set from this data set, or fills this data set from it. */

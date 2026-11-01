@@ -25,7 +25,7 @@ import { accessStatus, allowDevice, lanOff, lanOn, revokeAccess, revokeAllAccess
 
 /** The access list of this user (the folder is the web state's private one). */
 export function accessStoreOf(ctx: AppContext): AccessStore {
-  return AccessStore.at(ctx.storageRoot, SecretStore.standard(), {
+  return AccessStore.at(ctx.storageRoot, SecretStore.standard(ctx.storageRoot), {
     // The self-test never changes folder permissions; its storage is a temp folder.
     protect: selfTestRunning() ? undefined : (dir) => protectPrivateFolder(dir),
   });

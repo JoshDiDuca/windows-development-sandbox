@@ -35,7 +35,7 @@ export function checkGithubToken(token: string): GithubTokenKind {
 export class GithubToken {
   constructor(
     private readonly storageRoot: string,
-    private readonly secrets: SecretStore = SecretStore.standard(),
+    private readonly secrets: SecretStore = SecretStore.standard(storageRoot),
   ) {}
 
   private file(): JsonFile<Saved> {

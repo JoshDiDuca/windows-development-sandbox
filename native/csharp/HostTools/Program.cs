@@ -8,6 +8,7 @@
 //   user-path --add|--remove D  D first on, or off, your PATH; exit 3 when PATH would be too long
 //   web-helper --pipe P --server-pid N   Windows sign-in for the web UI (WebHelper.cs), until stdin closes
 //   door-client --owner USER   another user's side of that sign-in: prints the answer
+//   protect | unprotect        DPAPI for the current user (Protect.cs): base64 on stdin, base64 on stdout
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -112,6 +113,10 @@ static class Program
                     return Usage();
                 }
                 return AgentSandbox.WebHelper.Client(value);
+            case "protect":
+                return AgentSandbox.Protect.Run(true);
+            case "unprotect":
+                return AgentSandbox.Protect.Run(false);
             default:
                 return Usage();
         }
@@ -119,7 +124,7 @@ static class Program
 
     static int Usage()
     {
-        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove <folder> | web-helper --pipe P --server-pid N | door-client --owner USER");
+        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | protect | unprotect");
         return 2;
     }
 

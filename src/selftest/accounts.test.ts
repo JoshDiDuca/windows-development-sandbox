@@ -107,6 +107,13 @@ export const accountsSuite: Suite = {
         !fs.existsSync(path.join(storage, 'accounts', 'shared-plugins', '.credentials.json')),
       'on: plugins and enabledPlugins reach the other data set; its own settings win and no login travels',
     );
+    const sentinel = path.join(storage, 'accounts', 'shared-plugins', 'plugins', 'cache', 'kept.js');
+    t.write(sentinel, 'k');
+    on.activate(dataP('p1'), 'one');
+    t.check(fs.existsSync(sentinel), 'switching with the same plugins does not copy the plugins folder again');
+    t.write(path.join(plugA, 'plugins', 'installed_plugins.json'), '{"version":2,"plugins":{"p@m":[]}}');
+    on.activate(dataP('p1'), 'one');
+    t.check(!fs.existsSync(sentinel), 'once a plugin changed, the switch refreshes the shared set');
     t.write(path.join(plugC, 'plugins', 'installed_plugins.json'), '{}');
     const outside = t.dir('plugin-victim');
     t.write(path.join(outside, 'secret.txt'), 's');

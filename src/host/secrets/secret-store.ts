@@ -1,11 +1,12 @@
 // Encryption at rest for what must not sit in plain files (saved logins, the VPN login). The real box is Windows DPAPI
-// for the current user (native\scripts\protect-data.ps1: data on standard input, never on a command line); the memory
-// box is the self-test's stand-in and is not secure. A sealed value is a short string: "<kind>:<base64>".
+// for the current user (HostTools.exe protect, else native\scripts\protect-data.ps1: data on standard input, never on
+// a command line); the memory box is the self-test's stand-in and is not secure. A sealed value is a short string:
+// "<kind>:<base64>".
 import { spawnSync } from 'node:child_process';
 import { fail } from '../../core/util/index.js';
 import { SYSTEM } from '../../shared/system.js';
 import { selfTestRunning } from '../../shared/test-guard.js';
-import { nativeScript } from '../native.js';
+import { hostToolsExe, nativeScript } from '../native.js';
 
 /** Something that turns bytes into a sealed string and back. */
 export interface SecretBox {
@@ -16,9 +17,29 @@ export interface SecretBox {
 
 const TIMEOUT_MS = 60000;
 
-/** DPAPI for the current Windows user, through powershell.exe 5.1. */
+/** HostTools.exe per storage folder (null: it cannot be built there), found once per process. */
+const toolsFor = new Map<string, string | null>();
+
+function dpapiTool(storageRoot: string): string | null {
+  if (!toolsFor.has(storageRoot)) {
+    let exe: string | null = null;
+    try {
+      exe = hostToolsExe(storageRoot);
+    } catch {
+      // Its bin folder cannot be written (another user's storage): PowerShell does the work.
+    }
+    toolsFor.set(storageRoot, exe);
+  }
+  return toolsFor.get(storageRoot) ?? null;
+}
+
+/**
+ * DPAPI for the current Windows user: HostTools.exe (built in <storageRoot>\bin; about 0.15 s a call) when a storage
+ * folder is known, else powershell.exe 5.1 (about 2 s a call, which a menu feels). Both read and write the same format.
+ */
 class DpapiBox implements SecretBox {
   readonly kind = 'dpapi1';
+  constructor(private readonly storageRoot: string | null) {}
 
   seal(plain: Buffer): string {
     return this.run('protect', plain.toString('base64'));
@@ -29,7 +50,11 @@ class DpapiBox implements SecretBox {
   }
 
   private run(mode: 'protect' | 'unprotect', input: string): string {
-    const result = spawnSync(SYSTEM.powershell(), nativeScript('protect-data.ps1', ['-Mode', mode]), {
+    const tools = this.storageRoot ? dpapiTool(this.storageRoot) : null;
+    const [exe, args] = tools
+      ? [tools, [mode]]
+      : [SYSTEM.powershell(), nativeScript('protect-data.ps1', ['-Mode', mode])];
+    const result = spawnSync(exe, args, {
       input,
       encoding: 'utf8',
       windowsHide: true,
@@ -66,9 +91,9 @@ class MemoryBox implements SecretBox {
 export class SecretStore {
   constructor(private readonly box: SecretBox) {}
 
-  /** Windows DPAPI, current user. */
-  static dpapi(): SecretStore {
-    return new SecretStore(new DpapiBox());
+  /** Windows DPAPI, current user; with a storage folder, through its HostTools.exe (much faster than PowerShell). */
+  static dpapi(storageRoot: string | null = null): SecretStore {
+    return new SecretStore(new DpapiBox(storageRoot));
   }
 
   /** The test stand-in (not secure). */
@@ -77,8 +102,8 @@ export class SecretStore {
   }
 
   /** What the program uses: DPAPI, except during the self-test (it never spawns Windows for this). */
-  static standard(): SecretStore {
-    return selfTestRunning() ? SecretStore.memory() : SecretStore.dpapi();
+  static standard(storageRoot: string | null = null): SecretStore {
+    return selfTestRunning() ? SecretStore.memory() : SecretStore.dpapi(storageRoot);
   }
 
   /** True when `value` looks like something seal() made (any box). */

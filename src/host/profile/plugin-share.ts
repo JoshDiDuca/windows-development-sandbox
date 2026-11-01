@@ -18,6 +18,9 @@ export const MAX_PLUGIN_BYTES = 1024 * 1024 * 1024;
 const MAX_SETTINGS_BYTES = 4 * 1024 * 1024;
 const MAX_DEPTH = 24;
 const INSTALLED = 'installed_plugins.json';
+/** What Claude rewrites when a plugin or marketplace is added, removed or updated: equal files, same plugins. */
+const RECORDS = [INSTALLED, 'known_marketplaces.json'] as const;
+const MAX_RECORD_BYTES = 4 * 1024 * 1024;
 
 export type PluginShareResult = 'saved' | 'restored' | 'nothing';
 
@@ -68,7 +71,7 @@ export class PluginShare {
   /** When a sandbox ends: its plugins refresh the shared set. Never throws; returns the problem, if any. */
   saveQuietly(dataPath: string, claudeDir: string): string | null {
     try {
-      if (PluginShare.hasPlugins(claudeDir)) this.save(dataPath, claudeDir);
+      if (PluginShare.hasPlugins(claudeDir) && !this.matches(claudeDir)) this.save(dataPath, claudeDir);
       return null;
     } catch (e) {
       return errMsg(e);
@@ -128,9 +131,25 @@ export class PluginShare {
     writeSandboxJson(file, merged);
   }
 
+  /**
+   * Whether the shared set already holds this Claude folder's plugins: the same plugin records and plugin settings.
+   * Copying a big plugins folder takes seconds, so a switch between accounts with the same plugins skips it.
+   */
+  matches(claudeDir: string): boolean {
+    if (!this.hasShared()) return false;
+    const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+    for (const name of RECORDS) {
+      const own = readUntrusted(path.join(claudeDir, 'plugins', name), MAX_RECORD_BYTES);
+      if (!same(own, readUntrusted(path.join(this.pluginsDir, name), MAX_RECORD_BYTES))) return false;
+    }
+    const shared = readUntrusted(this.settingsFile, MAX_SETTINGS_BYTES);
+    return same(pluginSettings(claudeDir), isObject(shared) ? shared : {});
+  }
+
   /** One step when an account is switched to. */
   sync(dataPath: string, claudeDir: string): PluginShareResult {
     if (PluginShare.hasPlugins(claudeDir)) {
+      if (this.matches(claudeDir)) return 'nothing';
       this.save(dataPath, claudeDir);
       return 'saved';
     }

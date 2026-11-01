@@ -105,7 +105,7 @@ function remoteAudit(ctx: Context): (entry: RemoteAuditEntry) => void {
  * served (it refuses everyone while web.remote.windowsSignIn is off).
  */
 function remoteGate(ctx: Context): RemoteGate {
-  const secrets = SecretStore.standard();
+  const secrets = SecretStore.standard(ctx.storageRoot);
   let ownerSid = '';
   try {
     ownerSid = currentUserSid();

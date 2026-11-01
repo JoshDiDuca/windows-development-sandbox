@@ -39,7 +39,7 @@ export class AgentAccountStore {
     private readonly storageRoot: string,
     private readonly agent: string,
     private readonly loginFiles: readonly string[],
-    private readonly secrets: SecretStore = SecretStore.standard(),
+    private readonly secrets: SecretStore = SecretStore.standard(storageRoot),
   ) {}
 
   /** Encrypts the plain login files of every account saved by an older version. */

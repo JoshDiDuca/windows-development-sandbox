@@ -7,6 +7,16 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.16.1
+
+- **Setting a default account or switching login no longer freezes the menu.** Saved logins are encrypted and
+  decrypted by HostTools.exe (about 0.15 s) instead of a new PowerShell each time (about 2 s, several per switch), and
+  with `claudeProfile.sharePluginsAcrossAccounts` the plugins folder is copied only when the plugins changed. The
+  GitHub token, VPN login and web access list are faster the same way.
+- **Browsers in the sandbox no longer use the GPU** (Edge and Chrome policy, set every boot). With `sandbox.vGpu` on, a
+  browser opening next to a game on the virtual GPU took the whole sandbox down; the memory log showed memory was not
+  the cause (commit under half its limit). Pages, WebGL included, draw in software.
+
 ## 1.16.0
 
 - **A redesigned web UI.** The sidebar is grouped (Workspace, Sandbox, Configuration, Maintenance) with icons and a

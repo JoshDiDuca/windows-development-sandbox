@@ -73,7 +73,7 @@ export const SandboxSchema = z.strictObject({
   vGpu: z
     .boolean()
     .describe(
-      "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface. The sandbox then uses this PC's graphics card, and with some graphics drivers heavy use can freeze the whole PC: turn it on only when a program in the sandbox needs the GPU (the mesa toolchain gives software OpenGL without it).",
+      "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface. The sandbox then uses this PC's graphics card, and with some graphics drivers heavy use can freeze the whole PC: turn it on only when a program in the sandbox needs the GPU (the mesa toolchain gives software OpenGL without it). Browsers in the sandbox never use it (they draw in software).",
     ),
   networking: z.boolean().describe('Internet access. false is the only hard network isolation Windows Sandbox offers.'),
   clipboard: z

@@ -36,7 +36,7 @@ export function loginProblem(c: VpnCredentials): string | null {
 export class VpnLogin {
   constructor(
     private readonly storageRoot: string,
-    private readonly secrets: SecretStore = SecretStore.standard(),
+    private readonly secrets: SecretStore = SecretStore.standard(storageRoot),
   ) {}
 
   private file(provider: VpnProvider): JsonFile<Saved> {

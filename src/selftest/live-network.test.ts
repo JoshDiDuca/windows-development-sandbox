@@ -176,6 +176,19 @@ export const liveNetworkSuite: Suite = {
       'HostTools stop-events prints a JSON list of { at, id, provider, process }',
       events.stdout.slice(0, 500) + events.stderr,
     );
+    const plain = Buffer.from('a saved login').toString('base64');
+    const sealed = spawnSync(hostTools, ['protect'], { encoding: 'utf8', input: plain });
+    const opened = spawnSync(hostTools, ['unprotect'], { encoding: 'utf8', input: sealed.stdout });
+    t.check(
+      sealed.status === 0 && sealed.stdout !== plain && opened.status === 0 && opened.stdout === plain,
+      'HostTools protect and unprotect round-trip through DPAPI',
+      sealed.stderr + opened.stderr,
+    );
+    t.equal(
+      spawnSync(hostTools, ['unprotect'], { encoding: 'utf8', input: 'not base64!' }).status,
+      1,
+      'HostTools unprotect refuses bad input',
+    );
     t.equal(
       spawnSync(hostTools, ['stop-events'], { encoding: 'utf8' }).status,
       2,

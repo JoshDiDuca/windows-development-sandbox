@@ -435,7 +435,7 @@ export function realLiveFolders(storageRoot: string, dataPath: string): LiveFold
   return new LiveFolders({
     storageRoot,
     dataPath,
-    secrets: SecretStore.standard(),
+    secrets: SecretStore.standard(storageRoot),
     elevated: new ScriptLivePort(),
     userSid: currentUserSid,
     isAlive: isSandboxRunning,

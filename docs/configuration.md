@@ -2,255 +2,224 @@
 
 ## Your settings
 
-The easiest way: `sandbox`, then **Settings**. Every setting is listed by section with its current value and what it
-does; pick one to change it (on/off and choices as lists) or reset it to the default. Changes are saved to your config
-file, keeping its comments, and only when the result is valid.
+The easiest way is the menu: `sandbox`, then **Settings**. Every setting is listed with its value and what it does.
+Pick one to change it or reset it. Changes are saved to your settings file, keeping its comments, and only when the
+result is valid.
 
-`sandbox config init` creates `~/.agent-sandbox/config.json` with every setting and its default (see
-[config.example.json](../config.example.json)). Keep only what you change. VS Code shows docs and autocomplete from
-its JSON Schema (`sandbox config schema` prints the setting that turns it on). `sandbox config show` prints your
-settings with the defaults filled in. Comments and trailing commas are allowed in the file. Use another file with
-`--config <file>` or `AGENT_SANDBOX_CONFIG`.
+From the command line:
 
-Share your settings with a team: `sandbox config export team.json` writes only what differs from the defaults, and
-`sandbox config import team.json` shows what it would change (`sandbox.memoryMb: 8192 -> 4096`), asks once and applies
-it, keeping your file's comments. Secrets (an agent's API keys), the data folder and folders or files of this PC are
-left out of an export (`--with-paths` keeps the folders and files) and are never taken from an import, even if the file
-has them; both say what they skipped. The menu has the same under Settings > General.
+- `sandbox config set sandbox.memoryMb 8192`, `get`, `reset` and `list` change and show single settings.
+- `sandbox config init` creates `~/.agent-sandbox/config.json` with every setting and its default (see
+  [config.example.json](../config.example.json)). Keep only what you change. Comments and trailing commas are allowed.
+- `sandbox config show` prints your settings with the defaults filled in.
+- `sandbox config schema` shows how to get help and autocomplete in VS Code.
+- `--config <file>` or `AGENT_SANDBOX_CONFIG` uses another file.
 
-The menu opens on the section, category and search you left it on, also after you close it (kept in
-`~/.agent-sandbox/menu-state.json`; delete the file to start on Agents). In Apps, **Request an app…** (key `r`) opens a
-prefilled request form on this project's GitHub issues page.
+**Sharing settings with a team.** `sandbox config export team.json` writes only what differs from the defaults.
+`sandbox config import team.json` shows each change (`sandbox.memoryMb: 8192 -> 4096`), asks once and applies it. Secrets
+(API keys), the data folder (`storage.root`) and folders or files of this PC are never exported or imported
+(`--with-paths` exports the folders and files). Both commands say what they skipped. The menu has the same under
+Settings > General.
 
-Commonly changed:
+## Common settings
 
-| Setting | |
-|---|---|
-| `defaultHarness` | the agent `sandbox launch` starts |
-| `toolchains.<lang>.enabled` | `true`, `false` or `"auto"` (only when the project uses it). Every tool is like this, Bun, uv and VS Code too, and a project's `.sandbox-config.json` can set it |
-| `toolchains.<lang>.version` | default versions; project version files still win |
-| `databases.<db>.enabled`, `.port` | `true`, `false` or `"auto"`, and the port inside |
-| `sandbox.memoryMb`, `.headless`, `.vGpu`, `.networking` | RAM, no window, GPU, internet. vGPU lets heavy use freeze the whole PC with some graphics drivers: leave it off unless a program needs the GPU; with it on the sandbox runs gentler by itself (lower CPU cap, earlier memory thresholds). Browsers in the sandbox (Edge, Chrome) never use the GPU: a browser starting next to a game on the vGPU has crashed the whole sandbox, so they draw in software (WebGL still works) |
-| `sandbox.engine` | **(Alpha)** what runs the sandbox: `"windows-sandbox"` (default, everything described here) or `"hcs"`: a headless Hyper-V isolated Windows Server Core container for agents. `hcs` needs Windows features turned on by you (Containers and Hyper-V or Virtual Machine Platform), an Administrators or Hyper-V Administrators account, and a Server Core (ltsc2022) image already on this PC (for example pulled by Docker Desktop, or a folder named in `AGENT_SANDBOX_HCS_IMAGE`); `sandbox engine check hcs` lists what is missing with the exact commands, and changes nothing. It has no desktop window, no GPU, no clipboard, no audio or camera, and no network yet. **Starting it is not enabled yet in this alpha** (a launch with `hcs` passes the check and stops with that message). `sandbox engine` shows the engine in use and what each can do. Your setting only: a project's `.sandbox-config.json` cannot set it |
-| `sandbox.pageFileMb` | size of the sandbox's paging file, created at full size at start so it never grows under load (default `16384`; `0` = Windows' own ~1 GB, which parallel builds run out of) |
-| `sandbox.keepAwake` | keep this PC from sleeping while a sandbox runs (default `true`), so agents left overnight keep working. The screen may still turn off; closing a laptop lid still sleeps it |
-| `sharing.otherUsers` | let other Windows users of this PC use a sandbox you start: list its sessions, attach, run commands and stop it (default `false`). They use the agent logins inside it, and history goes to your account. Only your own settings can set it, never a project's `.sandbox-config.json`. A machine file (`%ProgramData%\AgentSandbox\config.json`, all-users installs) is read first; your file wins |
-| `sandbox.cpuLimit` | most of your PC's CPU the sandbox may use, in percent (default `80`; `"none"` = all of it). Your setting only: a project file cannot change it |
-| `sandbox.maxMemoryPercent`, `.maxMemoryMb`, `.reserveHostMb` | `memoryMb: "auto"` = free RAM minus `reserveHostMb` (8 GB), and also this PC's unused commit (RAM plus paging file) minus `reserveHostMb`, at most `maxMemoryPercent` (80) of your RAM and `maxMemoryMb` |
-| `sandbox.agentMemoryHeadroomMb` | the last resort that keeps the sandbox up: how far below the sandbox's commit limit (RAM plus paging file) everything the agents start together is stopped from committing more. Builds are slowed down long before that (`sandbox.pressureResponse`); this only ever matters at the very edge, where Windows inside the sandbox would otherwise start failing, and then a build is refused memory instead of Windows (default `"auto"` = the larger of 1536 MB and 3 % of the commit limit; a number of MB; `"none"` = no backstop). Your setting only |
-| `sandbox.pressureResponse` | when the sandbox (or this PC) runs low on memory, slow the heaviest build programs down and, if needed, pause the biggest compiler for a few seconds (default `true`; see troubleshooting "The sandbox closes under heavy load"). Your setting only |
-| `attach.auto` | starting an agent attaches this terminal automatically (like `-t`) |
-| `agentCommands.enabled` | **(Beta)** typing `claude`, `codex` ... on this PC starts the agent in a hidden sandbox and attaches (default off) |
-| `agentCommands.agents` | `"auto"` = every agent installed on this PC, or a list such as `["claude", "codex"]` |
-| `web.remote.windowsSignIn`, `web.remote.users`, `web.remote.rememberDays`, `web.remote.lan.enabled` / `.port` / `.address` | **(Beta)** remote access to the web UI ([remote access](web-ui.md#remote-access)): other Windows users of this PC (`users`: `{ "name": "bob", "role": "view" }` or `"control"`, signing in with Windows when `windowsSignIn` is on) and devices on your own network (`lan.enabled`, HTTPS on a private address, port `47801`; turn it on with `sandbox web lan-on`). `rememberDays` (1-90, default 30) is how long a device or sign-in lasts. All off by default, and not settable from a project |
-| `web.enabled`, `web.port`, `web.openOnLaunch` | **(Beta)** the web UI ([web-ui.md](web-ui.md)) on `127.0.0.1:<port>` (default `47800`, this PC only); off by default and not settable from a project. With `web.enabled` on, every sandbox start also starts it in the background (it keeps running until `sandbox web stop`); with `web.openOnLaunch` on too, your browser opens it already signed in. `sandbox web start` / `open` work either way. The address alone does not sign you in: open it with `sandbox web open` (or `web.openOnLaunch`) |
-| `attach.autoHide` | the sandbox window hides whenever this terminal attaches (`sandbox show` brings it back) |
-| `attach.confirmCtrlC` | on (default): a single Ctrl+C in an attached terminal or the sandbox window is held back (the title says so) and only a second one within 1.5 s reaches the agent, so a Ctrl+C meant as "copy" no longer stops it; Esc still stops an agent. In the web terminal, Ctrl+C with text selected copies it |
-| `provisioning.git.access` | `full`, `readonly` or `none` |
-| `secrets.allow`, `secrets.patterns` | let named variables through, or strip more |
-| `downloads.requireChecksum` | `true` refuses toolchain, database and tool downloads that have no published checksum (default `false`; downloads that have one are always verified) |
-| `toolchains.environment` | extra environment variables (e.g. registry mirrors) |
-| `toolchains.msvc.acceptLicense` | `true` to allow installing MSVC (see [toolchains](toolchains.md#msvc)) |
-| `toolchains.rust.host`, `.targetDir`, `.crates` | Rust target (`auto`, msvc or gnu), where builds go, and binaries to install with cargo |
-| `toolchains.rust.linker`, `.linkSlots` | GNU host: `"lld"` (default, far less memory than GNU ld) or `"gnu"`, and how many programs may link at once in the whole sandbox (`"auto"` = one per 3 GB after 6 GB of the sandbox's memory, 2 to 8; the memory governor slows links down too when memory runs short) |
-| `toolchains.cli.gh`, `.zstd`, `.openssl` | small command-line tools |
-| `toolchains.mesa.enabled`, `.vulkan` | software OpenGL / Vulkan when there is no GPU |
-| `apps.install`, `apps.custom` | apps from the catalogue and programs of your own ([toolchains](toolchains.md#apps-and-tools)); agent add-ons, your setting only ([agent add-ons](toolchains.md#agent-add-ons)): `"rtk"` (and its Claude Code hook), `"headroom"` (a local proxy in Claude Code's API path), `"ccusage"`, `"playwright-mcp"` and `"context7"` (MCP servers in the sandbox's Claude Code) |
-| `harnesses` | agents and how to install them; `home` says where an agent keeps its login (variable -> folder in the saved state, the login files, the folder on this PC) so logins can be saved and switched. An agent with no variable for it lists `profileDirs` (folders in the sandbox's user profile, such as `.qwen`): each is linked to `state\<agent>\profile\<folder>`, so its login survives the sandbox, and its `loginFiles` start with `profile/`. `localState` (variable -> folder in the agent's saved state) is for agents that keep SQLite databases (codex): SQLite cannot run in the shared data folder, so the agent runs from a copy on the sandbox's own disk (the variable points to it); the copy is restored at start and saved again after the agent exits. Every configured agent also gets its command (`claude`, `codex` ...) in every terminal tab: when it is not installed yet, the command installs it on first use (`sbx-agent list` shows them) |
+| Setting                                        |                                                                                                                                                                         |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `defaultHarness`                               | the agent `sandbox launch` starts (default `claude`)                                                                                                                    |
+| `toolchains.<lang>.enabled`                    | `true`, `false` or `"auto"` (only when the project uses it). Every tool works like this, Bun, uv and VS Code too. A project file can set it                             |
+| `toolchains.<lang>.version`                    | default versions; the project's version files still win                                                                                                                 |
+| `toolchains.environment`                       | extra environment variables, such as registry mirrors (not for secrets)                                                                                                 |
+| `databases.<db>.enabled`, `.port`              | `true`, `false` or `"auto"`, and the port inside                                                                                                                        |
+| `apps.install`, `apps.custom`                  | apps from the catalogue, and programs of your own ([apps](toolchains.md#apps-and-tools))                                                                                |
+| `sandbox.memoryMb`, `.headless`, `.networking` | RAM (`"auto"`, see [CPU, RAM and GPU](#cpu-ram-and-gpu)), no window, internet on or off                                                                                 |
+| `sandbox.vGpu`                                 | give the sandbox your GPU (default off). With some graphics drivers, heavy use can freeze the whole PC: leave it off unless a program needs the GPU                     |
+| `sandbox.keepAwake`                            | keep this PC from sleeping while a sandbox runs (default on). The screen may still turn off, and closing a laptop lid still sleeps it                                   |
+| `attach.auto`                                  | starting an agent attaches this terminal (like `-t`)                                                                                                                    |
+| `attach.autoHide`                              | hide the sandbox window whenever a terminal attaches (`sandbox show` brings it back)                                                                                    |
+| `attach.confirmCtrlC`                          | (default on) a single Ctrl+C is held back, and only a second one within 1.5 s reaches the agent, so a Ctrl+C meant as "copy" does not stop it. Esc still stops an agent |
+| `provisioning.git.access`                      | `full`, `readonly` or `none` ([git access](security.md#git-access))                                                                                                     |
+| `secrets.allow`, `secrets.patterns`            | let named variables through, or strip more ([secrets](security.md#secrets))                                                                                             |
+| `downloads.requireChecksum`                    | refuse downloads that have no published checksum (default off; downloads that have one are always checked)                                                              |
+| `sharing.otherUsers`                           | let other Windows users of this PC use a sandbox you start ([several users](security.md#several-users-on-one-pc)). Default off; your settings only                      |
+| `web.enabled`, `web.port`, `web.openOnLaunch`  | **(Beta)** the [web UI](web-ui.md) on `127.0.0.1:47800`. With `web.enabled` on, every sandbox start also starts it; `web.openOnLaunch` also opens your browser          |
+| `web.remote.*`                                 | **(Beta)** [remote access](web-ui.md#remote-access) to the web UI. All off by default                                                                                   |
+| `agentCommands.enabled`, `.agents`             | **(Beta)** [agent commands](#agent-commands-beta); `.agents` is `"auto"` (every agent on this PC) or a list such as `["claude", "codex"]`                               |
+| `sandbox.engine`                               | **(Alpha)** `"windows-sandbox"` (default) or `"hcs"` (see [the HCS engine](#the-hcs-engine-alpha))                                                                      |
+| `harnesses`                                    | the agents and how they are installed ([agent settings](#agent-settings))                                                                                               |
+
+Settings for one toolchain (MSVC, Unreal, Rust, Mesa, CLI tools) are in [toolchains](toolchains.md).
+
+Many settings are **yours only**: a project's `.sandbox-config.json` cannot set them. These include storage, sharing,
+secrets, the audit log, the web UI, agent commands, agents (`harnesses`), the engine, the CPU and memory limits,
+`projects.*`, `resume.*`, `github.*`, most of `network` and the agent add-ons. See [project settings](#project-settings).
 
 ## Paths
 
-| Setting | Default | |
-|---|---|---|
-| `storage.root` | `%ProgramData%\AgentSandbox\users\%USERNAME%` | everything kept on your PC between sandboxes (see [Where your data is kept](#where-your-data-is-kept)). The name `AgentSandbox` is from before the rename and is kept on purpose |
-| `storage.dataName` | `default` | the persistent data set (`C:\AgentData` inside); a different one per untrusted project keeps its tools separate |
-| `storage.contained`, `storage.containedMaxGb` | **(Beta, not yet tried on a real PC)** `"off"` (default) keeps tools, state and logs in loose folders; `"vhdx"` keeps them in one disk image (`<storage>\images\<dataName>.vhdx`, a dynamic NTFS disk of at most `containedMaxGb` GB, default `64`) that is mounted on a private folder only while a sandbox runs. Turn it on and off with `sandbox storage contained on` / `off` (they ask first, move your files and show size and time); the setting is written for you. Windows asks for permission to mount it each time a sandbox starts, unless an all-users install added the storage helper ([install](install.md#options)). See [Contained storage](#contained-storage-beta). Your setting only: a project's `.sandbox-config.json` cannot set them |
-| `guestWorkspace` | `C:\Workspace\<folder>` | where the project appears inside; `"mirror"` = the same path as on your PC (e.g. `F:\Projects\game`; falls back for `C:\Users\...`). Where projects appear with several projects: [projects](projects.md#where-a-project-appears-inside-the-sandbox) |
-| `mappings` | none | more folders from your PC, read-only or read/write: `{ "host": "F:\\SteamLibrary\\steamapps\\common\\Game", "readOnly": true }`; `guest` (where it appears) is optional, `optional: true` skips a folder that is not on this PC |
+| Setting            | Default                                       |                                                                                                                                                                                                                            |
+| ------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage.root`     | `%ProgramData%\AgentSandbox\users\%USERNAME%` | everything kept on your PC between sandboxes ([where your data is kept](#where-your-data-is-kept)). `AgentSandbox` is the old name, kept on purpose                                                                        |
+| `storage.dataName` | `default`                                     | the data set (`C:\AgentData` inside). Give an untrusted project its own to keep its tools separate                                                                                                                         |
+| `guestWorkspace`   | `"auto"` (`C:\Workspace\<folder>`)            | where the project appears inside. `"mirror"` uses the same path as on your PC (e.g. `F:\Projects\game`; not for `C:\Users\...`). With several projects: [projects](projects.md#where-a-project-appears-inside-the-sandbox) |
+| `mappings`         | none                                          | more folders from your PC, read-only or read/write (below)                                                                                                                                                                 |
 
-Where a mapped folder appears:
+A mapping looks like `{ "host": "F:\\SteamLibrary\\steamapps\\common\\Game", "readOnly": true }`. `optional: true`
+skips a folder that is not on this PC. Where it appears:
 
-- No `guest`: at the same path as on your PC (`C:\SteamGame` stays `C:\SteamGame`, `F:\SteamLibrary...` stays
-  `F:\SteamLibrary...`). A folder inside the project is already in the sandbox with the project, so it needs no
-  mapping (with `workspaceFilter` on, give it a `guest` path outside the project to bring a git-ignored folder in).
-- `guest` given: exactly there. A full path: any `C:` folder, or any path on D: to Z:.
-- A folder that cannot appear at its path stops the launch, and the message names each such folder, why, and the fix:
-  a relative path, the folders the sandbox keeps for itself (`C:\Windows`, `C:\Program Files*`, `C:\ProgramData`,
-  `C:\Users`, `C:\AgentData`, `C:\AgentLaunch`, `C:\HostTools`, `C:\nvm`, `C:\Mirror`), a path already used by the
-  project, `C:\Projects` or another mapping (the same folder or one inside the other), a drive root, `A:`/`B:`, or a
-  path Windows cannot have. Folders are never moved somewhere else. `sandbox config check` shows where each folder will
-  appear, and any problem, before you launch.
+- **Without `guest`:** at the same path as on your PC (`C:\SteamGame` stays `C:\SteamGame`). A folder inside the
+  project needs no mapping: it comes with the project. (With `workspaceFilter` on, map a git-ignored folder to a `guest`
+  path outside the project to bring it in.)
+- **With `guest`:** exactly there, on `C:` or any drive from D: to Z:.
+- **A folder that cannot appear at its path stops the launch**, with the reason and the fix. That includes relative
+  paths, drive roots, `A:`/`B:`, paths already used, and the folders the sandbox keeps for itself (`C:\Windows`,
+  `C:\Program Files*`, `C:\ProgramData`, `C:\Users`, `C:\AgentData`, `C:\AgentLaunch`, `C:\HostTools`, `C:\nvm`,
+  `C:\Mirror`, `C:\Projects`). `sandbox config check` shows where each folder will appear before you launch.
 
-Windows Sandbox can only map onto C:, so a guest path on F: is mapped to `C:\Mirror\F\...` and `subst F: C:\Mirror\F` runs at
-boot. Tools that resolve real paths may print the `C:\Mirror` form; history sync understands both. A letter that already
-exists in the sandbox is left alone.
+Windows Sandbox can only map folders onto C:. So a path on F: is mapped to `C:\Mirror\F\...`, and `subst F: C:\Mirror\F`
+runs at boot. Tools that resolve real paths may print the `C:\Mirror` form. A drive letter the sandbox already has is
+left alone.
 
-Under `storage.root`: `data\<name>` (tools, databases, logins, logs), `launches\` (one per start; cleaned after 7
-days), `accounts\`, `sync\`, `known-projects.json` (the folders you started projects in) and `run\projects.json` (the
-running sandbox's projects). The last two are host-only: the sandbox cannot read or change them.
-
-### Contained storage (Beta)
-
-**Beta, and not yet tried on a real PC** (the code is tested with a fake disk and the scripts in a dry-run mode; mounting a disk image needs a PC, not a sandbox).
-
-Normally the sandbox's tools, state, logs, databases and caches are loose folders in `<storage>\data\<name>`: many files that scanning programs inspect one by one. With `storage.contained: "vhdx"` they live in one disk image file instead:
-
-- The image is `<storage>\images\<name>.vhdx`, a dynamic NTFS disk (it grows as it fills, up to `storage.containedMaxGb`). It is mounted at `<storage>\mounts\<name>` (a folder, **no drive letter**) when a sandbox starts and dismounted when it ends.
-- `run\` (how this tool and the sandbox talk) stays a normal folder on your PC, because this tool reads it. `tools`, `state`, `logs`, `databases` and `cache` come from inside the mounted image and appear in the sandbox at the same places as before (`C:\AgentData\tools` ...). Anything else in the data folder stays a plain folder on your PC and is not shared.
-- **One Windows permission prompt** appears when a sandbox starts (to mount) and one when it ends (to dismount); declining the second leaves the image mounted, and `sandbox repair` dismounts it.
-- `sandbox storage contained status` shows the setting, the image and whether it is mounted. `sandbox storage contained on` makes the image (asking first, showing the size limit), offers to move your current tools, state and logs into it (with size and time) and writes the setting. `sandbox storage contained off` moves everything back to plain folders (with size and time), dismounts, and only then asks whether to delete the image file (default: keep it). Nothing is ever deleted without that question.
-- Mounting and dismounting need administrator rights: Windows asks each time, or, when an all-users install added the **storage helper** (`-ContainedStorageHelper`), its service does it without a prompt, after checking it is your image in your folder ([security](security.md#contained-storage-beta)). The helper reads your usual settings file; a command run with `--config` (or `AGENT_SANDBOX_CONFIG` / `AGENT_SANDBOX_HOME`) uses the prompt. With the helper, a `containedMaxGb` in the machine settings is a ceiling your own settings cannot raise.
-- While an image is mounted, `sandbox storage move` / `use` wait (a move would reach into the image). Contained storage needs Windows with `diskpart`, and does not work inside a Windows Sandbox.
-- Some host views (`sandbox data`, `sandbox clean`, the menu's data screens) still look at the plain data folder, so they show nothing for what is in the image; the Claude login sync, the terminal and ConPTY downloads, `sandbox logs` and the crash report do follow the image while it is mounted.
-
-What it does and does not protect is in [security](security.md#contained-storage-beta); problems (a stale mount, "the image is in use") are in [troubleshooting](troubleshooting.md#contained-storage-beta).
+Under `storage.root` you find `data\<name>` (tools, databases, logins, logs), `launches\` (one per start, cleaned after 7
+days), `accounts\`, `sync\`, `known-projects.json` and `run\projects.json`. The last two are for your PC only: the
+sandbox cannot read or change them.
 
 ### Where your data is kept
 
-New installs keep everything in `%ProgramData%\AgentSandbox\users\<you>`, a folder only you (and SYSTEM and
-administrators) can read. It works for an install for just you and for one for everyone, so switching between them
-needs no move.
+New installs keep everything in `%ProgramData%\AgentSandbox\users\<you>`. Only you, SYSTEM and administrators can read
+it. The same folder works for an install for just you and one for everyone, so switching needs no move.
 
-- **Upgrading** from a version that kept it in `%LOCALAPPDATA%\AgentSandbox`: nothing moves. The update pins
-  `storage.root` to that folder in your `config.json` (comments kept), and the next `sandbox` command or the menu asks
-  once whether to move the data to the default folder, with its size and an estimate ("Move now", "Not now" for two
-  weeks, "Don't ask again"). Without a terminal nothing is asked.
-- **Moving later**: `sandbox storage` shows where the data is; `sandbox storage move <folder>` moves it (a rename on the
-  same drive, a verified copy to another drive, a warning above 5 GB or 200,000 files, refused when the target drive
-  lacks room or a sandbox runs). The menu has the same under Settings > General > Data folder, with a folder browser.
-  If a move fails, the old folder and your config are left as they were.
-- **Always pinned**: after a move or `sandbox storage use`, `storage.root` is written to your `config.json`, so an older
-  version you go back to finds the data too. A downgrade followed by an upgrade is offered the move again when the
-  configured folder is empty and an earlier one holds data (earlier folders are remembered in
-  `~\.agent-sandbox\storage-history.json`).
+- **Upgrading** from a version that used `%LOCALAPPDATA%\AgentSandbox`: nothing moves. `storage.root` is pinned to the
+  old folder in your `config.json`, and the next command asks once whether to move it ("Move now", "Not now" for two
+  weeks, "Don't ask again").
+- **Moving later:** `sandbox storage` shows where the data is, and `sandbox storage move <folder>` moves it. On the same
+  drive it is a rename; to another drive, a checked copy. It warns above 5 GB or 200,000 files, and refuses when the
+  target lacks room or a sandbox runs. If a move fails, nothing changes. The menu has the same under Settings > General
+  > Data folder.
+- **Always pinned:** after a move or `sandbox storage use`, `storage.root` is written to your `config.json`, so an older
+  version finds the data too.
 
-## Several projects in one sandbox
+### Contained storage (Beta)
 
-Starting an agent from another project while a sandbox runs adds that project to it: its own folder, `.sandbox-config.json`,
-versions, toolchains, databases and environment. How that works, where each project appears inside the sandbox and the
-consent prompts are in [projects](projects.md). These settings, in **your** config only (a project file can never set
-them, because they map folders of your PC), decide which folders are already there:
+**Beta, not yet tried on a real PC.** The code is tested with a fake disk and the scripts in a dry-run mode.
 
-| Setting | Default | |
-|---|---|---|
-| `projects.roots` | none | folders whose subfolders are your projects (e.g. `F:\Code`), mapped read/write at every start as `C:\Projects\<name>` (at their PC path with `guestWorkspace: "mirror"`). Every project inside, also one created later, opens without a restart, and is always under that folder (also when it started the sandbox) |
-| `projects.all` | `false` | also map every project you have started before, at every start (`sandbox projects choose` / `all on`) |
-| `projects.exclude` | none | projects left out of `all` |
-| `projects.declinedRoots` | none | parent folders you said no to when asked to add them as roots (not asked again) |
-| `projects.askToAddRoot` | `true` | when you start a project whose parent is not a root, ask once whether to add it (answers are saved: yes adds it, no is remembered in `projects.declinedRoots`, never turns this off) |
-| `projects.allowOutsideMappings` | `"ask"` | may a project's `.sandbox-config.json` map folders outside the project (see [project settings](#project-settings))? `"ask"`, `true` or `false` |
-| `projects.wsbShare` | `true` | on Windows 11 24H2+ with the updated Windows Sandbox, add other folders live with `wsb share` (untested; otherwise a restart is offered) |
-| `projects.liveFolders` | `"off"` | **alpha, untested on a real PC:** `"hcs"` adds a folder to the running sandbox through the Host Compute Service where `wsb share` is missing (one administrator prompt per add or remove; always read-only in this alpha). If it fails, the sandbox may close: save your work first. Turn it on before the sandbox starts. Your settings only (a project file cannot set it). See [live folders](projects.md#live-folders-through-hcs-alpha) and the tests still to pass in [the design note](design/hcs-live-folders.md#test-plan) |
+Normally the sandbox's tools, state, logs, databases and caches are loose folders in `<storage>\data\<name>`: many
+files that scanners check one by one. With `storage.contained: "vhdx"` they live in one disk image instead.
+
+- **The image** is `<storage>\images\<name>.vhdx`. It grows as it fills, up to `storage.containedMaxGb` (default 64).
+  It is mounted on the folder `<storage>\mounts\<name>` (**no drive letter**) while a sandbox runs.
+- **The sandbox sees the same folders as before** (`C:\AgentData\tools` ...). `run\` stays a normal folder, because this
+  tool reads it.
+- **Turning it on and off:** `sandbox storage contained on` makes the image, offers to move your files in and sets the
+  setting. `off` moves everything back, dismounts, and then asks before it deletes the image. `status` shows the
+  setting, the image and whether it is mounted.
+- **Permission prompts:** mounting needs admin rights, so Windows asks when a sandbox starts and when it ends. Declining
+  the second leaves the image mounted; `sandbox repair` dismounts it later. With the **storage helper** of an all-users
+  install there is no prompt ([install](install.md#just-me-or-everyone)). The helper reads only your usual settings
+  file, so a command run with `--config`, `AGENT_SANDBOX_CONFIG` or `AGENT_SANDBOX_HOME` still uses the prompt.
+- **Limits:** while the image is mounted, `sandbox storage move` and `use` wait. It needs `diskpart` and does not work
+  inside a Windows Sandbox. `sandbox data`, `sandbox clean` and the menu's data screens still look only at the plain
+  folders, so they do not show what is in the image.
+
+Security: [security](security.md#contained-storage-beta). Problems: [troubleshooting](troubleshooting.md#contained-storage-beta).
 
 ## Machine settings (everyone installs)
 
-An all-users install writes `%ProgramData%\AgentSandbox\config.json` (only administrators change it). It is read under
-your own file, so your settings win. The installer puts two things in it:
+An all-users install writes `%ProgramData%\AgentSandbox\config.json` (only admins can change it). Your own file is read
+on top of it, so your settings win. The installer writes:
 
 ```json
 { "storage": { "root": "%ProgramData%\\AgentSandbox\\users\\%USERNAME%" }, "sharing": { "otherUsers": false } }
 ```
 
-`%USERNAME%` is replaced for each user, so everybody gets a private storage folder. Folders in this file must be full
-paths. Whether new versions install themselves is not a
-setting: it lives in the install folder's `install.json` and is changed with `sandbox update --auto on|off`.
+`%USERNAME%` is filled in for each user, so everyone gets a private folder. Paths in this file must be full paths.
+Whether updates install themselves is not a setting: it lives in the install folder's `install.json` and is changed
+with `sandbox update --auto on|off`.
 
 ## Network
 
-The **Network** category of the settings (or `network` in your file):
+The **Network** category, or `network` in your file:
 
-| Setting | |
-| --- | --- |
-| `blockPrivateRanges` | your LAN (and SMB) is unreachable from the sandbox; DNS to the gateway still works (on by default) |
-| `allowOnly` | only these hosts can be reached once the sandbox is set up (tools still download first). `*.example.com` covers its subdomains; `@developer` adds package registries, GitHub/GitLab, toolchain downloads and the AI providers. Programs go through a small proxy inside the sandbox (`HTTP_PROXY`, and the Windows proxy setting for browsers); everything else is blocked by the sandbox's firewall. Refused hosts are listed in `logs\netproxy.log` |
-| `blockHosts` | names that go nowhere (the sandbox's hosts file), e.g. production servers or telemetry; exact names, no wildcards |
-| `forwardPorts` | `{ "pc": 3000, "sandbox": 5173 }`: `http://localhost:3000` on your PC reaches port 5173 inside while the sandbox runs, even a dev server that only listens on localhost there. Only this PC can use it; no admin rights needed |
-| `dns` | DNS servers for the sandbox, e.g. `["1.1.1.1", "9.9.9.9"]` |
-| `proxy` | your HTTP proxy for everything in the sandbox (`HTTP_PROXY` / `HTTPS_PROXY`), e.g. `http://proxy.corp:8080`; with `allowOnly`, the sandbox's proxy hands on to it. No `user:password@` in the address: it would sit in plain text where the agent can read it, so it is refused (use a proxy that needs no login) |
+| Setting              |                                                                                                                                                                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blockPrivateRanges` | your LAN (and SMB) cannot be reached from the sandbox; DNS to the gateway still works (default on)                                                                                                                                                          |
+| `allowOnly`          | only these hosts can be reached once setup is done (tools still download first). `*.example.com` covers subdomains; `@developer` adds package registries, GitHub/GitLab, toolchain downloads and the AI providers. Refused hosts are in `logs\netproxy.log` |
+| `blockHosts`         | names that go nowhere, such as production servers or telemetry (exact names, no wildcards)                                                                                                                                                                  |
+| `forwardPorts`       | `{ "pc": 3000, "sandbox": 5173 }`: `http://localhost:3000` on your PC reaches port 5173 inside, even for a server that listens only on localhost there. Only this PC can use it                                                                             |
+| `dns`                | DNS servers for the sandbox, e.g. `["1.1.1.1", "9.9.9.9"]`                                                                                                                                                                                                  |
+| `proxy`              | your HTTP proxy for everything in the sandbox, e.g. `http://proxy.corp:8080`. No `user:password@`: the agent could read it, so it is refused                                                                                                                |
 
-These are applied inside the sandbox, where the agent is an administrator: they keep a well-behaved agent (and the
-tools it runs) in bounds, but a determined one could undo them. `sandbox.networking: false` is the only hard isolation.
-A project's `.sandbox-config.json` may add `blockHosts` and turn on `blockPrivateRanges`, nothing else here.
+These rules run inside the sandbox, where the agent is an administrator. They keep a well-behaved agent and its tools
+in bounds, but a determined one could undo them. Only `sandbox.networking: false` is hard isolation. A project file may
+add `blockHosts` and turn on `blockPrivateRanges`, nothing else here.
 
-## VPN (alpha)
+## VPN
 
-**Alpha: not yet tried on a real PC.** The **VPN** settings (Network category, or `vpn` in your file) send the sandbox's traffic through a VPN. Only the
-sandbox: your PC's own connection is untouched. Plain steps for NordVPN: [vpn.md](vpn.md).
-
-| Setting | |
-| --- | --- |
-| `enabled` | the VPN is on for new sandboxes (off by default). Needs a saved login: `sandbox vpn login` |
-| `provider` | `nordvpn` (a recommended server is picked at every launch), `openvpn-file` (your own `.ovpn`) or `wireguard-file` (your own WireGuard `.conf`); both files are `configFile` |
-| `protocol` | `udp` (faster) or `tcp` (gets through networks that block udp); WireGuard is always udp |
-| `country` | NordVPN only: e.g. `uk`, `us`, `Germany`; empty = the best server anywhere |
-| `configFile` | `openvpn-file`: the `.ovpn` on this PC, certificates inside it. `wireguard-file`: the `.conf` on this PC (at most 16 KB; its private key is read only when a sandbox starts). Files that run programs (`script-security`, `up`, `down`, `plugin`, `PostUp`, `PreUp` ...) are refused |
-| `killSwitch` | block everything that does not go through the tunnel; when the tunnel cannot start the sandbox stays offline (on by default) |
-
-A WireGuard config needs no saved login (the keys are in the file). The login is not a setting: it is typed hidden by `sandbox vpn login` (or Settings > Network > Set NordVPN login),
-kept encrypted for your Windows user and handed to the sandbox only while it starts. A project's
-`.sandbox-config.json` can turn `killSwitch` on, never off, and can never choose a VPN, a server, a profile or a login.
+**(Alpha)** The `vpn` settings send the sandbox's traffic, and only the sandbox's, through a VPN. The settings, setup
+steps and what is not tested yet are in [vpn.md](vpn.md). A project file can turn `vpn.killSwitch` on, never off, and
+can never choose a VPN, server, profile or login.
 
 ## GitHub token
 
-Off by default. Sandboxes never get your PC's GitHub login. If you want `gh` and https `git` to work in them without
-logging in each time, make a token only for sandboxes and save it:
+Off by default. Sandboxes never get your PC's GitHub login. To make `gh` and https `git` work inside without logging in
+each time, save a token made only for sandboxes:
 
-1. `sandbox github login` (or Settings > Security & privacy > Set GitHub token…, or Settings > GitHub in the web UI). It
-   prints the steps: at <https://github.com/settings/personal-access-tokens/new> make a **fine-grained** token, choose
-   only the repositories the agent should reach, give only the permissions it needs (for example Contents and Pull
-   requests read and write, Actions read) and set an expiry. Paste it when asked: it is typed hidden, kept encrypted
-   for your Windows user, and never printed. A classic token (`ghp_`) is accepted with a warning; an OAuth token
-   (`gho_`, from `gh auth token`) is refused, because it reaches everything your account can.
-2. `sandbox config set github.shareToken true`.
+1. Run `sandbox github login` (or Settings > Security & privacy > Set GitHub token…, or Settings > GitHub in the web
+   UI). It prints the steps. In short: at <https://github.com/settings/personal-access-tokens/new> make a
+   **fine-grained** token, pick only the repositories the agent should reach, give only the permissions it needs (for
+   example Contents and Pull requests read and write, Actions read) and set an expiry. Paste it when asked. It is typed
+   hidden, kept encrypted for your Windows user, and never printed. A classic token (`ghp_`) gets a warning. An OAuth
+   token (`gho_`, from `gh auth token`) is refused, because it reaches everything your account can.
+2. Run `sandbox config set github.shareToken true`.
 
-| Setting | |
-| --- | --- |
-| `github.shareToken` | give each new sandbox the saved token (off by default). Only when its git access (`provisioning.git.access`) is `full`; otherwise the launch says why it was not sent |
+The token is given only to sandboxes whose git access is `full`; otherwise the launch says why not. **The agent can read
+the token** and use it for everything it allows. `sandbox github logout` deletes it from this PC; revoke it on GitHub
+too. How it is kept and handed over: [security](security.md#github-cli).
 
-The token goes to the sandbox only in the one-shot secrets file, never in `session.json`, the launch folder or a log.
-Inside, `gh` logs in with it in a folder on the sandbox's own disk (gone when the sandbox closes, unlike a `gh auth
-login` made inside, which is kept in `C:\AgentData\state\gh`), and https git to github.com asks `gh` for it. **The
-agent in the sandbox can read the token** and use it for everything it allows. `sandbox github logout` deletes it from
-this PC; revoke it on GitHub too. A project's `.sandbox-config.json` cannot set anything under `github`. More:
-[security](security.md#github-cli).
+## Agent settings
 
-## Agent environment variables
+`harnesses` lists the agents and how to install them (`npmPackage` / `npmBin`, `uvPackage` / `uvBin` or
+`hostExecutable`). Add your own agents there, or with **Add an agent…** in the menu.
 
-`harnesses.<agent>.environment` holds variables for one agent, such as an API key. Their values are shown as `***` in
-`sandbox config show`, in the settings screen and in every `--json` output (typed with each character hidden in the
-screen), and they reach the sandbox in a one-shot file that the sandbox reads and deletes, never in `session.json` or
-the launch folder. The agent can read its own environment, which is the point; so can anything else it runs.
-`toolchains.environment` is for tool settings (registry mirrors), not for secrets.
+- `home` says where an agent keeps its login, so logins can be saved and switched (`sandbox account`). An agent with no
+  variable for that lists `profileDirs` (folders in the sandbox's user profile, such as `.qwen`), which are kept in the
+  data set so its login survives.
+- `localState` is for agents that keep SQLite databases (Codex). SQLite cannot run in the shared data folder, so the
+  agent runs from a copy on the sandbox's own disk, restored at start and saved after the agent exits.
+- Every configured agent is a command in every terminal tab (`claude`, `codex` ...). One that is not installed yet
+  installs on first use (`sbx-agent list` shows them).
+
+### Agent environment variables
+
+`harnesses.<agent>.environment` holds variables for one agent, such as an API key. Their values show as `***` in
+`sandbox config show`, the settings screen and every `--json` output. They reach the sandbox in a one-shot file that the
+sandbox reads and deletes, never in `session.json` or the launch folder. The agent can read its own environment (that is
+the point), and so can anything it runs.
 
 ## Audit log
 
-The audit log is **on by default** (`audit.enabled`; menu: Settings > Security & privacy > Audit log). It keeps a
-record on your PC of what your agents did, in `<storage>\audit\<data set>`, where the sandbox cannot reach it. Turn it
-off with `sandbox config set audit.enabled false`.
+The audit log is **on by default** (`audit.enabled`; menu: Settings > Security & privacy > Audit log). It records what
+your agents did, on your PC in `<storage>\audit\<data set>`, where the sandbox cannot reach it. Turn it off with
+`sandbox config set audit.enabled false`.
 
-- **Programs started** in the sandbox, with their command lines (`audit.processes`): Windows' own process auditing,
-  so it covers every agent and everything they start. Windows' background programs are left out. **Secrets are hidden**
-  before a line is written: tokens and keys recognised by their shape, passwords in URLs, `Authorization:` headers,
-  and the value after a flag or variable whose name says it holds one (`--password x`, `--token=x`, `API_KEY=x`,
-  `-p<password>`) become `***`.
+What it records:
+
+- **Programs started** in the sandbox, with their command lines (`audit.processes`). Windows' own background programs
+  are left out. **Secrets are hidden** first: tokens and keys by their shape, passwords in URLs, `Authorization:`
+  headers, and values after names like `--password`, `--token=` or `API_KEY=` become `***`.
 - **Files changed** in the projects while the sandbox runs (`audit.files`), seen from your PC.
-- **Git commits** made in the projects while the sandbox runs (`audit.commits`): id, first line of the message
-  (secrets hidden) and author, read from each project's `.git` reflog on your PC.
+- **Git commits** made in the projects (`audit.commits`): id, first line of the message and author, read from each
+  project's reflog.
 - **Sessions** starting and ending, and what the **repo guard** caught.
 
-**Which agent did it.** Every program is linked to the agent session whose terminal started it (directly or further
-down: a build an agent's shell started is that session's). Programs the sandbox runs itself (setup, services) are
-"not linked to a session". A commit is linked to the session that ran the `git commit` (or merge, cherry-pick ...)
-that made it. A file change cannot be traced to a program from your PC: it is linked only when exactly one session was
-running in that project at the time, shown as *likely* (`?`) since you may have changed it yourself (a commit gets
-the same "likely" link only when `audit.processes` is off). Otherwise it stays unlinked: nothing is guessed.
+**Which agent did it.** A program is linked to the agent session whose terminal started it, directly or further down.
+Programs the sandbox runs itself are "not linked to a session". A commit is linked to the session that ran the
+`git commit` (or merge, cherry-pick ...). A file change is linked only when exactly one session was running in that
+project, and then shown as _likely_ (`?`), since you may have changed it yourself. Nothing else is guessed.
 
-It stays small: one short line per event, the same event within a minute is one line with a count, at most 300 lines a
-minute (the rest is counted), finished days are compressed, and days past `audit.days` (7, at most 30) or beyond
-`audit.maxMb` (100 MB) are deleted, oldest first, when a sandbox starts and once a day while it runs.
+**Size.** One short line per event; repeats within a minute become one line with a count; at most 300 lines a minute.
+Finished days are compressed. Days past `audit.days` (default 7, at most 30) or beyond `audit.maxMb` (default 100) are
+deleted, oldest first.
 
-See it on the **Activity** page of the web UI (totals, per agent, each session as a card that opens its own events,
-filters for kind and period), in the menu (Maintenance > Activity) or on the command line:
+See it on the web UI's **Activity** page, in the menu (Maintenance > Activity) or with `sandbox audit`:
 
 ```powershell
 sandbox audit                            # the last 24 hours
@@ -260,133 +229,164 @@ sandbox audit --agent codex --project api
 sandbox audit --json                     # for scripts
 ```
 
-What the sandbox reports about the programs it ran, and which session started them, is taken as it says after checks
-(an agent with admin rights there could leave things out or link them wrongly, but cannot name a session that does not
-exist or write anything but program lines); file changes, sessions and repo-guard findings are observed from your PC.
-Commits are what the project's reflog says: the sandbox can write that file too, so a commit listed there is a record,
-not proof. The log stops growing at `audit.maxMb` (it says so in one line) until old days are deleted.
+**How far to trust it.** File changes, sessions and repo-guard findings are seen from your PC. Program lines come from
+the sandbox and are checked, but an agent with admin rights there could leave things out or link them wrongly (it
+cannot invent a session). Commits come from the reflog, which the sandbox can also write: a listed commit is a record,
+not proof.
 
 ## Git-ignored files
 
 `workspaceFilter.enabled: true` keeps what your `.gitignore` lists out of the sandbox: `.env` files, your
 `node_modules`, build output, local notes. The sandbox then works on a copy of the project (in
-`<storage>\views\<project>`) that has only what git does not ignore, and the two are kept in step both ways while the
-sandbox runs (changes arrive within about a second; a full check runs every minute and when the sandbox closes):
+`<storage>\views\<project>`) without those files. The two are kept in step both ways while the sandbox runs (within
+about a second, with a full check every minute and at close):
 
 - Your edits reach the sandbox; the agent's edits, new files and deletions reach your project.
-- What the sandbox creates that is ignored (its own `node_modules`, `target`, `dist` ...) stays in the copy, so it
-  never mixes with what you build on your PC, and is there again next time.
-- A file changed on both sides at once keeps yours; the sandbox's version is saved next to it as
+- Ignored files the sandbox makes (its own `node_modules`, `target`, `dist` ...) stay in the copy, so they never mix
+  with your PC's builds, and are there again next time.
+- If a file changes on both sides at once, yours is kept and the sandbox's is saved next to it as
   `<name>.sandbox-conflict-<time><ext>`.
-- Git works as usual: the project's real `.git` is mapped next to the workspace (`C:\Workspace\<name>.git`), so commits
-  and branches made in the sandbox are in your repository (and the repo guard still watches it). With git access
-  `none` no `.git` is mapped at all.
-- The rules are git's: every `.gitignore` in the project, `!` exceptions and `.git/info/exclude`.
-  `workspaceFilter.exclude` keeps more out (`secrets/`, `*.pem`), `workspaceFilter.include` lets something in that
-  git ignores (`.env.example`, `data/fixtures/`).
+- Git works as usual: the real `.git` is mapped next to the workspace (`C:\Workspace\<name>.git`), so commits and
+  branches made inside are in your repository. With git access `none`, no `.git` is mapped.
+- The rules are git's own: every `.gitignore`, `!` exceptions and `.git/info/exclude`. `workspaceFilter.exclude` keeps
+  more out (`secrets/`, `*.pem`); `workspaceFilter.include` lets in something git ignores (`.env.example`).
 
-It applies to the folder you start from. Projects that join a running sandbox, and a project that is itself a git
-worktree (its `.git` is a file), are mapped as they are. A project's `.sandbox-config.json` can turn the filter on and
-add `exclude` patterns, never turn it off. `sandbox data clean views` removes the copies (your projects are not
-touched).
+It applies to the folder you start from. Projects that join a running sandbox, and a project that is a git worktree, are
+mapped as they are. A project file can turn the filter on and add `exclude` patterns, never turn it off.
+`sandbox data clean views` removes the copies (your projects are not touched).
 
 ## Project settings
 
 A project can carry a `.sandbox-config.json` (see the [example](../.sandbox-config.example.json)) for its agent,
-toolchains and versions, databases, git mode, extra folders and setup scripts. Check one without starting anything:
-`sandbox config check`.
+toolchains and versions, databases, git access, extra folders and setup scripts. `sandbox config check` checks one
+without starting anything.
 
-A repo can ship this file, so it is treated as untrusted:
+A repo can ship this file, so it is **untrusted**:
 
-- You approve it the first time, and again whenever it changes (the approval is tied to the file's exact contents).
-- Read/write folders are flagged in the approval prompt, which is shown without colours or escape codes (a file cannot
-  hide lines of it).
-- Its extra folders (`mappings`) inside the project are fine. Folders outside it (decided after `%VARIABLES%` and links,
-  so a link cannot hide one) follow `projects.allowOutsideMappings` in **your** settings: `"ask"` (the default) asks at
-  an interactive launch, once per project file and folder, listing each folder, read-only or read/write, and where it
-  will appear; a yes is kept in `<storage>\allowed-requests.json` (a no is not, so you are asked again). `true` allows
-  them (still flagged "outside the project" when you approve the file), `false` refuses them. Without a terminal,
-  `"ask"` stops the launch and says how to allow them; `--trust-config` never does. The launch table marks them
-  "(outside the project, allowed)". A folder inside the project mapped a second time is read-only when the project is,
-  and is refused while `workspaceFilter.enabled` is on (it would show the git-ignored files the filter keeps out).
-- Its `scripts` must be files inside the project (after `%VARIABLES%` and links): they are copied into the launch
-  folder, which the sandbox reads.
-- Its `toolchains.environment` cannot set variables the sandbox sets or that carry logins or reach a server: `AGENT_*`,
-  `GIT_*`, `GH_*`, `NODE_*`, `PATH`, `BASH_ENV`, proxies (`*_PROXY`), `*_BASE_URL` / `*_ENDPOINT`, certificate
-  bundles, `ANTHROPIC_*`, `CLAUDE*`, `OPENAI_*` and other agent and cloud prefixes. Registry mirrors such as
+- **You approve it** the first time and again whenever it changes. The approval prompt flags read/write folders and is
+  shown without colours or escape codes, so the file cannot hide lines.
+- **It can only make protections stricter:** read-only, git `readonly`/`none`, the LAN block, protected client, and
+  turning off network, clipboard, microphone, camera, printers, vGPU, login copying, copying tools from this PC
+  (`provisioning.copyFromHost`) and history or claude-mem sync, and turning on `downloads.requireChecksum`. A looser
+  value is used only if you allow it: an interactive launch asks once ("Allow these for this project?"), and the answer
+  is kept on this PC for that exact file. `--trust-config` never allows one. Or set it in your own settings.
+- **Folders outside the project** (after `%VARIABLES%` and links are resolved) follow `projects.allowOutsideMappings`
+  in your settings: `"ask"` (default) asks at an interactive launch, once per file and folder; `true` allows them;
+  `false` refuses them. Without a terminal, `"ask"` stops the launch. Answers are kept in
+  `<storage>\allowed-requests.json`, which no repo or sandbox can write. A folder inside the project mapped a second
+  time is refused while `workspaceFilter` is on.
+- **Its `scripts`** must be files inside the project.
+- **Its `toolchains.environment`** cannot set variables that the sandbox sets, that carry logins or that redirect a
+  server: `AGENT_*`, `GIT_*`, `GH_*`, `NODE_*`, `PATH`, `BASH_ENV`, proxies (`*_PROXY`), `*_BASE_URL` / `*_ENDPOINT`,
+  certificate bundles, `ANTHROPIC_*`, `CLAUDE*`, `OPENAI_*` and other agent and cloud prefixes. Registry mirrors such as
   `NPM_CONFIG_REGISTRY` or `PIP_INDEX_URL` are fine.
-- It cannot set the RAM kept for this PC (`sandbox.reserveHostMb`, `maxMemoryPercent`, `maxMemoryMb`), CPU or the
-  paging file.
-- It may add apps from the catalogue (`apps.install`, added to yours), never programs of its own (`apps.custom`) and
-  never the agent add-ons `rtk`, `headroom`, `ccusage`, `playwright-mcp` or `context7` (they hook the agent's
-  commands, sit in its API path or add MCP servers: only your own settings turn them on).
-- It can only make protections **stricter**: read-only, git `readonly`/`none`, the LAN block, protected client, and
-  turning off network, clipboard, microphone, camera, printers, vGPU, login copying, copying tools from this PC (`provisioning.copyFromHost`) and history / claude-mem sync, and
-  turning on `downloads.requireChecksum`. A looser value is used only if you allow it: starting the project from an
-  interactive terminal asks once, in the same question as any folders outside the project ("Allow these for this
-  project?"). Your answer is kept on this PC
-  (`<storage>\allowed-requests.json`, which no repo or sandbox can write) for that project file only; `--trust-config`
-  never allows one. Otherwise the launch names what was not used. Or set it in your own settings for every project.
-- It can never change storage, agent executables, secrets handling or any host folder used for tools or Claude settings.
+- **Apps:** it may add catalogue apps (`apps.install`, added to yours), but never programs of its own (`apps.custom`)
+  and never the agent add-ons `rtk`, `headroom`, `ccusage`, `playwright-mcp` or `context7`.
+- **Never:** storage, agent executables, secrets handling, CPU, memory, the paging file, host folders for tools or
+  Claude settings, or any setting marked "yours only" above.
+
+## Several projects in one sandbox
+
+How projects join a running sandbox is in [projects](projects.md). These settings decide which folders are mapped at
+every start. They are yours only, because they map folders of your PC.
+
+| Setting                         | Default |                                                                                                                                                                                    |
+| ------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projects.roots`                | none    | folders whose subfolders are your projects (e.g. `F:\Code`), mapped read/write at every start as `C:\Projects\<name>`. Every project inside opens without a restart, also new ones |
+| `projects.all`                  | `false` | also map every project you have started before (`sandbox projects choose` / `all on`)                                                                                              |
+| `projects.exclude`              | none    | projects left out of `all`                                                                                                                                                         |
+| `projects.askToAddRoot`         | `true`  | when you start a project whose parent is not a root, ask once whether to add it                                                                                                    |
+| `projects.declinedRoots`        | none    | parents you said no to (not asked again)                                                                                                                                           |
+| `projects.allowOutsideMappings` | `"ask"` | may a project file map folders outside its project? `"ask"`, `true` or `false` ([project settings](#project-settings))                                                             |
+| `projects.wsbShare`             | `true`  | on Windows 11 24H2+ with the updated Windows Sandbox, add folders live with `wsb share` (untested)                                                                                 |
+| `projects.liveFolders`          | `"off"` | **(Alpha, untested on a real PC)** `"hcs"` adds folders live through HCS where `wsb share` is missing ([live folders](projects.md#live-folders-through-hcs-alpha))                 |
 
 ## Reopening sessions
-Your own settings only (a project's file cannot set them: they start sandboxes on this PC).
 
-| Setting | Default | What it does |
-|---|---|---|
-| `resume.sessions` | `"ask"` | when a sandbox starts after one that had agent sessions: `"ask"` lists them ("Last time: claude in api, codex in web (2 sessions). Reopen them?"; without a terminal it only names `sandbox resume`), `"always"` reopens them, `"afterCrash"` reopens them only when the last sandbox ended unexpectedly (and asks nothing otherwise), `"never"` leaves it to `sandbox resume` |
-| `resume.restartAfterCrash` | `false` | when Windows Sandbox crashes or runs out of memory, the background sync starts the sandbox again and reopens its sessions (`"ask"` counts as `"always"` there: nobody is at the PC). At most 3 times in 6 hours; then the next launch says it stopped trying |
+Your settings only.
 
-Each session reopens in its own folder, continuing its own conversation when the agent can open one by its id
-(`harnesses.<agent>.resumeOneArguments`, with `{id}`; Claude: `--resume {id}`), else the agent's last one
-(`resumeArguments`). Only sessions this tool started are reopened: terminal tabs you opened yourself inside the sandbox
-are not. What ran is noted every minute while the sandbox runs, on this PC (`<storage>\sync\<data>-sessions.json`).
+| Setting                    | Default | What it does                                                                                                                                                                                           |
+| -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `resume.sessions`          | `"ask"` | when a sandbox starts after one that had agent sessions: `"ask"` lists them and asks; `"always"` reopens them; `"afterCrash"` reopens them only after a crash; `"never"` leaves it to `sandbox resume` |
+| `resume.restartAfterCrash` | `false` | when Windows Sandbox crashes or runs out of memory, start it again and reopen its sessions. At most 3 times in 6 hours                                                                                 |
+
+Each session reopens in its own folder and continues its own conversation when the agent can open one by id
+(`harnesses.<agent>.resumeOneArguments`; Claude: `--resume {id}`), else the agent's last one (`resumeArguments`). Only
+sessions this tool started are reopened, not terminal tabs you opened yourself.
 
 ## Accounts
 
 ```powershell
-sandbox account save personal          # the login currently in the sandbox
+sandbox account save personal          # save the login now in the sandbox
 sandbox account save work --from-host  # or this PC's login
-sandbox account default personal       # every launch starts on it; the sandbox switches to it now too
+sandbox account default personal       # every launch starts on it (the running sandbox switches too)
 sandbox account use work               # switch now: Claude restarts and continues the conversation
-sandbox claude --account work          # this launch (or new session in a running sandbox) uses work
+sandbox claude --account work          # this launch only
 ```
 
-The same works for every agent that keeps its login (`--agent codex` and so on). Each launch puts every agent on its
-default login, so a session of any agent you open later uses the login you chose. `use` switches only until the next
-launch; `default` stays. When agent sessions are running, both offer to restart them under the new login
-(`--no-restart` skips that; they switch at their next restart).
+The same works for every agent that keeps a login (`--agent codex` and so on). `use` lasts until the next launch;
+`default` stays. When sessions are running, both offer to restart them under the new login (`--no-restart` skips that).
 
-All accounts of one data set share one Claude folder, so plugins installed in the sandbox already stay when you switch.
-They do not reach another data set (`storage.dataName`). Set `claudeProfile.sharePluginsAcrossAccounts` to `true` (off by
-default) and switching to an account in a data set that has no plugins yet copies them in from your other accounts: the
-plugins folder and the `enabledPlugins` / `extraKnownMarketplaces` entries of `settings.json` (your own entries win,
-nothing else in `settings.json` and no login is touched). The copy is kept in `<storage>\accounts\shared-plugins`, is
-refreshed at every Claude launch and when a sandbox stops, refused when it holds links or is bigger than 1 GB / 20,000 files, and a project's `.sandbox-config.json` cannot turn it on. Plugins are code: turning this on lets a plugin installed in one sandbox run in your other
-sandboxes too.
+Plugins installed in the sandbox stay when you switch accounts, because all accounts of a data set share one Claude
+folder. They do not reach another data set. Set `claudeProfile.sharePluginsAcrossAccounts: true` to copy them into a
+data set that has none yet (the plugins folder and the plugin entries of `settings.json`; logins are not touched). The
+copy is limited to 1 GB / 20,000 files and a project file cannot turn this on. Plugins are code: with this on, a plugin
+installed in one sandbox runs in your other sandboxes too.
 
 ## Hooks
 
 `.ps1`, `.mjs` or `.cmd` files in `~/.agent-sandbox/hooks/pre-provision`, `pre-agent` or `post-agent` run inside the
-sandbox at that point, in name order. Use them for real installers, which must run again each boot.
+sandbox at that point, in name order. Use them for real installers (MSI, winget), which must run again every boot.
 
 ## Agent commands (Beta)
 
-`sandbox agent-commands on` (or `agentCommands.enabled` in the settings screen) makes the agents installed on this PC
-start in the sandbox: type `claude` (or `codex`, `gemini` ...) in any project folder and it starts in a hidden sandbox
-for that folder and attaches your terminal, exactly like `sandbox claude -t --headless`. Arguments go to the agent.
+`sandbox agent-commands on` (or `agentCommands.enabled`) makes the agents installed on this PC start in the sandbox.
+Type `claude` (or `codex`, `gemini` ...) in any project folder, and it starts in a hidden sandbox for that folder and
+attaches your terminal, like `sandbox claude -t --headless`. Arguments go to the agent.
 
-- It finds the agents on your PATH and writes a small forwarding command for each into `<storage>\agent-commands`, then
-  puts that one folder first on **your** PATH (nothing else in PATH changes). Open a new terminal afterwards.
-- `set SANDBOX_AGENT_DIRECT=1` (PowerShell: `$env:SANDBOX_AGENT_DIRECT=1`) runs the real agent on this PC instead.
-- `sandbox agent-commands off` removes the commands and that PATH entry again. `status` shows what is forwarded.
-- Agents installed later are picked up the next time you launch. An agent on the machine-wide PATH, not yours, is not
-  overridden. Beta: it may have rough edges; it is off by default.
+- It writes a small forwarding command for each agent on your PATH into `<storage>\agent-commands`, and puts that folder
+  first on **your** PATH (nothing else changes). Open a new terminal afterwards.
+- `$env:SANDBOX_AGENT_DIRECT=1` (cmd: `set SANDBOX_AGENT_DIRECT=1`) runs the real agent on this PC instead.
+- `sandbox agent-commands off` removes the commands and the PATH entry. `status` shows what is forwarded.
+- Agents installed later are picked up at your next launch. An agent on the machine-wide PATH is not overridden.
+
+## The HCS engine (Alpha)
+
+`sandbox.engine: "hcs"` runs agents in a headless, Hyper-V isolated Windows Server Core container instead of Windows
+Sandbox. **Starting it is not enabled yet in this alpha**: a launch passes the check and stops with that message.
+
+- It needs Windows features you turn on yourself (Containers, and Hyper-V or Virtual Machine Platform), an account in
+  Administrators or Hyper-V Administrators, and a Server Core (ltsc2022) image already on this PC (for example pulled by
+  Docker Desktop, or a folder named in `AGENT_SANDBOX_HCS_IMAGE`).
+- `sandbox engine check hcs` lists what is missing, with the exact commands. It changes nothing.
+- It has no desktop, GPU, clipboard, audio, camera or network yet.
+
+How it compares with Windows Sandbox: [security](security.md#the-hcs-engine-alpha-compared-with-windows-sandbox).
+Design: [design/engines.md](design/engines.md).
 
 ## CPU, RAM and GPU
 
-Windows Sandbox has no CPU setting and would use every processor, so the sandbox caps itself: before anything starts,
-its first window joins a Windows job object with a hard CPU-rate cap (`sandbox.cpuLimit`, default 80 %), and
-everything this tool starts in it inherits that (agents, installs, builds, its terminal tabs). Programs started from the
-sandbox's own Start menu are not covered. RAM is fixed when the sandbox starts (`memoryMb`, or "auto" within the limits
-above). The GPU cannot be limited: Windows Sandbox only has it on or off (`sandbox.vGpu`, off by default).
+A project file may ask for `memoryMb` and `vGpu` (a looser value needs your approval). Everything else here is yours
+only.
+
+| Setting                         | Default  |                                                                                                                                                                                    |
+| ------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sandbox.cpuLimit`              | `80`     | the most of your PC's CPU the sandbox may use, in percent (`"none"` = all of it)                                                                                                   |
+| `sandbox.memoryMb`              | `"auto"` | the sandbox's RAM. `"auto"` = free RAM minus `reserveHostMb`, also within your PC's unused commit (RAM plus paging file), at most `maxMemoryPercent` of your RAM and `maxMemoryMb` |
+| `sandbox.reserveHostMb`         | `8192`   | RAM kept for your PC                                                                                                                                                               |
+| `sandbox.maxMemoryPercent`      | `80`     | the most of your RAM the sandbox may get                                                                                                                                           |
+| `sandbox.maxMemoryMb`           | `32768`  | the most RAM the sandbox may get, in MB                                                                                                                                            |
+| `sandbox.pageFileMb`            | `16384`  | the sandbox's paging file, made at full size at start so it never grows under load (`0` = Windows' own ~1 GB, which parallel builds run out of)                                    |
+| `sandbox.pressureResponse`      | `true`   | slow the heaviest builds down when memory runs low (the governor)                                                                                                                  |
+| `sandbox.agentMemoryHeadroomMb` | `"auto"` | the last-resort backstop: how far below the sandbox's commit limit the agents' programs are stopped from taking more (`"auto"` = the larger of 1536 MB and 3 %; `"none"` = off)    |
+| `sandbox.vGpu`                  | `false`  | the GPU, on or off                                                                                                                                                                 |
+
+- **CPU.** Windows Sandbox has no CPU setting, so the sandbox caps itself with a Windows job object. Everything this
+  tool starts inside inherits the cap (agents, installs, builds, its terminal tabs). Programs started from the sandbox's
+  own Start menu are not covered.
+- **RAM** is fixed when the sandbox starts.
+- **GPU.** Windows Sandbox can only turn it on or off. With vGPU on, the sandbox runs gentler by itself (a lower CPU cap,
+  earlier memory steps). Browsers in the sandbox (Edge, Chrome) never use the GPU, because a browser next to a game on
+  the vGPU has crashed the whole sandbox; they draw in software, and WebGL still works.
+
+How the sandbox behaves under heavy load: [troubleshooting](troubleshooting.md#the-sandbox-closes-under-heavy-load).

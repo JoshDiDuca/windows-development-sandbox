@@ -8,15 +8,15 @@ npm run lint              # ESLint (typescript-eslint): the coding standard and 
 npm run format            # Prettier (120 columns); npm run format:check only checks
 ```
 
-`npm run lint` and `npm run format:check` must pass before a pull request. ESLint also enforces the layers: guest code
-never imports host, CLI or sync code, core and shared import neither, and only the CLI, `api.ts` and `bin/` sit on top.
-C# (`sandbox/csharp`, `native/csharp`) is C# 5 and must compile with
-`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`; `.ps1` and `.cmd` files are CRLF.
+Before a pull request, `npm test` must print `ALL TESTS PASSED`, and `npm run lint` and `npm run format:check` must
+pass. ESLint also enforces the layers: guest code never imports host, CLI or sync code; core and shared import
+neither; only the CLI, `api.ts` and `bin/` sit on top. C# (`sandbox/csharp`, `native/csharp`) is C# 5 and must compile
+with `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`. `.ps1` and `.cmd` files use CRLF.
 
-The self-test refuses to run on a normal PC: it only runs inside a Windows Sandbox (run `sandbox start`, then `npm test`
-in it) or on GitHub Actions, because the live tests create files, links and processes. `sandbox self-test` is the same
-thing. While it runs, `AGENT_SANDBOX_SELFTEST=1` makes host code refuse outward actions and any write or delete outside
-the test's temp folder (`src/shared/test-guard.ts`, `src/host/test-guard.ts`); the `test-guard` suite checks that.
+The self-test only runs inside a Windows Sandbox (`sandbox start`, then `npm test` in it) or on GitHub Actions, because
+the live tests create files, links and processes. `sandbox self-test` is the same thing. While it runs,
+`AGENT_SANDBOX_SELFTEST=1` makes host code refuse outward actions and any write or delete outside the test's temp folder
+(`src/shared/test-guard.ts`, `src/host/test-guard.ts`); the `test-guard` suite checks that.
 
 ## Tests
 
@@ -38,34 +38,38 @@ node dist/bin/agent-sandbox.js self-test nope         # prints the list of suite
 - `support/fixtures.ts`: a fake PC (Node, Claude Code, a profile, workspaces) with `f.makeConfig()`, `f.run()`,
   `f.launch()` (resolve + generate), `f.runGuest()` and `f.runBin()` (a built command as its own process).
 - Live suites (`live-*.test.ts`, helpers in `support/live.ts`) start the real daemon, ptyhost and git shim, and
-  compile SandboxTools and HostTools. They never sleep for a
-  fixed time: they poll until the condition holds, with long deadlines, and print the viewer's screen and the daemon log
-  when a check fails. Keep it that way; a flaky test is a bug in the test or the product.
+  compile SandboxTools and HostTools. They never sleep for a fixed time: they poll until the condition holds, with long
+  deadlines, and print the viewer's screen and the daemon log when a check fails. Keep it that way: a flaky test is a
+  bug in the test or the product. Under heavy load they can still flake, so run once more before calling a failure real.
 - The `layout` suite checks the compiled imports: guest code reaches only the portable core, nothing imports an entry
-  point, there are no import cycles, and the pure guest files host code and tests may load never pull in the guest
-  runtime's side effects.
-  It also checks that the commands in `dist/bin` are bundled.
+  point, there are no import cycles, and the pure guest files that host code and tests may load never pull in the guest
+  runtime's side effects. It also checks that the commands in `dist/bin` are bundled.
 - The `menu-perf` suite keeps the menu quick: no key or draw runs a program, the first screen does not wait for the
   process list, a key is drawn at once, Esc is not held back, and an idle menu writes nothing.
 - Slowest suites: `host-sim` (every command as its own Node process, two at a time), then the live ones.
 
-The build bundles the commands (`dist/bin/*.js` and their `chunk-*.js`, `scripts/bundle.mjs`) over what tsc wrote: the
-CLI as hundreds of separate modules took most of a second to load before the menu could draw. The rest of `dist` stays
-as tsc wrote it (the self-test, `api.js` and the tests load it). In the menu, nothing runs a program per draw, key or
-tick: the process list (tasklist) is fetched in the background and only when it may have changed (`cli/menu/live.ts`).
+## Build
 
-CI builds on Node 22 and on the official Node 22.0.0 zip (the oldest Node users run it on, so dependencies must not
-need newer), and runs the self-test as information only. Releases and `npm run publish:npm` run no tests.
+`npm run build` runs tsc, the esbuild bundle and the JSON Schema generation; commit the changed `schemas/*.json`. The
+build bundles the commands (`dist/bin/*.js` and their `chunk-*.js`, `scripts/bundle.mjs`) over what tsc wrote, because
+the CLI as hundreds of separate modules took most of a second to load before the menu could draw. The rest of `dist`
+stays as tsc wrote it (the self-test, `api.js` and the tests load it). In the menu, nothing runs a program per draw, key
+or tick: the process list is fetched in the background, and only when it may have changed (`cli/menu/live.ts`).
+
+CI builds on Node 22 and on the official Node 22.0.0 zip (so dependencies must not need anything newer), and runs the
+self-test as information only. Releases and `npm run publish:npm` run no tests.
+
+## Working on it with an agent
 
 To work on this tool with an agent in its own sandbox, install it as a copy (`npm run install:global`), not with
-`npm install -g .`. A linked install would let the sandboxed agent edit the code your PC runs. With a copy, the
-agent's changes only reach your PC when you review them and install again.
+`npm install -g .`. A linked install would let the sandboxed agent edit the code your PC runs. With a copy, the agent's
+changes reach your PC only when you review them and install again.
 
 `npm run install:global` refuses when this PC has a managed install (`%ProgramFiles%\WindowsDevelopmentSandbox` or
-`%LOCALAPPDATA%\WindowsDevelopmentSandbox`). The copy would go first on the PATH and hide it, the installed one would stop
-getting updates, and a fix patched into the installed one would not be the one you run. To test a checkout anyway, run
-`npm run install:global -- --force`; it prints how to undo it (`npm uninstall -g windows-development-sandbox`).
-`sandbox doctor` lists every copy on the PATH, and `sandbox --version` says where the running one is.
+`%LOCALAPPDATA%\WindowsDevelopmentSandbox`): the copy would go first on the PATH and hide it, and the installed one would
+stop getting updates. To test a checkout anyway, run `npm run install:global -- --force`; it prints how to undo it
+(`npm uninstall -g windows-development-sandbox`). `sandbox doctor` lists every copy on the PATH, and
+`sandbox --version` says where the running one is.
 
 ## HCS engine workflow
 
@@ -93,10 +97,10 @@ Once a run confirms it works, make `release.yml` run it on version pushes by add
 publishing job wait for it:
 
 ```yaml
-  hcs:
-    uses: ./.github/workflows/hcs-engine.yml
-    with:
-      require_hyperv: true
+hcs:
+  uses: ./.github/workflows/hcs-engine.yml
+  with:
+    require_hyperv: true
 ```
 
 plus `needs: [hcs]` on the job that publishes. It is not added yet on purpose.
@@ -150,14 +154,14 @@ signed either; the `.tgz` is covered by `SHA256SUMS` and the build provenance at
    account's certificate profile (the "Artifact Signing Certificate Profile Signer" role).
 3. In the repository's Settings > Secrets and variables > Actions, add these six repository secrets:
 
-   | Secret | Value |
-   | --- | --- |
-   | `AZURE_TENANT_ID` | the directory (tenant) ID of the app registration |
-   | `AZURE_CLIENT_ID` | the application (client) ID of the app registration |
-   | `AZURE_CLIENT_SECRET` | the client secret (it expires: add a new one before then) |
+   | Secret                     | Value                                                                          |
+   | -------------------------- | ------------------------------------------------------------------------------ |
+   | `AZURE_TENANT_ID`          | the directory (tenant) ID of the app registration                              |
+   | `AZURE_CLIENT_ID`          | the application (client) ID of the app registration                            |
+   | `AZURE_CLIENT_SECRET`      | the client secret (it expires: add a new one before then)                      |
    | `TRUSTED_SIGNING_ENDPOINT` | the endpoint URL of the signing account, as the portal shows it (the region's) |
-   | `TRUSTED_SIGNING_ACCOUNT` | the name of the signing account |
-   | `TRUSTED_SIGNING_PROFILE` | the name of the certificate profile |
+   | `TRUSTED_SIGNING_ACCOUNT`  | the name of the signing account                                                |
+   | `TRUSTED_SIGNING_PROFILE`  | the name of the certificate profile                                            |
 
 The next release after the secrets are set is signed. The action is `Azure/artifact-signing-action`, pinned to v2.0.0 by
 commit, a composite action that runs PowerShell (it has no Node runtime to update).

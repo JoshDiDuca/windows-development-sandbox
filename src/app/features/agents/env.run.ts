@@ -3,7 +3,7 @@
 import _ from 'lodash';
 import { DEFAULTS } from '../../../core/config/index.js';
 import { fail } from '../../../core/util/index.js';
-import { CLAUDE_ENV, envSpec, envValue, type EnvVarSpec } from '../../../shared/agents/claude-env.js';
+import { CLAUDE_ENV, envSpec, envValue, type EnvVarSpec } from './claude-env.def.js';
 import { implement } from '../../context.js';
 import { ConfigFile } from '../settings/settings-file.js';
 import { agentEnv, agentsEnvSet, type AgentEnv, type EnvRow } from './env.def.js';

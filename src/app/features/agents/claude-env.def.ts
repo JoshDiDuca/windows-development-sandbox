@@ -1,7 +1,7 @@
 // The environment variables of Claude Code worth setting, for the "Claude environment" editor. Every name was found in
 // the claude.exe of the sandbox (a bounded grep -a -o -w); descriptions follow code.claude.com/docs (Environment
 // variables). Web-safe: no node imports. A flag is written as "1"; an empty value removes the variable.
-import { anthropicKeyProblem } from '../accounts/anthropic.js';
+import { anthropicKeyProblem } from '../accounts/anthropic.def.js';
 
 export const ENV_GROUPS = ['Subagents', 'Models', 'Limits', 'Behaviour', 'Privacy', 'Network', 'Providers'] as const;
 export type EnvGroup = (typeof ENV_GROUPS)[number];

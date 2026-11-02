@@ -191,8 +191,8 @@ function codexWindowsSandbox(tables: string, mode: CodexSettings['windowsSandbox
 }
 
 /**
- * Codex's config.toml with its own command sandbox off, or null when that changes nothing. Kept for callers that predate
- * the codex settings; use codexConfigOwned.
+ * Codex's config.toml with its own command sandbox off, or null when that changes nothing. Kept for callers that
+ * predate the codex settings; use codexConfigOwned.
  */
 export function codexConfigWithoutSandbox(toml: string): string | null {
   const out = codexConfigOwned(toml, {

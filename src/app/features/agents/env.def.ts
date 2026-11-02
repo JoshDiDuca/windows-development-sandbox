@@ -1,8 +1,8 @@
-// The environment variables of an agent, edited on every surface. Claude has a catalogue (src/shared/agents/claude-env.ts):
+// The environment variables of an agent, edited on every surface. Claude has a catalogue (claude-env.def.ts):
 // names grouped with plain words, flags that switch on and off, numbers that are checked. Any agent also has "your own
 // variables". The values are the agent's `environment` in your settings; secrets are never sent to a screen. Pure.
 import { z } from 'zod';
-import { ENV_GROUPS, ENV_NAME, MAX_SUBAGENTS_DEFAULT, MAX_SUBAGENTS_VAR } from '../../../shared/agents/claude-env.js';
+import { ENV_GROUPS, ENV_NAME, MAX_SUBAGENTS_DEFAULT, MAX_SUBAGENTS_VAR } from './claude-env.def.js';
 import {
   action,
   defineOperation,

@@ -6,8 +6,8 @@ import { agentEnv, agentsEnvSet } from '../app/features/agents/index.js';
 import { fakeIO } from '../app/kernel/index.js';
 import { runDefinition } from '../app/registry.js';
 import { agentArguments, agentShims, codexArguments, codexConfigOwned, shimText } from '../guest/agents/agent-files.js';
-import { ANTHROPIC_KEY_PATTERN, anthropicKeyProblem } from '../shared/accounts/index.js';
-import { CLAUDE_ENV, ENV_GROUPS } from '../shared/agents/claude-env.js';
+import { ANTHROPIC_KEY_PATTERN, anthropicKeyProblem } from '../app/features/accounts/anthropic.def.js';
+import { CLAUDE_ENV, ENV_GROUPS } from '../app/features/agents/claude-env.def.js';
 import type { AppContext } from '../app/context.js';
 import type { Suite } from './support/suite.js';
 

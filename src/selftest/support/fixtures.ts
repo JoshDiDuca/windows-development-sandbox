@@ -7,6 +7,7 @@ import { DEFAULTS } from '../../core/config/index.js';
 import { generateSandbox } from '../../host/launch/index.js';
 import { resolveRun } from '../../core/run/index.js';
 import type { Harness } from './harness.js';
+import { onFixedPc } from './pc-memory.js';
 
 export const HOST_NODE_VERSION = 'v22.3.0';
 
@@ -142,14 +143,16 @@ export function createFixtures(t: Harness) {
     );
 
   const generate = (r: ResolvedRun, args: string[] = [], p: HostProbe = probe): ReturnType<typeof generateSandbox> =>
-    // A fixed "this PC has" list, so "auto" toolchains decide the same on every machine the tests run on.
-    generateSandbox({
-      packageRoot: t.packageRoot,
-      run: r,
-      harnessArgs: args,
-      probe: p,
-      pcLanguages: ['python', 'rust', 'cpp', 'dotnet'],
-    });
+    // A fixed "this PC has" list and RAM, so "auto" toolchains and the memory decide the same on every machine.
+    onFixedPc(() =>
+      generateSandbox({
+        packageRoot: t.packageRoot,
+        run: r,
+        harnessArgs: args,
+        probe: p,
+        pcLanguages: ['python', 'rust', 'cpp', 'dotnet'],
+      }),
+    );
 
   /** Resolves a run and generates its sandbox (.wsb + launch folder + session.json) in one step. */
   const launch = async (

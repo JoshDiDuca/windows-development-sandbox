@@ -43,6 +43,7 @@ import { severalAgentsArgv } from '../cli/menu/index.js';
 import type { Context } from '../cli/commands/context.js';
 import { generateSandbox } from '../host/launch/index.js';
 import { describeSessions } from '../cli/commands/projects/index.js';
+import { onFixedPc } from './support/pc-memory.js';
 import type { Suite } from './support/suite.js';
 
 /** The error `fn` throws, or null. */
@@ -758,15 +759,18 @@ export const projectsSuite: Suite = {
     );
 
     // The restart that adds it (and any launch with it mapped at boot) boots with the union.
-    const unionGen = generateSandbox({
-      packageRoot: t.packageRoot,
-      run: launchedRun,
-      harnessArgs: [],
-      probe: f.probe,
-      extraProjects: [games],
-      autoSession: false,
-      bootWants: { projects: [{ name: 'proj-games', config: gamesRun.config }], keepOff: [] },
-    });
+    // On a pretend PC with plenty of RAM: the memory asked for is not lowered to what this machine can keep resident.
+    const unionGen = onFixedPc(() =>
+      generateSandbox({
+        packageRoot: t.packageRoot,
+        run: launchedRun,
+        harnessArgs: [],
+        probe: f.probe,
+        extraProjects: [games],
+        autoSession: false,
+        bootWants: { projects: [{ name: 'proj-games', config: gamesRun.config }], keepOff: [] },
+      }),
+    );
     const unionWsb = fs.readFileSync(unionGen.wsbPath, 'utf8');
     t.check(
       unionWsb.includes('<vGPU>Enable</vGPU>') &&
@@ -791,15 +795,17 @@ export const projectsSuite: Suite = {
           fs.existsSync,
         ),
       );
-    const keptOff = generateSandbox({
-      packageRoot: t.packageRoot,
-      run: launchedRun,
-      harnessArgs: [],
-      probe: f.probe,
-      extraProjects: [games],
-      autoSession: false,
-      bootWants: { projects: [{ name: 'proj-games', config: gamesRun.config }], keepOff: ['sandbox.vGpu'] },
-    });
+    const keptOff = onFixedPc(() =>
+      generateSandbox({
+        packageRoot: t.packageRoot,
+        run: launchedRun,
+        harnessArgs: [],
+        probe: f.probe,
+        extraProjects: [games],
+        autoSession: false,
+        bootWants: { projects: [{ name: 'proj-games', config: gamesRun.config }], keepOff: ['sandbox.vGpu'] },
+      }),
+    );
     t.check(
       unionLearns && fs.readFileSync(keptOff.wsbPath, 'utf8').includes('<vGPU>Disable</vGPU>'),
       "the registry learns which setting was turned on for which project, after that restart nothing is missing; a device the launch folder's own file switched off stays off",

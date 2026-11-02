@@ -97,6 +97,21 @@ function own(dir: string, sid: string): void {
   spawnSync(SYSTEM.icacls(), [dir, '/setowner', '*' + sid, '/T', '/C', '/Q'], { windowsHide: true });
 }
 
+/**
+ * A new folder whose permissions are its own (not inherited from %TEMP%, which other tools may have opened up): only
+ * `sid`, SYSTEM and Administrators may change it and what is made below it. Null when icacls could not set that.
+ */
+function privateFolder(dir: string, sid: string): string | null {
+  fs.mkdirSync(dir, { recursive: true });
+  const full = '(OI)(CI)F';
+  const r = spawnSync(
+    SYSTEM.icacls(),
+    [dir, '/inheritance:r', '/grant:r', '*' + sid + ':' + full, '*S-1-5-18:' + full, '*S-1-5-32-544:' + full, '/Q'],
+    { windowsHide: true },
+  );
+  return r.status === 0 ? dir : null;
+}
+
 function units(t: Harness): void {
   t.section('the request the CLI sends, and what it makes of the answer');
   t.check(HelperRequestSchema.safeParse({ verb: 'mount', set: 'main' }).success, 'a request is a verb and a set');
@@ -246,7 +261,16 @@ function checkRun(exe: string, verb: string, root: string, set: string, sid: str
 
 function checks(t: Harness, exe: string, sid: string): void {
   t.section('the checks (dry run): what the helper accepts and refuses');
-  const root = t.dir('storage-helper', 'store');
+  // Every folder here starts private, so what is refused below is what the test opened up, never %TEMP%'s own rights.
+  const base = privateFolder(t.at('storage-helper', 'checks'), sid);
+  t.check(base !== null, 'the test folder is made private (only you, SYSTEM and Administrators may change it)');
+  if (!base) return;
+  const dir = (name: string): string => {
+    const p = path.join(base, name);
+    fs.mkdirSync(p, { recursive: true });
+    return p;
+  };
+  const root = dir('store');
   const paths = containedPaths(root, 'main');
   for (const dir of [paths.imagesDir, paths.mountsDir, paths.mount]) fs.mkdirSync(dir, { recursive: true });
   own(root, sid);
@@ -316,8 +340,8 @@ function checks(t: Harness, exe: string, sid: string): void {
     t.check(run().ok, 'and accepted again once only the user may change it');
   } else t.skip('a folder others may change (icacls failed)');
 
-  const linkTarget = t.dir('storage-helper', 'linktarget');
-  const junctionRoot = t.dir('storage-helper', 'junction');
+  const linkTarget = dir('linktarget');
+  const junctionRoot = dir('junction');
   const junction = containedPaths(junctionRoot, 'main');
   fs.mkdirSync(junction.mount, { recursive: true });
   const mk = spawnSync(SYSTEM.cmd(), ['/c', 'mklink', '/J', junction.imagesDir, linkTarget], { windowsHide: true });
@@ -327,8 +351,8 @@ function checks(t: Harness, exe: string, sid: string): void {
     refused('an images folder that is a link', run({ root: junctionRoot }), 'link');
     fs.rmdirSync(junction.imagesDir);
   } else t.skip('images folder as a junction');
-  const above = t.dir('storage-helper', 'above');
-  const realParent = t.dir('storage-helper', 'above-real');
+  const above = dir('above');
+  const realParent = dir('above-real');
   const inner = containedPaths(path.join(realParent, 'store'), 'main');
   for (const dir of [inner.imagesDir, inner.mount]) fs.mkdirSync(dir, { recursive: true });
   own(path.join(realParent, 'store'), sid);
@@ -338,7 +362,7 @@ function checks(t: Harness, exe: string, sid: string): void {
     refused('a link above the storage folder', run({ root: path.join(above, 'store') }), 'link');
     fs.rmdirSync(above);
   } else t.skip('a junction above the storage folder');
-  const mountRoot = t.dir('storage-helper', 'mountlink');
+  const mountRoot = dir('mountlink');
   const mountLinked = containedPaths(mountRoot, 'main');
   fs.mkdirSync(mountLinked.imagesDir, { recursive: true });
   fs.mkdirSync(mountLinked.mountsDir, { recursive: true });
@@ -349,7 +373,7 @@ function checks(t: Harness, exe: string, sid: string): void {
     refused('a dismount through such a link', run({ root: mountRoot, verb: 'dismount' }), 'missing');
     fs.rmdirSync(mountLinked.mount);
   } else t.skip('mount folder as a junction');
-  const missing = t.dir('storage-helper', 'missing');
+  const missing = dir('missing');
   own(missing, sid);
   refused('a storage folder without images and mounts', run({ root: missing }), 'missing');
 }
@@ -462,7 +486,9 @@ async function startConsole(
 
 async function server(t: Harness, exe: string, sid: string): Promise<void> {
   t.section('the server in its console mode (this user, a pipe of its own, dry run)');
-  const root = t.dir('storage-helper', 'served');
+  const root = privateFolder(t.at('storage-helper', 'served'), sid);
+  t.check(root !== null, 'the served storage folder is made private');
+  if (!root) return;
   const paths = containedPaths(root, 'main');
   for (const dir of [paths.imagesDir, paths.mount]) fs.mkdirSync(dir, { recursive: true });
   own(root, sid);

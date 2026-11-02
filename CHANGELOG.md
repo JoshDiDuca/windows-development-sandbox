@@ -7,8 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.17.3
 
+- **Codex starts without a warning.** It printed "failed to clean up stale arg0 temp dirs" at every start: it cannot
+  remove its own temporary folders in the shared data folder. Boot clears them (`tmp\arg0` in `harnesses.codex`
+  `bootReset`) while nothing holds them.
+- The self-test no longer depends on the machine it runs on: launch tests size the sandbox as on a fixed PC, and the
+  storage helper's tests secure their own folders instead of inheriting the temp folder's permissions.
 - **Simpler docs.** The README and every guide say the same things in shorter, plainer words, with less repetition
   between pages. Fixed against the code: broken links and anchors, paths that had lost their backslashes, settings
   and defaults that had drifted, and the app list (about 80 apps, with the reverse engineering category).

@@ -330,7 +330,8 @@
       "bootReset": [
         ".sandbox-secrets",
         ".sandbox\\setup_marker.json",
-        ".sandbox\\deny_read_acl_state.json"
+        ".sandbox\\deny_read_acl_state.json",
+        "tmp\\arg0"
       ],
       "resumeArguments": [
         "resume",

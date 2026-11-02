@@ -32,6 +32,8 @@ export interface ServiceField {
   readonly secret: boolean;
   readonly optional?: boolean;
   readonly pattern?: RegExp;
+  /** Asked by `login` only: `import --from` reads it from the file. */
+  readonly loginOnly?: boolean;
 }
 
 export interface ServiceSpec<K extends ServiceKind = ServiceKind> {
@@ -108,19 +110,27 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
     kind: 'cfx',
     label: 'Cfx.re (FiveM / RedM server key)',
     usedBy: ['fivem'],
-    sources: ['typed'],
+    sources: ['typed', 'file'],
     singleHolder: false,
     returns: false,
-    maxBytes: 4 * 1024,
+    // `import cfx --from` reads a whole server.cfg (they often run to tens of KB); the payload itself is tiny.
+    maxBytes: 256 * 1024,
     warnings: [AGENT_CAN_USE + ' Anyone with the key can run a server under your Cfx.re account.'],
     fields: [
-      { name: 'licenseKey', label: 'Server licence key (cfxk_...)', secret: true, pattern: /^cfxk_[A-Za-z0-9_]+$/ },
+      {
+        name: 'licenseKey',
+        label: 'Server licence key (cfxk_...)',
+        secret: true,
+        pattern: /^cfxk_[A-Za-z0-9_]+$/,
+        loginOnly: true,
+      },
       {
         name: 'steamWebApiKey',
         label: 'Steam Web API key (optional)',
         secret: true,
         optional: true,
         pattern: /^[A-F0-9]{32}$/,
+        loginOnly: true,
       },
     ],
   },

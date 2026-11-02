@@ -1,0 +1,24 @@
+{
+  "critical": "7290",
+  "recommended": "35245",
+  "optional": "7290",
+  "latest": "38182",
+  "critical_download": "https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/7290-a654bcc2adfa27c4e020fc915a1a6343c3b4f921/server.zip",
+  "critical_txadmin": "7.0.0",
+  "recommended_download": "https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/35245-6efb47dff473c0e2a12fb50b08d74c0eb24a50d5/server.zip",
+  "recommended_txadmin": "8.1.1",
+  "optional_download": "https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/7290-a654bcc2adfa27c4e020fc915a1a6343c3b4f921/server.zip",
+  "optional_txadmin": "7.0.0",
+  "latest_download": "https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/38182-bac0347d3f0352407e715f101262b0d1c9cf13cf/server.zip",
+  "latest_txadmin": "8.1.2",
+  "support_policy": {
+    "38182": "9999-12-31T23:59:59.9999999",
+    "38164": "2026-11-16T12:58:12Z",
+    "38069": "2026-11-13T12:02:31Z"
+  },
+  "support_policy_eol": {
+    "38182": "2027-02-02T15:02:14Z",
+    "38164": "2027-02-02T12:58:12Z",
+    "38069": "2027-01-30T12:02:31Z"
+  }
+}

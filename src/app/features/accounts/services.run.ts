@@ -79,10 +79,11 @@ async function kindOf(
   return picked;
 }
 
-/** Asks for the kind's fields; optional ones may stay empty. */
-async function askFields(io: OperationIO, spec: ServiceSpec): Promise<Record<string, string>> {
+/** Asks for the kind's fields (an import skips the ones its file holds); optional ones may stay empty. */
+async function askFields(io: OperationIO, spec: ServiceSpec, forImport = false): Promise<Record<string, string>> {
   const answers: Record<string, string> = {};
   for (const field of spec.fields) {
+    if (forImport && field.loginOnly) continue;
     const validate = (value: string): true | string => {
       const v = value.trim();
       if (!v) return field.optional ? true : 'This one is needed.';
@@ -155,7 +156,7 @@ export async function importServiceFlow(
   if (useFile) {
     const bytes = readBoundedFile(file!, spec.maxBytes);
     if (!bytes) fail('Cannot read ' + file + ' (missing, a link, or bigger than ' + spec.maxBytes / 1024 + ' KB).');
-    payload = source.fromFile!(bytes, await askFields(io, spec));
+    payload = source.fromFile!(bytes, await askFields(io, spec, true));
     saved = 'file';
   } else {
     payload = source.fromPc!(deps.pc, file);

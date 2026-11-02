@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FiveM loads client C# from *.net.dll built for .NET Framework 4.5.2 (Mono in the game). -->
+  <PropertyGroup>
+    <TargetFramework>net452</TargetFramework>
+    <AssemblyName>{{name}}.Client</AssemblyName>
+    <RootNamespace>{{namespace}}.Client</RootNamespace>
+    <TargetName>$(AssemblyName).net</TargetName>
+    <DebugType>embedded</DebugType>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CitizenFX.Core.Client" Version="1.0.*" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

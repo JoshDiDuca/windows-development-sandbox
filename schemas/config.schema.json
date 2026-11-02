@@ -2001,7 +2001,10 @@
               "shellcheck",
               "gitleaks",
               "ast-grep",
-              "rust-analyzer"
+              "rust-analyzer",
+              "lua-language-server",
+              "stylua",
+              "selene"
             ]
           },
           "description": "Apps from the catalogue to install in every sandbox (the Apps screen in the menu lists them by category). Each is downloaded once and kept."

@@ -738,13 +738,14 @@ export const vpnSuite: Suite = {
       login: 'none',
       loginSavedAt: null,
       running: null,
+      lastFailure: null,
     };
     const lines = pageLines(vpnPage(sample)).join('\n');
     t.check(
-      lines.includes('Next: sandbox vpn login') &&
+      !lines.includes('sandbox ') &&
         VPN_WARNINGS.every((w) => lines.includes(w)) &&
         !lines.includes('Running now'),
-      'vpn status page: the facts, the next step on the command line only, the warnings',
+      'vpn status page: the facts and the warnings, no command to type',
       lines,
     );
     t.equal(

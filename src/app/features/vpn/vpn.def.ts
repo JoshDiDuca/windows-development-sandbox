@@ -50,6 +50,14 @@ export const VpnStatusSchema = z.object({
     })
     .nullable()
     .describe("The running sandbox's tunnel, when one runs with the VPN on"),
+  lastFailure: z
+    .object({
+      code: z.enum(['auth', 'unreachable', 'driver', 'timeout', 'other']).describe('Why the last attempt failed'),
+      text: z.string().describe('The reason in plain words'),
+      at: z.string().describe('When (ISO date and time)'),
+    })
+    .nullable()
+    .describe('The last sandbox's VPN attempt, when it failed (kept after the sandbox closed)'),
 });
 export type VpnStatus = z.output<typeof VpnStatusSchema>;
 
@@ -149,6 +157,16 @@ export function vpnPage(s: VpnStatus): Page {
     wireguard
       ? { id: 'login', label: 'Login', value: 'not needed (the keys are in your config)', tone: 'muted' }
       : { id: 'login', label: 'Login', value: LOGIN_TEXT[s.login] + savedDate, tone: LOGIN_TONE[s.login] },
+    ...(s.lastFailure
+      ? [
+          {
+            id: 'lastAttempt',
+            label: 'Last attempt',
+            value: s.lastFailure.text + ' (' + s.lastFailure.at.slice(0, 16).replace('T', ' ') + ')',
+            tone: 'danger',
+          } satisfies Fact,
+        ]
+      : []),
     ...(s.running
       ? [
           {
@@ -161,14 +179,14 @@ export function vpnPage(s: VpnStatus): Page {
       : []),
   ];
   const notes: Note[] = [
-    ...(!wireguard && s.login === 'none'
-      ? [{ text: 'Next: sandbox vpn login', tone: 'muted' as const, only: 'cli' as const }]
-      : []),
     ...(s.login === 'unreadable'
+      ? [{ text: 'Only the Windows user that saved it can read it. Save it again.', tone: 'muted' as const }]
+      : []),
+    ...(s.lastFailure?.code === 'auth' && s.provider === 'nordvpn'
       ? [
           {
-            text: 'Only the Windows user that saved it can read it. Save it again: sandbox vpn login',
-            tone: 'muted' as const,
+            text: 'NordVPN refused the login. It needs the service credentials (Nord Account > NordVPN > Manual setup), not your e-mail and password.',
+            tone: 'warn' as const,
           },
         ]
       : []),
@@ -180,12 +198,26 @@ export function vpnPage(s: VpnStatus): Page {
     { scope: 'user', key: 'vpn.enabled', value: !s.enabled },
     { label: s.enabled ? 'Turn the VPN off' : 'Turn the VPN on', verb: s.enabled ? 'turn off' : 'turn on', key: 'o' },
   );
+  const refused = s.lastFailure?.code === 'auth';
   const actions = [
     toggle,
+    ...(s.lastFailure?.code === 'unreachable' && s.protocol === 'udp'
+      ? [
+          action(
+            setSetting,
+            { scope: 'user', key: 'vpn.protocol', value: 'tcp' },
+            { label: 'Try TCP instead of UDP', verb: 'use tcp', key: 't' },
+          ),
+        ]
+      : []),
     ...(wireguard
       ? []
       : [
-          action(vpnLogin, {}, { key: 'v', verb: 'save login' }),
+          action(
+            vpnLogin,
+            {},
+            { key: 'v', verb: 'save login', ...(refused ? { label: 'Save the login again…' } : {}) },
+          ),
           ...(s.login !== 'none' ? [action(vpnLogout, {}, { key: 'x', verb: 'delete login' })] : []),
         ]),
   ];

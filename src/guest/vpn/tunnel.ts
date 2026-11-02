@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { classifyFailure, type VpnFailureCode } from '../../shared/vpn/failure.js';
 import { tunnelAddressFromLog } from '../../shared/vpn/kill-switch.js';
 import { logsDir } from '../runtime/paths.js';
 import { log } from '../runtime/log.js';
@@ -13,6 +14,8 @@ import { log } from '../runtime/log.js';
 export interface TunnelOutcome {
   readonly ok: boolean;
   readonly message: string;
+  /** Why it failed (when it did), for the host to act on. */
+  readonly code?: VpnFailureCode;
   /** The tunnel's own address (what the kill switch lets through). */
   readonly tunnelIp?: string;
 }
@@ -29,18 +32,7 @@ const DONE = 'Initialization Sequence Completed';
 
 /** Why the log says OpenVPN stopped, in a short plain sentence (or null when it does not say). */
 export function failureReason(text: string): string | null {
-  if (/AUTH_FAILED/i.test(text))
-    return 'the VPN refused the login (for NordVPN use the service credentials, not your account password)';
-  if (/TLS Error: TLS key negotiation failed|TLS handshake failed/i.test(text))
-    return 'it could not reach the VPN server (the network blocks it, or the server is down)';
-  if (
-    /All wintun adapters on this system are in use|Cannot open TUN\/TAP|Could not create Wintun|ovpn-dco.*(error|failed)/i.test(
-      text,
-    )
-  )
-    return 'the network driver for the tunnel could not be used';
-  if (/Exiting due to fatal error/i.test(text)) return 'OpenVPN stopped with an error';
-  return null;
+  return classifyFailure(text)?.reason ?? null;
 }
 
 const tail = (text: string, lines = 12): string => text.trim().split(/\r?\n/).slice(-lines).join('\n');
@@ -82,16 +74,17 @@ export async function startTunnel(o: TunnelOptions): Promise<TunnelOutcome> {
         const tunnelIp = tunnelAddressFromLog(text) ?? undefined;
         return { ok: true, message: 'the tunnel is up', ...(tunnelIp ? { tunnelIp } : {}) };
       }
-      const reason = failureReason(text);
+      const failure = classifyFailure(text);
+      const reason = failure?.reason ?? null;
       if (exited !== null || reason) {
         if (exited === null) child.kill();
         keepLog();
-        return { ok: false, message: (reason ?? 'OpenVPN stopped') + '. ' + tail(text, 4) };
+        return { ok: false, code: failure?.code ?? 'other', message: (reason ?? 'OpenVPN stopped') + '. ' + tail(text, 4) };
       }
       if (Date.now() > deadline) {
         child.kill();
         keepLog();
-        return { ok: false, message: 'the tunnel did not come up in time. ' + tail(text, 4) };
+        return { ok: false, code: 'timeout', message: 'the tunnel did not come up in time. ' + tail(text, 4) };
       }
       await new Promise((r) => setTimeout(r, 500));
     }

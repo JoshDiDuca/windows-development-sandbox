@@ -213,6 +213,7 @@ export class SettingsPage extends ListPage<string> {
     login: 'none',
     loginSavedAt: null,
     running: null,
+    lastFailure: null,
   };
   /** Whether a GitHub token is saved (never the token): the token row needs only its state. */
   private github: GithubStatus = { shareToken: false, gitAccess: 'full', token: 'none', kind: null, savedAt: null };

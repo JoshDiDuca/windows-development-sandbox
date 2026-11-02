@@ -187,6 +187,27 @@ param(
     } finally { $key.Close() }
     Send-EnvironmentChange
   }
+  function Remove-AgentCommands {
+    # The agent commands (claude, codex ... forwarding files) sit in <data folder>gent-commands, first on YOUR PATH.
+    # After an uninstall their files would call a program that is gone, so the files this tool wrote (they carry the
+    # marker) and the PATH entries that point at such a folder go too.
+    $marker = 'windows-development-sandbox agent command'
+    $key = Open-PathKey $false
+    try {
+      $raw = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    } finally { $key.Close() }
+    foreach ($entry in @($raw -split ';' | Where-Object { $_ -and $_.TrimEnd('') -match '\agent-commands$' })) {
+      $folder = [Environment]::ExpandEnvironmentVariables($entry.TrimEnd(''))
+      if (Test-Path -LiteralPath $folder) {
+        $ours = @(Get-ChildItem -LiteralPath $folder -File -Force -ErrorAction SilentlyContinue | Where-Object { Select-String -LiteralPath $_.FullName -SimpleMatch $marker -Quiet -ErrorAction SilentlyContinue })
+        if ($ours.Count -eq 0) { continue }
+        $ours | Remove-Item -Force -ErrorAction SilentlyContinue
+        if (-not (Get-ChildItem -LiteralPath $folder -Force)) { Remove-Item -LiteralPath $folder -Force -ErrorAction SilentlyContinue }
+      }
+      Remove-PathEntry $entry $false
+      Ok "agent commands removed ($folder)"
+    }
+  }
   function Set-Shortcut($file, $target) {
     New-Item -ItemType Directory -Force (Split-Path -Parent $file) | Out-Null
     $shell = New-Object -ComObject WScript.Shell
@@ -306,6 +327,7 @@ param(
     if ($machine) { Remove-StorageHelper $(if ($active) { Join-Path $toolFolder "versions\$active\package" } else { $null }) }
     Remove-PathEntry $binFolder $machine
     Ok 'taken off the PATH'
+    Remove-AgentCommands
     if (Test-Path -LiteralPath $shortcutFile) { Remove-Item -LiteralPath $shortcutFile -Force -ErrorAction SilentlyContinue; Ok 'Start menu shortcut removed' }
     foreach ($name in 'bin', 'node', 'versions', 'staging', 'helper', 'active-version', 'active-node', 'install.json', 'update-state.json', 'update.lock') {
       Remove-Inside (Join-Path $toolFolder $name) $toolFolder

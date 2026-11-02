@@ -6,7 +6,10 @@ import { isSandboxRunning } from '../../host/sandbox/index.js';
 import type { SecretStore } from '../../host/secrets/index.js';
 import {
   hostPublicIp,
+  loginWarning,
+  readLastFailure,
   readVpnLine,
+  type VpnFailureInfo,
   VpnLogin,
   type LoginState,
   type VpnCredentials,
@@ -24,6 +27,8 @@ export interface VpnReport {
   readonly loginSavedAt: string | null;
   /** The running sandbox's tunnel, when one runs with the VPN on. */
   readonly running: VpnLine | null;
+  /** The last sandbox's VPN attempt, when it failed (kept after it closed). */
+  readonly lastFailure: VpnFailureInfo | null;
 }
 
 export class VpnService {
@@ -56,6 +61,7 @@ export class VpnService {
       killSwitch: c.killSwitch,
       login: this.login.state(c.provider),
       loginSavedAt: this.login.savedAt(c.provider),
+      lastFailure: readLastFailure(this.ctx.storageRoot),
       running: running ? readVpnLine(this.ctx.dataPath, await hostPublicIp()) : null,
     };
   }
@@ -66,6 +72,11 @@ export class VpnService {
 
   save(credentials: VpnCredentials): void {
     this.login.save(this.provider, credentials);
+  }
+
+  /** A hint when the login does not look like it belongs to the provider (null when it looks right). */
+  warning(credentials: VpnCredentials): string | null {
+    return loginWarning(credentials, this.provider);
   }
 
   remove(): boolean {

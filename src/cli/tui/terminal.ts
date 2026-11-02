@@ -135,9 +135,11 @@ export class Terminal {
   }
 
   private push(str: string | undefined, key: readline.Key | undefined): void {
+    // The markers around a paste (readline names them paste-start / paste-end) carry no text.
+    const marker = key?.name === 'paste-start' || key?.name === 'paste-end';
     const event: Key = {
       name: key?.name ?? '',
-      text: str && !key?.ctrl && !key?.meta && str.length >= 1 && str >= ' ' && str !== '\x7f' ? str : '',
+      text: str && !marker && !key?.ctrl && !key?.meta && str.length >= 1 && str >= ' ' && str !== '\x7f' ? str : '',
       ctrl: Boolean(key?.ctrl),
       meta: Boolean(key?.meta),
       shift: Boolean(key?.shift),

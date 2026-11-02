@@ -3,7 +3,7 @@
 // runs, rollback on failure) stays in host/update.
 import { userDir } from '../../../core/config/index.js';
 import { errMsg, fail } from '../../../core/util/index.js';
-import { MigrateService, NPM_UPDATE_COMMAND, UpdateService } from '../../../cli/services/index.js';
+import { AgentCommandsService, MigrateService, NPM_UPDATE_COMMAND, UpdateService } from '../../../cli/services/index.js';
 import { implement } from '../../context.js';
 import { cancelled, type InputOf, type OperationIO, type OutputOf } from '../../kernel/index.js';
 import { describeResult, whereOf } from './update-lines.js';
@@ -74,7 +74,20 @@ export async function updateWith(
 export const runUpdateRun = implement(runUpdate, async (ctx, input, io) => {
   // A folder of the user's choosing is installed from only on the command line (the web and the menu send no feed).
   if (input.feed !== undefined && input.feed !== ctx.options.feed) fail('--feed works only on the command line.');
-  return updateWith(UpdateService.forPackage(ctx.packageRoot, input.feed, { userDir: userDir() }), input, io);
+  const result = await updateWith(
+    UpdateService.forPackage(ctx.packageRoot, input.feed, { userDir: userDir() }),
+    input,
+    io,
+  );
+  // The agent commands (claude, codex ...) point at the program: bring them in line with what is installed now.
+  if (ctx.loaded.config.agentCommands.enabled && !input.check && !input.rollback && !input.auto) {
+    try {
+      new AgentCommandsService(ctx).reconcile(ctx.loaded.config);
+    } catch {
+      // The update itself worked; the agent commands are put right at the next launch.
+    }
+  }
+  return result;
 });
 
 /** sandbox migrate's work, given the service (tests pass their own). */

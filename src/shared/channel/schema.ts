@@ -191,6 +191,8 @@ export const ProjectStatusSchema = z.object({
 export const VpnStatusSchema = z.object({
   state: z.enum(['off', 'starting', 'up', 'failed']),
   message: Text(2000),
+  /** Why it failed, when it did: `auth` (login refused), `unreachable`, `driver`, `timeout` or `other`. */
+  code: z.enum(['auth', 'unreachable', 'driver', 'timeout', 'other']).optional(),
   killSwitch: z.boolean(),
   /** A direct connection was tried after the kill switch was applied: false = it still got out. */
   killSwitchHeld: z.boolean().optional(),

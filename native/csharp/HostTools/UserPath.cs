@@ -59,6 +59,23 @@ namespace AgentSandbox
             return Done;
         }
 
+        /// <summary>Whether dir is on your stored PATH (the registry, not this process's copy): 0 = yes, 1 = no.</summary>
+        public static int Has(string dir)
+        {
+            using (RegistryKey key = Registry.CurrentUser.CreateSubKey("Environment"))
+            {
+                string raw = Convert.ToString(key.GetValue("Path", "", RegistryValueOptions.DoNotExpandEnvironmentNames));
+                foreach (string part in raw.Split(';'))
+                {
+                    if (part.Length > 0 && string.Equals(part.TrimEnd('\\'), dir.TrimEnd('\\'),StringComparison.OrdinalIgnoreCase))
+                    {
+                        return 0;
+                    }
+                }
+            }
+            return 1;
+        }
+
         private static bool HasValue(RegistryKey key, string name)
         {
             foreach (string existing in key.GetValueNames())

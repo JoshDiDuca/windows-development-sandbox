@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.18.3
 
 - **Fewer sandbox crashes under heavy load.** With vGPU on, builds run at step 2 or harder while a compiler or linker runs,
   at most 4 heavy compilers run at once, and your PC keeps 4 GB more RAM free. Compilers and linkers get low disk

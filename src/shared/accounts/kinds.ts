@@ -3,13 +3,29 @@
 // Node built-ins. The payload shapes are in payloads.ts, the host side in host/accounts, the sandbox side in
 // guest/accounts.
 
-export const SERVICE_KINDS = ['epic', 'steam', 'unity', 'cfx', 'keystore', 'play', 'expo', 'appstore'] as const;
+export const SERVICE_KINDS = [
+  'epic',
+  'steam',
+  'unity',
+  'cfx',
+  'keystore',
+  'play',
+  'expo',
+  'appstore',
+  'perplexity',
+  'comet',
+] as const;
 export type ServiceKind = (typeof SERVICE_KINDS)[number];
 
-/** The toolchains a sign-in serves (it is handed over only when one of them is on for the boot). */
-export type UsedBy =
+/** The toolchains a sign-in can serve (each is a key of `toolchains`). */
+export type ToolchainUser =
   'unreal' | 'steam' | 'unity' | 'fivem' | 'android' | 'flutter' | 'reactNative' | 'godot' | 'dotnet';
-export const USED_BY: readonly UsedBy[] = [
+/** The apps a sign-in can serve: on when one of APP_USERS' apps is in apps.install. */
+export type AppUser = 'perplexity' | 'comet';
+/** What a sign-in serves (it is handed over only when one of them is on for the boot). */
+export type UsedBy = ToolchainUser | AppUser;
+/** The toolchains a sign-in can serve. */
+export const USED_BY: readonly ToolchainUser[] = [
   'unreal',
   'steam',
   'unity',
@@ -20,6 +36,11 @@ export const USED_BY: readonly UsedBy[] = [
   'godot',
   'dotnet',
 ];
+/** The apps (apps.install ids) that turn each app user on. */
+export const APP_USERS: { readonly [U in AppUser]: readonly string[] } = {
+  perplexity: ['perplexity-mcp'],
+  comet: ['comet'],
+};
 
 /** Where a saved sign-in came from: this PC's program, a file you gave, values you typed, or a sandbox. */
 export type AccountSource = 'pc' | 'file' | 'typed' | 'sandbox';
@@ -32,6 +53,8 @@ export interface ServiceField {
   readonly secret: boolean;
   readonly optional?: boolean;
   readonly pattern?: RegExp;
+  /** Asked only by `login` (typed) or only by `import --from` (file); both when not set. */
+  readonly only?: 'typed' | 'file';
 }
 
 export interface ServiceSpec<K extends ServiceKind = ServiceKind> {
@@ -46,6 +69,8 @@ export interface ServiceSpec<K extends ServiceKind = ServiceKind> {
   readonly returns: boolean;
   /** The largest payload (its JSON) accepted from a file or a sandbox. */
   readonly maxBytes: number;
+  /** The largest file `import --from` reads, when it holds more than the payload (a .env file); default maxBytes. */
+  readonly maxFileBytes?: number;
   /** Shown on every surface. */
   readonly warnings: readonly string[];
   /** What `login` asks for, or what `import --from` needs besides the file. */
@@ -54,6 +79,8 @@ export interface ServiceSpec<K extends ServiceKind = ServiceKind> {
 
 const AGENT_CAN_USE = 'The agent in the sandbox can use this sign-in while it is there.';
 const ONE_PLACE = 'It works in one sandbox at a time: a second sandbox starts without it while the first one runs.';
+/** A Perplexity API key: pplx- and its body. */
+export const PERPLEXITY_KEY_PATTERN = /^pplx-[A-Za-z0-9_-]{8,200}$/;
 
 export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   epic: {
@@ -175,6 +202,47 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
       { name: 'keyId', label: 'Key ID', secret: false, pattern: /^[A-Z0-9]{10}$/ },
     ],
   },
+  perplexity: {
+    kind: 'perplexity',
+    label: 'Perplexity API key',
+    usedBy: ['perplexity'],
+    sources: ['pc', 'file', 'typed'],
+    singleHolder: false,
+    returns: false,
+    maxBytes: 1024,
+    maxFileBytes: 64 * 1024,
+    warnings: [
+      AGENT_CAN_USE + ' It can read the key and spend your API credit: use a separate API key with a spending limit.',
+      'Perplexity Pro does not include API use; the API key is billed separately.',
+      'Only the variable PERPLEXITY_API_KEY of the agent gets it: nothing in the sandbox writes it to a file.',
+    ],
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'Perplexity API key (pplx-...)',
+        secret: true,
+        pattern: PERPLEXITY_KEY_PATTERN,
+        only: 'typed',
+      },
+    ],
+  },
+  comet: {
+    kind: 'comet',
+    label: 'Comet (Perplexity browser)',
+    usedBy: ['comet'],
+    sources: ['sandbox'],
+    singleHolder: false,
+    returns: true,
+    maxBytes: 256 * 1024,
+    warnings: [
+      AGENT_CAN_USE +
+        ' It can act as you in Comet and spend your Perplexity Computer credits; agentic browsing is open to prompt injection from the pages it reads.',
+      "Your Comet sign-in can't be copied from this PC: Windows locks it to your PC account. Sign in once inside a sandbox and it is kept for the next ones.",
+      'Only the perplexity.ai sign-in cookies are kept: never saved passwords, other sites, localStorage or history. Never import your main browser profile.',
+      'Several sandboxes can use it at once: the sign-in the last one hands back is kept.',
+    ],
+    fields: [],
+  },
 };
 
 /** Where a sandbox leaves a renewed sign-in, under the data folder: state\accounts\<kind>.json. */
@@ -187,7 +255,23 @@ export function isServiceKind(value: string): value is ServiceKind {
   return (SERVICE_KINDS as readonly string[]).includes(value);
 }
 
-/** Whether a sign-in is wanted when these toolchains are on. */
+/** How the apps that use a sign-in are named in sentences ("for sandboxes that use ..."). */
+const APP_USER_TEXT: { readonly [U in AppUser]: string } = {
+  perplexity: 'the Perplexity MCP app',
+  comet: 'the Comet app',
+};
+
+/** What a sign-in serves, for a sentence: "unreal", "reactNative or flutter", "the Comet app". */
+export function usedByText(usedBy: readonly string[]): string {
+  return usedBy.map((u) => (u in APP_USER_TEXT ? APP_USER_TEXT[u as AppUser] : u)).join(' or ');
+}
+
+/** The app users that the chosen apps (apps.install) turn on. */
+export function appUsersOn(install: readonly string[]): AppUser[] {
+  return (Object.keys(APP_USERS) as AppUser[]).filter((u) => APP_USERS[u].some((id) => install.includes(id)));
+}
+
+/** Whether a sign-in is wanted when these toolchains (and apps) are on. */
 export function serviceWanted(kind: ServiceKind, on: ReadonlySet<UsedBy>): boolean {
   const spec: ServiceSpec = SERVICE_SPECS[kind];
   if (spec.usedBy.some((u) => on.has(u))) return true;

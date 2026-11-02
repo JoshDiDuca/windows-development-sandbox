@@ -9,6 +9,17 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
 
 ## Unreleased
 
+- **Perplexity and computer-use tools** ([docs/agents-web.md](docs/agents-web.md)). New apps: Perplexity Computer MCP
+  (Perplexity's cloud agent, a remote MCP server: sign in once with your Perplexity account), Perplexity MCP (search,
+  answers and research from the Perplexity API), the Comet browser (portable, its installer checked against Perplexity's
+  signature), Comet MCP, Chrome DevTools MCP (with Edge) and Browser Use MCP. Their MCP servers go into the sandbox's
+  Claude Code and Codex. Two new sign-ins in Accounts: `perplexity`, the API key (`sandbox account import perplexity`
+  takes this PC's `PERPLEXITY_API_KEY`, `--from .env` reads a file, `login` types it; the agent gets it only as a
+  variable in memory), and `comet`, your perplexity.ai sign-in in Comet (sign in once in a sandbox; it can't be copied
+  from your PC). Both are off until you set `accounts.perplexity.share` / `accounts.comet.share`.
+- Codex keeps MCP sign-ins in a file now (`mcp_oauth_credentials_store = "file"` at boot, unless you set it), and its
+  saved logins include that file (`.credentials.json` in `harnesses.codex.home.loginFiles`), so they last between
+  sandboxes.
 - **API key accounts for Claude.** Besides subscription logins, a saved Claude account can now be an Anthropic API key
   (from the Claude Console, for free or paid API credits) or a Claude Console login.
   `sandbox account save <name> --api-key` asks for the key (hidden); add `--from-host` to take this PC's Console key or

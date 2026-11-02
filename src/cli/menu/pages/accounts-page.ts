@@ -44,7 +44,7 @@ export function accountsOptions(m: AccountsModel): ListOptions<string> {
       ...m.services.map((s) => ({
         id: serviceCategory(s.kind),
         label: s.label,
-        description: 'Your ' + s.label + ' sign-in for sandboxes that use ' + s.usedBy.join(' or ') + '.',
+        description: 'Your ' + s.label + ' sign-in for sandboxes that use ' + s.usedFor + '.',
       })),
     ],
     items: [

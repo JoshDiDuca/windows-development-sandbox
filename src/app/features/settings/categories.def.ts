@@ -101,6 +101,8 @@ const NAMES: Record<string, string> = {
   play: 'Google Play',
   expo: 'Expo (EAS)',
   appstore: 'App Store Connect',
+  perplexity: 'Perplexity API key',
+  comet: 'Comet (Perplexity browser)',
   hooks: 'Hooks',
   personalization: 'Desktop look',
   projects: 'Projects',

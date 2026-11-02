@@ -15,9 +15,11 @@ own.
 | `play`     | a Google Play service account key                                             | `import play --from key.json`                  | Android                                  |
 | `expo`     | an Expo access token (`EXPO_TOKEN`)                                           | `login expo`                                   | React Native / Expo                      |
 | `appstore` | an App Store Connect API key (`.p8`, issuer ID, key ID)                       | `import appstore --from AuthKey.p8`            | React Native, Flutter                    |
+| `perplexity` | a Perplexity API key (`PERPLEXITY_API_KEY`, `pplx-...`)                   | `import perplexity` (this PC's variable), `--from .env`, or `login` | the Perplexity MCP app |
+| `comet`    | the perplexity.ai sign-in cookies of the Comet browser                        | sign in to Comet once in a sandbox (it can't be copied from this PC: Windows locks it to your PC account) | the Comet app |
 
 Steam, Unity, Cfx.re, the Android keys, Expo and App Store Connect come in a later version: their rows are there, and
-saving one says so for now.
+saving one says so for now. Perplexity and Comet work now: see [agents-web.md](agents-web.md).
 
 ## Commands
 

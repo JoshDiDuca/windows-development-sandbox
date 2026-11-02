@@ -1,7 +1,7 @@
 // The shape of each saved sign-in (what the host seals, what travels in the one-shot secrets file, what a sandbox may
 // hand back). Pure zod, web-safe. Every text is size-bounded: the sandbox may have written it.
 import { z } from 'zod';
-import { SERVICE_KINDS, type ServiceKind } from './kinds.js';
+import { PERPLEXITY_KEY_PATTERN, SERVICE_KINDS, type ServiceKind } from './kinds.js';
 
 const KB = 1024;
 const base64 = (maxBytes: number): z.ZodString =>
@@ -104,6 +104,48 @@ export const AppstorePayloadSchema = z.strictObject({
     .regex(/^-----BEGIN PRIVATE KEY-----\r?\n[A-Za-z0-9+/=\r\n]+-----END PRIVATE KEY-----\s*$/),
 });
 
+/** A Perplexity API key (PERPLEXITY_API_KEY), billed separately from Perplexity Pro. */
+export const PerplexityPayloadSchema = z.strictObject({
+  apiKey: z.string().max(256).regex(PERPLEXITY_KEY_PATTERN),
+});
+
+/** The only sites whose cookies a Comet sign-in keeps (each with its subdomains). Fixed: never a setting. */
+export const COMET_COOKIE_DOMAINS: readonly string[] = ['perplexity.ai'];
+/** At most this many cookies are kept. */
+export const MAX_COMET_COOKIES = 200;
+
+/** Whether a cookie's domain (".www.perplexity.ai", "perplexity.ai" ...) is one of COMET_COOKIE_DOMAINS or below it. */
+export function cometCookieDomainAllowed(domain: string): boolean {
+  const host = domain.trim().toLowerCase().replace(/^\./, '');
+  return COMET_COOKIE_DOMAINS.some((d) => host === d || host.endsWith('.' + d));
+}
+
+/** Printable text without control characters (a cookie the sandbox hands back could hold anything). */
+const cookieText = (min: number, max: number): z.ZodString =>
+  z
+    .string()
+    .min(min)
+    .max(max)
+    .regex(/^[ -~]*$/);
+
+/** One cookie as CDP's Storage.setCookies takes it (expires: seconds since 1970; none for a session cookie). */
+export const CometCookieSchema = z.strictObject({
+  name: cookieText(1, 256).regex(/^[^\s;,=]+$/),
+  value: cookieText(0, 8192).regex(/^[^;]*$/),
+  domain: cookieText(1, 253).refine(cometCookieDomainAllowed, 'not a perplexity.ai cookie'),
+  path: cookieText(1, 1024).regex(/^\//),
+  expires: z.number().int().min(0).max(4102444800).optional(),
+  secure: z.boolean(),
+  httpOnly: z.boolean(),
+  sameSite: z.enum(['Strict', 'Lax', 'None']).optional(),
+});
+export type CometCookie = z.output<typeof CometCookieSchema>;
+
+/** Comet's sign-in: the allow-listed perplexity.ai cookies only (no passwords, localStorage or history). */
+export const CometPayloadSchema = z.strictObject({
+  cookies: z.array(CometCookieSchema).min(1).max(MAX_COMET_COOKIES),
+});
+
 export const PAYLOADS = {
   epic: EpicPayloadSchema,
   steam: SteamPayloadSchema,
@@ -113,6 +155,8 @@ export const PAYLOADS = {
   play: PlayPayloadSchema,
   expo: ExpoPayloadSchema,
   appstore: AppstorePayloadSchema,
+  perplexity: PerplexityPayloadSchema,
+  comet: CometPayloadSchema,
 } as const satisfies { readonly [K in ServiceKind]: z.ZodType };
 
 export type Payload<K extends ServiceKind> = z.output<(typeof PAYLOADS)[K]>;
@@ -129,6 +173,8 @@ export const ServiceAccountsSchema = z.strictObject({
   play: PlayPayloadSchema.optional(),
   expo: ExpoPayloadSchema.optional(),
   appstore: AppstorePayloadSchema.optional(),
+  perplexity: PerplexityPayloadSchema.optional(),
+  comet: CometPayloadSchema.optional(),
 });
 export type ServiceAccounts = z.output<typeof ServiceAccountsSchema>;
 

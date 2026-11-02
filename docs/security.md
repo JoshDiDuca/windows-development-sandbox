@@ -41,7 +41,16 @@ files like `.env` or `*.pem` that the agent can read because they are in the pro
 
 - **Saved logins are encrypted.** Accounts saved with `sandbox account save` and the VPN login are sealed with Windows
   DPAPI for your Windows user. The files in `<storage>\accounts` and `<storage>\vpn` hold only names, dates and e-mail
-  addresses in the clear. Nobody else can open them, even with a copy of the files.
+  addresses in the clear (and, for an API key account, its kind and the key's last 4 characters). Nobody else can open
+  them, even with a copy of the files.
+- **The login in use is in the sandbox's Claude state.** Switching writes it where Claude Code keeps it, in
+  `<data>\state\claude`: a subscription's tokens in `.credentials.json`, an API key (Console or your own) as
+  `primaryApiKey` in `.claude.json`. That folder is kept between sandboxes, so the agent can read the key, as it can any
+  login it runs with. Switching to another account removes the key from it. Use a key you can revoke, with a spending
+  limit. A typed key is never echoed, logged or printed (`sk-ant-...` and its last 4 characters at most).
+- **A login read from the sandbox is checked.** `account save` reads the sandbox's files without following links and
+  with a size cap, and saves a key only if it has the shape of an Anthropic API key. Saving back the outgoing account
+  on a switch happens only for a subscription, so a key account is never overwritten with what the sandbox holds.
 - **Your storage folder is private.** A new, empty one gets permissions for you, SYSTEM and administrators only. A
   folder that already holds files is not rewritten; `sandbox doctor` shows how it is protected.
 - **Secrets never sit in files the sandbox keeps.** `session.json` and the launch folder (mapped read-only and kept for

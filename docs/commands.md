@@ -188,8 +188,9 @@ same on its Activity page.
 
 |                                                                      |                                                                                                                                     |
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `sandbox account list`                                               | saved logins                                                                                                                        |
-| `sandbox account save <name> [--from-host]`                          | save the sandbox's login (or this PC's)                                                                                             |
+| `sandbox account list`                                               | saved logins, with their kind (subscription, Console, API key)                                                                      |
+| `sandbox account save <name> [--from-host]`                          | save the sandbox's login (or this PC's), whichever kind it is                                                                       |
+| `sandbox account save <name> --api-key [--from-host]`                | save an Anthropic API key: typed in (hidden), or this PC's Console key or `ANTHROPIC_API_KEY`                                       |
 | `sandbox account use [name]`                                         | switch now (the agent restarts and continues)                                                                                       |
 | `sandbox account default [name]`                                     | the login new sandboxes start with                                                                                                  |
 | `sandbox account rename [name] [--to <new>]` / `remove [name] [-y]`  | rename or delete a saved login                                                                                                      |

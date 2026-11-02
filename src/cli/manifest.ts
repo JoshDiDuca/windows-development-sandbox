@@ -309,6 +309,7 @@ const COMMAND_LIST = [
       "sandbox account import epic        take this PC's Epic Games Launcher sign-in for sandboxes",
       'sandbox account login cfx          type a FiveM server key to keep for sandboxes',
       'sandbox account logout steam       forget a service sign-in',
+      'sandbox account save free --api-key   save an Anthropic API key you paste in (not shown)',
     ],
     args: [
       {
@@ -332,6 +333,9 @@ const COMMAND_LIST = [
         label: 'Agent',
       }),
       bool('--from-host', "(save) save this PC's login instead of the sandbox's", { when: 'save' }),
+      bool('--api-key', "(save) an Anthropic API key: typed in (hidden), or with --from-host this PC's", {
+        when: 'save',
+      }),
       bool('--no-restart', '(use) do not restart running sessions', { when: 'use' }),
       text('--from', 'path', '(import) the file or folder to take the sign-in from', { when: 'import', label: 'From' }),
       bool('--yes', '(remove, import, logout) do not ask first', {

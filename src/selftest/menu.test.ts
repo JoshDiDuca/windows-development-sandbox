@@ -845,8 +845,8 @@ export const menuSuite: Suite = {
     });
     t.equal(
       noLogins.items.map((i) => i.value),
-      ['@save-sandbox', '@save-pc'],
-      'with no saved login, Accounts offers to save the sandbox login or this PC login (Enter)',
+      ['@save-sandbox', '@save-pc', '@save-key'],
+      'with no saved login, Accounts offers to save the sandbox login, this PC login or an API key (Enter)',
     );
 
     t.section('apps in a few groups');

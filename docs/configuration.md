@@ -321,6 +321,7 @@ sessions this tool started are reopened, not terminal tabs you opened yourself.
 ```powershell
 sandbox account save personal          # save the login now in the sandbox
 sandbox account save work --from-host  # or this PC's login
+sandbox account save credits --api-key # or an Anthropic API key you paste in (not shown)
 sandbox account default personal       # every launch starts on it (the running sandbox switches too)
 sandbox account use work               # switch now: Claude restarts and continues the conversation
 sandbox claude --account work          # this launch only
@@ -332,6 +333,19 @@ The same works for every agent that keeps a login (`--agent codex` and so on). `
 Service sign-ins (Epic, Steam, Unity, a FiveM server key, Android and app-store keys) are in Accounts too:
 `sandbox account status | import | login | logout <service>`, and `accounts.<service>.share` (default off) lets
 sandboxes have one. A project file can only turn sharing off. See [accounts](accounts.md).
+A Claude account is one of three kinds, and `account list`, the menu and the web UI say which:
+
+- **subscription**: a Claude Pro, Max, Team or Enterprise login (`/login` with your Claude account).
+- **Console**: a Claude Console (platform) login. Claude Code makes an API key for it; that key is what is saved.
+- **API key**: an Anthropic API key (`sk-ant-api03-...`) from the Claude Console, for free or paid API credits.
+
+`save` takes whichever login the sandbox (or, with `--from-host`, this PC) has. `--api-key` saves a key instead: you
+paste it in (it is not shown), or with `--from-host` it takes this PC's Console key, else its `ANTHROPIC_API_KEY`. A key
+must look like one (`sk-ant-api03-...`); only `sk-ant-...` and its last 4 characters are ever shown. Using an API key
+account puts the key where Claude Code keeps a Console login's key, already approved, so Claude does not ask "Do you
+want to use this API key?". It also takes the subscription out of the sandbox, because Claude prefers a subscription
+over a key. Switching back to a subscription takes the key out again. An `ANTHROPIC_API_KEY` you set in the agent's
+`environment` comes before any saved account (Claude asks once whether to use it).
 
 Plugins installed in the sandbox stay when you switch accounts, because all accounts of a data set share one Claude
 folder. They do not reach another data set. Set `claudeProfile.sharePluginsAcrossAccounts: true` to copy them into a

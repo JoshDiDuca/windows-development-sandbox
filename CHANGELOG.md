@@ -7,6 +7,20 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **API key accounts for Claude.** Besides subscription logins, a saved Claude account can now be an Anthropic API key
+  (from the Claude Console, for free or paid API credits) or a Claude Console login.
+  `sandbox account save <name> --api-key` asks for the key (hidden); add `--from-host` to take this PC's Console key or
+  `ANTHROPIC_API_KEY`. A plain
+  `save` from the sandbox or the PC now also takes a Console login. `use`, `default`, `--account`, `rename` and
+  `remove` work as for subscriptions: the switch puts the key where Claude Code keeps it, already approved (no "use this
+  API key?" question), and switching back to a subscription takes it out. `account list`, the menu and the web UI show
+  each account's kind, and a key only as `sk-ant-...` plus its last 4 characters. The menu and web UI have a "Save an
+  API key" row (`k` in the menu).
+- Switching away from an account saves its refreshed tokens back only when it is a subscription and the sandbox still
+  holds one, so a login made inside the sandbox can no longer overwrite a saved account of another kind.
+
 ## 1.17.3
 
 - **Codex starts without a warning.** It printed "failed to clean up stale arg0 temp dirs" at every start: it cannot

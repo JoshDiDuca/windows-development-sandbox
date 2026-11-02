@@ -102,7 +102,7 @@ Details: [heavy load](docs/troubleshooting.md#the-sandbox-closes-under-heavy-loa
 | `sandbox db [start\|stop <name>]`        | list, start or stop databases (`sbx-db` inside)                                   |
 | `sandbox exec -- <cmd>`                  | run a command inside                                                              |
 | `sandbox config get\|set\|reset\|list`   | read and change settings (`export` / `import` to share them)                      |
-| `sandbox account`                        | save, switch and rename agent logins                                              |
+| `sandbox account`                        | save, switch and rename agent logins and Claude API keys                          |
 | `sandbox github` / `vpn`                 | the GitHub token for sandboxes; the VPN login and status                          |
 | `sandbox web`                            | (Beta) the web UI: start, stop, status, open                                      |
 | `sandbox stop` / `hide` / `show`         | shut down; hide or show the window                                                |

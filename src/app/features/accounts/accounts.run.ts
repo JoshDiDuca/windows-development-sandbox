@@ -5,11 +5,13 @@ import { fail, safeText } from '../../../core/util/index.js';
 import { AccountsService, type AccountRef } from '../../../cli/services/index.js';
 import { AccountLeases, ServiceAccountStore } from '../../../host/accounts/index.js';
 import { SERVICE_KINDS } from '../../../shared/accounts/index.js';
+import { apiKeyProblem } from '../../../host/profile/index.js';
 import { implement } from '../../context.js';
 import { serviceRow } from './services.run.js';
 import { cancelled, type OperationIO } from '../../kernel/index.js';
 import {
   defaultAccount,
+  kindText,
   listAccounts,
   NAME_RULE,
   removeAccount,
@@ -37,6 +39,7 @@ function savedLogins(service: AccountsService, agent: string): AccountRow[] {
       isDefault: r.isDefault,
       isActive: r.isActive,
       savedAt: r.savedAt,
+      ...(r.kind ? { kind: r.kind, keyHint: r.keyHint ?? null } : {}),
     }));
   } catch {
     // The menu has always shown such an agent with no logins; the command line says so too.
@@ -65,7 +68,10 @@ async function accountName(
   if (!rows.length) fail('No saved accounts.', 'Sign in inside the sandbox, then run: sandbox account save <name>');
   const picked = await io.choose({
     title: 'Which account?',
-    choices: rows.map((a) => ({ value: a.name, label: label(a) })),
+    choices: rows.map((a) => {
+      const kind = kindText(a);
+      return { value: a.name, label: label(a), ...(kind ? { description: kind } : {}) };
+    }),
   });
   if (picked === undefined) cancelled();
   return picked;
@@ -87,11 +93,30 @@ export const listAccountsRun = implement(listAccounts, async (ctx, input) => {
   return { agent: input.agent, agents, services };
 });
 
+/** Asks for an API key (one hidden question). The validator answers with fixed texts only, never the key. */
+export async function askApiKey(io: OperationIO): Promise<string> {
+  io.log('Make an API key in the Claude Console (platform.claude.com, API keys), then paste it here.');
+  io.log('What you type is not shown. It is kept encrypted for your Windows user and never printed.', 'muted');
+  const key = await io.secret({
+    title: 'Anthropic API key',
+    validate: (v) => apiKeyProblem(v.trim()) ?? true,
+  });
+  if (key === undefined) cancelled();
+  return key.trim();
+}
+
 export const saveAccountRun = implement(saveAccount, async (ctx, input, io) => {
   const service = new AccountsService(ctx);
+  if (input.apiKey && input.agent !== 'claude')
+    fail('--api-key is for Claude accounts only.', 'Leave out --agent, or leave out --api-key.');
   const name = await accountName(io, service, 'save', input.agent, input.name);
-  const saved = service.save(name, input.fromHost, input.agent);
-  return { name: saved.name, message: 'Saved account ' + label(saved) + '.' };
+  // --api-key alone: a key typed in; with --from-host: this PC's Console key or ANTHROPIC_API_KEY.
+  const saved =
+    input.apiKey && !input.fromHost
+      ? service.saveApiKey(name, await askApiKey(io))
+      : service.save(name, input.fromHost, input.agent, input.apiKey);
+  const kind = saved.kind && saved.kind !== 'subscription' ? kindText(saved) : null;
+  return { name: saved.name, message: 'Saved account ' + label(saved) + (kind ? ' (' + kind + ')' : '') + '.' };
 });
 
 /**
@@ -106,7 +131,8 @@ async function switchTo(
   noRestart: boolean,
 ): Promise<string[]> {
   const used = service.activate(name, agent);
-  const lines = ['Sandbox now uses ' + label(used) + '.'];
+  const kind = used.kind && used.kind !== 'subscription' ? kindText(used) : null;
+  const lines = ['Sandbox now uses ' + label(used) + (kind ? ' (' + kind + ')' : '') + '.'];
   if (used.note) lines.push(safeText(used.note));
   if (service.hasRunningSessions(agent) && !noRestart) {
     const restart = await io.confirm({

@@ -30,8 +30,21 @@ export const AccountRowSchema = z.object({
   isDefault: z.boolean().describe('New launches start with it'),
   isActive: z.boolean().describe('The sandbox uses it now'),
   savedAt: z.string().describe('When it was saved (ISO time)'),
+  kind: z
+    .enum(['subscription', 'console', 'api-key'])
+    .optional()
+    .describe('Claude: a subscription login, a Claude Console login (its API key), or an API key you gave'),
+  keyHint: z.string().nullable().optional().describe('The most of an API key ever shown: sk-ant-...abcd'),
 });
 export type AccountRow = z.output<typeof AccountRowSchema>;
+
+const KIND_LABELS = { subscription: 'subscription', console: 'Console', 'api-key': 'API key' } as const;
+
+/** "API key sk-ant-...abcd", "Console sk-ant-...abcd", "subscription"; null when the agent does not say. */
+export function kindText(r: Pick<AccountRow, 'kind' | 'keyHint'>): string | null {
+  if (!r.kind) return null;
+  return KIND_LABELS[r.kind] + (r.keyHint ? ' ' + r.keyHint : '');
+}
 
 export const AgentAccountsSchema = z.object({
   name: z.string().describe('The agent'),
@@ -76,16 +89,19 @@ function agentText(o: AccountsList): string {
   const rows = o.agents.find((a) => a.name === o.agent)?.accounts ?? [];
   if (!rows.length)
     return o.agent === 'claude'
-      ? "No saved accounts. Sign in inside the sandbox, then: sandbox account save <name>   (or --from-host to save this PC's login)"
+      ? "No saved accounts. Sign in inside the sandbox, then: sandbox account save <name>   (or --from-host to save this PC's login, or --api-key to type an API key)"
       : 'No saved ' +
           o.agent +
           ' accounts. Sign in inside the sandbox, then: sandbox account save <name> --agent ' +
           o.agent;
+  // The KIND column only for an agent whose logins have kinds (Claude).
+  const kinds = rows.some((a) => a.kind);
   const table = [
-    ['', 'NAME', 'EMAIL', 'SAVED'],
+    ['', 'NAME', ...(kinds ? ['KIND'] : []), 'EMAIL', 'SAVED'],
     ...rows.map((a) => [
       (a.isActive ? '*' : ' ') + (a.isDefault ? 'D' : ' '),
       a.name,
+      ...(kinds ? [kindText(a) ?? '-'] : []),
       a.email ?? '-',
       a.savedAt.slice(0, 16).replace('T', ' '),
     ]),
@@ -120,6 +136,10 @@ export const saveAccount = defineOperation({
     agent: AgentSchema,
     name: NameSchema,
     fromHost: z.boolean().default(false).describe("(save) save this PC's login instead of the sandbox's"),
+    apiKey: z
+      .boolean()
+      .default(false)
+      .describe("(save, Claude) an Anthropic API key: typed in (hidden), or with --from-host this PC's"),
   }),
   output: z.object({ name: z.string().describe('The saved login'), message: z.string().describe('What happened') }),
   text: (o) => o.message,
@@ -127,7 +147,7 @@ export const saveAccount = defineOperation({
     name: 'account',
     action: 'save',
     positional: ['name'],
-    flags: { agent: { flag: '--agent' }, fromHost: { flag: '--from-host' } },
+    flags: { agent: { flag: '--agent' }, fromHost: { flag: '--from-host' }, apiKey: { flag: '--api-key' } },
   },
 });
 
@@ -234,12 +254,31 @@ function saveItems(a: AgentAccounts): Item[] {
           },
         ]
       : []),
+    ...(a.name === 'claude'
+      ? [
+          {
+            id: '@save-key',
+            label: '+ Save an API key…',
+            group: 'Save a login',
+            description:
+              'Saves an Anthropic API key (from the Claude Console) under a name you choose. What you type is not shown.',
+            primary: action(
+              saveAccount,
+              { agent: a.name, fromHost: false, apiKey: true },
+              { verb: 'save', label: 'Save an API key' },
+            ),
+          },
+        ]
+      : []),
   ];
 }
 
 /** One saved login: its state in the hint and badges, Enter or a click uses it, d/r/x change it. */
 function loginItem(a: AgentAccounts, r: AgentAccounts['accounts'][number]): Item {
-  const hint = [r.isActive ? 'in the sandbox' : '', r.isDefault ? 'default' : ''].filter(Boolean).join(' · ');
+  const kind = kindText(r);
+  const hint = [r.kind ? KIND_LABELS[r.kind] : '', r.isActive ? 'in the sandbox' : '', r.isDefault ? 'default' : '']
+    .filter(Boolean)
+    .join(' · ');
   return {
     id: a.name + ':' + r.name,
     label: r.name,
@@ -247,11 +286,17 @@ function loginItem(a: AgentAccounts, r: AgentAccounts['accounts'][number]): Item
     icon: a.name,
     hint,
     badges: [
+      ...(r.kind ? [{ text: KIND_LABELS[r.kind], tone: r.kind === 'subscription' ? 'muted' : 'warn' } as const] : []),
       ...(r.isActive ? [{ text: 'in the sandbox', tone: 'ok' as const }] : []),
       ...(r.isDefault ? [{ text: 'default', tone: 'accent' as const }] : []),
     ],
     description: r.isActive ? 'The sandbox uses this login now.' : 'Choose it to make the sandbox use this login.',
-    details: ['Agent  ' + a.name, 'Email  ' + (r.email ?? '-'), 'Saved  ' + r.savedAt.slice(0, 16).replace('T', ' ')],
+    details: [
+      'Agent  ' + a.name,
+      ...(kind ? ['Kind   ' + kind] : []),
+      'Email  ' + (r.email ?? '-'),
+      'Saved  ' + r.savedAt.slice(0, 16).replace('T', ' '),
+    ],
     // The login in use already offers nothing to switch to.
     ...(r.isActive ? {} : { primary: action(useAccount, { agent: a.name, name: r.name }, { verb: 'use' }) }),
     actions: [
@@ -306,6 +351,15 @@ export function agentPage(a: AgentAccounts): Page {
         ),
         ...(a.canSavePc
           ? [action(saveAccount, { agent: a.name, fromHost: true }, { key: 'p', verb: 'save PC login', importance: 3 })]
+          : []),
+        ...(a.name === 'claude'
+          ? [
+              action(
+                saveAccount,
+                { agent: a.name, fromHost: false, apiKey: true },
+                { key: 'k', verb: 'save API key', importance: 3 },
+              ),
+            ]
           : []),
       ]
     : [];

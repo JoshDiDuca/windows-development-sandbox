@@ -196,6 +196,30 @@ too. How it is kept and handed over: [security](security.md#github-cli).
 sandbox reads and deletes, never in `session.json` or the launch folder. The agent can read its own environment (that is
 the point), and so can anything it runs.
 
+**Claude environment.** Agents > Claude > Environment… (menu and web) lists the variables of Claude Code worth
+setting, in groups (subagents, models, limits, behaviour, privacy, network, providers) with plain labels. Numbers are
+checked, flags are on or off, and an empty value removes the variable. "Subagents at once"
+(`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`; Claude's own limit is 20) is also on the Agents page. Secrets are never shown
+again once saved; an API key must look like one (`sk-ant-api03-...` or `sk-ant-usr01-...`). "Your own variables" holds
+any other name. On the command line: `sandbox config set harnesses.claude.environment.NAME value`.
+
+### Codex settings
+
+The `codex` section (Settings > Agents & sessions > Codex) says how Codex runs inside the sandbox. Windows Sandbox is
+already the sandbox, and Codex's own Windows sandbox only slows it down (it sets up users and firewall rules and
+re-grants file permissions over your profile at every start), so the default is no inner sandbox.
+
+- `codex.sandboxMode` (`danger-full-access`, `workspace-write`, `read-only`) and `codex.approvalPolicy` (`never`,
+  `on-request`, `on-failure`, `untrusted`) become launch flags on every Codex start: a new tab, a restart and the
+  `codex` command of a terminal. Flags beat `config.toml` and the permissions a resumed thread saved. Full access with
+  `never` uses `--dangerously-bypass-approvals-and-sandbox`, which skips the Windows sandbox setup for certain.
+- `codex.model` (empty = Codex's default) and `codex.reasoningEffort` are passed as `-c` overrides.
+- `codex.windowsSandbox` (`off`, `unelevated`, `elevated`): `off` removes `[windows] sandbox` from `config.toml`.
+- `codex.mcpLoginsInFile` (default on) sets `mcp_oauth_credentials_store = "file"` unless you set it yourself.
+
+Only your own settings change these; a project's `.sandbox-config.json` cannot. Every other line of `config.toml` is
+left as it is.
+
 ## Audit log
 
 The audit log is **on by default** (`audit.enabled`; menu: Settings > Security & privacy > Audit log). It records what

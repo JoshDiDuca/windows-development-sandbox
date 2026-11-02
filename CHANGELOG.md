@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.17.3
+
+- **Simpler docs.** The README and every guide say the same things in shorter, plainer words, with less repetition
+  between pages. Fixed against the code: broken links and anchors, paths that had lost their backslashes, settings
+  and defaults that had drifted, and the app list (about 80 apps, with the reverse engineering category).
+- Troubleshooting: what to do when the sandbox's disk is full.
+
 ## 1.17.2
 
 - **Unreal tools no longer fill the sandbox disk.** Visual Studio (about 7 GB) is installed only when the sandbox's

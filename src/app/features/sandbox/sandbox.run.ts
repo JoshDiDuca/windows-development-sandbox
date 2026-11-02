@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { safeText } from '../../../core/util/index.js';
 import { SandboxChannel } from '../../../host/channel/index.js';
+import { LifeRecord, readLastEnd } from '../../../host/life/index.js';
 import { runningOwner } from '../../../host/sharing/index.js';
 import { requireOnPc, requireRunning } from '../../../cli/commands/context.js';
 import { hereDir } from '../../../cli/commands/projects/here.js';
@@ -37,7 +38,10 @@ export const sandboxStatusRun = implement(sandboxStatus, async (asked) => {
   const view = lookAtSandbox(asked);
   if (view.limited) return limitedStatus(view, hereDir(asked));
   const report = await new SandboxService(view.ctx).status();
+  const { storageRoot, dataPath } = view.ctx;
+  const lastEnd = readLastEnd(() => new LifeRecord(storageRoot, dataPath).read(), dataPath, report.sandbox.running);
   return {
+    ...(lastEnd ? { lastEnd } : {}),
     ...(view.line ? { shared: { line: view.line, limited: false, startedBy: view.ctx.borrowed?.user ?? null } } : {}),
     ...report,
     sandbox: { ...report.sandbox, daemon: safeText(report.sandbox.daemon) },

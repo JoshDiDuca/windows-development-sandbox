@@ -7,12 +7,14 @@ import {
   defineOperation,
   defineQuery,
   defineView,
+  link,
   plural,
   type Fact,
   type Item,
   type Page,
   type Section,
 } from '../../kernel/index.js';
+import { CRASH } from '../logs/logs.def.js';
 
 const ProjectSchema = z.object({
   name: z.string().describe('The project'),
@@ -52,6 +54,11 @@ export const SandboxStatusSchema = z.object({
   projects: z.array(ProjectSchema),
   otherSessions: z.array(z.object({ id: z.string(), harness: z.string(), cwd: z.string() })),
   repoGuard: z.object({ guarded: z.number(), findings: z.array(z.string()) }),
+  /** How the last sandbox ended when nobody closed it (it is not running now). */
+  lastEnd: z
+    .object({ text: z.string().describe('What happened'), at: z.string().describe('When (ISO time)') })
+    .optional()
+    .describe('The last sandbox ended unexpectedly'),
 });
 export type SandboxStatus = z.output<typeof SandboxStatusSchema>;
 
@@ -102,6 +109,7 @@ export const sandboxStatus = defineQuery({
         projects: o.projects,
         otherSessions: o.otherSessions,
         repoGuard: o.repoGuard,
+        ...(o.lastEnd ? { lastEnd: o.lastEnd } : {}),
       };
     },
   },
@@ -191,6 +199,7 @@ function facts(o: SandboxStatus): Fact[] {
           fact('sessions', 'Sessions', String(sessions)),
         ]
       : []),
+    ...(o.lastEnd ? [fact('lastEnd', 'Last sandbox', o.lastEnd.text, { tone: 'warn' })] : []),
     fact('account', 'Account', s.account ?? 'none selected (sandbox account use)'),
     fact('sync', 'Background sync', s.syncWatcher ? 'on' : 'off'),
   ];
@@ -254,7 +263,14 @@ export function sandboxPage(o: SandboxStatus): Page {
             : action(hideWindow, {}, { key: 'h', verb: 'hide', importance: 3 }),
           action(stopSandbox, {}, { key: 'x', verb: 'stop', importance: 1 }),
         ]
-      : [],
+      : o.lastEnd
+        ? [
+            link({ kind: 'view', view: 'logs', params: { name: CRASH } }, 'Show crash report', {
+              verb: 'show',
+              importance: 2,
+            }),
+          ]
+        : [],
   };
   const others: Section = {
     id: 'other-sessions',

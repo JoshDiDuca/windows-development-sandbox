@@ -126,6 +126,26 @@ export function cargoJobs(cpus: number, memoryGb: number, sessions: number): num
   return Math.max(1, Math.min(jobs, Math.floor(buildJobs(cpus, memoryGb) / Math.max(1, sessions))));
 }
 
+/** C: needs this much free at boot for rust.targetDir "auto" to build on the sandbox's own disk. */
+export const LOCAL_TARGET_MIN_BYTES = 25 * 1024 ** 3;
+
+/**
+ * rust.targetDir: "auto" becomes "local" when C: has 25 GB free, else "separate" with a warning (every object file is
+ * then written through the mapped workspace, which can overload this PC's disk). Other values stay as set.
+ */
+export function chooseTargetDir(
+  targetDir: string,
+  freeBytes: number,
+): { readonly targetDir: string; readonly warning?: string } {
+  if (targetDir !== 'auto') return { targetDir };
+  if (freeBytes >= LOCAL_TARGET_MIN_BYTES) return { targetDir: 'local' };
+  return {
+    targetDir: 'separate',
+    warning:
+      "Rust builds write through the mapped workspace; this can overload your PC's disk (C: has less than 25 GB free for a local build folder)",
+  };
+}
+
 /** The most heavy compilers (rustc, clippy-driver, link ...) that run at once in the agents' job: only with vGPU on. */
 export function maxCompilers(cpus: number, profile: LoadProfile): number | null {
   return profile === 'gentle' ? Math.max(2, Math.floor(cpus / 4)) : null;

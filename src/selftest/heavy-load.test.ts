@@ -353,8 +353,8 @@ export const heavyLoadSuite: Suite = {
     const g = decide(INITIAL_STATE, sample(50, 50, procs), 0, 'gentle');
     t.check(
       g.state.step === 0 &&
-        g.actions.length === 3 &&
-        g.actions.every((a) => a.kind === 'priority' && a.to === 'below' && a.pid !== 3),
+        g.actions.filter((a) => a.kind !== 'io').length === 3 &&
+        g.actions.filter((a) => a.kind !== 'io').every((a) => a.kind === 'priority' && a.to === 'below' && a.pid !== 3),
       'compilers rest below normal even with plenty of memory (the agent does not)',
     );
     t.check(decide(INITIAL_STATE, sample(19, 50, procs), 0, 'gentle').state.step === 1, '19 % free is step 1');
@@ -398,6 +398,7 @@ export const heavyLoadSuite: Suite = {
       setPriority: (pid, to) => calls.push('prio ' + pid + ' ' + to),
       hold: (pid, ms) => calls.push('hold ' + pid + ' ' + ms),
       setMemoryPriority: (pid, low) => calls.push('mem ' + pid + ' ' + (low ? 'low' : 'normal')),
+      setIoPriority: (pid, to) => calls.push('io ' + pid + ' ' + to),
       throttle: (pid) => calls.push('throttle ' + pid),
       setCpuRate: (percent) => calls.push('cpu ' + percent),
       trim: (pid) => calls.push('trim ' + pid),

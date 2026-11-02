@@ -61,7 +61,7 @@ export const ToolchainsSchema = z.strictObject({
       .string()
       .min(1)
       .describe(
-        '"shared": cargo\'s default target\\ (shared with builds on this PC, so builds on either side invalidate the other), "separate": <workspace>\\target\\sandbox (kept, no cross-talk), "local": on the sandbox\'s own disk (fastest, lost every boot), or a guest path.',
+        '"auto" (default): on the sandbox\'s own disk when C: has 25 GB free at boot, else "separate" (builds then write through the mapped workspace, which can overload this PC\'s disk). "shared": cargo\'s default target\\ (shared with builds on this PC, so builds on either side invalidate the other), "separate": <workspace>\\target\\sandbox (kept, no cross-talk), "local": on the sandbox\'s own disk (fastest, lost every boot), or a guest path.',
       ),
     linker: z
       .enum(['lld', 'gnu'])
@@ -71,7 +71,7 @@ export const ToolchainsSchema = z.strictObject({
     linkSlots: z
       .union([z.literal('auto'), z.number().int().min(1).max(32)])
       .describe(
-        'GNU host: how many programs may link at the same time in the whole sandbox (other links wait). "auto" = one per 3 GB of sandbox memory after 6 GB, 2 to 8 (the memory governor slows links down too when memory runs short).',
+        'GNU host: how many programs may link at the same time in the whole sandbox (other links wait). "auto" = one per 6 GB of sandbox memory, 1 to 4 (the memory governor slows links down too when memory runs short).',
       ),
   }),
   msvc: z.strictObject({

@@ -5,23 +5,20 @@ import path from 'node:path';
 import { downloader } from '../../shared/download/index.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log } from '../runtime/log.js';
-import { MICROSOFT_SIGNER, signerOf } from './native/vcruntime.js';
+import type { AppSigner } from '../../shared/signer.js';
+import { signedBy } from './signature.js';
 
-/** Who signs the installers the toolchains run (the subject of the signature). */
+/** Who signs the installers the toolchains run (the patterns the signature's subject must match). */
 export const SIGNERS = {
-  microsoft: MICROSOFT_SIGNER,
-  valve: /^CN="?Valve(,| Corp)/,
-  unity: /^CN="?Unity Technologies/,
-} as const;
+  microsoft: { subject: ['^CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US$'] },
+  valve: { subject: ['^CN="?Valve(,| Corp)'] },
+  unity: { subject: ['^CN="?Unity Technologies'] },
+} as const satisfies Record<string, AppSigner>;
 
-/** Whether a file's signature is the expected signer's. */
-export function signedBy(file: string, signer: string | RegExp): boolean {
-  const subject = signerOf(file);
-  return typeof signer === 'string' ? subject === signer : signer.test(subject);
-}
+export { signedBy };
 
 /** A downloader `verify` hook: refuses a file not signed by `signer` (it counts as integrity for requireChecksum). */
-export function signatureCheck(signer: string | RegExp, what: string): (file: string) => void {
+export function signatureCheck(signer: AppSigner, what: string): (file: string) => void {
   return (file) => {
     if (!signedBy(file, signer)) throw new Error(what + ' is not signed by its vendor');
   };
@@ -32,7 +29,7 @@ export async function signedInstaller(
   url: string,
   file: string,
   what: string,
-  signer: string | RegExp,
+  signer: AppSigner,
   sha256: string | null = null,
 ): Promise<string> {
   if (!exists(file)) {

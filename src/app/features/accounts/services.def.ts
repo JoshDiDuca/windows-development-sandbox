@@ -30,6 +30,7 @@ export const ServiceRowSchema = z.object({
   canImport: z.boolean().describe('It can be taken from this PC or a file (sandbox account import)'),
   canLogin: z.boolean().describe('It can be typed (sandbox account login)'),
   needsFile: z.boolean().describe('Importing it needs --from <file>'),
+  ready: z.boolean().describe('Its sign-in is written; false: the menu and the web leave it out (the CLI says coming)'),
 });
 export type ServiceRow = z.output<typeof ServiceRowSchema>;
 
@@ -64,7 +65,8 @@ export function servicesText(o: ServicesList): string {
       s.share ? 'on' : 'off',
       STATE_TEXT[s.state],
       day(s.savedAt) || '-',
-      [s.summary, s.heldBy ? 'in use by sandbox ' + s.heldBy : null].filter(Boolean).join(', ') || '-',
+      [s.ready ? s.summary : 'coming', s.heldBy ? 'in use by sandbox ' + s.heldBy : null].filter(Boolean).join(', ') ||
+        '-',
     ]),
   ];
   const widths = table[0].map((_, i) => Math.max(...table.map((r) => r[i].length)));
@@ -203,7 +205,7 @@ export function serviceSection(s: ServiceRow): Section {
 
 /** The sections of every service (appended to the accounts page on the web). */
 export function serviceSections(o: ServicesList): Section[] {
-  return o.services.map(serviceSection);
+  return o.services.filter((s) => s.ready).map(serviceSection);
 }
 
 /** One service's page for the menu: its section, and its actions as keys. */

@@ -36,7 +36,7 @@ export function pcEnv(): PcEnv {
 /** What a kind whose host side is not written yet says. */
 export function notAvailableYet(kind: ServiceKind): never {
   return fail(
-    'Saving a ' + SERVICE_SPECS[kind].label + ' sign-in is not available yet.',
-    'It comes in a later version of the sandbox.',
+    'Saving a ' + SERVICE_SPECS[kind].label + ' sign-in comes in a later version of the sandbox.',
+    'Nothing was changed.',
   );
 }

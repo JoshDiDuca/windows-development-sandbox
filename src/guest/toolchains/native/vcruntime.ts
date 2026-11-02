@@ -3,19 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnAsync } from '../../../shared/download/index.js';
 import { dryRun } from '../../runtime/paths.js';
-import { scriptOutput } from '../../runtime/process.js';
 import { exists } from '../../runtime/fs.js';
 import { log } from '../../runtime/log.js';
 import { downloadFile } from '../install.js';
+import { SIGNERS, signedBy } from '../installers.js';
 import { tool, type ToolEnv } from '../tool-env.js';
 
 const VC_REDIST = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
-export const MICROSOFT_SIGNER = 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US';
 /** 1638: a newer version is already installed; 3010: installed, a restart would finish it (not needed for the DLLs). */
 const OK_EXIT_CODES: readonly number[] = [0, 1638, 3010];
-
-/** The subject of a valid Authenticode signature, or '' when the file is unsigned or tampered with. */
-export const signerOf = (file: string): string => scriptOutput('get-signer.ps1', ['-Path', file]).trim();
 
 /**
  * A real installer (it writes to System32), so it runs on every boot; the installer itself is kept in persistent
@@ -35,7 +31,7 @@ export async function setupVcRuntime(env: ToolEnv, summary = true): Promise<bool
       log('Downloading the Visual C++ runtime (~25 MB once) ...');
       await downloadFile(VC_REDIST, installer);
     }
-    if (signerOf(installer) !== MICROSOFT_SIGNER) {
+    if (!signedBy(installer, SIGNERS.microsoft)) {
       fs.rmSync(installer, { force: true });
       throw new Error('vc_redist.x64.exe is not signed by Microsoft; deleted it (it is downloaded again next boot)');
     }

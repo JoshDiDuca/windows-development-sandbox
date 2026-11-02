@@ -25,7 +25,7 @@ import { setupRuby } from './languages/ruby.js';
 import { setupVcRuntime } from './native/vcruntime.js';
 import { setupVscode } from './tools/vscode.js';
 import type { ToolchainOptions, ToolchainStep, ToolCtx } from './step.js';
-import { ensureVisualStudio, visualStudioWanted } from './native/visual-studio.js';
+import { ensureVisualStudio, unrealUsesAutosdk, visualStudioWanted } from './native/visual-studio.js';
 import { duringSession } from '../runtime/project-context.js';
 import { setupSteam } from './steam/steam.js';
 import { setupGodot } from './engines/godot.js';
@@ -47,6 +47,8 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
   const android = wanted(config.android.enabled, 'android');
   // One Visual Studio for every toolchain that needs the real one (Unreal, Flutter desktop, Unity IL2CPP).
   const vs = visualStudioWanted(config, (setting, name) => wanted(setting, name));
+  // Unreal on the portable MSVC (AutoSDK) needs that MSVC even when nothing else asked for it.
+  const autosdk = unrealUsesAutosdk(config, (setting, name) => wanted(setting, name));
   const ctx: ToolCtx = {
     refresh: o.refresh,
     pcInstalls: o.pcInstalls ?? { items: [] },
@@ -82,13 +84,20 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       name: 'Unreal',
       enabled: unreal,
       shared: true,
-      after: ['Visual Studio'],
+      after: ['Visual Studio', 'MSVC'],
       install: (env) => setupUnreal(env, config.unreal, ctx),
     },
     {
       name: 'MSVC',
-      enabled: wanted(config.msvc.enabled, 'msvc') && vs === null,
-      install: (env) => setupMsvc(env, config.msvc),
+      enabled: (wanted(config.msvc.enabled, 'msvc') || (autosdk && config.msvc.enabled !== false)) && vs === null,
+      // The same Visual Studio licence terms, which Unreal's acceptLicense already names.
+      install: (env) =>
+        setupMsvc(
+          env,
+          autosdk
+            ? { ...config.msvc, acceptLicense: config.msvc.acceptLicense || config.unreal.acceptLicense }
+            : config.msvc,
+        ),
     },
     // Rust links with MSVC (msvc host) or MinGW's gcc (GNU host): whichever it uses goes first.
     {

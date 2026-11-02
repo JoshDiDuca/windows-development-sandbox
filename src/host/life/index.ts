@@ -4,6 +4,7 @@ export * from './stop-warning.js';
 export * from './keep-awake.js';
 export * from './windows-update.js';
 export * from './crash-report.js';
+export * from './last-end.js';
 export * from './session-ledger.js';
 export * from './host-memory.js';
 export * from './watchdog.js';

@@ -17,6 +17,8 @@ export interface WatchdogState {
   readonly cpuHighSeconds: number;
   /** Seconds the disk queue has been above the limit. */
   readonly diskHighSeconds: number;
+  /** Seconds the disk queue has been at or above twice the limit (for the severe step). */
+  readonly diskSevereSeconds: number;
   /** Time (ms) the last request went out. */
   readonly lastSentAt: number;
 }
@@ -27,6 +29,7 @@ export const WATCHDOG_START: WatchdogState = {
   calm: 0,
   cpuHighSeconds: 0,
   diskHighSeconds: 0,
+  diskSevereSeconds: 0,
   lastSentAt: 0,
 };
 
@@ -98,8 +101,13 @@ export function watchdogStep(prev: WatchdogState, input: WatchdogInput): Watchdo
   const diskQueue = input.memory?.diskQueue;
   const diskHigh =
     diskQueue !== undefined && diskQueue >= t.diskQueue ? prev.diskHighSeconds + input.intervalSeconds : 0;
+  const diskDouble =
+    diskQueue !== undefined && diskQueue >= 2 * t.diskQueue ? prev.diskSevereSeconds + input.intervalSeconds : 0;
+  const diskSevere = diskDouble >= t.diskSeconds || diskHigh >= 3 * t.diskSeconds;
   if (!reason && diskHigh >= t.diskSeconds)
-    reason = "this PC's disks have had a queue of " + diskQueue + ' for ' + diskHigh + ' seconds';
+    reason = diskSevere
+      ? "this PC's disks are overloaded (queue " + diskQueue + ' for ' + diskHigh + ' seconds)'
+      : "this PC's disks have had a queue of " + diskQueue + ' for ' + diskHigh + ' seconds';
   const calmNow = input.memory ? lowReason(input.memory, input.reserveHostMb, t, 1.25) === '' : true;
   let low = prev.low;
   let calm = prev.calm;
@@ -113,7 +121,7 @@ export function watchdogStep(prev: WatchdogState, input: WatchdogInput): Watchdo
       calm = 0;
     }
   }
-  const severe = low && input.memory !== null && severeHost(input.memory);
+  const severe = low && ((input.memory !== null && severeHost(input.memory)) || diskSevere);
   // Getting severe is sent at once; otherwise the request is repeated every RESEND_MS while the PC stays low.
   const send = low && (input.nowMs - prev.lastSentAt >= RESEND_MS || (severe && !prev.severe));
   return {
@@ -123,6 +131,7 @@ export function watchdogStep(prev: WatchdogState, input: WatchdogInput): Watchdo
       calm,
       cpuHighSeconds: cpuHigh,
       diskHighSeconds: diskHigh,
+      diskSevereSeconds: diskDouble,
       lastSentAt: send ? input.nowMs : prev.lastSentAt,
     },
     send,

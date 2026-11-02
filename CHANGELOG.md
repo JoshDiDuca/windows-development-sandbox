@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.17.2
+
+- **Unreal tools no longer fill the sandbox disk.** Visual Studio (about 7 GB) is installed only when the sandbox's
+  disk has 20 GB free; otherwise boot says why and skips it. The disk is about 40 GB and also holds the paging file
+  and every build, and agents stop working when it is full. The Unreal toolchain installs Visual Studio and the Epic
+  Games Launcher, not the engine.
+
 ## 1.17.1
 
 - **Codex runs commands again.** Its own command sandbox set itself up again at every boot (permissions over the

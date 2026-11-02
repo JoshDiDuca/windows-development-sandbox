@@ -44,6 +44,11 @@ export const UNREAL_COMPONENTS = [
 const OK_EXIT_CODES: readonly number[] = [0, 3010];
 /** Free room the offline copy needs before it is made (it grows to about 10 GB). */
 const LAYOUT_ROOM_BYTES = 15 * 1024 ** 3;
+/**
+ * Free room on the sandbox's own disk before Visual Studio goes on it: it takes about 7 GB, and the disk (about 40 GB)
+ * also holds the paging file and every build, so it is installed only when about 13 GB stay free after it.
+ */
+const INSTALL_ROOM_BYTES = 20 * 1024 ** 3;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 
 const VS_DIR = tool('visualstudio');
@@ -195,7 +200,17 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal']): P
     log('(dry run) would install Visual Studio Community 2022 with ' + ids.join(', ') + ' and DirectX');
     return;
   }
-  if (!installedVs()) await installVisualStudio(config, ids);
+  if (!installedVs()) {
+    const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files';
+    const free = freeBytes(programFiles);
+    if (free < INSTALL_ROOM_BYTES)
+      throw new Error(
+        'not installing Visual Studio: the sandbox disk has ' +
+          (free / 1024 ** 3).toFixed(1) +
+          ' GB free and it needs 20 GB (7 GB for Visual Studio, the rest for builds and the paging file)',
+      );
+    await installVisualStudio(config, ids);
+  }
   await installDirectX();
   const vs = installedVs()!;
   env.summary.push(

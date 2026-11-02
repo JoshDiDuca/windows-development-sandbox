@@ -51,12 +51,14 @@ packs, Visual Studio's Unreal support and the Unreal Engine installer (the Epic 
 DirectX End-User Runtime. Unreal's build tool finds Visual Studio through its installer, so the portable MSVC above is
 not enough; with `unreal` on, MSVC is left out (Visual Studio brings it) and Rust builds with Visual Studio's MSVC.
 
-- Visual Studio is a real installer, so it runs at every boot and takes about 10 GB of the sandbox disk.
-  `keepInstallFiles` (on) saves an offline copy of its install files in `toolsisualstudio` once (about 10 GB, only
+- Visual Studio is a real installer, so it runs at every boot and takes about 7 GB of the sandbox disk (about 40 GB,
+  shared with the paging file and every build). It is installed only when 20 GB are free there; otherwise boot says so
+  and skips it.
+  `keepInstallFiles` (on) saves an offline copy of its install files in `tools\visualstudio` once (about 10 GB, only
   when 15 GB are free there), so later boots install without downloading; otherwise each boot downloads 5-8 GB.
 - `acceptLicense: true` is required: Visual Studio Community and the DirectX runtime come under Microsoft's licence
   terms. `components` adds more Visual Studio workload or component IDs.
-- The installers are kept in `toolsisualstudio` and run only when Microsoft's signature on them checks out.
+- The installers are kept in `tools\visualstudio` and run only when Microsoft's signature on them checks out.
 - The engine itself is not installed: sign in to the Epic Games Launcher (Start menu) and install it there, or build
   it from Epic's GitHub source. For the GPU, turn on `sandbox.vGpu`.
 

@@ -277,6 +277,10 @@ export function decide(
     }
   }
 
+  // vGPU on (the gentle profile): a GPU game and a build together have killed the whole VM, so while any heavy compiler
+  // or linker runs the dial is at step 2 at least. The game itself is never touched (only build programs are).
+  if (profile === 'gentle' && step < 2 && sample.procs.some((p) => isHeavyCompiler(p.name))) step = 2;
+
   const actions: Action[] = [];
   const present = new Set(sample.procs.map((p) => p.pid));
   const keep = (pids: readonly number[]): number[] => pids.filter((pid) => present.has(pid));
@@ -338,7 +342,7 @@ export function decide(
   let allowed = compilersAllowed(step, heavy.length);
   // The cap is a memory measure: with memory to spare, Windows shares the CPU (the priorities above) and no compiler
   // waits. A waiting rustc also holds cargo's job tokens, which stalls the whole build.
-  if (maxCompilers !== null && step >= 2) allowed = Math.min(allowed, Math.max(1, maxCompilers));
+  if (maxCompilers !== null && step >= 1) allowed = Math.min(allowed, Math.max(1, maxCompilers));
   const turn = heavy.length > 0 ? Math.floor(nowMs / ROTATE_MS) % heavy.length : 0;
   const order = [...heavy.slice(turn), ...heavy.slice(0, turn)];
   let waiting = order.slice(Math.min(allowed, order.length));

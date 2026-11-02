@@ -148,5 +148,5 @@ export function chooseTargetDir(
 
 /** The most heavy compilers (rustc, clippy-driver, link ...) that run at once in the agents' job: only with vGPU on. */
 export function maxCompilers(cpus: number, profile: LoadProfile): number | null {
-  return profile === 'gentle' ? Math.max(2, Math.floor(cpus / 4)) : null;
+  return profile === 'gentle' ? Math.min(4, Math.max(2, Math.floor(cpus / 4))) : null;
 }

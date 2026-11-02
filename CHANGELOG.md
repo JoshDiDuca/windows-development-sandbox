@@ -7,6 +7,15 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Fewer sandbox crashes under heavy load.** With vGPU on, builds run at step 2 or harder while a compiler or linker runs,
+  at most 4 heavy compilers run at once, and your PC keeps 4 GB more RAM free. Compilers and linkers get low disk
+  priority, linkers run one at a time from step 2, and an overloaded disk asks for the hardest step. Rust builds go to
+  the sandbox's own disk when C: has 25 GB free (`toolchains.rust.targetDir` is now `auto`). The sandbox writes a
+  heartbeat every 10 seconds, so the status page and the crash report say what it was doing when it vanished. See
+  [troubleshooting](docs/troubleshooting.md#heavy-builds-plus-a-gpu-game-with-vgpu-the-known-crash-pattern).
+
 ## 1.18.0
 
 - **Service sign-ins in Accounts.** `sandbox account status|import|login|logout <service>`, and the menu and web

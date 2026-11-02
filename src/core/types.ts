@@ -281,6 +281,8 @@ export interface GuestSession {
    * creates.
    */
   agentBackstop?: 'auto' | 'none' | number;
+  /** The codex settings: the flags every Codex start gets and what boot writes to its config.toml. */
+  codex?: Config['codex'];
   /** "gentle" when vGPU is on: the governor and the watchdog act earlier, compilers run below normal. */
   loadProfile?: 'normal' | 'gentle';
   /** sandbox.pressureResponse: the daemon slows builds down when memory runs low. */

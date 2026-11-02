@@ -68,6 +68,14 @@
   "github": {
     "shareToken": false
   },
+  "codex": {
+    "sandboxMode": "danger-full-access",
+    "approvalPolicy": "never",
+    "model": "",
+    "reasoningEffort": "default",
+    "windowsSandbox": "off",
+    "mcpLoginsInFile": true
+  },
   "accounts": {
     "epic": {
       "share": false

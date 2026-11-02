@@ -3,6 +3,7 @@
 // side. A new feature adds its definitions here and its implementations there.
 import type { AnyDefinition, AnyView, OperationDef, QueryDef } from '../kernel/index.js';
 import { addAgent, agentsView, listAgents, makeDefaultAgent, removeAgent, startAgent } from './agents/agents.def.js';
+import { agentEnv, agentEnvView, agentsEnvSet } from './agents/env.def.js';
 import {
   accountsView,
   defaultAccount,
@@ -93,6 +94,7 @@ export const OPERATIONS = [
   addAgent,
   makeDefaultAgent,
   removeAgent,
+  agentsEnvSet,
   setSetting,
   resetSetting,
   exportConfig,
@@ -144,6 +146,7 @@ export const QUERIES = [
   sandboxStatus,
   listSessions,
   listAgents,
+  agentEnv,
   listSettings,
   getSetting,
   browseFolder,
@@ -171,6 +174,7 @@ export const VIEWS = [
   sandboxView,
   sessionsView,
   agentsView,
+  agentEnvView,
   settingsView,
   accountsView,
   appsView,
@@ -254,6 +258,7 @@ export const NAV: readonly NavSection[] = [
     label: 'Workspace',
     children: [
       { label: 'Agents', view: 'agents' },
+      { label: 'Claude environment', view: 'agentEnv' },
       { label: 'Sessions', view: 'sessions' },
       { label: 'Activity', view: 'audit' },
     ],

@@ -337,11 +337,11 @@ A Claude account is one of three kinds, and `account list`, the menu and the web
 
 - **subscription**: a Claude Pro, Max, Team or Enterprise login (`/login` with your Claude account).
 - **Console**: a Claude Console (platform) login. Claude Code makes an API key for it; that key is what is saved.
-- **API key**: an Anthropic API key (`sk-ant-api03-...`) from the Claude Console, for free or paid API credits.
+- **API key**: an Anthropic API key (`sk-ant-api03-...` or `sk-ant-usr...`) from the Claude Console, for free or paid API credits.
 
 `save` takes whichever login the sandbox (or, with `--from-host`, this PC) has. `--api-key` saves a key instead: you
 paste it in (it is not shown), or with `--from-host` it takes this PC's Console key, else its `ANTHROPIC_API_KEY`. A key
-must look like one (`sk-ant-api03-...`); only `sk-ant-...` and its last 4 characters are ever shown. Using an API key
+must look like one (`sk-ant-api03-...` or `sk-ant-usr...`); only `sk-ant-...` and its last 4 characters are ever shown. Using an API key
 account puts the key where Claude Code keeps a Console login's key, already approved, so Claude does not ask "Do you
 want to use this API key?". It also takes the subscription out of the sandbox, because Claude prefers a subscription
 over a key. Switching back to a subscription takes the key out again. An `ANTHROPIC_API_KEY` you set in the agent's

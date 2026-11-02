@@ -91,6 +91,7 @@ export function guestSession(o: GenerateOptions, parts: SessionParts): GuestSess
     loadProfile: loadProfileOf(config),
     pageFileMb: config.sandbox.pageFileMb,
     agentBackstop: config.sandbox.agentMemoryHeadroomMb,
+    codex: config.codex,
     pressureResponse: config.sandbox.pressureResponse,
     apps: config.apps,
     auditProcesses: config.audit.enabled && config.audit.processes,

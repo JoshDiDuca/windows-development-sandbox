@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { ANTHROPIC_KEY_HINT } from '../../shared/accounts/index.js';
 import { isSafeFileName } from '../../shared/paths/index.js';
 import { JsonFile } from '../../shared/io/index.js';
 import { storageOf } from '../storage/index.js';
@@ -81,7 +82,7 @@ const SealedSchema = z.object({
   kind: z.enum(LOGIN_KINDS).optional(),
   keyHint: z
     .string()
-    .regex(/^sk-ant-\.\.\.[A-Za-z0-9_-]{4}$/)
+    .regex(ANTHROPIC_KEY_HINT)
     .optional(),
   sealed: z.string().max(200000),
 });

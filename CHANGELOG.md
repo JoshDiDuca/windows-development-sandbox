@@ -7,7 +7,15 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.18.0
+
+- **Service sign-ins in Accounts.** `sandbox account status|import|login|logout <service>`, and the menu and web
+  Accounts pages, keep sign-ins for Epic and Steam (SteamCMD), with Unity, FiveM, Android, Expo and App Store keys to
+  follow. Each is off until you share it (`accounts.<service>.share`); a sandbox gets one only when it uses that
+  toolchain, and a sign-in that renews is held by one sandbox at a time.
+- **Steam:** SteamCMD (signature checked), `sbx-steam` for games and servers, Workshop get/push and depot builds; your
+  PC's Steam libraries can be mapped read-only (`pcInstalls`). See [steam](docs/steam.md).
+- Big installs go on the data disk with free-space checks; a project's file can no longer accept a licence for you.
 
 - **API key accounts for Claude.** Besides subscription logins, a saved Claude account can now be an Anthropic API key
   (from the Claude Console, for free or paid API credits) or a Claude Console login.

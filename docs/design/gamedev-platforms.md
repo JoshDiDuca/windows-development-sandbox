@@ -411,3 +411,24 @@ P8 owns: `src/{host,guest}/accounts/kinds/{perplexity,comet}.ts`, `src/shared/ap
 `sandbox/scripts/`, `docs/agents-web.md`, `src/selftest/agents-web.test.ts`. Shared edits (small, listed in its
 report): the two kinds in `shared/accounts/kinds.ts` / `payloads.ts`, `AppEntry.signer`, codex `loginFiles` +
 `mcp_oauth_credentials_store`, catalogue/resolver spreads.
+
+## 6. Owner's rules added 2026-11-02 (apply to every package)
+
+- **Everything that can be copied from the PC is copied from the PC** (`sandbox account import <kind>`, default
+  locations first, `--from <path>` for files), besides saving from the sandbox and typing. Per kind:
+  - `unity`: `pc` = `%ProgramData%\Unity\Unity_lic.ulf` (and the Hub's licensing client files if that is where the
+    current Hub keeps it: verify), plus `file` (`--from <.ulf>`), `typed` (serial / email + password), `sandbox`.
+  - `keystore`: `pc` = the PC's `%USERPROFILE%\.android\debug.keystore` (read via an explicit path from `PcEnv`, never
+    HOME/USERPROFILE env in tests) for the debug key; `file` (`--from upload.jks` + typed passwords) for the upload key.
+  - `play`: `file` (`--from service-account.json`).
+  - `expo`: `pc` = `EXPO_TOKEN` from the PC user's environment (process, then HKCU\Environment via reg.exe by absolute
+    path), else the Expo CLI's saved session (`%USERPROFILE%\.expo\state.json`, `auth.sessionSecret`: verify the format;
+    a session secret is not an access token: only offer it if EAS accepts it), plus `typed`.
+  - `appstore`: `file` (`--from AuthKey_XXXX.p8` + typed issuer/key id), `typed`.
+  - `cfx` (P5): `file` (`--from server.cfg`: `sv_licenseKey`, `steam_webApiKey`), `typed`.
+  - `perplexity` (P8): `pc` (`PERPLEXITY_API_KEY`), `file` (`.env`), `typed`. `comet`: sandbox only (DPAPI on the PC).
+  - Not from the PC, on purpose: the GitHub token (never the PC's `gh` login), the Steam client (`local.vdf` is tied to
+    the PC user), Comet.
+- **Every feature and every setting is in the interactive CLI menu** (and the web UI): a new operation, query, view or
+  hand-written command needs a menu entry, and every setting appears on the menu's Settings page. A self-test enforces
+  it (see the menu-coverage suite); packages must keep it green.

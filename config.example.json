@@ -148,7 +148,7 @@
       "components": [],
       "targets": [],
       "crates": [],
-      "targetDir": "separate",
+      "targetDir": "auto",
       "linker": "lld",
       "linkSlots": "auto"
     },

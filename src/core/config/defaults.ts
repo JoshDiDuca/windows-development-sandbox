@@ -78,7 +78,7 @@ export const DEFAULTS: Config = {
       components: [],
       targets: [],
       crates: [],
-      targetDir: 'separate',
+      targetDir: 'auto',
       linker: 'lld',
       linkSlots: 'auto',
     },

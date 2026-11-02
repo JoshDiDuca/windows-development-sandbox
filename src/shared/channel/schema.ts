@@ -117,6 +117,8 @@ export const GuestRequestSchema = z.discriminatedUnion('kind', [
     seconds: z.number().int().min(10).max(300),
     /** "severe": the PC is nearly out of memory; builds go to the governor's last step at once. */
     level: z.enum(['slow', 'severe']).optional(),
+    /** The disk queue the PC reported (shown in the heartbeat). */
+    diskQueue: z.number().min(0).max(100000).optional(),
     createdAt: TimeSchema,
   }),
 ]);
@@ -142,6 +144,27 @@ export const PressureStatusSchema = z.object({
   updatedAt: TimeSchema,
 });
 export type PressureStatus = z.output<typeof PressureStatusSchema>;
+
+/**
+ * C:\AgentData\run\heartbeat.json: written by the daemon every 10 seconds, so that when the whole sandbox vanishes the
+ * host can say what it was doing in its last seconds (guest-written, every list and string capped).
+ */
+export const HeartbeatSchema = z.object({
+  at: TimeSchema,
+  /** Seconds since the sandbox booted. */
+  uptimeS: z.number().int().min(0).max(1e9),
+  ramFreePct: z.number().min(0).max(100),
+  commitPct: z.number().min(0).max(100),
+  /** The governor's dial now, and the step this PC asked for. */
+  step: z.number().int().min(0).max(4),
+  hostStep: z.number().int().min(0).max(4),
+  /** The biggest programs in the agents' job. */
+  topProcesses: z.array(z.object({ name: Text(64), privateMb: z.number().int().min(0).max(1e7) })).max(5),
+  /** The disk queue this PC last reported while asking the sandbox to slow down. */
+  diskQueueReported: z.number().min(0).max(100000).optional(),
+  phase: z.enum(['ready', 'working']),
+});
+export type Heartbeat = z.output<typeof HeartbeatSchema>;
 
 /** C:\AgentData\run\responses\<id>.json: the guest's reply. */
 export const GuestResponseSchema = z.object({

@@ -36,7 +36,15 @@ import { setupFlutter } from './mobile/flutter.js';
 import { setupDart } from './mobile/dart.js';
 import { setupReactNative } from './mobile/react-native.js';
 import { setupKotlin } from './languages/kotlin.js';
-import { rustHost, rustCaches, cargoDefaults, cargoShim, linkGate } from './native/rust-extras.js';
+import {
+  rustHost,
+  rustCaches,
+  cargoDefaults,
+  cargoShim,
+  linkGate,
+  resolveTargetDir,
+  targetSummary,
+} from './native/rust-extras.js';
 import { setupPythonTools } from './languages/python-tools.js';
 
 export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOptions): ToolchainStep[] {
@@ -106,11 +114,13 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       after: ['C/C++', 'MSVC', 'Visual Studio', 'Unreal'],
       install: async (env) => {
         await setupRust(env, { ...config.rust, host: rustHost(config) }, o.refresh);
-        Object.assign(env.vars, rustCaches(config.rust));
+        const rust = resolveTargetDir(config.rust);
+        Object.assign(env.vars, rustCaches(rust));
+        env.summary.push(targetSummary(rust));
         if (!dryRun) {
           cargoDefaults(rustHost(config));
-          cargoShim(env, config.rust);
-          linkGate(env, config.rust, rustHost(config));
+          cargoShim(env, rust);
+          linkGate(env, rust, rustHost(config));
         }
       },
     },

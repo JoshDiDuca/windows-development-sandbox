@@ -115,7 +115,10 @@ function agentDescription(a: AgentRow, where: string): string {
 
 /** The menu's words for the remove key, on an agent you added that is not the default. */
 function agentKeys(a: AgentRow): string | undefined {
-  const keys = [...(a.name === 'claude' ? ['e opens its environment.'] : []), ...(a.removable && !a.isDefault ? ['x removes it.'] : [])];
+  const keys = [
+    ...(a.name === 'claude' ? ['e opens its environment.'] : []),
+    ...(a.removable && !a.isDefault ? ['x removes it.'] : []),
+  ];
   return keys.length ? keys.join(' ') : undefined;
 }
 

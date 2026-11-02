@@ -9,7 +9,6 @@ import {
   agentCommand,
   agentShims,
   bootResetPaths,
-  codexConfigWithoutSandbox,
   isCopyableDatabaseFile,
   isDatabaseFile,
   localStateEntries,
@@ -118,31 +117,6 @@ export const agentPathsSuite: Suite = {
       HarnessSchema.safeParse({ ...DEFAULTS.harnesses.codex, bootReset: ['..\\login'] }).success === false &&
         HarnessSchema.safeParse({ ...DEFAULTS.harnesses.codex, bootReset: ['C:\\Windows'] }).success === false,
       'bootReset takes only plain paths below the agent state folder',
-    );
-
-    t.section('codex without its own command sandbox');
-    const userToml = '[tui]\nscreen_reader_detection_done = true\n\n[windows]\nsandbox = "elevated"\n';
-    const off = codexConfigWithoutSandbox(userToml) ?? '';
-    t.check(
-      off.split('\n').find((l) => !l.startsWith('#')) === 'sandbox_mode = "danger-full-access"' &&
-        off.endsWith(userToml),
-      'sandbox_mode goes above the first table, the rest of the file is kept',
-    );
-    t.check(
-      codexConfigWithoutSandbox('') === off.slice(0, off.indexOf('\n\n') + 1),
-      'a missing config.toml gets just the setting',
-    );
-    t.equal(
-      [
-        codexConfigWithoutSandbox(off),
-        codexConfigWithoutSandbox('model = "o3"\nsandbox_mode = "workspace-write"\n[windows]\n'),
-      ],
-      [null, null],
-      'a sandbox_mode already set (by the sandbox or by the user) is left alone',
-    );
-    t.check(
-      codexConfigWithoutSandbox('[profiles.x]\nsandbox_mode = "read-only"\n') !== null,
-      'a sandbox_mode inside a table does not count as the top-level one',
     );
 
     t.section('PATH planner');

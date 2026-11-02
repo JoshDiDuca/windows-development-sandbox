@@ -43,16 +43,44 @@ export const MAX_SUBAGENTS_DEFAULT = 20;
 
 export const CLAUDE_ENV: readonly EnvVarSpec[] = [
   ...group('Subagents', 'number', [
-    [MAX_SUBAGENTS_VAR, 'Subagents at once', 'How many subagents may run at the same time.', { min: 1, max: 1000, defaultText: String(MAX_SUBAGENTS_DEFAULT) }],
-    ['CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH', 'Subagent nesting depth', 'How deep subagents may start subagents.', { min: 1, max: 20 }],
-    ['CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION', 'Subagents per session', 'The most subagents one session may start.', { min: 1 }],
-    ['CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS', 'Workflow agents at once', 'How many agents one workflow runs at the same time.', { min: 1 }],
+    [
+      MAX_SUBAGENTS_VAR,
+      'Subagents at once',
+      'How many subagents may run at the same time.',
+      { min: 1, max: 1000, defaultText: String(MAX_SUBAGENTS_DEFAULT) },
+    ],
+    [
+      'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH',
+      'Subagent nesting depth',
+      'How deep subagents may start subagents.',
+      { min: 1, max: 20 },
+    ],
+    [
+      'CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION',
+      'Subagents per session',
+      'The most subagents one session may start.',
+      { min: 1 },
+    ],
+    [
+      'CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS',
+      'Workflow agents at once',
+      'How many agents one workflow runs at the same time.',
+      { min: 1 },
+    ],
   ]),
   ...group('Subagents', 'text', [
-    ['CLAUDE_CODE_SUBAGENT_MODEL', 'Subagent model', 'The model subagents use (an alias such as sonnet, or a full model name).'],
+    [
+      'CLAUDE_CODE_SUBAGENT_MODEL',
+      'Subagent model',
+      'The model subagents use (an alias such as sonnet, or a full model name).',
+    ],
   ]),
   ...group('Subagents', 'flag', [
-    ['CLAUDE_CODE_SUBAGENT_MODEL_FORCE', 'Force the subagent model', 'Use the subagent model even where an agent asks for another one.'],
+    [
+      'CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
+      'Force the subagent model',
+      'Use the subagent model even where an agent asks for another one.',
+    ],
     ['CLAUDE_CODE_FORK_SUBAGENT', 'Forked subagents', 'Let subagents start from a copy of the conversation so far.'],
   ]),
 
@@ -76,33 +104,93 @@ export const CLAUDE_ENV: readonly EnvVarSpec[] = [
   ]),
   ...group('Models', 'flag', [
     ['CLAUDE_CODE_DISABLE_THINKING', 'No extended thinking', 'Turn extended thinking off.'],
-    ['CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING', 'No adaptive thinking', 'Use a fixed thinking budget instead of letting the model decide.'],
+    [
+      'CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING',
+      'No adaptive thinking',
+      'Use a fixed thinking budget instead of letting the model decide.',
+    ],
     ['CLAUDE_CODE_DISABLE_1M_CONTEXT', 'No 1M-token context', 'Do not use the one-million-token context window.'],
     ['CLAUDE_CODE_DISABLE_FAST_MODE', 'No fast mode', 'Turn fast mode off.'],
   ]),
 
   ...group('Limits', 'number', [
     ['CLAUDE_CODE_MAX_OUTPUT_TOKENS', 'Output tokens per reply', 'The most tokens one reply may have.', { min: 1 }],
-    ['CLAUDE_CODE_MAX_CONTEXT_TOKENS', 'Context size (tokens)', 'The most tokens Claude keeps in the conversation.', { min: 1 }],
-    ['CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS', 'Tokens per file read', 'The most tokens one file read may return.', { min: 1 }],
+    [
+      'CLAUDE_CODE_MAX_CONTEXT_TOKENS',
+      'Context size (tokens)',
+      'The most tokens Claude keeps in the conversation.',
+      { min: 1 },
+    ],
+    [
+      'CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS',
+      'Tokens per file read',
+      'The most tokens one file read may return.',
+      { min: 1 },
+    ],
     ['MAX_MCP_OUTPUT_TOKENS', 'Tokens per MCP result', 'The most tokens one MCP tool result may have.', { min: 1 }],
-    ['BASH_DEFAULT_TIMEOUT_MS', 'Command timeout (ms)', 'How long a shell command runs before it is stopped, unless the command asks for more.', { min: 1 }],
-    ['BASH_MAX_TIMEOUT_MS', 'Longest command timeout (ms)', 'The longest timeout a shell command may ask for.', { min: 1 }],
-    ['BASH_MAX_OUTPUT_LENGTH', 'Command output (characters)', 'The most characters of a shell command output kept.', { min: 1 }],
-    ['TASK_MAX_OUTPUT_LENGTH', 'Subagent output (characters)', 'The most characters of a subagent output kept.', { min: 1 }],
+    [
+      'BASH_DEFAULT_TIMEOUT_MS',
+      'Command timeout (ms)',
+      'How long a shell command runs before it is stopped, unless the command asks for more.',
+      { min: 1 },
+    ],
+    [
+      'BASH_MAX_TIMEOUT_MS',
+      'Longest command timeout (ms)',
+      'The longest timeout a shell command may ask for.',
+      { min: 1 },
+    ],
+    [
+      'BASH_MAX_OUTPUT_LENGTH',
+      'Command output (characters)',
+      'The most characters of a shell command output kept.',
+      { min: 1 },
+    ],
+    [
+      'TASK_MAX_OUTPUT_LENGTH',
+      'Subagent output (characters)',
+      'The most characters of a subagent output kept.',
+      { min: 1 },
+    ],
     ['MCP_TIMEOUT', 'MCP start timeout (ms)', 'How long an MCP server may take to start.', { min: 1 }],
     ['MCP_TOOL_TIMEOUT', 'MCP tool timeout (ms)', 'How long one MCP tool call may take.', { min: 1 }],
     ['API_TIMEOUT_MS', 'API timeout (ms)', 'How long a request to the API may take.', { min: 1 }],
     ['CLAUDE_CODE_MAX_RETRIES', 'API retries', 'How many times a failed API request is tried again.'],
-    ['CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY', 'Tools at once', 'How many tool calls may run at the same time.', { min: 1 }],
+    [
+      'CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY',
+      'Tools at once',
+      'How many tool calls may run at the same time.',
+      { min: 1 },
+    ],
     ['CLAUDE_CODE_MAX_TURNS', 'Most turns', 'The most turns Claude takes on one request.', { min: 1 }],
-    ['CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION', 'Web searches per session', 'The most web searches one session may do.'],
+    [
+      'CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION',
+      'Web searches per session',
+      'The most web searches one session may do.',
+    ],
     ['CLAUDE_CODE_GLOB_TIMEOUT_SECONDS', 'File search timeout (s)', 'How long a file search may take.', { min: 1 }],
-    ['SLASH_COMMAND_TOOL_CHAR_BUDGET', 'Slash command text budget', 'The characters of slash command descriptions Claude is told about.', { min: 1 }],
-    ['CLAUDE_AUTOCOMPACT_PCT_OVERRIDE', 'Compact at (% full)', 'When the context is this full, Claude compacts it.', { min: 1, max: 100 }],
-    ['CLAUDE_CODE_AUTO_COMPACT_WINDOW', 'Compaction window (tokens)', 'The context size compaction is measured against.', { min: 1 }],
+    [
+      'SLASH_COMMAND_TOOL_CHAR_BUDGET',
+      'Slash command text budget',
+      'The characters of slash command descriptions Claude is told about.',
+      { min: 1 },
+    ],
+    [
+      'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE',
+      'Compact at (% full)',
+      'When the context is this full, Claude compacts it.',
+      { min: 1, max: 100 },
+    ],
+    [
+      'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
+      'Compaction window (tokens)',
+      'The context size compaction is measured against.',
+      { min: 1 },
+    ],
   ]),
-  ...group('Limits', 'flag', [['DISABLE_AUTO_COMPACT', 'No automatic compaction', 'Never compact the context by itself.']]),
+  ...group('Limits', 'flag', [
+    ['DISABLE_AUTO_COMPACT', 'No automatic compaction', 'Never compact the context by itself.'],
+  ]),
 
   ...group('Behaviour', 'text', [
     ['CLAUDE_CODE_SHELL', 'Shell', 'The shell Claude runs commands in.'],
@@ -111,21 +199,41 @@ export const CLAUDE_ENV: readonly EnvVarSpec[] = [
     ['CLAUDE_ENV_FILE', 'Shell setup file', 'A script run before every shell command.'],
   ]),
   ...group('Behaviour', 'flag', [
-    ['CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR', 'Stay in the project folder', 'Return to the project folder after every shell command.'],
-    ['USE_BUILTIN_RIPGREP', 'Use the built-in ripgrep', 'Use the ripgrep that comes with Claude rather than the one on PATH.'],
+    [
+      'CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR',
+      'Stay in the project folder',
+      'Return to the project folder after every shell command.',
+    ],
+    [
+      'USE_BUILTIN_RIPGREP',
+      'Use the built-in ripgrep',
+      'Use the ripgrep that comes with Claude rather than the one on PATH.',
+    ],
     ['CLAUDE_CODE_DISABLE_BACKGROUND_TASKS', 'No background tasks', 'Do not let commands run in the background.'],
     ['CLAUDE_CODE_ENABLE_TASKS', 'Task list', 'Turn the task list tools on.'],
     ['CLAUDE_CODE_DISABLE_AUTO_MEMORY', 'No automatic memory', 'Claude does not write memory notes by itself.'],
     ['CLAUDE_CODE_DISABLE_CLAUDE_MDS', 'Ignore CLAUDE.md files', 'Do not load CLAUDE.md files.'],
-    ['CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS', 'No built-in git instructions', 'Leave the git instructions out of the prompt.'],
+    [
+      'CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS',
+      'No built-in git instructions',
+      'Leave the git instructions out of the prompt.',
+    ],
     ['CLAUDE_CODE_DISABLE_TERMINAL_TITLE', 'Keep the terminal title', 'Do not change the terminal title.'],
     ['CLAUDE_CODE_NO_FLICKER', 'Flicker-free screen', 'Draw the screen in its own buffer, which stops flicker.'],
     ['CLAUDE_CODE_SIMPLE', 'Simple mode', 'Start with fewer tools and a short prompt.'],
     ['CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION', 'Prompt suggestions', 'Suggest what to type next.'],
     ['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS', 'Agent teams (experimental)', 'Turn the experimental agent teams on.'],
-    ['CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS', 'No experimental betas', 'Do not send experimental beta headers to the API.'],
+    [
+      'CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS',
+      'No experimental betas',
+      'Do not send experimental beta headers to the API.',
+    ],
     ['CLAUDE_CODE_SKIP_PROMPT_HISTORY', 'Do not keep prompt history', 'Do not save what you type.'],
-    ['CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL', 'No editor extension install', 'Do not install the editor extension by itself.'],
+    [
+      'CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL',
+      'No editor extension install',
+      'Do not install the editor extension by itself.',
+    ],
     ['ENABLE_TOOL_SEARCH', 'Tool search', 'Load MCP tools when they are needed instead of at the start.'],
   ]),
 
@@ -133,9 +241,17 @@ export const CLAUDE_ENV: readonly EnvVarSpec[] = [
     ['DISABLE_TELEMETRY', 'No telemetry', 'Do not send usage statistics.'],
     ['DISABLE_ERROR_REPORTING', 'No error reports', 'Do not send error reports.'],
     ['DISABLE_COST_WARNINGS', 'No cost warnings', 'Hide the cost warnings.'],
-    ['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'Only essential traffic', 'Turn off telemetry, error reports, updates and the survey in one go.'],
+    [
+      'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+      'Only essential traffic',
+      'Turn off telemetry, error reports, updates and the survey in one go.',
+    ],
     ['CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY', 'No feedback survey', 'Do not ask for feedback.'],
-    ['DISABLE_AUTOUPDATER', 'No automatic updates', 'Do not update Claude by itself. The sandbox sets this: it installs Claude itself.'],
+    [
+      'DISABLE_AUTOUPDATER',
+      'No automatic updates',
+      'Do not update Claude by itself. The sandbox sets this: it installs Claude itself.',
+    ],
     ['DISABLE_PROMPT_CACHING', 'No prompt caching', 'Turn prompt caching off.'],
     ['CLAUDE_CODE_ENABLE_TELEMETRY', 'OpenTelemetry', 'Turn OpenTelemetry metrics on.'],
   ]),
@@ -144,7 +260,12 @@ export const CLAUDE_ENV: readonly EnvVarSpec[] = [
     ['HTTPS_PROXY', 'HTTPS proxy', 'A proxy for HTTPS requests (http://host:port).'],
     ['NO_PROXY', 'Hosts without the proxy', 'Hosts that do not go through the proxy, separated by commas.'],
     ['ANTHROPIC_BASE_URL', 'API address', 'Send API requests to this address instead of Anthropic (a gateway).'],
-    ['ANTHROPIC_CUSTOM_HEADERS', 'Extra API headers', 'Headers added to every API request, one "Name: value" per line.', { secret: true }],
+    [
+      'ANTHROPIC_CUSTOM_HEADERS',
+      'Extra API headers',
+      'Headers added to every API request, one "Name: value" per line.',
+      { secret: true },
+    ],
   ]),
 
   ...group('Providers', 'flag', [
@@ -154,8 +275,18 @@ export const CLAUDE_ENV: readonly EnvVarSpec[] = [
   ]),
   ...group('Providers', 'text', [
     ['AWS_BEARER_TOKEN_BEDROCK', 'Bedrock token', 'A bearer token for Amazon Bedrock.', { secret: true }],
-    ['ANTHROPIC_AUTH_TOKEN', 'Auth token', 'A token sent as the Authorization header (for a gateway).', { secret: true }],
-    ['ANTHROPIC_API_KEY', 'API key', 'An Anthropic API key. To keep a key for later, use Accounts > Save an API key instead.', { secret: true }],
+    [
+      'ANTHROPIC_AUTH_TOKEN',
+      'Auth token',
+      'A token sent as the Authorization header (for a gateway).',
+      { secret: true },
+    ],
+    [
+      'ANTHROPIC_API_KEY',
+      'API key',
+      'An Anthropic API key. To keep a key for later, use Accounts > Save an API key instead.',
+      { secret: true },
+    ],
   ]),
 ];
 

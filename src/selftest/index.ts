@@ -29,6 +29,7 @@ import { channelSuite } from './channel.test.js';
 import { heavyLoadSuite } from './heavy-load.test.js';
 import { cliSuite } from './cli.test.js';
 import { agentPathsSuite } from './agent-paths.test.js';
+import { agentSettingsSuite } from './agent-settings.test.js';
 import { cmdlineSuite } from './cmdline.test.js';
 import { configSuite } from './config.test.js';
 import { migrateSuite } from './migrate.test.js';
@@ -142,6 +143,7 @@ export const SUITES: Suite[] = [
   personalizationSuite,
   cmdlineSuite,
   agentPathsSuite,
+  agentSettingsSuite,
   setupSuite,
   dataSuite,
   repairSuite,

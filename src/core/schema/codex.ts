@@ -17,11 +17,11 @@ export const CodexSchema = z.strictObject({
     .describe("The model Codex uses. Empty = Codex's own default."),
   reasoningEffort: z
     .enum(['default', 'minimal', 'low', 'medium', 'high', 'xhigh'])
-    .describe("How hard Codex thinks. \"default\" = Codex's own default."),
+    .describe('How hard Codex thinks. "default" = Codex\'s own default.'),
   windowsSandbox: z
     .enum(['off', 'unelevated', 'elevated'])
     .describe(
-      "Codex's Windows sandbox mode in its config.toml. \"off\" removes the setting so Codex does not set up its sandbox users and firewall rules at every boot.",
+      'Codex\'s Windows sandbox mode in its config.toml. "off" removes the setting so Codex does not set up its sandbox users and firewall rules at every boot.',
     ),
   mcpLoginsInFile: z
     .boolean()

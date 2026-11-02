@@ -80,10 +80,7 @@ const SealedSchema = z.object({
   email: z.string().max(200).nullable(),
   /** Missing in accounts saved before keys could be: a subscription. */
   kind: z.enum(LOGIN_KINDS).optional(),
-  keyHint: z
-    .string()
-    .regex(ANTHROPIC_KEY_HINT)
-    .optional(),
+  keyHint: z.string().regex(ANTHROPIC_KEY_HINT).optional(),
   sealed: z.string().max(200000),
 });
 type Stored = z.output<typeof SealedSchema> | z.output<typeof AccountSchema>;

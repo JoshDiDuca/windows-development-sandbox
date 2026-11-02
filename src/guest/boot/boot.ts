@@ -133,7 +133,11 @@ function writeDevToolCommands(dir: string): void {
  */
 function writeAgentCommands(dir: string): void {
   const install = { node: process.execPath, script: path.join(path.dirname(process.argv[1]), 'agent.js') };
-  for (const shim of agentShims(toolsDir, session.agents ?? {}, session.codex ? { codex: codexArguments(session.codex) } : {}))
+  for (const shim of agentShims(
+    toolsDir,
+    session.agents ?? {},
+    session.codex ? { codex: codexArguments(session.codex) } : {},
+  ))
     fs.writeFileSync(path.join(dir, shim.command + '.cmd'), shimText(shim, install));
   fs.writeFileSync(path.join(dir, 'sbx-agent.cmd'), sbxAgentText(install));
 }
@@ -340,7 +344,12 @@ export class Boot {
       const launch = agents.resolveLaunch(session.harnessName, session.harness);
       log(
         '(dry run) would run: ' +
-          [launch.file, ...launch.args, ...agentArguments(session.harnessName, session.harness, session.codex), ...session.harnessArguments].join(' ') +
+          [
+            launch.file,
+            ...launch.args,
+            ...agentArguments(session.harnessName, session.harness, session.codex),
+            ...session.harnessArguments,
+          ].join(' ') +
           ' | cwd=' +
           workspace,
       );

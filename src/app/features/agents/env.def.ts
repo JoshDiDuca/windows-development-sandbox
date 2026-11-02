@@ -60,7 +60,7 @@ export const agentEnv = defineQuery({
 export const agentsEnvSet = defineOperation({
   id: 'agents.env.set',
   title: 'Set variable',
-  summary: "set or remove one environment variable of an agent in your settings (empty removes it)",
+  summary: 'set or remove one environment variable of an agent in your settings (empty removes it)',
   input: z.object({
     agent: AgentName.describe('The agent'),
     name: z.string().regex(ENV_NAME).describe('The variable'),
@@ -82,7 +82,12 @@ export function envValueText(r: EnvRow): string {
 /** The editor of a row's value: a Field every surface can draw (a flag is switched, so it has none). Pure. */
 export function envField(r: EnvRow): Field | undefined {
   if (r.kind === 'flag') return undefined;
-  const help = [r.description, r.range, r.choices ? 'One of: ' + r.choices.join(', ') + '.' : undefined, 'Empty removes it.']
+  const help = [
+    r.description,
+    r.range,
+    r.choices ? 'One of: ' + r.choices.join(', ') + '.' : undefined,
+    'Empty removes it.',
+  ]
     .filter(Boolean)
     .join(' ');
   return {
@@ -116,7 +121,11 @@ function rowItem(agent: string, r: EnvRow): Item {
           fields: [field],
           initial: { value: r.secret ? '' : (r.value ?? '') },
         })
-      : action(agentsEnvSet, { ...input, value: r.set ? null : '1' }, { label: r.set ? 'Turn off' : 'Turn on', verb: r.set ? 'turn off' : 'turn on' }),
+      : action(
+          agentsEnvSet,
+          { ...input, value: r.set ? null : '1' },
+          { label: r.set ? 'Turn off' : 'Turn on', verb: r.set ? 'turn off' : 'turn on' },
+        ),
     actions:
       r.set && !r.fromSandbox
         ? [action(agentsEnvSet, { ...input, value: null }, { label: 'Remove', verb: 'remove', key: 'r' })]
@@ -142,26 +151,31 @@ export function agentEnvPage(o: AgentEnv): Page {
   sections.push({
     id: 'own',
     title: 'Your own variables',
-    description: 'Any other variable the agent should start with. Values are kept in your settings and not shown again.',
+    description:
+      'Any other variable the agent should start with. Values are kept in your settings and not shown again.',
     items: [
-      ...o.custom.map(
-        (c): Item => ({
-          id: 'env:' + c.name,
-          label: c.name,
-          hint: 'set',
-          tone: 'ok',
-          badges: c.fromSandbox ? [{ text: 'set by the sandbox', tone: 'muted' }] : [],
-          code: c.name,
-          primary: action(
-            agentsEnvSet,
-            { agent: o.agent, name: c.name },
-            { label: 'Change', verb: 'edit', inline: true, fields: [ownField], initial: { value: '' } },
-          ),
-          actions: c.fromSandbox
-            ? []
-            : [action(agentsEnvSet, { agent: o.agent, name: c.name, value: null }, { label: 'Remove', verb: 'remove', key: 'r' })],
-        }),
-      ),
+      ...o.custom.map((c): Item => ({
+        id: 'env:' + c.name,
+        label: c.name,
+        hint: 'set',
+        tone: 'ok',
+        badges: c.fromSandbox ? [{ text: 'set by the sandbox', tone: 'muted' }] : [],
+        code: c.name,
+        primary: action(
+          agentsEnvSet,
+          { agent: o.agent, name: c.name },
+          { label: 'Change', verb: 'edit', inline: true, fields: [ownField], initial: { value: '' } },
+        ),
+        actions: c.fromSandbox
+          ? []
+          : [
+              action(
+                agentsEnvSet,
+                { agent: o.agent, name: c.name, value: null },
+                { label: 'Remove', verb: 'remove', key: 'r' },
+              ),
+            ],
+      })),
       {
         id: 'add',
         label: 'Add variable…',
@@ -173,7 +187,14 @@ export function agentEnvPage(o: AgentEnv): Page {
             label: 'Add variable…',
             verb: 'add',
             fields: [
-              { name: 'name', key: ['name'], kind: 'text', label: 'Name', help: 'Letters, digits and _, e.g. MY_TOKEN.', optional: false },
+              {
+                name: 'name',
+                key: ['name'],
+                kind: 'text',
+                label: 'Name',
+                help: 'Letters, digits and _, e.g. MY_TOKEN.',
+                optional: false,
+              },
               ownField,
             ],
           },

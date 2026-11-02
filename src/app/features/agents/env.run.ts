@@ -12,10 +12,9 @@ import { agentEnv, agentsEnvSet, type AgentEnv, type EnvRow } from './env.def.js
 function ownVariables(file: ConfigFile, agent: string): Record<string, string> {
   const raw = file.valueInFile(['harnesses', agent, 'environment']);
   if (!_.isPlainObject(raw)) return {};
-  return Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([, v]) => typeof v === 'string')) as Record<
-    string,
-    string
-  >;
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).filter(([, v]) => typeof v === 'string'),
+  ) as Record<string, string>;
 }
 
 function rangeText(spec: EnvVarSpec): string | undefined {

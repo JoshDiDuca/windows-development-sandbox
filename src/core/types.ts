@@ -10,6 +10,10 @@ import type {
   MappingSchema,
 } from './schema/index.js';
 
+import type { Payloads } from '../shared/accounts/payloads.js';
+import type { ServiceKind } from '../shared/accounts/kinds.js';
+import type { PcInstallManifest } from '../shared/paths/pc-installs.js';
+
 export type {
   AttachEndpoint,
   GuestRequest,
@@ -153,6 +157,14 @@ export interface GenerateOptions {
   vpn?: PreparedVpn;
   /** The saved GitHub token (github.shareToken, host/github/deliver.ts): only ever written to the one-shot file. */
   githubToken?: string;
+  /** Saved service sign-ins this launch hands over (accounts.<kind>.share): only ever in the one-shot file. */
+  serviceAccounts?: Payloads;
+  /** The kinds whose lease this launch holds (a sign-in made or renewed there may come back). Names only. */
+  accountLeases?: ServiceKind[];
+  /** The launch's id, when the caller made it first (service-account leases name it). */
+  launchId?: string;
+  /** pcInstalls: this PC's games, engines and editors, read-only under C:\PcInstalls (host/pc-installs). */
+  pcInstalls?: { mappings: ResolvedMapping[]; manifest: PcInstallManifest };
   /** The data set's mappings from a storage provider (contained storage); else the data folder is one mapping. */
   dataMappings?: ResolvedMapping[];
 }
@@ -283,4 +295,8 @@ export interface GuestSession {
   agentProfileDirs?: Record<string, string[]>;
   /** Every configured agent (without its environment): a terminal command each; older launch folders lack it. */
   agents?: Record<string, Harness>;
+  /** pcInstalls: what is mapped read-only under C:\PcInstalls (paths in the sandbox only); older launches lack it. */
+  pcInstalls?: PcInstallManifest;
+  /** Service sign-ins whose lease this launch holds: the sandbox hands renewed ones back (names only). */
+  accountLeases?: ServiceKind[];
 }

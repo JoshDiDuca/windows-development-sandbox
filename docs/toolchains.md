@@ -69,6 +69,33 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
   terms. `components` adds more Visual Studio workload or component IDs.
 - The engine itself is not installed. Sign in to the Epic Games Launcher (Start menu) and install it there, or build it
   from Epic's source on GitHub. For the GPU, turn on `sandbox.vGpu`.
+- Your Epic Games Launcher sign-in can be kept between sandboxes: turn on `accounts.epic.share` and sign in once (or
+  take your PC's with `sandbox account import epic`). See [accounts](accounts.md).
+- `persistEngines` and `derivedDataCache` (both on by default) are for engines the launcher installs and Unreal's
+  shader cache, kept in `tools\unreal`; engines on your PC can be mapped read-only with `pcInstalls.unrealEngines`. They
+  come in a later version ([game engines](game-engines.md)).
+- Visual Studio is shared with the other toolchains that need it (Flutter's Windows desktop builds and Unity's
+  `windows-il2cpp` module get its Build Tools, under `toolchains.msvc.acceptLicense`): one install serves them all.
+
+### Game, modding and mobile toolchains
+
+These settings are in place; the installs come in a later version. Each is `"auto"` by default, and the licensed ones
+(Unity, the FiveM server, the Android SDK) install only once you set their `acceptLicense`. A project file can never
+accept a licence for you.
+
+|                            | What it sets up                                                | Found from                                                |
+| -------------------------- | -------------------------------------------------------------- | --------------------------------------------------------- |
+| Unity ([unity](unity.md))  | the editor version the project asks for, modules, Unity Hub    | `ProjectSettings/ProjectVersion.txt`                      |
+| Godot ([engines](game-engines.md)) | Godot (and its .NET build), export templates           | `project.godot`                                           |
+| Steam ([steam](steam.md))  | SteamCMD and `sbx-steam`, the Steam client when asked          | `steam_appid.txt`, `steam_api64.dll`, `steam_api.dll`     |
+| FiveM / RedM ([fivem](fivem.md)) | the FXServer with txAdmin and `sbx-fivem`                | `fxmanifest.lua`, `__resource.lua`                        |
+| Android ([android](android.md)) | the SDK and a JDK (no emulator), `sbx-android`            | Gradle's `com.android`, `AndroidManifest.xml`, Flutter, React Native |
+| Flutter, Dart, React Native ([mobile](mobile.md)) | the SDKs, `eas-cli`                     | `pubspec.yaml`, `package.json` with `react-native` / `expo` |
+| Kotlin                     | `kotlinc` (`toolchains.java.kotlin`, off by default)           | `*.kt` turns Java on                                      |
+
+Flutter and React Native bring the Android SDK, and the Android SDK brings a JDK. Sign-ins these tools use (Steam,
+Unity, a FiveM server key, signing keys) are in [accounts](accounts.md). `pcInstalls` maps games, engines and editors
+installed on your PC read-only into sandboxes ([configuration](configuration.md#installs-on-this-pc)).
 
 ### Rust builds
 

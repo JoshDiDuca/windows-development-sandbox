@@ -411,6 +411,161 @@
       },
       "additionalProperties": false
     },
+    "accounts": {
+      "type": "object",
+      "properties": {
+        "epic": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Epic Games sign-in to sandboxes that use unreal (sign in to the launcher once in a sandbox, or take this PC's: sandbox account import epic). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. A sign-in works in one place at a time: taking this PC's signs the launcher on this PC out the first time a sandbox uses it. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "steam": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Steam (SteamCMD) sign-in to sandboxes that use steam (sign in once with sbx-steam login, or: sandbox account import steam --from <steamcmd folder>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload builds and workshop items to your Steam apps. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. No password is kept: sign in once with sbx-steam login in a sandbox (Steam Guard asks there). Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "unity": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Unity sign-in to sandboxes that use unity (sign in once in a sandbox, or take this PC's licence: sandbox account import unity). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. A Pro seat is handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep it until you return it. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "cfx": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Cfx.re (FiveM / RedM server key) sign-in to sandboxes that use fivem (sandbox account login cfx). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. Anyone with the key can run a server under your Cfx.re account. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "keystore": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Android upload keystore sign-in to sandboxes that use android (sandbox account import keystore --from <upload.jks>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can sign app updates as you; keep a backup of the keystore elsewhere. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "play": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Google Play (service account) sign-in to sandboxes that use android (sandbox account import play --from <service-account.json>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can publish to Google Play with what the service account is allowed. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "expo": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Expo (EAS) sign-in to sandboxes that use reactNative (sandbox account login expo). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can start EAS builds and submissions on your Expo account. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "appstore": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved App Store Connect API key sign-in to sandboxes that use reactNative or flutter (sandbox account import appstore --from <AuthKey.p8>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload and submit apps with what the key is allowed. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "description": "Service sign-ins for sandboxes (game stores, engines, app signing). Manage them in Accounts: sandbox account status."
+    },
+    "pcInstalls": {
+      "type": "object",
+      "properties": {
+        "steamGames": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          ],
+          "description": "Steam games (true maps each library; a list of app IDs maps only those games) of this PC, read-only in the sandbox under C:\\PcInstalls: true = all of them, false = none, or a list (e.g. [480, 730]). The agent can read their files."
+        },
+        "epicGames": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]{1,100}$"
+              }
+            }
+          ],
+          "description": "Epic Games Launcher games (by their app name) of this PC, read-only in the sandbox under C:\\PcInstalls: true = all of them, false = none, or a list (e.g. [\"Fortnite\"]). The agent can read their files."
+        },
+        "unrealEngines": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(UE_)?\\d+\\.\\d+$"
+              }
+            }
+          ],
+          "description": "Unreal Engine versions installed with the Epic Games Launcher of this PC, read-only in the sandbox under C:\\PcInstalls: true = all of them, false = none, or a list (e.g. [\"5.4\"]). The agent can read their files."
+        },
+        "unityEditors": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+[abfp]\\d+$"
+              }
+            }
+          ],
+          "description": "Unity editors installed with Unity Hub of this PC, read-only in the sandbox under C:\\PcInstalls: true = all of them, false = none, or a list (e.g. [\"6000.0.32f1\"]). The agent can read their files."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Games, engines and editors installed on this PC, mapped read-only into sandboxes (no copy, no room on the sandbox's disk)."
+    },
     "provisioning": {
       "type": "object",
       "properties": {
@@ -705,6 +860,325 @@
             "keepInstallFiles": {
               "type": "boolean",
               "description": "Keep an offline copy of the Visual Studio install files in tools\\visualstudio (~10 GB, made once), so later boots install without downloading them again. Skipped while that disk has too little room."
+            },
+            "persistEngines": {
+              "type": "boolean",
+              "description": "Engines the Epic Games Launcher installs go to tools\\unreal\\engines (kept between sandboxes, 40-60 GB each) and are registered with the launcher again every boot. Off: they go on the sandbox disk and are lost when it closes. Engines installed on this PC can be mapped instead (pcInstalls.unrealEngines)."
+            },
+            "derivedDataCache": {
+              "type": "string",
+              "enum": [
+                "persisted",
+                "local"
+              ],
+              "description": "\"persisted\": the engine's local derived data cache (compiled shaders, 10-50 GB) in tools\\unreal\\ddc, kept between sandboxes. \"local\": Unreal's own place on the sandbox disk (rebuilt every boot)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "unity": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "Unity: the editor version a project asks for, from Unity's release API (checked against its published hash), installed into tools\\unity\\<version> (6-7 GB each), with the modules you list. true, false, or \"auto\" = only when the project has ProjectSettings/ProjectVersion.txt."
+            },
+            "acceptLicense": {
+              "type": "boolean",
+              "description": "Required to install: you accept the Unity terms of service (https://unity.com/legal/terms-of-service), and the editor needs a Unity licence (Personal is free). A project file cannot accept it for you."
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "description": "\"project\" = the version in ProjectSettings/ProjectVersion.txt, or an editor version such as \"6000.0.32f1\"."
+            },
+            "modules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]+$"
+              },
+              "description": "Editor modules to add: \"android\" (4-5 GB, also the Android SDK), \"webgl\" (1.5 GB), \"windows-il2cpp\" (adds Visual Studio's C++ parts), \"ios\" (Xcode project export only: iOS builds need a Mac)."
+            },
+            "hub": {
+              "type": "boolean",
+              "description": "Also Unity Hub, with the installed editors listed in it."
+            },
+            "keepVersions": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "description": "How many editor versions to keep in tools\\unity; older ones are removed (the least recently used first)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "godot": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "Godot from its official builds (checked against the published SHA-512 sums), self-contained in tools\\godot\\<version> with `godot` (the console build) on PATH. true, false, or \"auto\" = only when the project has project.godot."
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "description": "\"project\" = the version project.godot was saved with (else the newest stable), or a version such as \"4.3\"."
+            },
+            "dotnet": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "The .NET (C#) build of Godot and the .NET SDK: true, false, or \"auto\" = when the project has a .csproj."
+            },
+            "exportTemplates": {
+              "type": "boolean",
+              "description": "Also the export templates for that version (~1.2 GB), for exporting games."
+            },
+            "keepVersions": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "description": "How many Godot versions to keep; older ones are removed (the least recently used first)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "steam": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "SteamCMD (`steamcmd` on PATH, Valve-signed, ~0.3 GB) and `sbx-steam` for logging in, downloading apps and workshop items, and uploading builds (ContentBuilder) and workshop items. true, false, or \"auto\" = only when the project has steam_appid.txt, steam_api64.dll, steam_api.dll, or an app_build / workshop_item .vdf."
+            },
+            "client": {
+              "type": "boolean",
+              "description": "Also the Steam client (1-1.5 GB, in tools\\steam), for testing the Steamworks API, the overlay or in-game uploads. You sign in to it in each sandbox."
+            },
+            "sdkFolder": {
+              "type": "string",
+              "description": "Where the Steamworks SDK is in the sandbox (relative paths are inside the project); it sets STEAMWORKS_SDK. Empty = not set. The SDK is never downloaded (it needs a Steamworks partner login)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "fivem": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "A FiveM / RedM server (FXServer with txAdmin) for resource development, from the Cfx.re artifacts (the game client is not supported). `sbx-fivem serve` starts it. true, false, or \"auto\" = only when the project has fxmanifest.lua or __resource.lua (up to 3 folders down)."
+            },
+            "acceptLicense": {
+              "type": "boolean",
+              "description": "Required to install: you accept the Cfx.re platform terms (https://fivem.net/terms) and the FXServer licence. A project file cannot accept it for you."
+            },
+            "game": {
+              "type": "string",
+              "enum": [
+                "gta5",
+                "rdr3"
+              ],
+              "description": "\"gta5\" = FiveM, \"rdr3\" = RedM."
+            },
+            "artifact": {
+              "type": "string",
+              "pattern": "^(recommended|optional|latest|\\d+)$",
+              "description": "The server build: \"recommended\", \"optional\", \"latest\", or a build number."
+            },
+            "txAdmin": {
+              "type": "boolean",
+              "description": "Start the server with txAdmin (its web panel on port 40120)."
+            },
+            "keepVersions": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "description": "How many server builds to keep in tools\\fivem\\artifacts."
+            }
+          },
+          "additionalProperties": false
+        },
+        "android": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "The Android SDK (command-line tools, platform-tools, build-tools, platforms, NDK and CMake as needed) in tools\\android-sdk, with a JDK. No emulator (Windows Sandbox cannot run one): use a device over the network, or build only. true, false, or \"auto\" = only when the project has a Gradle build using com.android, an AndroidManifest.xml (up to 3 folders down), a .NET MAUI project, or a Flutter / React Native / Godot Android project."
+            },
+            "acceptLicense": {
+              "type": "boolean",
+              "description": "Required to install: you accept the Android SDK licence (https://developer.android.com/studio/terms) and the licences sdkmanager shows. A project file cannot accept them for you."
+            },
+            "platforms": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Platforms to install, e.g. [\"android-35\"]; \"project\" = the compileSdk the project's Gradle files ask for."
+            },
+            "buildTools": {
+              "type": "string",
+              "minLength": 1,
+              "description": "\"latest\" or a build-tools version such as \"35.0.0\"."
+            },
+            "ndk": {
+              "anyOf": [
+                {
+                  "type": "boolean",
+                  "const": false
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "description": "\"auto\" = when the project uses native code (ndkVersion, CMake or ndk-build), false = never, or a version."
+            },
+            "cmake": {
+              "anyOf": [
+                {
+                  "type": "boolean",
+                  "const": false
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "description": "\"auto\" = when the project builds native code with CMake, false = never, or a version."
+            },
+            "packages": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "More sdkmanager packages (not the emulator or system images), installed once and kept (e.g. [\"extras;google;usb_driver\"])."
+            }
+          },
+          "additionalProperties": false
+        },
+        "flutter": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "Flutter (with its Dart) from the official releases (checked against their SHA-256), with the Android SDK for Android builds. true, false, or \"auto\" = only when the project has a pubspec.yaml with a flutter: section."
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "description": "\"project\" = the version in .fvmrc (else the newest stable), \"stable\", \"beta\", or a version such as \"3.24.5\"."
+            },
+            "windowsDesktop": {
+              "type": "boolean",
+              "description": "Windows desktop builds: needs Visual Studio Build Tools' C++ parts (a real installer: it runs every boot, ~5 GB on the sandbox disk)."
+            },
+            "precache": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Platforms whose engine files are downloaded ahead (flutter precache), e.g. [\"android\", \"web\"]."
+            }
+          },
+          "additionalProperties": false
+        },
+        "dart": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "The Dart SDK (without Flutter), checked against its published SHA-256. true, false, or \"auto\" = only when the project has a pubspec.yaml without a flutter: section."
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "description": "\"stable\", \"beta\" or a version such as \"3.5.4\"."
+            }
+          },
+          "additionalProperties": false
+        },
+        "reactNative": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "auto"
+                }
+              ],
+              "description": "React Native / Expo: the Android SDK and JDK for Android builds (Node is always there). iOS builds run in EAS Build (the cloud). true, false, or \"auto\" = only when the project has a package.json depending on react-native or expo."
+            },
+            "easCli": {
+              "type": "boolean",
+              "description": "Also eas-cli (Expo Application Services) as a global npm package."
             }
           },
           "additionalProperties": false
@@ -777,6 +1251,13 @@
             "netfx35": {
               "type": "boolean",
               "description": ".NET Framework 3.5 runtime (a Windows feature, enabled from Windows Update on every boot; a few minutes)."
+            },
+            "templates": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Project templates (`dotnet new install`), installed once and kept (e.g. [\"MonoGame.Templates.CSharp\"])."
             }
           },
           "additionalProperties": false
@@ -838,6 +1319,10 @@
             "gradle": {
               "type": "boolean",
               "description": "Gradle (gradle). A project's gradlew works either way."
+            },
+            "kotlin": {
+              "type": "boolean",
+              "description": "Also the Kotlin compiler (kotlinc) from JetBrains' releases. Gradle builds fetch their own."
             }
           },
           "additionalProperties": false

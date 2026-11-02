@@ -105,6 +105,166 @@ export const ToolchainsSchema = z.strictObject({
       .describe(
         'Keep an offline copy of the Visual Studio install files in tools\\visualstudio (~10 GB, made once), so later boots install without downloading them again. Skipped while that disk has too little room.',
       ),
+    persistEngines: z
+      .boolean()
+      .describe(
+        'Engines the Epic Games Launcher installs go to tools\\unreal\\engines (kept between sandboxes, 40-60 GB each) and are registered with the launcher again every boot. Off: they go on the sandbox disk and are lost when it closes. Engines installed on this PC can be mapped instead (pcInstalls.unrealEngines).',
+      ),
+    derivedDataCache: z
+      .enum(['persisted', 'local'])
+      .describe(
+        '"persisted": the engine\'s local derived data cache (compiled shaders, 10-50 GB) in tools\\unreal\\ddc, kept between sandboxes. "local": Unreal\'s own place on the sandbox disk (rebuilt every boot).',
+      ),
+  }),
+  unity: z.strictObject({
+    enabled: enabled(
+      "Unity: the editor version a project asks for, from Unity's release API (checked against its published hash), installed into tools\\unity\\<version> (6-7 GB each), with the modules you list.",
+      'ProjectSettings/ProjectVersion.txt',
+    ),
+    acceptLicense: z
+      .boolean()
+      .describe(
+        'Required to install: you accept the Unity terms of service (https://unity.com/legal/terms-of-service), and the editor needs a Unity licence (Personal is free). A project file cannot accept it for you.',
+      ),
+    version: z
+      .string()
+      .min(1)
+      .describe(
+        '"project" = the version in ProjectSettings/ProjectVersion.txt, or an editor version such as "6000.0.32f1".',
+      ),
+    modules: z
+      .array(z.string().regex(/^[a-z0-9-]+$/))
+      .describe(
+        'Editor modules to add: "android" (4-5 GB, also the Android SDK), "webgl" (1.5 GB), "windows-il2cpp" (adds Visual Studio\'s C++ parts), "ios" (Xcode project export only: iOS builds need a Mac).',
+      ),
+    hub: z.boolean().describe('Also Unity Hub, with the installed editors listed in it.'),
+    keepVersions: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .describe(
+        'How many editor versions to keep in tools\\unity; older ones are removed (the least recently used first).',
+      ),
+  }),
+  godot: z.strictObject({
+    enabled: enabled(
+      'Godot from its official builds (checked against the published SHA-512 sums), self-contained in tools\\godot\\<version> with `godot` (the console build) on PATH.',
+      'project.godot',
+    ),
+    version: z
+      .string()
+      .min(1)
+      .describe(
+        '"project" = the version project.godot was saved with (else the newest stable), or a version such as "4.3".',
+      ),
+    dotnet: EnabledSchema.describe(
+      'The .NET (C#) build of Godot and the .NET SDK: true, false, or "auto" = when the project has a .csproj.',
+    ),
+    exportTemplates: z.boolean().describe('Also the export templates for that version (~1.2 GB), for exporting games.'),
+    keepVersions: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .describe('How many Godot versions to keep; older ones are removed (the least recently used first).'),
+  }),
+  steam: z.strictObject({
+    enabled: enabled(
+      'SteamCMD (`steamcmd` on PATH, Valve-signed, ~0.3 GB) and `sbx-steam` for logging in, downloading apps and workshop items, and uploading builds (ContentBuilder) and workshop items.',
+      'steam_appid.txt, steam_api64.dll, steam_api.dll, or an app_build / workshop_item .vdf',
+    ),
+    client: z
+      .boolean()
+      .describe(
+        'Also the Steam client (1-1.5 GB, in tools\\steam), for testing the Steamworks API, the overlay or in-game uploads. You sign in to it in each sandbox.',
+      ),
+    sdkFolder: z
+      .string()
+      .describe(
+        'Where the Steamworks SDK is in the sandbox (relative paths are inside the project); it sets STEAMWORKS_SDK. Empty = not set. The SDK is never downloaded (it needs a Steamworks partner login).',
+      ),
+  }),
+  fivem: z.strictObject({
+    enabled: enabled(
+      'A FiveM / RedM server (FXServer with txAdmin) for resource development, from the Cfx.re artifacts (the game client is not supported). `sbx-fivem serve` starts it.',
+      'fxmanifest.lua or __resource.lua (up to 3 folders down)',
+    ),
+    acceptLicense: z
+      .boolean()
+      .describe(
+        'Required to install: you accept the Cfx.re platform terms (https://fivem.net/terms) and the FXServer licence. A project file cannot accept it for you.',
+      ),
+    game: z.enum(['gta5', 'rdr3']).describe('"gta5" = FiveM, "rdr3" = RedM.'),
+    artifact: z
+      .string()
+      .regex(/^(recommended|optional|latest|\d+)$/)
+      .describe('The server build: "recommended", "optional", "latest", or a build number.'),
+    txAdmin: z.boolean().describe('Start the server with txAdmin (its web panel on port 40120).'),
+    keepVersions: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .describe('How many server builds to keep in tools\\fivem\\artifacts.'),
+  }),
+  android: z.strictObject({
+    enabled: enabled(
+      'The Android SDK (command-line tools, platform-tools, build-tools, platforms, NDK and CMake as needed) in tools\\android-sdk, with a JDK. No emulator (Windows Sandbox cannot run one): use a device over the network, or build only.',
+      'a Gradle build using com.android, an AndroidManifest.xml (up to 3 folders down), a .NET MAUI project, or a Flutter / React Native / Godot Android project',
+    ),
+    acceptLicense: z
+      .boolean()
+      .describe(
+        'Required to install: you accept the Android SDK licence (https://developer.android.com/studio/terms) and the licences sdkmanager shows. A project file cannot accept them for you.',
+      ),
+    platforms: StringsSchema.describe(
+      'Platforms to install, e.g. ["android-35"]; "project" = the compileSdk the project\'s Gradle files ask for.',
+    ),
+    buildTools: z.string().min(1).describe('"latest" or a build-tools version such as "35.0.0".'),
+    ndk: z
+      .union([z.literal(false), z.string().min(1)])
+      .describe(
+        '"auto" = when the project uses native code (ndkVersion, CMake or ndk-build), false = never, or a version.',
+      ),
+    cmake: z
+      .union([z.literal(false), z.string().min(1)])
+      .describe('"auto" = when the project builds native code with CMake, false = never, or a version.'),
+    packages: Packages('More sdkmanager packages (not the emulator or system images)', '["extras;google;usb_driver"]'),
+  }),
+  flutter: z.strictObject({
+    enabled: enabled(
+      'Flutter (with its Dart) from the official releases (checked against their SHA-256), with the Android SDK for Android builds.',
+      'a pubspec.yaml with a flutter: section',
+    ),
+    version: z
+      .string()
+      .min(1)
+      .describe(
+        '"project" = the version in .fvmrc (else the newest stable), "stable", "beta", or a version such as "3.24.5".',
+      ),
+    windowsDesktop: z
+      .boolean()
+      .describe(
+        "Windows desktop builds: needs Visual Studio Build Tools' C++ parts (a real installer: it runs every boot, ~5 GB on the sandbox disk).",
+      ),
+    precache: StringsSchema.describe(
+      'Platforms whose engine files are downloaded ahead (flutter precache), e.g. ["android", "web"].',
+    ),
+  }),
+  dart: z.strictObject({
+    enabled: enabled(
+      'The Dart SDK (without Flutter), checked against its published SHA-256.',
+      'a pubspec.yaml without a flutter: section',
+    ),
+    version: z.string().min(1).describe('"stable", "beta" or a version such as "3.5.4".'),
+  }),
+  reactNative: z.strictObject({
+    enabled: enabled(
+      'React Native / Expo: the Android SDK and JDK for Android builds (Node is always there). iOS builds run in EAS Build (the cloud).',
+      'a package.json depending on react-native or expo',
+    ),
+    easCli: z.boolean().describe('Also eas-cli (Expo Application Services) as a global npm package.'),
   }),
   cpp: z.strictObject({
     enabled: enabled(
@@ -130,6 +290,7 @@ export const ToolchainsSchema = z.strictObject({
       .describe(
         '.NET Framework 3.5 runtime (a Windows feature, enabled from Windows Update on every boot; a few minutes).',
       ),
+    templates: Packages('Project templates (`dotnet new install`)', '["MonoGame.Templates.CSharp"]'),
   }),
   go: z.strictObject({
     enabled: enabled('Go.', 'go.mod or go.work'),
@@ -152,6 +313,9 @@ export const ToolchainsSchema = z.strictObject({
       .describe('"lts" (newest LTS) or a major version such as "21". A project\'s .java-version or .sdkmanrc wins.'),
     maven: z.boolean().describe("Apache Maven (mvn). A project's mvnw works either way."),
     gradle: z.boolean().describe("Gradle (gradle). A project's gradlew works either way."),
+    kotlin: z
+      .boolean()
+      .describe("Also the Kotlin compiler (kotlinc) from JetBrains' releases. Gradle builds fetch their own."),
   }),
   ruby: z.strictObject({
     enabled: enabled(

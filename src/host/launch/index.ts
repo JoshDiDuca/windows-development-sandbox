@@ -1,5 +1,5 @@
-export { generateSandbox } from './generate.js';
-export { decideProjectToolchains } from './toolchains.js';
+export { generateSandbox, newLaunchId } from './generate.js';
+export { decideProjectToolchains, toolchainsOnForBoot } from './toolchains.js';
 export { hostToolsOf, logonEnv } from './session-file.js';
 export {
   cappedMemoryMb,

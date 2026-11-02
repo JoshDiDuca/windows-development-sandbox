@@ -12,6 +12,15 @@ import { createHarness, type RunningHarness } from './support/harness.js';
 import { liveTestsAvailable } from './support/live.js';
 import type { Suite } from './support/suite.js';
 import { accountsSuite } from './accounts.test.js';
+import { serviceAccountsSuite } from './service-accounts.test.js';
+import { persistedInstallsSuite } from './persisted-installs.test.js';
+import { pcInstallsSuite } from './pc-installs.test.js';
+import { steamSuite } from './steam.test.js';
+import { enginesSuite } from './engines.test.js';
+import { unitySuite } from './unity.test.js';
+import { fivemSuite } from './fivem.test.js';
+import { androidSuite } from './android.test.js';
+import { mobileSuite } from './mobile.test.js';
 import { credentialsSuite } from './credentials.test.js';
 import { vpnSuite } from './vpn.test.js';
 import { githubSuite } from './github.test.js';
@@ -103,6 +112,8 @@ export const SUITES: Suite[] = [
   credentialsSuite,
   vpnSuite,
   githubSuite,
+  serviceAccountsSuite,
+  pcInstallsSuite,
   workspaceViewSuite,
   auditSuite,
   // an untrusted sandbox: what the host refuses to do with what it finds
@@ -119,6 +130,13 @@ export const SUITES: Suite[] = [
   // pure helpers and the command line
   layoutSuite,
   toolchainsSuite,
+  persistedInstallsSuite,
+  steamSuite,
+  enginesSuite,
+  unitySuite,
+  fivemSuite,
+  androidSuite,
+  mobileSuite,
   detectSuite,
   networkSuite,
   personalizationSuite,

@@ -136,6 +136,35 @@ turn on `github.shareToken` ([how](configuration.md#github-token)):
 - gh lives in the shared tools folder, which other sandboxes using the same data set can write. Keep untrusted projects
   in a data set of their own.
 
+## Service sign-ins
+
+Sign-ins for game stores, engines and app signing (Epic, Steam, Unity, Cfx.re, an Android keystore, Google Play, Expo,
+App Store Connect) can be kept for sandboxes ([accounts](accounts.md)). Each one is off until you turn on
+`accounts.<service>.share`.
+
+- On your PC each one is encrypted with DPAPI (`<storage>\accounts\<service>.json`, host-only storage) and never
+  printed. It travels only in the one-shot secrets file the sandbox reads and deletes at boot, and only to a sandbox
+  where a toolchain that uses it is on.
+- **The agent can use every sign-in its sandbox gets.** A project file can turn sharing off, never on; when one project
+  in a sandbox turns it off, the sandbox does not get it.
+- Epic, Steam and Unity work in one place at a time: one sandbox holds each (your PC keeps the hold, in host-only
+  storage). Renewed ones come back through the data folder (`state\accounts\<service>.json`, readable by sandboxes using
+  that data set until your PC takes it): your PC takes one only from the sandbox that holds it, within its size limit,
+  of the right shape and never through a link, and deletes anything else unread.
+- `sandbox account logout <service>` deletes the saved one, its hold, and copies a sandbox left behind.
+
+## Licences and big installs
+
+A project file can never accept a licence for you: every `toolchains.<name>.acceptLicense` (MSVC, Unreal, Unity, the
+FiveM server, the Android SDK) is a protection a project can only turn off. Those toolchains are 1-60 GB, so "auto"
+installs them only once you accept. Big installs check for room first, and `sandbox data` lists their sizes.
+
+## Installs on this PC
+
+`pcInstalls` maps games, engines and editors installed on your PC into sandboxes **read-only** (under `C:\PcInstalls`),
+so nothing is copied. The agent can read their files. These settings are yours only: a project file cannot have them,
+and each folder is checked like any other mapping (never a whole drive, a user profile or this tool's own folders).
+
 ## Several projects
 
 Every project mapped into a sandbox is visible to every agent in it, read and write. Keep untrusted repos out of your

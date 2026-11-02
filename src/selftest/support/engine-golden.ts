@@ -39,6 +39,7 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'runtime/gitguard.js',
   'runtime/main.js',
   'runtime/netproxy.js',
+  'runtime/tool.js',
   'runtime/view.js',
   // The agent add-ons' lock files (pinned installs), copied with the rest of sandbox\.
   'sandbox/addons/ccusage/package-lock.json',
@@ -72,6 +73,7 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'sandbox/csharp/SandboxTools/Program.cs',
   'sandbox/csharp/VsWhere.cs',
   'sandbox/csharp/VtInput.cs',
+  'sandbox/scripts/add-firewall-port.ps1',
   'sandbox/scripts/enable-vt-input.ps1',
   'sandbox/scripts/expand-archive.ps1',
   'sandbox/scripts/get-gpu-names.ps1',
@@ -83,5 +85,6 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'sandbox/scripts/set-desktop.ps1',
   'sandbox/scripts/set-dns-servers.ps1',
   'sandbox/scripts/set-machine-environment.ps1',
+  'sandbox/templates/fivem/README.txt',
   'session.json',
 ];

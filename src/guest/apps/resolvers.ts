@@ -1,6 +1,8 @@
 // Where the latest version of an app is, for apps that are not a plain GitHub release: each looks it up on the
 // vendor's own site (and its published checksum, where there is one). Named by AppSource.resolve in shared/apps.ts.
 import { fetchJson, fetchText, githubAsset, latestGithubTag } from '../../shared/download/index.js';
+import { GAMEDEV_RESOLVERS } from './resolvers-gamedev.js';
+import { MOBILE_RESOLVERS } from './resolvers-mobile.js';
 
 export interface Download {
   url: string;
@@ -21,6 +23,8 @@ const firstHash = (text: string): string | null => /\b([0-9a-f]{64})\b/i.exec(te
 const stripV = (tag: string): string => tag.replace(/^v/, '');
 
 export const RESOLVERS: Record<string, () => Promise<Download>> = {
+  ...GAMEDEV_RESOLVERS,
+  ...MOBILE_RESOLVERS,
   sublime: async () => {
     // Sublime publishes no checksums; the download is HTTPS from sublimetext.com.
     const { latest_version: build } = await fetchJson<{ latest_version: number }>(

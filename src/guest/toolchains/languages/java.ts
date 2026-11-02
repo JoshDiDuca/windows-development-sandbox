@@ -81,7 +81,7 @@ export async function ensureJdk(): Promise<string> {
     : [];
   if (installed.length) return path.join(root, installed[0]);
   const scratch = emptyEnv();
-  await setupJdk(scratch, { enabled: true, version: 'lts', maven: false, gradle: false });
+  await setupJdk(scratch, { enabled: true, version: 'lts', maven: false, gradle: false, kotlin: false });
   return scratch.vars.JAVA_HOME;
 }
 

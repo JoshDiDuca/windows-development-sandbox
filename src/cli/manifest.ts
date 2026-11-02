@@ -28,8 +28,8 @@ export const OptionSpecSchema = z.strictObject({
   choices: ChoicesSchema.optional(),
   /** Advanced options are only asked in the menu after "Show advanced options". */
   advanced: z.boolean().optional(),
-  /** Only asked in the menu when the command's first argument has this value (account save: --from-host). */
-  when: z.string().optional(),
+  /** Only asked in the menu when the command's first argument has this value, or one of these (account: --yes). */
+  when: z.union([z.string(), z.array(z.string())]).optional(),
   /** Never offered in the menu (dangerous shortcuts such as --yes); typing it on the command line still works. */
   noMenu: z.boolean().optional(),
   /** Heading for this option in the command's --help (launch: Session, Folder ...). */
@@ -300,11 +300,15 @@ const COMMAND_LIST = [
   },
   {
     name: 'account',
-    summary: 'Claude logins: list, save, use, set the default, remove',
+    summary: 'agent logins (list, save, use, default, remove) and service sign-ins (status, import, login, logout)',
     group: 'Projects & accounts',
     examples: [
       'sandbox account save work          save the login you signed in with inside the sandbox',
       'sandbox account use work           the sandbox uses it (running sessions restart)',
+      'sandbox account status             the service sign-ins (Epic, Steam, Unity, signing keys ...)',
+      "sandbox account import epic        take this PC's Epic Games Launcher sign-in for sandboxes",
+      'sandbox account login cfx          type a FiveM server key to keep for sandboxes',
+      'sandbox account logout steam       forget a service sign-in',
     ],
     args: [
       {
@@ -313,7 +317,13 @@ const COMMAND_LIST = [
         required: false,
         choices: ['list', 'save', 'use', 'default', 'rename', 'remove'],
       },
-      { name: 'name', description: 'account name', required: false, choices: 'accounts' },
+      {
+        name: 'name',
+        description:
+          'account name, or the service (status, import, login, logout): epic, steam, unity, cfx, keystore, play, expo or appstore',
+        required: false,
+        choices: 'accounts',
+      },
     ],
     options: [
       text('--to', 'name', '(rename) the new name', { when: 'rename', label: 'New name' }),
@@ -323,7 +333,12 @@ const COMMAND_LIST = [
       }),
       bool('--from-host', "(save) save this PC's login instead of the sandbox's", { when: 'save' }),
       bool('--no-restart', '(use) do not restart running sessions', { when: 'use' }),
-      bool('--yes', '(remove) do not ask first', { short: '-y', when: 'remove', noMenu: true }),
+      text('--from', 'path', '(import) the file or folder to take the sign-in from', { when: 'import', label: 'From' }),
+      bool('--yes', '(remove, import, logout) do not ask first', {
+        short: '-y',
+        when: ['remove', 'import', 'logout'],
+        noMenu: true,
+      }),
     ],
     json,
   },

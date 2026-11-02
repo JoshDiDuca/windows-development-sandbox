@@ -50,8 +50,8 @@ export const generateSuite: Suite = {
     ];
     const missing = expectedFiles.filter((file) => !fs.existsSync(path.join(gen.launchPath, file)));
     t.check(
-      missing.length === 0 && fs.readdirSync(path.join(gen.launchPath, 'runtime')).length === 7,
-      'the launch folder has the runtime (7 self-contained files), the C# sources and the boot scripts',
+      missing.length === 0 && fs.readdirSync(path.join(gen.launchPath, 'runtime')).length === 8,
+      'the launch folder has the runtime (8 self-contained files), the C# sources and the boot scripts',
       missing.join(', '),
     );
     const logon = fs.readFileSync(path.join(gen.launchPath, 'sandbox', 'boot', 'logon.cmd'), 'utf8');

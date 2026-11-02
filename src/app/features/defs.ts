@@ -12,6 +12,7 @@ import {
   saveAccount,
   useAccount,
 } from './accounts/accounts.def.js';
+import { listServices, serviceImport, serviceLogin, serviceLogout } from './accounts/services.def.js';
 import { appsView, listApps, requestApp, setCustomApps, toggleApp } from './apps/apps.def.js';
 import { browseFolder } from './files/files.def.js';
 import { checkEngine, cleanEngine, engineLeftovers, engineStatus, engineView } from './engine/engine.def.js';
@@ -77,6 +78,7 @@ export type { SessionRow, SessionsList } from './sessions/sessions.def.js';
 export type { SettingRow, SettingsList } from './settings/settings.def.js';
 export type { VpnStatus } from './vpn/vpn.def.js';
 export type { GithubStatus } from './github/github.def.js';
+export type { ServiceRow, ServicesList } from './accounts/services.def.js';
 export type { AccessStatus } from './access/access.def.js';
 
 export const OPERATIONS = [
@@ -129,6 +131,9 @@ export const OPERATIONS = [
   vpnLogout,
   githubLogin,
   githubLogout,
+  serviceImport,
+  serviceLogin,
+  serviceLogout,
   allowDevice,
   revokeAccess,
   revokeAllAccess,
@@ -159,6 +164,7 @@ export const QUERIES = [
   webStatus,
   vpnStatus,
   githubStatus,
+  listServices,
   accessStatus,
 ] as const;
 export const VIEWS = [

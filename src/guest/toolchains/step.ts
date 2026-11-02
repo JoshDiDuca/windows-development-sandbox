@@ -1,4 +1,5 @@
 import type { Config, DatabasePlan, GitAccess } from '../../core/types.js';
+import type { PcInstallManifest } from '../../shared/paths/pc-installs.js';
 import type { ToolEnv } from './tool-env.js';
 
 /** apps: the boot only (apps are machine-wide; a project that joins later shares them). */
@@ -9,6 +10,16 @@ export interface ToolchainOptions {
   refresh: boolean;
   databases: DatabasePlan[];
   apps?: Config['apps'];
+  /** pcInstalls: this PC's games, engines and editors mapped read-only (session.json). */
+  pcInstalls?: PcInstallManifest;
+}
+
+/** What a toolchain module's step gets besides its settings. */
+export interface ToolCtx {
+  readonly refresh: boolean;
+  readonly pcInstalls: PcInstallManifest;
+  /** A project joins a running sandbox: machine-wide installs (Visual Studio) wait for a restart. */
+  readonly duringSession: boolean;
 }
 
 /** One installer the scheduler runs: a toolchain, the apps, or a database server. */

@@ -3,7 +3,10 @@
 // safeText. Logins are never read here: the store keeps them sealed, and outputs hold names, emails and dates only.
 import { fail, safeText } from '../../../core/util/index.js';
 import { AccountsService, type AccountRef } from '../../../cli/services/index.js';
+import { AccountLeases, ServiceAccountStore } from '../../../host/accounts/index.js';
+import { SERVICE_KINDS } from '../../../shared/accounts/index.js';
 import { implement } from '../../context.js';
+import { serviceRow } from './services.run.js';
 import { cancelled, type OperationIO } from '../../kernel/index.js';
 import {
   defaultAccount,
@@ -78,7 +81,10 @@ export const listAccountsRun = implement(listAccounts, async (ctx, input) => {
   }));
   // An agent that keeps no login, or no such agent: the command line says why (the store's own message).
   if (!agents.some((a) => a.name === input.agent && a.kept)) service.list(input.agent);
-  return { agent: input.agent, agents };
+  const store = new ServiceAccountStore(ctx.storageRoot);
+  const leases = new AccountLeases(ctx.storageRoot);
+  const services = SERVICE_KINDS.map((k) => serviceRow(k, ctx.loaded.config, store, leases));
+  return { agent: input.agent, agents, services };
 });
 
 export const saveAccountRun = implement(saveAccount, async (ctx, input, io) => {

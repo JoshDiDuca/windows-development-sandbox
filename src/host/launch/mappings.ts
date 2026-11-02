@@ -135,6 +135,8 @@ export function collectMappings(
     mappings.push({ host: probe.harnessExe.dir, guest: GUEST.hostTools + '\\agents\\' + harnessName, readOnly: true });
   if (probe.gitDir) mappings.push({ host: probe.gitDir, guest: GUEST.hostTools + '\\git', readOnly: true });
   if (probe.nvmDir) mappings.push({ host: probe.nvmDir, guest: GUEST.hostTools + '\\nvm', readOnly: true });
+  // pcInstalls: this PC's games, engines and editors, read-only under C:\PcInstalls (checked by host/pc-installs).
+  mappings.push(...(o.pcInstalls?.mappings ?? []));
   // Placement keeps extra folders apart; this guards the rest (and where the folders really are: F:\x is
   // C:\Mirror\F\x).
   assertNoGuestOverlap(mappings);

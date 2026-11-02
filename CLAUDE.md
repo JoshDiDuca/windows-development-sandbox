@@ -33,7 +33,8 @@ User docs: README.md and docs/. Contributor summary: CONTRIBUTING.md. Releases: 
   `LocalOverrides`. Machine-wide protections are never loosened (`core/local-config/policy.ts`).
 - **No side-effect imports across the boundary.** Host code and tests may import only these guest files:
   `git/decision`, `setup/git-rules`, `boot/project-env`, `audit/parse`, `sessions/cmdline`, `toolchains/catalogue`,
-  `toolchains/tools/vscode-profile`, `governor/decide`, `governor/core`, `daemon/live-folders` (`runtime/session.ts`
+  `toolchains/tools/vscode-profile`, `governor/decide`, `governor/core`, `daemon/live-folders`, `accounts/*` (not
+  `daemon/accounts`), `toolchains/persisted`, `toolchains/native/vs-request` (`runtime/session.ts`
   reads session.json and `runtime/log.ts` creates the logs folder on import; inside a sandbox that file exists, so a bad
   import only fails on GitHub Actions — the `layout` suite catches it). Guest code imports from core only `core/types.ts`, `core/schema/**`,
   `core/detect/{toolchains,versions}.ts` and `core/util/errors.ts`. The `layout` suite checks this on the build output.

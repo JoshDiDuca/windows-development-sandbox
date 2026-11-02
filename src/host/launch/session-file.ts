@@ -101,6 +101,8 @@ export function guestSession(o: GenerateOptions, parts: SessionParts): GuestSess
       ),
     ),
     agents: Object.fromEntries(Object.entries(config.harnesses).map(([name, h]) => [name, { ...h, environment: {} }])),
+    ...(o.pcInstalls?.manifest.items.length ? { pcInstalls: o.pcInstalls.manifest } : {}),
+    ...(o.accountLeases?.length ? { accountLeases: [...o.accountLeases] } : {}),
   };
 }
 

@@ -1,6 +1,14 @@
-// Section 6: the saved logins of every agent, as the accounts view shows them (src/app/features/accounts). One category
-// per agent: its save rows and its logins. Keys and Enter act on the open agent only; what they do is the operation's.
-import { agentPage, listAccounts, type AccountsList } from '../../../app/features/accounts/index.js';
+// Section 6: the saved logins of every agent and the service sign-ins, as the accounts view shows them
+// (src/app/features/accounts). One category per agent (its save rows and its logins), then one per service (its
+// state, its warnings, share / import / sign in / forget). Keys and Enter act on the open category only; what they do
+// is the operation's.
+import {
+  agentPage,
+  listAccounts,
+  serviceCategory,
+  servicePage,
+  type AccountsList,
+} from '../../../app/features/accounts/index.js';
 import { readQuery } from '../../../app/registry.js';
 import type { Context } from '../../commands/context.js';
 import type { App, ListOptions, ListResult } from '../../tui/index.js';
@@ -13,24 +21,38 @@ export type AccountsModel = AccountsList;
 /** The menu's rows, keys and Enter labels of one agent's category. */
 function viewOf(m: AccountsModel, category: string | undefined): MenuView {
   const agent = m.agents.find((a) => a.name === category);
-  return agent
-    ? menuView(agentPage(agent), { category: agent.name, refresh: false })
-    : menuView({ title: 'Accounts', sections: [] }, { refresh: false });
+  if (agent) return menuView(agentPage(agent), { category: agent.name, refresh: false });
+  const service = m.services.find((s) => serviceCategory(s.kind) === category);
+  if (service) return menuView(servicePage(service), { category: serviceCategory(service.kind), refresh: false });
+  return menuView({ title: 'Accounts', sections: [] }, { refresh: false });
 }
 
 /** The list for the accounts tab. Pure. */
 export function accountsOptions(m: AccountsModel): ListOptions<string> {
   return {
     path: [],
-    intro: 'Logins saved on this PC, per agent. Use puts one into the sandbox; new launches start with the default.',
-    categories: m.agents.map((a) => ({
-      id: a.name,
-      label: a.name,
-      description: a.kept
-        ? 'Saved ' + a.name + ' logins.'
-        : "This agent's login is not kept between sandboxes: it cannot be pointed at a folder we control.",
-    })),
-    items: m.agents.flatMap((a) => menuView(agentPage(a), { category: a.name, refresh: false }).items),
+    intro:
+      'Logins saved on this PC, per agent (Use puts one into the sandbox; new launches start with the default), and the service sign-ins sandboxes may get.',
+    categories: [
+      ...m.agents.map((a) => ({
+        id: a.name,
+        label: a.name,
+        description: a.kept
+          ? 'Saved ' + a.name + ' logins.'
+          : "This agent's login is not kept between sandboxes: it cannot be pointed at a folder we control.",
+      })),
+      ...m.services.map((s) => ({
+        id: serviceCategory(s.kind),
+        label: s.label,
+        description: 'Your ' + s.label + ' sign-in for sandboxes that use ' + s.usedBy.join(' or ') + '.',
+      })),
+    ],
+    items: [
+      ...m.agents.flatMap((a) => menuView(agentPage(a), { category: a.name, refresh: false }).items),
+      ...m.services.flatMap(
+        (s) => menuView(servicePage(s), { category: serviceCategory(s.kind), refresh: false }).items,
+      ),
+    ],
     empty: 'No agents.',
     actions: (category) => viewOf(m, category).actions,
     enterLabel: (category, id) => viewOf(m, category).enterLabel(category, id),
@@ -39,7 +61,7 @@ export function accountsOptions(m: AccountsModel): ListOptions<string> {
 
 export class AccountsPage extends ListPage<string> {
   readonly label = 'Accounts';
-  private model: AccountsModel = { agent: 'claude', agents: [] };
+  private model: AccountsModel = { agent: 'claude', agents: [], services: [] };
   private readonly operations: MenuOperations;
 
   constructor(

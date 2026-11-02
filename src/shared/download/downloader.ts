@@ -12,6 +12,13 @@ import { extractArchive, findFile, moveIntoPlace, stagingFolder } from './archiv
 export interface Checksums {
   sha256?: string | null;
   sha512?: string | null;
+  /** Only where a vendor publishes nothing better (the Android repository). */
+  sha1?: string | null;
+  /**
+   * Checks the finished file before it is moved into place (an Authenticode signer); throwing refuses it. It counts as
+   * integrity for downloads.requireChecksum.
+   */
+  verify?: (file: string) => void | Promise<void>;
 }
 
 export interface ArchiveOptions extends Checksums {
@@ -46,7 +53,7 @@ export class Downloader {
    */
   async file(url: string, destination: string, expected: string | null | Checksums = null): Promise<void> {
     const sums: Checksums = typeof expected === 'string' || expected === null ? { sha256: expected } : expected;
-    if (this.requireChecksum && !sums.sha256?.trim() && !sums.sha512?.trim()) {
+    if (this.requireChecksum && !sums.sha256?.trim() && !sums.sha512?.trim() && !sums.sha1?.trim() && !sums.verify) {
       throw new Error(
         'Refusing to download ' +
           path.basename(destination) +
@@ -59,7 +66,7 @@ export class Downloader {
     if (!response.body) throw new Error('Empty response for ' + url);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     // Only the hashes that will be checked (sha512 of a 330 MB archive is not free).
-    const checks = (['sha256', 'sha512'] as const).flatMap((kind) => {
+    const checks = (['sha256', 'sha512', 'sha1'] as const).flatMap((kind) => {
       const want = sums[kind]?.trim().toLowerCase();
       return want ? [{ want, hash: crypto.createHash(kind) }] : [];
     });
@@ -95,6 +102,7 @@ export class Downloader {
     try {
       await pipeline(Readable.fromWeb(response.body as WebReadableStream), tap, fs.createWriteStream(partial));
       if (checks.some((c) => c.hash.digest('hex') !== c.want)) throw new Error('Checksum mismatch for ' + url);
+      if (sums.verify) await sums.verify(partial);
       // Mapped folders refuse rename-over, so the old file goes first.
       fs.rmSync(destination, { force: true });
       fs.renameSync(partial, destination);
@@ -111,7 +119,12 @@ export class Downloader {
     const work = stagingFolder(destination);
     try {
       const archive = path.join(work, options.fileName ?? path.basename(new URL(url).pathname));
-      await this.file(url, archive, { sha256: options.sha256, sha512: options.sha512 });
+      await this.file(url, archive, {
+        sha256: options.sha256,
+        sha512: options.sha512,
+        sha1: options.sha1,
+        ...(options.verify ? { verify: options.verify } : {}),
+      });
       const extracted = path.join(work, 'x');
       await extractArchive(archive, extracted, options.members);
       let root = extracted;

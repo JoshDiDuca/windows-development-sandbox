@@ -6,7 +6,7 @@ import { win32 } from 'node:path';
 
 /** Guest folders no mapping may use: the OS, the sandbox's own folders and the mirror root. */
 export const RESERVED_GUEST =
-  /^C:\\(?:Windows|Program Files|Program Files \(x86\)|ProgramData|Users|AgentLaunch|AgentData|HostTools|nvm|Mirror)(?:\\|$)/i;
+  /^C:\\(?:Windows|Program Files|Program Files \(x86\)|ProgramData|Users|AgentLaunch|AgentData|HostTools|nvm|Mirror|PcInstalls)(?:\\|$)/i;
 /** Where folders for other drive letters really live inside the sandbox: C:\Mirror\<letter>. */
 export const MIRROR_ROOT = 'C:\\Mirror';
 /** Letters a mirrored path may use. Never C: (the sandbox's own disk); A:/B: are left alone (floppy-era tools). */

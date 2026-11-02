@@ -43,6 +43,7 @@ import type { SessionRoot } from '../audit/parse.js';
 import { provisioner } from './project-provisioner.js';
 import { IdleShutdown } from './idle-shutdown.js';
 import { insidePrimary, insideWorkspace, respond, safely, saveStatus } from './state.js';
+import { flushAccounts } from './accounts.js';
 
 type SessionRequest = Extract<GuestRequest, { kind: 'session' }>;
 
@@ -516,6 +517,7 @@ export class SessionManager {
     else safely('post-agent hooks', () => runHooks('post-agent', process.env));
     safely('claude-mem save', saveClaudeMem);
     safely('agent databases save', saveLocalState);
+    void flushAccounts();
     this.idle.check();
   }
 }

@@ -11,11 +11,20 @@ import {
   setNameOf,
   type StorageProvider,
 } from '../../../host/storage/index.js';
-import { generateSandbox, GUEST, vgpuSource, vgpuWarning } from '../../../host/launch/index.js';
+import {
+  generateSandbox,
+  GUEST,
+  newLaunchId,
+  toolchainsOnForBoot,
+  vgpuSource,
+  vgpuWarning,
+} from '../../../host/launch/index.js';
 import { findSecretFiles } from '../../../host/profile/index.js';
 import { RepoGuardStore } from '../../../host/guard/index.js';
 import { hostPublicIp, prepareVpn, readVpnLine, vpnNotes } from '../../../host/vpn/index.js';
 import { prepareGithubToken } from '../../../host/github/index.js';
+import { prepareServiceAccounts } from '../../../host/accounts/index.js';
+import { discoverPcInstalls } from '../../../host/pc-installs/index.js';
 import { clearSecrets } from '../../../host/secrets/index.js';
 import {
   assertCanLaunch,
@@ -226,6 +235,25 @@ class Launcher {
     const github = generateOnly
       ? null
       : prepareGithubToken(config, ctx.storageRoot, undefined, bootWants.wants.projects);
+    // accounts.<kind>.share: the saved service sign-ins this boot's toolchains use, for the one-shot file only.
+    const launchId = newLaunchId();
+    const accounts = generateOnly
+      ? null
+      : prepareServiceAccounts({
+          config,
+          others: bootWants.wants.projects,
+          on: toolchainsOnForBoot({ run }, bootWants.wants.projects),
+          storageRoot: ctx.storageRoot,
+          dataPath: run.dataPath,
+          launchId,
+          // A new launch needs no sandbox running, so a lease held elsewhere is from one that stopped.
+          isRunning: () => isSandboxRunning(),
+        });
+    // pcInstalls: this PC's games, engines and editors, read-only (yours only: never from a project file).
+    const pcInstalls = discoverPcInstalls(ctx.loaded.config.pcInstalls, {
+      packageRoot: ctx.packageRoot,
+      storageRoot: ctx.storageRoot,
+    });
     // This PC's commit (RAM plus paging file) bounds the sandbox's memory as much as free RAM does.
     const hostMemory = generateOnly ? null : readHostMemory(ctx.storageRoot);
     const generated: GeneratedSandbox = generateSandbox(
@@ -240,6 +268,10 @@ class Launcher {
         bootWants: bootWants.wants,
         ...(vpn ? { vpn } : {}),
         ...(github?.token ? { githubToken: github.token } : {}),
+        launchId,
+        ...(accounts && Object.keys(accounts.payloads).length ? { serviceAccounts: accounts.payloads } : {}),
+        ...(accounts?.leased.length ? { accountLeases: [...accounts.leased] } : {}),
+        ...(pcInstalls.mappings.length ? { pcInstalls } : {}),
         ...(dataMappings ? { dataMappings } : {}),
       },
       engine,
@@ -255,6 +287,8 @@ class Launcher {
     this.warnSecretFiles(run);
     for (const line of vpnNotes(config.vpn)) console.log(c.yellow(line));
     for (const line of github?.notes ?? []) console.log(c.yellow(line));
+    for (const line of accounts?.notes ?? []) console.log(c.yellow(line));
+    for (const line of pcInstalls.notes) console.log(c.yellow(line));
     table(launchSummary(run, generated, prepared));
     if (generateOnly) return 0;
     // A restart or sandbox resume reopens sessions itself (they pass the projects they keep).

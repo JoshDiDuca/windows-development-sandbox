@@ -840,6 +840,7 @@ export const menuSuite: Suite = {
     );
     const noLogins = accountsOptions({
       agent: 'claude',
+      services: [],
       agents: [{ name: 'claude', kept: true, canSavePc: true, accounts: [] }],
     });
     t.equal(

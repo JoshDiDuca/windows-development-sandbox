@@ -194,6 +194,9 @@ same on its Activity page.
 | `sandbox account default [name]`                                     | the login new sandboxes start with                                                                                                  |
 | `sandbox account rename [name] [--to <new>]` / `remove [name] [-y]`  | rename or delete a saved login                                                                                                      |
 | `sandbox account ... --agent <name>`                                 | the same for another agent (default `claude`); works for agents with a `home` in their settings                                     |
+| `sandbox account status [service]`                                   | service sign-ins for sandboxes (Epic, Steam, Unity ...): shared or not, saved or not ([accounts](accounts.md))                     |
+| `sandbox account import <service> [--from <path>] [-y]`              | save one from this PC's program or a file (asks first)                                                                              |
+| `sandbox account login <service>` / `logout <service> [-y]`          | type a key or token to keep / forget one everywhere                                                                                 |
 | `sandbox config`                                                     | a short summary: settings file, default agent, storage                                                                              |
 | `sandbox config show` / `path` / `init` / `schema`                   | all settings with defaults as JSON / the file's path / create the file / the editor schema                                          |
 | `sandbox config get\|set\|reset <setting> [value]`                   | read, change or reset one setting, e.g. `sandbox config set sandbox.memoryMb 8192`. Secrets show as `***`                           |

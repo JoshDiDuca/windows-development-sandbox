@@ -22,6 +22,8 @@ import { applyPersonalization } from '../setup/desktop.js';
 import { keepBrowsersOffGpu } from '../setup/browser-gpu.js';
 import { setupGitConfig } from '../setup/git-identity.js';
 import { loginGithub, prepareGithubFolder } from '../setup/github-token.js';
+import { applyServiceAccounts } from '../accounts/apply.js';
+import { devToolsFor } from '../devtools/registry.js';
 import { ensurePtyHost } from '../sessions/pty-host.js';
 import { pruneToolLeftovers } from '../toolchains/leftovers.js';
 import { wanted } from '../toolchains/detect.js';
@@ -103,7 +105,26 @@ function writeDbCommand(): string {
     '@setlocal\r\n@set AGENT_LOG_PREFIX=db\r\n@"' + process.execPath + '" "' + db + '" %*\r\n',
   );
   writeAgentCommands(dir);
+  writeDevToolCommands(dir);
   return dir;
+}
+
+/** sbx-steam, sbx-fivem, sbx-unity, sbx-android for the toolchains that are on: runtime\tool.js with that helper. */
+function writeDevToolCommands(dir: string): void {
+  const script = path.join(path.dirname(process.argv[1]), 'tool.js');
+  for (const tool of devToolsFor(session.toolchains))
+    fs.writeFileSync(
+      path.join(dir, 'sbx-' + tool.name + '.cmd'),
+      '@setlocal\r\n@set AGENT_LOG_PREFIX=' +
+        tool.name +
+        '\r\n@"' +
+        process.execPath +
+        '" "' +
+        script +
+        '" ' +
+        tool.name +
+        ' %*\r\n',
+    );
 }
 
 /**
@@ -160,6 +181,7 @@ export class Boot {
     mkdirp(toolsDir);
     mkdirp(run.root);
     this.secrets = takeSecrets(session.launchId);
+    await this.serviceAccounts();
     applyBootEnvironment(this.secrets.harnessEnvironment);
     prepareGithubFolder(this.secrets.githubToken);
     await this.networkAndSessionHost();
@@ -171,6 +193,21 @@ export class Boot {
     await this.agent(env);
     this.preAgentHooks(env);
     await this.start(env);
+  }
+
+  /**
+   * Your saved service sign-ins (accounts.<kind>.share) go to their tools before anything opens them, and leave memory
+   * at once; what they give the agent (EXPO_TOKEN ...) joins its environment (in memory only).
+   */
+  private async serviceAccounts(): Promise<void> {
+    const given = this.secrets.serviceAccounts;
+    this.secrets = { ...this.secrets, serviceAccounts: undefined };
+    if (dryRun || (!given && !session.accountLeases?.length)) return;
+    await soft('Service sign-ins', async () => {
+      const env = await applyServiceAccounts(given, { leased: session.accountLeases ?? [], say: (line) => log(line) });
+      if (Object.keys(env).length)
+        this.secrets = { ...this.secrets, harnessEnvironment: { ...env, ...this.secrets.harnessEnvironment } };
+    });
   }
 
   private async networkAndSessionHost(): Promise<void> {
@@ -203,6 +240,7 @@ export class Boot {
       refresh: session.provisioning.refresh,
       databases: session.databases ?? [],
       apps: session.apps,
+      ...(session.pcInstalls ? { pcInstalls: session.pcInstalls } : {}),
     });
     for (const p of networkProblems()) tools.summary.push('PROTECTION MISSING: ' + p);
     if (!dryRun) tools.prepend.push(writeDbCommand());
@@ -264,10 +302,10 @@ export class Boot {
       await soft('Claude settings', () => syncClaudeProfile(this.secrets.claudeCredentials));
     await soft('claude-mem restore', restoreClaudeMem);
     await soft('Agent files of the last sandbox', resetMachineBound);
+    await soft('Codex without its own sandbox', codexWithoutInnerSandbox);
     await soft('Agent databases restore', restoreLocalState);
     // Agent add-ons: MCP servers in the sandbox's Claude Code, and the Headroom proxy before the managed settings point
     // Claude Code at it (the guide reads them back, so it comes last).
-    await soft('Codex without its own sandbox', codexWithoutInnerSandbox);
     let headroom: string | null = null;
     await soft('MCP servers from Apps', writeAddonMcpServers);
     await soft('Headroom proxy', async () => {

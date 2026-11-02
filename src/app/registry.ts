@@ -32,6 +32,10 @@ import {
   renameAccountRun,
   saveAccountRun,
   useAccountRun,
+  listServicesRun,
+  serviceImportRun,
+  serviceLoginRun,
+  serviceLogoutRun,
 } from './features/accounts/index.js';
 import { listAppsRun, requestAppRun, setCustomAppsRun, toggleAppRun } from './features/apps/index.js';
 import { browseFolderRun } from './features/files/index.js';
@@ -154,6 +158,10 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   githubStatusRun,
   githubLoginRun,
   githubLogoutRun,
+  listServicesRun,
+  serviceImportRun,
+  serviceLoginRun,
+  serviceLogoutRun,
   webStatusRun,
   accessStatusRun,
   allowDeviceRun,

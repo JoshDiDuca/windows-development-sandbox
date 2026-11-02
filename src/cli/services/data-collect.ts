@@ -4,6 +4,8 @@ import path from 'node:path';
 import _ from 'lodash';
 import { sizeOf } from '../../core/disk.js';
 import { dirExists, isLink } from '../../core/util/index.js';
+import { readValid } from '../../shared/io/index.js';
+import { INSTALL_RECORDS_FILE, InstallRecordsSchema, type InstallRecord } from '../../shared/installs.js';
 
 export type DataArea = 'tools' | 'databases' | 'state' | 'logs' | 'data' | 'host';
 export interface DataEntry {
@@ -24,11 +26,33 @@ function entriesOf(dir: string): fs.Dirent[] {
     : [];
 }
 
+/**
+ * A tool folder's size from tools\installs.json, when every version folder in it has a recorded size (engines and
+ * editors of 60 GB are then not walked); null otherwise. The sandbox wrote the file: it only ever stands in for a walk.
+ */
+function recordedSize(dir: string, name: string, records: readonly InstallRecord[]): number | null {
+  const versions = entriesOf(dir).filter((d) => d.isDirectory() && !d.name.startsWith('.'));
+  if (!versions.length) return null;
+  let total = 0;
+  for (const v of versions) {
+    const known = records.find((r) => r.name === name && r.version === v.name);
+    if (known?.sizeBytes === null || known === undefined) return null;
+    total += known.sizeBytes;
+  }
+  return total;
+}
+
 function toolRows(toolsDir: string): DataEntry[] {
   const entries = entriesOf(toolsDir);
   const folders = entries.filter((d) => d.isDirectory());
   const files = entries.filter((d) => !d.isDirectory());
-  const row = (name: string, p: string): DataEntry => ({ area: 'tools', name, path: p, bytes: sizeOf(p) });
+  const records = readValid(InstallRecordsSchema, path.join(toolsDir, INSTALL_RECORDS_FILE))?.installs ?? [];
+  const row = (name: string, p: string): DataEntry => ({
+    area: 'tools',
+    name,
+    path: p,
+    bytes: recordedSize(p, name, records) ?? sizeOf(p),
+  });
   return [
     ...folders.flatMap((d) =>
       d.name.toLowerCase() === 'agents'

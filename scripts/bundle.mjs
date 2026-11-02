@@ -27,7 +27,7 @@ const shared = {
 
 await build({
   ...shared,
-  entryPoints: ['main', 'daemon', 'view', 'gitguard', 'db', 'netproxy', 'agent'].map(
+  entryPoints: ['main', 'daemon', 'view', 'gitguard', 'db', 'netproxy', 'agent', 'tool'].map(
     (name) => 'src/guest/entries/' + name + '.ts',
   ),
   outdir: 'dist/runtime',

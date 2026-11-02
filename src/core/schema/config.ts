@@ -25,6 +25,8 @@ import { ResumeSchema } from './resume.js';
 import { WebSchema } from './web.js';
 import { VpnSchema } from './vpn.js';
 import { GithubSchema } from './github.js';
+import { AccountsSchema } from './accounts.js';
+import { PcInstallsSchema } from './pc-installs.js';
 
 const RESERVED_ENV_PREFIX =
   /^(AGENT_|GIT_|GH_|GITHUB_|NODE_|NPM_CONFIG_(USERCONFIG|GLOBALCONFIG|PREFIX|SCRIPT_SHELL)|SSL_|CLAUDE|ANTHROPIC_|OPENAI_|CODEX_|GEMINI_|GOOGLE_|COPILOT_|AWS_|AZURE_)/i;
@@ -110,6 +112,8 @@ export const ConfigSchema = z
     network: NetworkSchema,
     vpn: VpnSchema,
     github: GithubSchema,
+    accounts: AccountsSchema,
+    pcInstalls: PcInstallsSchema,
     provisioning: ProvisioningSchema,
     downloads: DownloadsSchema,
     toolchains: ToolchainsSchema,
@@ -171,6 +175,8 @@ export const LocalOverridesSchema = z
     network: NetworkSchema.pick({ blockPrivateRanges: true, blockHosts: true }).partial(),
     // A project may turn the kill switch on, never off, and never choose a VPN, a server, a file or a login.
     vpn: VpnSchema.pick({ killSwitch: true }).partial(),
+    // A project may only turn a sign-in off (policy: OFF_IS_SAFER); pcInstalls is never here (folders of this PC).
+    accounts: z.strictObject(_.mapValues(AccountsSchema.shape, (shape) => shape.partial())).partial(),
     provisioning: ProvisioningSchema.pick({ copyFromHost: true, fallbackToInstall: true, refresh: true })
       .extend({ git: GitSchema.partial(), terminal: toggle('Windows Terminal as the sandbox window.').partial() })
       .partial(),

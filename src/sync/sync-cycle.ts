@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { Config } from '../core/types.js';
 import { assertNoLinks } from '../core/util/index.js';
+import { takeHandoffs } from '../host/accounts/index.js';
 import { hostClaudeDir, PluginShare } from '../host/profile/index.js';
 import { hostDataFolder, hostDataRoot, storageOf } from '../host/storage/index.js';
 import { hostClaudeMemDir, syncClaudeMem, type MemResult } from './claude-mem.js';
@@ -81,6 +82,13 @@ export function syncBeforeLaunch(config: Config, dataPath: string, hostWorkspace
 
 /** Syncs the sandbox's history (and, when `final`, claude-mem) back to this PC, as configured for the last launch. */
 export function syncBack(dataPath: string, final: boolean): SyncSummary {
+  // Service sign-ins the sandbox renewed or you made there (accounts.<kind>.share): sealed here, the plain copy gone;
+  // the last sync of a sandbox lets go of its leases.
+  try {
+    takeHandoffs(dataPath, final);
+  } catch {
+    // Never stops a sync: a sign-in that could not be taken stays in the data folder for the next cycle.
+  }
   const state = readSyncState(dataPath);
   const summary: SyncSummary = { history: 0, claudeMem: 'disabled' };
   if (!state) return summary;

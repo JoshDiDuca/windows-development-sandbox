@@ -12,6 +12,7 @@ import { Daemon } from '../daemon/daemon.js';
 import { startLiveFolders } from '../daemon/live.js';
 import { sessions } from '../daemon/sessions.js';
 import { governor } from '../governor/index.js';
+import { startAccountWatch } from '../daemon/accounts.js';
 
 process.on('uncaughtException', (e) => warn('daemon: unexpected error (continuing): ' + (e.stack ?? errMsg(e))));
 process.on('unhandledRejection', (e) => warn('daemon: unexpected error (continuing): ' + errMsg(e)));
@@ -24,4 +25,5 @@ safely('audit', () => startProcessCollector(() => sessions.roots()));
 safely('leftover processes', () => sessions.sweepLeftovers());
 safely('memory governor', () => governor.start());
 log('Memory governor: ' + governor.describe());
+safely('service sign-ins', startAccountWatch);
 new Daemon().start();

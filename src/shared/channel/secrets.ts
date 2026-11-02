@@ -4,6 +4,7 @@
 // sandbox may change run\, never this folder. The agent in the sandbox can still read what it was given (its own
 // environment, its login): that is inherent. Every part is optional.
 import { z } from 'zod';
+import { ServiceAccountsSchema } from '../accounts/payloads.js';
 import { GithubTokenSchema } from '../github/index.js';
 
 const Environment = z.record(z.string().max(256), z.string().max(65536));
@@ -30,6 +31,8 @@ export const SecretsFileSchema = z.strictObject({
     .optional(),
   /** The GitHub token you saved for sandboxes (github.shareToken), only with git access "full". */
   githubToken: GithubTokenSchema.optional(),
+  /** Your saved service sign-ins (accounts.<kind>.share): each goes to its tool's own files at boot. */
+  serviceAccounts: ServiceAccountsSchema.optional(),
   /** projects.liveFolders "hcs": this launch's key for signed live-folder requests (live.ts). */
   liveFoldersKey: z
     .string()

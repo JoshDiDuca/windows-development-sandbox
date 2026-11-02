@@ -12,6 +12,14 @@ import {
   type Page,
   type Section,
 } from '../../kernel/index.js';
+import { setSetting } from '../settings/settings.def.js';
+import {
+  listServices,
+  SERVICE_OPERATIONS,
+  serviceSections,
+  ServiceRowSchema,
+  type ServicesList,
+} from './services.def.js';
 
 const AgentSchema = z.string().default('claude').describe('whose login: an agent that keeps one (default: claude)');
 const NameSchema = z.string().optional().describe('account name');
@@ -36,6 +44,7 @@ export type AgentAccounts = z.output<typeof AgentAccountsSchema>;
 export const AccountsListSchema = z.object({
   agent: z.string().describe('The agent asked for (the command line table shows only it)'),
   agents: z.array(AgentAccountsSchema).describe('Every agent, Claude first'),
+  services: z.array(ServiceRowSchema).describe('Service sign-ins for sandboxes (Epic, Steam ...)'),
 });
 export type AccountsList = z.output<typeof AccountsListSchema>;
 
@@ -44,8 +53,26 @@ const MessageSchema = z.object({ message: z.string().describe('What happened') }
 /** The name rule of a saved login: what the store accepts. */
 export const NAME_RULE = 'Use letters, digits, - and _ (up to 40).';
 
+/** The "Services" block under `sandbox account list`: one line per service that is shared or saved. */
+function servicesBlock(o: AccountsList): string[] {
+  const kept = o.services.filter((s) => s.share || s.state !== 'none');
+  const lines = kept.map(
+    (s) =>
+      '  ' +
+      s.kind.padEnd(10) +
+      (s.share ? 'shared' : 'not shared') +
+      ', ' +
+      (s.state === 'none' ? 'not saved' : s.state === 'saved' ? 'saved' : 'cannot be read'),
+  );
+  return ['', 'Services' + (kept.length ? '' : ': none shared or saved') + '   (sandbox account status)', ...lines];
+}
+
 /** `sandbox account list`: the table of one agent, as the command line has always padded it. */
 export function accountsText(o: AccountsList): string {
+  return [agentText(o), ...servicesBlock(o)].join('\n');
+}
+
+function agentText(o: AccountsList): string {
   const rows = o.agents.find((a) => a.name === o.agent)?.accounts ?? [];
   if (!rows.length)
     return o.agent === 'claude'
@@ -260,9 +287,9 @@ export function agentSection(a: AgentAccounts): Section {
   };
 }
 
-/** The web's page: one card per agent (its logins and the save rows). */
-export function accountsPage(o: AccountsList): Page {
-  return { title: 'Accounts', sections: o.agents.map(agentSection) };
+/** The web's page: one card per agent (its logins and the save rows), then one section per service sign-in. */
+export function accountsPage(o: AccountsList, services: ServicesList = { services: o.services }): Page {
+  return { title: 'Accounts', sections: [...o.agents.map(agentSection), ...serviceSections(services)] };
 }
 
 /**
@@ -289,8 +316,16 @@ export const accountsView = defineView({
   id: 'accounts',
   title: 'Accounts',
   summary:
-    'Logins saved on this PC for each agent. Every launch starts with the default; "Use this login" switches now.',
-  queries: { accounts: listAccounts },
-  operations: [saveAccount, useAccount, defaultAccount, renameAccount, removeAccount],
-  build: ({ accounts }) => accountsPage(accounts),
+    'Logins saved on this PC for each agent (every launch starts with the default; "Use this login" switches now), and the service sign-ins sandboxes may get (Epic, Steam, Unity, signing keys ...).',
+  queries: { accounts: listAccounts, services: listServices },
+  operations: [
+    saveAccount,
+    useAccount,
+    defaultAccount,
+    renameAccount,
+    removeAccount,
+    ...SERVICE_OPERATIONS,
+    setSetting,
+  ],
+  build: ({ accounts, services }) => accountsPage(accounts, services),
 });

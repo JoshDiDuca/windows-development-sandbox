@@ -5,6 +5,8 @@ import type { Config, Overrides } from '../types.js';
 import { mergeConfig } from '../config/index.js';
 import { describeIssues, LocalOverridesSchema } from '../schema/index.js';
 import { expandPath, fail, fileExists, isInsideOrEqual } from '../util/index.js';
+import { SERVICE_KINDS } from '../../shared/accounts/kinds.js';
+import { LICENSED_TOOLCHAINS } from '../detect/toolchains.js';
 
 /** Validates a folder's settings and resolves its relative paths against that folder. */
 export function normalizeOverrides(data: unknown, dir: string, source: string): Overrides {
@@ -66,6 +68,10 @@ export const OFF_IS_SAFER = [
   'sandbox.printerRedirection',
   'sandbox.vGpu',
   'claudeProfile.copyCredentials',
+  // Hands your saved service sign-ins (Epic, Steam, signing keys ...) to the sandbox.
+  ...SERVICE_KINDS.map((kind) => 'accounts.' + kind + '.share'),
+  // A licence (and a 10-60 GB install) is yours to accept, never a repo's.
+  ...LICENSED_TOOLCHAINS.map((name) => 'toolchains.' + name + '.acceptLicense'),
   'claudeProfile.enabled',
   'claudeProfile.syncHistory',
   'claudeProfile.syncClaudeMem',

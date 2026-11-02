@@ -12,6 +12,7 @@ import { withRequestSecrets } from '../runtime/secrets.js';
 import { liveFolders } from './live.js';
 import { warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
+import { flushAccounts } from './accounts.js';
 
 const POLL_MS = 400;
 const MEM_SAVE_MS = 120000;
@@ -49,6 +50,7 @@ export class Daemon {
       this.lastMemSave = Date.now();
       safely('claude-mem save', saveClaudeMem);
       safely('agent databases save', saveLocalState);
+      void flushAccounts();
     }
   }
 

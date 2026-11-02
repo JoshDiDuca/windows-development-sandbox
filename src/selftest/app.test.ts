@@ -877,7 +877,7 @@ export const appSuite: Suite = {
     t.check(
       codexMenu.enterLabel('codex', 'codex:main') === 'use' &&
         ['s', 'p', 'd', 'r', 'x'].every((k) => codexMenu.actions.some((a) => a.key === k)) &&
-        accountsPage({ agent: 'codex', agents: [codex] }).sections[0].cards === true,
+        accountsPage({ agent: 'codex', agents: [codex], services: [] }).sections[0].cards === true,
       'accounts: the page offers use on Enter and d/r/x on a login; the codex agent is a card',
     );
     const useDef = definitionFor('account', ['use'])!;

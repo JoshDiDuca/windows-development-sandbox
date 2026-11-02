@@ -47,11 +47,13 @@ Settings > General.
 | `sandbox.engine`                               | **(Alpha)** `"windows-sandbox"` (default) or `"hcs"` (see [the HCS engine](#the-hcs-engine-alpha))                                                                      |
 | `harnesses`                                    | the agents and how they are installed ([agent settings](#agent-settings))                                                                                               |
 
-Settings for one toolchain (MSVC, Unreal, Rust, Mesa, CLI tools) are in [toolchains](toolchains.md).
+Settings for one toolchain (MSVC, Unreal, Rust, Mesa, CLI tools, the game and mobile ones) are in
+[toolchains](toolchains.md).
 
 Many settings are **yours only**: a project's `.sandbox-config.json` cannot set them. These include storage, sharing,
 secrets, the audit log, the web UI, agent commands, agents (`harnesses`), the engine, the CPU and memory limits,
-`projects.*`, `resume.*`, `github.*`, most of `network` and the agent add-ons. See [project settings](#project-settings).
+`projects.*`, `resume.*`, `github.*`, `pcInstalls`, most of `network` and the agent add-ons. A project can only turn
+off `accounts.*.share` and never accept a licence (`toolchains.*.acceptLicense`). See [project settings](#project-settings).
 
 ## Paths
 
@@ -327,11 +329,29 @@ sandbox claude --account work          # this launch only
 The same works for every agent that keeps a login (`--agent codex` and so on). `use` lasts until the next launch;
 `default` stays. When sessions are running, both offer to restart them under the new login (`--no-restart` skips that).
 
+Service sign-ins (Epic, Steam, Unity, a FiveM server key, Android and app-store keys) are in Accounts too:
+`sandbox account status | import | login | logout <service>`, and `accounts.<service>.share` (default off) lets
+sandboxes have one. A project file can only turn sharing off. See [accounts](accounts.md).
+
 Plugins installed in the sandbox stay when you switch accounts, because all accounts of a data set share one Claude
 folder. They do not reach another data set. Set `claudeProfile.sharePluginsAcrossAccounts: true` to copy them into a
 data set that has none yet (the plugins folder and the plugin entries of `settings.json`; logins are not touched). The
 copy is limited to 1 GB / 20,000 files and a project file cannot turn this on. Plugins are code: with this on, a plugin
 installed in one sandbox runs in your other sandboxes too.
+
+## Installs on this PC
+
+`pcInstalls` maps games, engines and editors already installed on this PC into sandboxes, read-only under
+`C:\PcInstalls` (nothing is copied, nothing lands on the sandbox's disk). All off by default; yours only.
+
+| Setting                    |                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `pcInstalls.steamGames`    | `true` (every Steam library) or a list of app IDs, e.g. `[480]`                  |
+| `pcInstalls.epicGames`     | `true` or a list of Epic app names                                               |
+| `pcInstalls.unrealEngines` | `true` or a list of versions, e.g. `["5.4"]`                                     |
+| `pcInstalls.unityEditors`  | `true` or a list of editor versions, e.g. `["6000.0.32f1"]`                      |
+
+Finding them on this PC comes in a later version; until then nothing is mapped. The agent can read what is mapped.
 
 ## Hooks
 

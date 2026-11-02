@@ -17,6 +17,7 @@ export function writeSecrets(dataPath: string, id: string, secrets: SecretsFile)
     !secrets.vpn &&
     !secrets.wireguardConfig &&
     !secrets.githubToken &&
+    !Object.keys(secrets.serviceAccounts ?? {}).length &&
     !secrets.liveFoldersKey;
   if (empty) return null;
   const run = new RunDir(dataPath);

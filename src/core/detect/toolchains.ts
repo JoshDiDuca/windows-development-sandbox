@@ -21,6 +21,16 @@ export const MARKERS = {
   rust: ['Cargo.toml', 'rust-toolchain', 'rust-toolchain.toml'],
   msvc: ['*.vcxproj', 'CMakePresets.json', 'CMakeUserPresets.json'],
   unreal: ['*.uproject', '*.uplugin'],
+  unity: ['ProjectVersion.txt'],
+  godot: ['project.godot'],
+  steam: ['steam_appid.txt', 'steam_api64.dll', 'steam_api.dll'],
+  fivem: ['fxmanifest.lua', '__resource.lua'],
+  // Decided from file contents (host/launch/hints): Gradle's com.android plugin, an AndroidManifest.xml deeper down,
+  // <UseMaui>, a pubspec's flutter: section, react-native / expo in package.json.
+  android: [],
+  flutter: [],
+  dart: [],
+  reactNative: [],
   cpp: [
     'CMakeLists.txt',
     'Makefile',
@@ -47,6 +57,7 @@ export const MARKERS = {
     '.java-version',
     '.sdkmanrc',
     '*.java',
+    '*.kt',
   ],
   ruby: ['Gemfile', '*.gemspec', '.ruby-version', '*.rb'],
   php: ['composer.json', 'artisan', '.php-version', '*.php'],
@@ -61,6 +72,13 @@ export const MARKERS = {
 
 export type AutoToolchain = keyof typeof MARKERS;
 export const AUTO_TOOLCHAINS = Object.keys(MARKERS) as AutoToolchain[];
+
+/**
+ * Toolchains that come under licence terms and are big downloads (1-60 GB): "auto" installs them only once you accept
+ * the licence (toolchains.<name>.acceptLicense). A project file can never accept one for you (local-config policy).
+ */
+export const LICENSED_TOOLCHAINS = ['msvc', 'unreal', 'unity', 'fivem', 'android'] as const;
+export type LicensedToolchain = (typeof LICENSED_TOOLCHAINS)[number];
 
 /** Files of any ecosystem: a folder with none of them is no project yet. */
 const PROJECT_FILES = [...new Set([...Object.values(MARKERS).flat(), 'package.json', 'deno.json', '*.ts', '*.js'])];
@@ -99,18 +117,7 @@ export function decideToolchains(
   // Rust links with MSVC when this PC does (its rustup host is *-msvc), otherwise with MinGW's gcc.
   if (result.rust.on && settings.msvc.enabled === 'auto' && !result.msvc.on && pcHas.includes('msvc'))
     result.msvc = { on: true, reason: 'Rust on this PC builds with MSVC' };
-  // MSVC is a 1-2 GB licensed download: "auto" only installs it once its licence is accepted.
-  if (settings.msvc.enabled === 'auto' && result.msvc.on && !settings.msvc.acceptLicense)
-    result.msvc = {
-      on: false,
-      reason: 'would be used (' + result.msvc.reason + '); set toolchains.msvc.acceptLicense to install it',
-    };
-  // Unreal is a ~10 GB licensed install every boot: "auto" only installs it once its licence is accepted.
-  if (settings.unreal.enabled === 'auto' && result.unreal.on && !settings.unreal.acceptLicense)
-    result.unreal = {
-      on: false,
-      reason: 'would be used (' + result.unreal.reason + '); set toolchains.unreal.acceptLicense to install it',
-    };
+  applyImplications(settings, result);
   if (result.rust.on && !result.msvc.on && !result.cpp.on && settings.cpp.enabled !== false)
     result.cpp = { on: true, reason: 'the linker for Rust' };
   // uv installs the Python tools (`uv tool install`), so Python tools turn an "auto" uv on.
@@ -119,6 +126,35 @@ export function decideToolchains(
   if (settings.vscode.enabled === 'auto' && pcHas.includes('vscode'))
     result.vscode = { on: true, reason: 'installed on this PC' };
   return result;
+}
+
+/** An "auto" toolchain another one needs is turned on (with the reason), unless you turned it off. */
+function imply(
+  settings: Toolchains,
+  result: Record<AutoToolchain, ToolchainDecision>,
+  name: AutoToolchain,
+  reason: string,
+): void {
+  if (settings[name].enabled === 'auto' && !result[name].on) result[name] = { on: true, reason };
+}
+
+/**
+ * What one toolchain brings along (Android for Flutter and React Native, a JDK for Android, .NET for Godot's C#
+ * build), and the licence gates: a licensed "auto" toolchain is off until its licence is accepted. Android is implied
+ * before its gate (Flutter alone never accepts the Android licence) and the JDK after it.
+ */
+function applyImplications(settings: Toolchains, result: Record<AutoToolchain, ToolchainDecision>): void {
+  if (result.flutter.on) imply(settings, result, 'android', 'Flutter builds for Android');
+  if (result.reactNative.on) imply(settings, result, 'android', 'React Native builds for Android');
+  if (result.godot.on && settings.godot.dotnet === true) imply(settings, result, 'dotnet', "Godot's .NET build");
+  for (const name of LICENSED_TOOLCHAINS) {
+    if (settings[name].enabled !== 'auto' || !result[name].on || settings[name].acceptLicense) continue;
+    result[name] = {
+      on: false,
+      reason: 'would be used (' + result[name].reason + '); set toolchains.' + name + '.acceptLicense to install it',
+    };
+  }
+  if (result.android.on) imply(settings, result, 'java', 'the Android SDK needs a JDK (17 or newer)');
 }
 
 /** The settings with every "auto" replaced by the decision (what the sandbox receives). */

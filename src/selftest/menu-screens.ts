@@ -39,6 +39,7 @@ const DATA_FOLDER_ROW = [
 
 const ACCOUNTS: AccountsModel = {
   agent: 'claude',
+  services: [],
   agents: [
     {
       name: 'claude',

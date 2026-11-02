@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
-import type { GenerateOptions, Generated, ProfileResult } from '../../core/types.js';
+import type { Config, GenerateOptions, Generated, ProfileResult } from '../../core/types.js';
+import type { BootWant } from '../../core/local-config/index.js';
+import { isServiceKind, type Payloads } from '../../shared/accounts/index.js';
 import { widenForProjects } from '../../core/local-config/index.js';
 import { dirExists, ensureDir, fail, writeJson } from '../../core/util/index.js';
 import { engineFor, realLiveFolders, type EnginePlan, type SandboxEngine } from '../engines/index.js';
@@ -24,6 +26,24 @@ import { decideProjectToolchains } from './toolchains.js';
 import { buildLaunchPlan } from './launch-plan.js';
 import { cappedMemoryMb, decideMemory, GUEST, memoryNote, residentNote, resolveMemoryMb } from './wsb-file.js';
 
+/** The handed-over sign-ins still shared in the configs the sandbox boots with, as the secrets-file field. */
+function withSharedAccounts(
+  given: Payloads | undefined,
+  config: Config,
+  others: readonly BootWant[],
+): { serviceAccounts?: Payloads } {
+  const kept = Object.fromEntries(
+    Object.entries(given ?? {}).filter(
+      ([kind, payload]) =>
+        payload !== undefined &&
+        isServiceKind(kind) &&
+        config.accounts[kind].share &&
+        others.every((p) => p.config.accounts[kind].share),
+    ),
+  ) as Payloads;
+  return Object.keys(kept).length ? { serviceAccounts: kept } : {};
+}
+
 const NO_PROFILE: ProfileResult = { hostDir: null, staged: [], skipped: [], credentials: false, secretsRemoved: [] };
 
 /** Moves the staged copy of this PC's Claude login out of the launch folder; its text goes in the one-shot file. */
@@ -33,6 +53,11 @@ function takeStagedCredentials(launchPath: string): string | undefined {
   const text = fs.readFileSync(file, 'utf8');
   fs.rmSync(file, { force: true });
   return text;
+}
+
+/** A new launch's id: the time and 6 random hex digits. */
+export function newLaunchId(): string {
+  return Date.now() + '-' + crypto.randomBytes(3).toString('hex');
 }
 
 export function generateSandbox(
@@ -76,7 +101,7 @@ export function generateSandbox(
   );
   // Never more than this PC can keep in RAM for it, whatever was asked.
   const memoryMb = cappedMemoryMb(askedMb, config.sandbox, Math.floor(os.totalmem() / 1048576));
-  const launchId = Date.now() + '-' + crypto.randomBytes(3).toString('hex');
+  const launchId = o.launchId ?? newLaunchId();
   const launchPath = path.join(storageRoot, 'launches', launchId);
   // Whatever must stay secret goes in a one-shot file in the data folder, never into the launch folder (the sandbox
   // maps it read-only and it is kept for days). Leftovers of earlier launches go first.
@@ -132,6 +157,8 @@ export function generateSandbox(
     ...(o.vpn?.wireguardConfig ? { wireguardConfig: o.vpn.wireguardConfig } : {}),
     // Checked again on the configs the sandbox boots with: never when a project in it has git access below "full".
     ...(o.githubToken && githubTokenAllowed(config, others) ? { githubToken: o.githubToken } : {}),
+    // Checked again here: only the kinds you share, and none a project in this sandbox turned off.
+    ...withSharedAccounts(o.serviceAccounts, config, others),
   });
   fs.writeFileSync(path.join(launchPath, 'env.cmd'), logonEnv(session.workspace), 'utf8');
   copyRuntime(o.packageRoot, launchPath);

@@ -3,6 +3,9 @@
 // shared by the menu on the PC (to list them) and the sandbox (to install them, guest/apps). VS Code and Windows
 // Terminal have settings of their own (toolchains.vscode, provisioning.terminal) and are listed here too, like
 // claude-mem (claudeProfile.syncClaudeMem) among the agent add-ons.
+import { GAMEDEV_APPS } from './catalogue-gamedev.js';
+import { MOBILE_APPS } from './catalogue-mobile.js';
+import { MODDING_APPS } from './catalogue-modding.js';
 
 export type AppCategory =
   | 'agents'
@@ -138,7 +141,7 @@ export const CCUSAGE_VERSION = '20.0.36';
 export const PLAYWRIGHT_MCP_VERSION = '0.0.83';
 export const CONTEXT7_MCP_VERSION = '4.4.2';
 
-export const APPS: AppEntry[] = [
+const CORE_APPS: AppEntry[] = [
   // ---- agent add-ons
   {
     id: 'rtk',
@@ -969,6 +972,9 @@ export const APPS: AppEntry[] = [
     cli: true,
   },
 ];
+
+/** Every app: the ones above, then the game-development, modding and mobile ones (each list in its own file). */
+export const APPS: AppEntry[] = [...CORE_APPS, ...GAMEDEV_APPS, ...MODDING_APPS, ...MOBILE_APPS];
 
 export function appById(id: string): AppEntry | undefined {
   return APPS.find((a) => a.id === id);

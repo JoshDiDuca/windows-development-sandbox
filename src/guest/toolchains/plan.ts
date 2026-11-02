@@ -24,7 +24,18 @@ import { setupPhp } from './languages/php.js';
 import { setupRuby } from './languages/ruby.js';
 import { setupVcRuntime } from './native/vcruntime.js';
 import { setupVscode } from './tools/vscode.js';
-import type { ToolchainOptions, ToolchainStep } from './step.js';
+import type { ToolchainOptions, ToolchainStep, ToolCtx } from './step.js';
+import { ensureVisualStudio, visualStudioWanted } from './native/visual-studio.js';
+import { duringSession } from '../runtime/project-context.js';
+import { setupSteam } from './steam/steam.js';
+import { setupGodot } from './engines/godot.js';
+import { setupUnity } from './engines/unity.js';
+import { setupFivem } from './fivem/fivem.js';
+import { setupAndroid } from './mobile/android.js';
+import { setupFlutter } from './mobile/flutter.js';
+import { setupDart } from './mobile/dart.js';
+import { setupReactNative } from './mobile/react-native.js';
+import { setupKotlin } from './languages/kotlin.js';
 import { rustHost, rustCaches, cargoDefaults, cargoShim, linkGate } from './native/rust-extras.js';
 import { setupPythonTools } from './languages/python-tools.js';
 
@@ -33,6 +44,14 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
   const java = wanted(config.java.enabled, 'java');
   const python = wanted(config.python.enabled, 'python');
   const unreal = wanted(config.unreal.enabled, 'unreal');
+  const android = wanted(config.android.enabled, 'android');
+  // One Visual Studio for every toolchain that needs the real one (Unreal, Flutter desktop, Unity IL2CPP).
+  const vs = visualStudioWanted(config, (setting, name) => wanted(setting, name));
+  const ctx: ToolCtx = {
+    refresh: o.refresh,
+    pcInstalls: o.pcInstalls ?? { items: [] },
+    duringSession: duringSession(),
+  };
   return [
     {
       name: 'Git',
@@ -50,18 +69,32 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       enabled: wanted(config.cpp.enabled, 'cpp') || wanted(config.rust.enabled, 'rust'),
       install: (env) => setupCpp(env, config.cpp),
     },
-    // Unreal's Visual Studio brings MSVC and the real vswhere: the portable MSVC (and its stand-in vswhere) stays out.
-    { name: 'Unreal', enabled: unreal, shared: true, install: (env) => setupUnreal(env, config.unreal) },
+    // Visual Studio brings MSVC and the real vswhere: the portable MSVC (and its stand-in vswhere) stays out.
+    {
+      name: 'Visual Studio',
+      enabled: vs !== null,
+      shared: true,
+      install: async (env) => {
+        await ensureVisualStudio(env, vs!, { keepInstallFiles: config.unreal.keepInstallFiles });
+      },
+    },
+    {
+      name: 'Unreal',
+      enabled: unreal,
+      shared: true,
+      after: ['Visual Studio'],
+      install: (env) => setupUnreal(env, config.unreal, ctx),
+    },
     {
       name: 'MSVC',
-      enabled: wanted(config.msvc.enabled, 'msvc') && !unreal,
+      enabled: wanted(config.msvc.enabled, 'msvc') && vs === null,
       install: (env) => setupMsvc(env, config.msvc),
     },
     // Rust links with MSVC (msvc host) or MinGW's gcc (GNU host): whichever it uses goes first.
     {
       name: 'Rust',
       enabled: wanted(config.rust.enabled, 'rust'),
-      after: ['C/C++', 'MSVC', 'Unreal'],
+      after: ['C/C++', 'MSVC', 'Visual Studio', 'Unreal'],
       install: async (env) => {
         await setupRust(env, { ...config.rust, host: rustHost(config) }, o.refresh);
         Object.assign(env.vars, rustCaches(config.rust));
@@ -79,6 +112,49 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
     },
     { name: 'Go', enabled: wanted(config.go.enabled, 'go'), install: (env) => setupGo(env, config.go) },
     { name: 'Java', enabled: java, install: (env) => setupJava(env, config.java) },
+    { name: 'Kotlin', enabled: java && config.java.kotlin, after: ['Java'], install: (env) => setupKotlin(env, ctx) },
+    // Game engines, stores and mobile: each module keeps its big installs in tools (persisted.ts).
+    {
+      name: 'Android SDK',
+      enabled: android,
+      after: ['Java'],
+      install: (env) => setupAndroid(env, config.android, ctx),
+    },
+    {
+      name: 'Steam',
+      enabled: wanted(config.steam.enabled, 'steam'),
+      install: (env) => setupSteam(env, config.steam, ctx),
+    },
+    {
+      name: 'Unity',
+      enabled: wanted(config.unity.enabled, 'unity'),
+      after: ['Visual Studio', 'Android SDK'],
+      install: (env) => setupUnity(env, config.unity, ctx),
+    },
+    {
+      name: 'Godot',
+      enabled: wanted(config.godot.enabled, 'godot'),
+      after: ['.NET', 'Android SDK'],
+      install: (env) => setupGodot(env, config.godot, ctx),
+    },
+    {
+      name: 'FiveM server',
+      enabled: wanted(config.fivem.enabled, 'fivem'),
+      install: (env) => setupFivem(env, config.fivem, ctx),
+    },
+    {
+      name: 'Flutter',
+      enabled: wanted(config.flutter.enabled, 'flutter'),
+      after: ['Visual Studio', 'Android SDK'],
+      install: (env) => setupFlutter(env, config.flutter, ctx),
+    },
+    { name: 'Dart', enabled: wanted(config.dart.enabled, 'dart'), install: (env) => setupDart(env, config.dart, ctx) },
+    {
+      name: 'React Native',
+      enabled: wanted(config.reactNative.enabled, 'reactNative'),
+      after: ['Android SDK'],
+      install: (env) => setupReactNative(env, config.reactNative, ctx),
+    },
     { name: 'Ruby', enabled: wanted(config.ruby.enabled, 'ruby'), install: (env) => setupRuby(env, config.ruby) },
     // PHP installs the Visual C++ runtime itself: one installer at a time.
     // Many apps (bat, delta, Neovim, most GUIs, your own programs) are built against it too.

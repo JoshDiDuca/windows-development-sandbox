@@ -9,6 +9,7 @@ import {
   hostGlobalStateFile,
   type Account,
   type AccountRow,
+  type LoginKind,
 } from '../../host/profile/index.js';
 import { SandboxChannel } from '../../host/channel/index.js';
 import { isSandboxRunning } from '../../host/sandbox/index.js';
@@ -32,14 +33,25 @@ export interface AccountRef {
   readonly email: string | null;
   /** Something worth telling after a switch (e.g. plugins were copied, or could not be). */
   readonly note?: string;
+  /** Claude: which kind of login, and sk-ant-...abcd for a key. */
+  readonly kind?: LoginKind;
+  readonly keyHint?: string | null;
 }
 
 const CLAUDE = 'claude';
 
+function claudeRef(a: Account): AccountRef {
+  return { name: a.name, email: a.email, kind: a.kind, keyHint: a.keyHint };
+}
+
 export class AccountsService {
   private readonly claude: AccountStore;
 
-  constructor(private readonly ctx: AccountsContext) {
+  /** @param env where this PC's ANTHROPIC_API_KEY is read (save --from-host) */
+  constructor(
+    private readonly ctx: AccountsContext,
+    private readonly env: Readonly<Record<string, string | undefined>> = process.env,
+  ) {
     this.claude = new AccountStore(ctx.storageRoot, ctx.loaded.config.claudeProfile.sharePluginsAcrossAccounts);
   }
 
@@ -89,11 +101,19 @@ export class AccountsService {
       : this.other(agent).store.activeFor(this.ctx.dataPath);
   }
 
-  /** Saves the sandbox's login, or this PC's when fromHost. */
-  save(name: string, fromHost: boolean, agent = CLAUDE): AccountRef {
+  /**
+   * Saves the sandbox's login, or this PC's when fromHost (its subscription, else its Console key, else
+   * ANTHROPIC_API_KEY of this PC). `keyOnly` (Claude): only an API key, never a subscription found next to it.
+   */
+  save(name: string, fromHost: boolean, agent = CLAUDE, keyOnly = false): AccountRef {
     if (agent === CLAUDE) {
-      const saved: Account = this.claude.save(this.ctx.dataPath, name, fromHost ? this.hostLogin() : null);
-      return { name: saved.name, email: saved.email };
+      const saved: Account = this.claude.save(
+        this.ctx.dataPath,
+        name,
+        fromHost ? this.hostLogin() : null,
+        fromHost ? { keyOnly, envKey: this.env.ANTHROPIC_API_KEY ?? null } : { keyOnly },
+      );
+      return claudeRef(saved);
     }
     const { store, stateDir, hostDir } = this.other(agent);
     if (fromHost && !hostDir)
@@ -105,11 +125,16 @@ export class AccountsService {
     return { name, email: null };
   }
 
+  /** Saves an Anthropic API key you typed as a Claude account (it is checked, never shown). */
+  saveApiKey(name: string, apiKey: string): AccountRef {
+    return claudeRef(this.claude.saveApiKey(this.ctx.dataPath, name, apiKey));
+  }
+
   /** Makes the sandbox use a saved login. Running sessions keep the old one until restart(). */
   activate(name: string, agent = CLAUDE): AccountRef {
     if (agent === CLAUDE) {
       const a = this.claude.activate(this.ctx.dataPath, name);
-      return { name: a.name, email: a.email, note: this.claude.pluginNote ?? undefined };
+      return { ...claudeRef(a), note: this.claude.pluginNote ?? undefined };
     }
     const { store, stateDir } = this.other(agent);
     store.activate(this.ctx.dataPath, name, stateDir);

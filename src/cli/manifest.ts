@@ -305,6 +305,7 @@ const COMMAND_LIST = [
     examples: [
       'sandbox account save work          save the login you signed in with inside the sandbox',
       'sandbox account use work           the sandbox uses it (running sessions restart)',
+      'sandbox account save free --api-key   save an Anthropic API key you paste in (not shown)',
     ],
     args: [
       {
@@ -322,6 +323,9 @@ const COMMAND_LIST = [
         label: 'Agent',
       }),
       bool('--from-host', "(save) save this PC's login instead of the sandbox's", { when: 'save' }),
+      bool('--api-key', "(save) an Anthropic API key: typed in (hidden), or with --from-host this PC's", {
+        when: 'save',
+      }),
       bool('--no-restart', '(use) do not restart running sessions', { when: 'use' }),
       bool('--yes', '(remove) do not ask first', { short: '-y', when: 'remove', noMenu: true }),
     ],

@@ -16,8 +16,8 @@ own.
 | `expo`     | an Expo access token (`EXPO_TOKEN`)                                           | `login expo`                                   | React Native / Expo                      |
 | `appstore` | an App Store Connect API key (`.p8`, issuer ID, key ID)                       | `import appstore --from AuthKey.p8`            | React Native, Flutter                    |
 
-Steam, Unity, Cfx.re, the Android keys, Expo and App Store Connect come in a later version: their rows are there, and
-saving one says so for now.
+Unity, Cfx.re, the Android keys, Expo and App Store Connect come in a later version: their rows are there, and saving
+one says so for now.
 
 ## Commands
 

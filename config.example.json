@@ -92,6 +92,12 @@
     },
     "appstore": {
       "share": false
+    },
+    "perplexity": {
+      "share": false
+    },
+    "comet": {
+      "share": false
     }
   },
   "pcInstalls": {
@@ -412,7 +418,8 @@
           "CODEX_HOME": "codex"
         },
         "loginFiles": [
-          "auth.json"
+          "auth.json",
+          ".credentials.json"
         ],
         "hostDir": "~/.codex"
       },

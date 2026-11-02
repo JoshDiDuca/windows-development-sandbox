@@ -1,0 +1,7 @@
+{
+  "name": "sandbox-addon-perplexity-mcp",
+  "private": true,
+  "dependencies": {
+    "@perplexity-ai/mcp-server": "1.3.0"
+  }
+}

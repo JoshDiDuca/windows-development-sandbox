@@ -4,5 +4,5 @@ export { accountsDir, ServiceAccountStore, type AccountInfo, type AccountState }
 export { AccountLeases, type ClaimResult, type Lease } from './leases.js';
 export { prepareServiceAccounts, type AccountDelivery, type DeliveryInput } from './deliver.js';
 export { forgetEverywhere, handoffDir, takeHandoffs } from './handoff.js';
-export { notAvailableYet, pcEnv, type HostSource, type PcEnv } from './source.js';
+export { notAvailableYet, parseRegValue, pcEnv, type HostSource, type PcEnv } from './source.js';
 export { HOST_SOURCES } from './sources.js';

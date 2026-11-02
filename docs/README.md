@@ -12,6 +12,7 @@ Start with the [README](../README.md). Version history is in the [changelog](../
 | [projects.md](projects.md)               | Project roots, several projects in one sandbox, adding folders while it runs  |
 | [toolchains.md](toolchains.md)           | Languages, apps and tools, databases, agents                                  |
 | [accounts.md](accounts.md)               | Service sign-ins for sandboxes: Epic, Steam, Unity, signing and store keys    |
+| [agents-web.md](agents-web.md)           | Perplexity (API, Computer), the Comet browser and browser-driving MCP servers |
 | [game-engines.md](game-engines.md)       | Unreal engines and Godot (coming)                                             |
 | [unity.md](unity.md)                     | Unity (coming)                                                                |
 | [steam.md](steam.md)                     | SteamCMD, games and servers, Workshop, builds and the Steam client           |

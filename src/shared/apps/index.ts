@@ -13,11 +13,25 @@ export {
   RTK_VERSION,
 } from './catalogue.js';
 export { exeMatcher, appsToInstall, appsNeedMesa, appsNeedUv } from './selection.js';
+export { signerMatches, type AppSigner, type Signature } from './signer.js';
+export {
+  AGENTS_WEB_APPS,
+  BROWSER_USE_VERSION,
+  CHROME_DEVTOOLS_MCP_VERSION,
+  COMET_DOWNLOAD_URL,
+  COMET_MCP_VERSION,
+  COMET_SIGNER,
+  PERPLEXITY_COMPUTER_MCP_URL,
+  PERPLEXITY_MCP_VERSION,
+} from './catalogue-agents-web.js';
 export {
   ADDON_MCP_PREFIX,
   addonGuideLine,
   addonMcpServer,
+  type AddonPlace,
   claudeManagedSettings,
+  codexWithAddonMcpServers,
+  type CodexMcpServer,
   HEADROOM_ENV,
   HEADROOM_PORT,
   HEADROOM_UPSTREAM,

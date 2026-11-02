@@ -125,6 +125,23 @@ export function codexConfigWithoutSandbox(toml: string): string | null {
   );
 }
 
+/**
+ * Codex's config.toml with its MCP sign-ins (OAuth tokens, e.g. Perplexity Computer's) kept in a file, or null when it
+ * already says where to keep them. By default Codex keeps them in Windows Credential Manager, which is wiped with the
+ * sandbox; in a file ($CODEX_HOME\.credentials.json, on the data folder) they last, and travel with saved logins.
+ * A `mcp_oauth_credentials_store` the user set (before the first [table]) is kept.
+ */
+export function codexConfigWithMcpLoginsInFile(toml: string): string | null {
+  const firstTable = toml.search(/^\s*\[/m);
+  const topLevel = firstTable < 0 ? toml : toml.slice(0, firstTable);
+  if (/^\s*mcp_oauth_credentials_store\s*=/m.test(topLevel)) return null;
+  return (
+    "# Set by the sandbox: Codex's MCP sign-ins are kept in .credentials.json, so the next sandbox has them too.\n" +
+    'mcp_oauth_credentials_store = "file"\n' +
+    (toml ? '\n' + toml : '')
+  );
+}
+
 /** A SQLite database file or one of its -wal / -shm siblings. */
 export const isDatabaseFile = (name: string): boolean => /\.(sqlite3?|db)(-wal|-shm)?$/i.test(name);
 

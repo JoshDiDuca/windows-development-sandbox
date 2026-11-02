@@ -12,6 +12,7 @@ import { session, stateDir } from '../runtime/session.js';
 import { errMsg } from '../../core/util/errors.js';
 import {
   bootResetPaths,
+  codexConfigWithMcpLoginsInFile,
   codexConfigWithoutSandbox,
   isCopyableDatabaseFile,
   isDatabaseFile,
@@ -123,6 +124,17 @@ export function codexWithoutInnerSandbox(): void {
   mkdirp(path.dirname(file));
   fs.writeFileSync(file, updated, 'utf8');
   log('codex: its own command sandbox is off (sandbox_mode = "danger-full-access" in config.toml).');
+}
+
+/** Boot: Codex keeps its MCP sign-ins in a file on the data folder (codexConfigWithMcpLoginsInFile), unless set. */
+export function codexMcpLoginsInFile(): void {
+  if (dryRun || !session.agents?.codex) return;
+  const file = path.join(stateDir, 'codex', 'config.toml');
+  const updated = codexConfigWithMcpLoginsInFile(exists(file) ? fs.readFileSync(file, 'utf8') : '');
+  if (updated === null) return;
+  mkdirp(path.dirname(file));
+  fs.writeFileSync(file, updated, 'utf8');
+  log('codex: MCP sign-ins are kept in .credentials.json (mcp_oauth_credentials_store = "file" in config.toml).');
 }
 
 /** Boot: the saved databases of every configured agent are copied to the sandbox's disk, where the agent runs them. */

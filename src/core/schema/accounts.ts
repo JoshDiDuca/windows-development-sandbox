@@ -1,7 +1,7 @@
 // accounts: which saved service sign-ins sandboxes get (the sign-ins themselves are not settings: they are kept
 // encrypted by `sandbox account import|login`, or come back from a sandbox you signed in in).
 import { z } from 'zod';
-import { SERVICE_SPECS, type ServiceKind } from '../../shared/accounts/kinds.js';
+import { SERVICE_SPECS, usedByText, type ServiceKind } from '../../shared/accounts/kinds.js';
 
 function share(kind: ServiceKind, how: string): z.ZodObject<{ share: z.ZodBoolean }, z.core.$strict> {
   const spec = SERVICE_SPECS[kind];
@@ -12,7 +12,7 @@ function share(kind: ServiceKind, how: string): z.ZodObject<{ share: z.ZodBoolea
         'Hand your saved ' +
           spec.label +
           ' sign-in to sandboxes that use ' +
-          spec.usedBy.join(' or ') +
+          usedByText(spec.usedBy) +
           ' (' +
           how +
           '). Kept encrypted on this PC; ' +
@@ -35,7 +35,12 @@ export const AccountsSchema = z
     play: share('play', 'sandbox account import play --from <service-account.json>'),
     expo: share('expo', 'sandbox account login expo'),
     appstore: share('appstore', 'sandbox account import appstore --from <AuthKey.p8>'),
+    perplexity: share(
+      'perplexity',
+      'sandbox account login perplexity, or: sandbox account import perplexity --from <.env>',
+    ),
+    comet: share('comet', 'sign in to Comet once in a sandbox: it cannot be taken from this PC'),
   })
   .describe(
-    'Service sign-ins for sandboxes (game stores, engines, app signing). Manage them in Accounts: sandbox account status.',
+    'Service sign-ins for sandboxes (game stores, engines, app signing, Perplexity). Manage them in Accounts: sandbox account status.',
   );

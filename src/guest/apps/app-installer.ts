@@ -13,15 +13,20 @@ import { log, warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
 import { tool, type ToolEnv } from '../toolchains/tool-env.js';
 import { uvVars } from '../toolchains/runtimes.js';
+import { COMET_MCP_PORT, cometShortcutArgs } from '../browser/comet.js';
 import { afterInstall } from './after-install.js';
+import { installFromKept } from './comet-unpack.js';
 import { findExe } from './find-exe.js';
 import { shortcuts, type Shortcut } from './shortcuts.js';
+import { signerCheck } from './signature.js';
 import { resolve } from './sources.js';
 import { unpack } from './unpack.js';
 
 export interface AppsOptions {
   gitAccess: GitAccess;
   refresh: boolean;
+  /** Every app chosen (apps.install): one app's start-up can depend on another (Comet's port for comet-mcp). */
+  chosen?: readonly string[];
 }
 
 const MARKER = '.agent-sandbox-app';
@@ -62,13 +67,26 @@ export class AppInstaller {
   private async installOne(entry: AppEntry): Promise<void> {
     try {
       const dest = tool('apps', ...entry.id.split('/'));
+      if ('remote' in entry.source) {
+        // A remote MCP server: nothing to download, the marker only says it is set up.
+        if (!exists(path.join(dest, MARKER)))
+          fs.writeFileSync(
+            path.join(mkdirp(dest), MARKER),
+            JSON.stringify({ id: entry.id, at: new Date().toISOString() }),
+          );
+        this.installed.push(entry.name);
+        return;
+      }
       if (!exists(path.join(dest, MARKER)) || this.options.refresh) await this.download(entry, dest);
-      const exe = findExe(dest, entry.exe);
+      // A Chromium installer that could not be unpacked is kept and installed into the sandbox each boot instead.
+      const exe =
+        findExe(dest, entry.exe) ??
+        (entry.unpack === 'chromium' && entry.signer ? await installFromKept(dest, entry.signer, entry.name) : null);
       if (!exe) throw new Error(entry.exe + ' not found in the download');
       await afterInstall(entry, exe);
       // A proxy or MCP server (agent add-ons) is started by the sandbox or the agent: no PATH entry, no shortcut.
       if (!entry.service && (entry.cli || entry.id === 'sysinternals')) this.env.prepend.push(path.dirname(exe));
-      if (!entry.cli && !entry.service) this.gui.push({ name: entry.name, exe });
+      if (!entry.cli && !entry.service) this.gui.push({ name: entry.name, exe, ...this.launchArgs(entry) });
       this.installed.push(entry.name);
     } catch (e) {
       warn(
@@ -76,6 +94,12 @@ export class AppInstaller {
       );
       this.env.summary.push(entry.name + ': FAILED');
     }
+  }
+
+  /** The command line an app's shortcut starts it with (Comet: its own profile, DevTools on 127.0.0.1). */
+  private launchArgs(entry: AppEntry): { args?: string } {
+    if (entry.id !== 'comet') return {};
+    return { args: cometShortcutArgs((this.options.chosen ?? []).includes('comet-mcp') ? COMET_MCP_PORT : 0) };
   }
 
   /** Downloads and unpacks one entry into its folder (replaced in one step: never half there). */
@@ -103,7 +127,10 @@ export class AppInstaller {
         const d = await resolve(entry);
         log('Downloading ' + entry.name + ' (' + d.fileName + ', ~' + entry.size + ' once) ...');
         const file = path.join(mkdirp(work), d.fileName.replace(/[\\/:*?"<>|]/g, '_'));
-        await downloader.file(d.url, file, { sha256: d.sha256 ?? null });
+        await downloader.file(d.url, file, {
+          sha256: d.sha256 ?? null,
+          ...(entry.signer ? { verify: signerCheck(entry.signer, d.fileName) } : {}),
+        });
         await unpack(entry, file, out, d);
       }
       fs.writeFileSync(path.join(out, MARKER), JSON.stringify({ id: entry.id, at: new Date().toISOString() }));
@@ -174,5 +201,5 @@ export async function setupApps(env: ToolEnv, apps: Config['apps'], o: AppsOptio
     log('(dry run) would install apps: ' + entries.map((e) => e.name).join(', '));
     return;
   }
-  await new AppInstaller(env, o).installAll(entries);
+  await new AppInstaller(env, { ...o, chosen: apps.install }).installAll(entries);
 }

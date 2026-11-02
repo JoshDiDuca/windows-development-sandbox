@@ -1540,7 +1540,10 @@
               "shellcheck",
               "gitleaks",
               "ast-grep",
-              "rust-analyzer"
+              "rust-analyzer",
+              "lua-language-server",
+              "stylua",
+              "selene"
             ]
           },
           "description": "Apps from the catalogue this project adds to yours (agent add-ons such as rtk, Headroom and the MCP servers are set in your own settings only)."

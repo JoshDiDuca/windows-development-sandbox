@@ -7,6 +7,10 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **FiveM / RedM.** A FiveM toolchain (FXServer builds from the Cfx.re versions list, `sbx-fivem init|serve|new`, Lua, JS, TS and C# resource templates, txAdmin, oxmysql) and a `cfx` account for the server key. `sandbox account import cfx --from server.cfg` reads `sv_licenseKey` and `steam_webApiKey` from a server.cfg. See docs/fivem.md.
+
 ## 1.18.0
 
 - **Service sign-ins in Accounts.** `sandbox account status|import|login|logout <service>`, and the menu and web

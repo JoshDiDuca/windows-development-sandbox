@@ -10,7 +10,7 @@ own.
 | `epic`     | the Epic Games Launcher's "Remember me" sign-in                               | sign in once in a sandbox, or `import epic`    | Unreal                                   |
 | `steam`    | SteamCMD's cached login (no password)                                         | `sbx-steam login` in a sandbox, or `import`    | Steam                                    |
 | `unity`    | your Unity licence file, or your Unity ID                                     | sign in once in a sandbox, `import` or `login` | Unity                                    |
-| `cfx`      | a FiveM / RedM server licence key (and a Steam Web API key)                   | `login cfx`                                    | the FiveM server                         |
+| `cfx`      | a FiveM / RedM server licence key (and a Steam Web API key)                   | `import cfx --from server.cfg`, or `login cfx` | the FiveM server                         |
 | `keystore` | an Android upload keystore and its passwords                                  | `import keystore --from upload.jks`            | Android (and Flutter, React Native ...)  |
 | `play`     | a Google Play service account key                                             | `import play --from key.json`                  | Android                                  |
 | `expo`     | an Expo access token (`EXPO_TOKEN`)                                           | `login expo`                                   | React Native / Expo                      |

@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fakeIO } from '../app/kernel/index.js';
-import { loginServiceFlow } from '../app/features/accounts/index.js';
+import { importServiceFlow, loginServiceFlow } from '../app/features/accounts/index.js';
 import { DEFAULTS } from '../core/config/index.js';
 import { HOST_SOURCES, ServiceAccountStore } from '../host/accounts/index.js';
 import { fivemHints } from '../host/launch/hints/fivem.js';
@@ -147,8 +147,47 @@ export const fivemSuite: Suite = {
       'typed: the key and the Steam Web API key (upper-cased)',
     );
     t.check(
-      !HOST_SOURCES.cfx.fromPc && !HOST_SOURCES.cfx.fromFile && HOST_SOURCES.cfx.fromAnswers !== undefined,
-      'the key is only typed (nothing on the PC to take it from)',
+      !HOST_SOURCES.cfx.fromPc && HOST_SOURCES.cfx.fromFile !== undefined && HOST_SOURCES.cfx.fromAnswers !== undefined,
+      'the key is typed or read from a server.cfg (nothing on the PC to take it from)',
+    );
+    const cfg = [
+      '# my server',
+      'sv_licenseKey "cfxk_OldKey_000" // old',
+      'endpoint_add_tcp "0.0.0.0:30120"',
+      '// setr steam_webApiKey "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"',
+      'sets tags "a#b"',
+      'setr steam_webApiKey "' + STEAM.toLowerCase() + '"',
+      'set sv_licenseKey ' + KEY + ' # the real one',
+    ].join('\r\n');
+    const fromCfg = HOST_SOURCES.cfx.fromFile!(Buffer.from(cfg, 'utf8'), {});
+    t.check(
+      fromCfg.licenseKey === KEY && fromCfg.steamWebApiKey === STEAM,
+      'server.cfg: comments and quotes handled, setr works, the last key wins, the Steam key is upper-cased',
+    );
+    await t.throws(
+      () =>
+        HOST_SOURCES.cfx.fromFile!(Buffer.from('# sv_licenseKey cfxk_x\nendpoint_add_tcp "0.0.0.0:30120"', 'utf8'), {}),
+      'no sv_licenseKey',
+      'a commented-out key is not a key',
+    );
+    t.check(!(HOST_SOURCES.cfx.summary(fromCfg) ?? '').includes(KEY), 'the summary of an imported key never holds it');
+    const cfgFile = t.write(t.at('fivem-cfg', 'server.cfg'), cfg);
+    const cfgStore = new ServiceAccountStore(t.dir('fivem-cfg-store'), SecretStore.memory());
+    const cfgIO = fakeIO([true]);
+    const pcNone = { localAppData: '', appData: '', programData: '' };
+    const imported = await importServiceFlow(cfgIO.io, 'cfx', cfgFile, { store: cfgStore, pc: pcNone, share: false });
+    t.check(
+      cfgStore.read('cfx')?.licenseKey === KEY &&
+        cfgIO.seen.questions.length === 1 &&
+        !JSON.stringify(cfgIO.seen).includes(KEY) &&
+        !imported.message.includes(KEY),
+      'import cfx --from server.cfg asks only to confirm (no fields), saves it, never shows it',
+    );
+    const big = t.write(t.at('fivem-cfg', 'big.cfg'), '#'.repeat(256 * 1024 + 1));
+    await t.throws(
+      () => importServiceFlow(fakeIO([true]).io, 'cfx', big, { store: cfgStore, pc: pcNone, share: false }),
+      'Cannot read',
+      'a server.cfg over 256 KB is refused',
     );
     await t.throws(
       () => HOST_SOURCES.cfx.fromAnswers!({ licenseKey: 'cfxk_x" +exec evil.cfg "' }),

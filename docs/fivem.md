@@ -31,7 +31,7 @@ With `enabled: "auto"` (the default) the server is installed when the project ha
 ## Your server key
 
 A server needs a licence key from the Cfx.re portal (<https://portal.cfx.re>, Server keys; it starts with `cfxk_`).
-`sandbox account login cfx` asks for it, and for an optional Steam Web API key (32 hex characters, from
+`sandbox account login cfx` asks for it (or `sandbox account import cfx --from server.cfg` reads `sv_licenseKey` and `steam_webApiKey` from an existing server.cfg, ignoring commented-out lines; the last one wins), and for an optional Steam Web API key (32 hex characters, from
 <https://steamcommunity.com/dev/apikey>) if your resources use Steam identifiers. Both are kept encrypted on your PC.
 
 At boot a sandbox writes them into one file on its own disk,

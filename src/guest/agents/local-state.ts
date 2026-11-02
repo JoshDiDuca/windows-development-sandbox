@@ -12,6 +12,7 @@ import { session, stateDir } from '../runtime/session.js';
 import { errMsg } from '../../core/util/errors.js';
 import {
   bootResetPaths,
+  codexConfigWithoutSandbox,
   isCopyableDatabaseFile,
   isDatabaseFile,
   localStateEntries,
@@ -111,6 +112,17 @@ export function resetMachineBound(): void {
       warn(agent + ': could not remove ' + target + ' (' + errMsg(e) + ').');
     }
   }
+}
+
+/** Boot: Codex runs its commands without its own sandbox (codexConfigWithoutSandbox), unless the user picked one. */
+export function codexWithoutInnerSandbox(): void {
+  if (dryRun || !session.agents?.codex) return;
+  const file = path.join(stateDir, 'codex', 'config.toml');
+  const updated = codexConfigWithoutSandbox(exists(file) ? fs.readFileSync(file, 'utf8') : '');
+  if (updated === null) return;
+  mkdirp(path.dirname(file));
+  fs.writeFileSync(file, updated, 'utf8');
+  log('codex: its own command sandbox is off (sandbox_mode = "danger-full-access" in config.toml).');
 }
 
 /** Boot: the saved databases of every configured agent are copied to the sandbox's disk, where the agent runs them. */

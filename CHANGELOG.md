@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.17.1
+
+- **Codex runs commands again.** Its own command sandbox set itself up again at every boot (permissions over the
+  whole profile, minutes), and every command hung until it was done. Windows Sandbox already contains Codex, so boot
+  sets `sandbox_mode = "danger-full-access"` in the sandbox's Codex `config.toml`, unless you chose a mode yourself.
+  Codex now reaches what the other agents reach: the sandbox and the folders mapped into it.
+
 ## 1.17.0
 
 - **Unreal Engine toolchain** (`toolchains.unreal`, needs `acceptLicense`). Every boot installs Visual Studio

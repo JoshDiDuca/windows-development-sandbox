@@ -109,6 +109,22 @@ export function bootResetPaths(
   );
 }
 
+/**
+ * Codex's config.toml with its own command sandbox off, or null when it already says which one to use. Inside Windows
+ * Sandbox that inner sandbox only costs: its setup re-grants ACLs over the whole profile at every boot (minutes), and
+ * every command hangs until it is done. A `sandbox_mode` the user set (before the first [table]) is kept.
+ */
+export function codexConfigWithoutSandbox(toml: string): string | null {
+  const firstTable = toml.search(/^\s*\[/m);
+  const topLevel = firstTable < 0 ? toml : toml.slice(0, firstTable);
+  if (/^\s*sandbox_mode\s*=/m.test(topLevel)) return null;
+  return (
+    '# Set by the sandbox: Windows Sandbox already contains Codex, its own command sandbox would only slow it down.\n' +
+    'sandbox_mode = "danger-full-access"\n' +
+    (toml ? '\n' + toml : '')
+  );
+}
+
 /** A SQLite database file or one of its -wal / -shm siblings. */
 export const isDatabaseFile = (name: string): boolean => /\.(sqlite3?|db)(-wal|-shm)?$/i.test(name);
 

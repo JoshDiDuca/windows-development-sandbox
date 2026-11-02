@@ -6,7 +6,7 @@ import { writeGuides } from './guide.js';
 import { setupToolchains, type ToolchainResult } from '../toolchains/index.js';
 import { agents } from '../agents/agent-installer.js';
 import { agentShims, sbxAgentText, shimText } from '../agents/agent-files.js';
-import { resetMachineBound, restoreLocalState } from '../agents/local-state.js';
+import { codexWithoutInnerSandbox, resetMachineBound, restoreLocalState } from '../agents/local-state.js';
 import { installShellPath } from '../setup/shell-path.js';
 import { linkProfileDirs } from '../agents/profile-links.js';
 import { restoreClaudeMem } from '../setup/claude-mem.js';
@@ -267,6 +267,7 @@ export class Boot {
     await soft('Agent databases restore', restoreLocalState);
     // Agent add-ons: MCP servers in the sandbox's Claude Code, and the Headroom proxy before the managed settings point
     // Claude Code at it (the guide reads them back, so it comes last).
+    await soft('Codex without its own sandbox', codexWithoutInnerSandbox);
     let headroom: string | null = null;
     await soft('MCP servers from Apps', writeAddonMcpServers);
     await soft('Headroom proxy', async () => {

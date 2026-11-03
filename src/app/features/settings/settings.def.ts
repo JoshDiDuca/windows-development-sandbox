@@ -249,7 +249,7 @@ function dataFolderItem(folder: string): Item {
     hint: folder,
     cells: { setting: 'storage.root', value: folder },
     description:
-      'Where your tools, logins, history and logs are kept between sandboxes. Move it with sandbox storage move <folder>.',
+      'Where your tools, logins, history and logs are kept between sandboxes. Maintenance > Storage moves it.',
     primary: action(changeDataFolder, {}, { label: 'Data folder', verb: 'change' }),
   };
 }

@@ -158,6 +158,13 @@ function envView(m: AgentsModel): MenuView | undefined {
   return m.claudeEnv ? menuView(agentEnvPage(m.claudeEnv), { category: 'env', refresh: false }) : undefined;
 }
 
+/** What the last start was, in words: the agent and the folder it was for (never the command line). */
+function lastStart(argv: readonly string[]): string {
+  const at = argv.indexOf('--harness');
+  const agent = at >= 0 ? argv[at + 1] : argv[0];
+  return agent ?? 'last start';
+}
+
 /** The list for the agents section. Pure. */
 export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): ListOptions<string> {
   const view = startView(m);
@@ -174,8 +181,8 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
               label: 'Repeat last',
               category: 'start',
               section: 'Quick start',
-              hint: Theme.muted(Text.truncate(commandLine(m.last), 50)),
-              description: 'Runs the last command again.',
+              hint: Theme.muted(Text.truncate(lastStart(m.last), 50)),
+              description: 'Starts the same agent again with the same options.',
             },
           ]
         : []),

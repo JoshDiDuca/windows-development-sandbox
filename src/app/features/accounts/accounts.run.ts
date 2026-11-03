@@ -65,7 +65,8 @@ async function accountName(
     return typed.trim();
   }
   const rows = service.list(agent);
-  if (!rows.length) failWith('No saved accounts.', 'Sign in inside the sandbox, then save the login.', {
+  if (!rows.length)
+    failWith('No saved accounts.', 'Sign in inside the sandbox, then save the login.', {
       op: 'accounts.save',
       input: { agent },
       label: 'Save a login…',

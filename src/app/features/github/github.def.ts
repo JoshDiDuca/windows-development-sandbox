@@ -185,7 +185,9 @@ export function githubItem(s: GithubStatus, now: number = Date.now()): Item {
     s.login && s.token === 'saved'
       ? 'Signed in as ' +
         s.login +
-        (s.repoCount !== null ? ', reaches ' + (s.repoCount >= 100 ? '100 or more' : plural(s.repoCount, 'repository', 'repositories')) : '')
+        (s.repoCount !== null
+          ? ', reaches ' + (s.repoCount >= 100 ? '100 or more' : plural(s.repoCount, 'repository', 'repositories'))
+          : '')
       : undefined;
   const details = [
     ...(who ? [who] : []),
@@ -193,11 +195,20 @@ export function githubItem(s: GithubStatus, now: number = Date.now()): Item {
     ...(s.token === 'unreadable' ? ['Only the Windows user that saved it can read it.'] : []),
     ...(s.kind === 'classic' ? ['A classic token reaches every repository you can: a fine-grained one is safer.'] : []),
   ].slice(0, 2);
-  const signIn = action(githubLogin, {}, { key: 'g', verb: 'sign in', label: s.token === 'none' ? 'Sign in…' : 'Sign in again…' });
+  const signIn = action(
+    githubLogin,
+    {},
+    { key: 'g', verb: 'sign in', label: s.token === 'none' ? 'Sign in…' : 'Sign in again…' },
+  );
   const share = action(
     setSetting,
     { scope: 'user', key: 'github.shareToken', value: !s.shareToken },
-    { key: 't', verb: s.shareToken ? 'stop sharing' : 'share', label: s.shareToken ? 'Stop sharing' : 'Share with sandboxes', importance: 1 },
+    {
+      key: 't',
+      verb: s.shareToken ? 'stop sharing' : 'share',
+      label: s.shareToken ? 'Stop sharing' : 'Share with sandboxes',
+      importance: 1,
+    },
   );
   return {
     id: 'github',

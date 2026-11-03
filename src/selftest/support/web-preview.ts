@@ -425,7 +425,7 @@ export function sampleHealth(): unknown {
           status: 'needs-you',
           detail: 'two folders from a sandbox that did not close',
           means: 'they take space and can confuse the next start',
-          fix: 'stop the sandbox, then run sandbox repair again',
+          fix: 'stop the sandbox, then repair again',
           lines: ['run-20261012-0931', 'run-20261013-1744'],
           fixable: false,
         },

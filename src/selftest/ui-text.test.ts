@@ -161,6 +161,7 @@ async function samplePages(dir: string): Promise<{ name: string; page: Page }[]>
     login,
     loginSavedAt: login === 'saved' ? '2026-10-14T09:30:00.000Z' : null,
     running: null,
+    lastFailure: null,
   });
   const github = (token: 'none' | 'saved' | 'unreadable', shareToken: boolean): Parameters<typeof githubPage>[0] =>
     ({
@@ -190,8 +191,11 @@ async function samplePages(dir: string): Promise<{ name: string; page: Page }[]>
       sandbox: { ...status.sandbox, running: true, account: null, headless: true },
     }),
   );
-  add('agents', agentsPage(sampleAgents() as Parameters<typeof agentsPage>[0]));
-  add('accounts', accountsPage(accounts, services('saved', true)));
+  add(
+    'agents',
+    agentsPage(sampleAgents() as Parameters<typeof agentsPage>[0], { enabled: false, dir: 'C:/x', found: [] }),
+  );
+  add('accounts', accountsPage(accounts, services('saved', true), github('saved', true)));
   add(
     'accounts none',
     accountsPage(
@@ -279,7 +283,35 @@ function runSourceLines(root: string): { where: string; line: number; text: stri
 }
 
 /** Lines of the run files that may name a command, because only the command line shows them. */
-const CLI_ONLY_LINES: readonly { readonly where: string; readonly text: string; readonly why: string }[] = [];
+const CLI_ONLY_LINES: readonly { readonly where: string; readonly text: string; readonly why: string }[] = [
+  {
+    where: '*',
+    text: 'cli:',
+    why: 'the command line of an ErrorAction: only the CLI prints it (never sent to the menu or the web)',
+  },
+  {
+    where: 'data/data.run.ts',
+    text: 'storageShare',
+    why: '"sandbox storage" is the name of the storage drive note, not a command',
+  },
+  {
+    where: 'data/data.run.ts',
+    text: 'Name them:',
+    why: 'noTerminal fix: shown only when there is no terminal (the command line)',
+  },
+  {
+    where: 'health/health.run.ts',
+    text: "command: 'sandbox repair'",
+    why: 'the repair log records the command that ran',
+  },
+  { where: 'projects/projects.run.ts', text: 'next:', why: '`next` is printed by the command line only' },
+  { where: 'sandbox/sandbox.run.ts', text: 'Stop it anyway with:', why: 'noTerminal fix: command line only' },
+  {
+    where: 'storage/storage.run.ts',
+    text: "const fix = 'Use: sandbox storage",
+    why: 'noTerminal fix: command line only',
+  },
+];
 
 export const uiTextSuite: Suite = {
   name: 'ui-text',
@@ -306,7 +338,9 @@ export const uiTextSuite: Suite = {
     const lines = runSourceLines(path.join(process.cwd(), 'src', 'app', 'features'));
     const loose = lines
       .filter(
-        (l) => command.test(l.text) && !CLI_ONLY_LINES.some((e) => e.where === l.where && l.text.includes(e.text)),
+        (l) =>
+          command.test(l.text) &&
+          !CLI_ONLY_LINES.some((e) => (e.where === '*' || e.where === l.where) && l.text.includes(e.text)),
       )
       .map((l) => l.where + ':' + l.line + ' ' + l.text.trim().slice(0, 140));
     t.equal(loose, [], 'no operation message or fix names a command (use failWith, an action or a CLI-only field)');

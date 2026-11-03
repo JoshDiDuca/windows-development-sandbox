@@ -36,7 +36,9 @@ function expiryNotes(tokens: GithubToken, now: number = Date.now()): string[] {
   if (at <= now) return ['Your GitHub token has expired, so GitHub will refuse it. Make a new one in Accounts.'];
   if (days > EXPIRY_NOTE_DAYS) return [];
   return [
-    'Your GitHub token expires ' + (days <= 1 ? 'within a day' : 'in ' + days + ' days') + '. Make a new one in Accounts.',
+    'Your GitHub token expires ' +
+      (days <= 1 ? 'within a day' : 'in ' + days + ' days') +
+      '. Make a new one in Accounts.',
   ];
 }
 

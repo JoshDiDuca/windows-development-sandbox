@@ -281,6 +281,11 @@ export const githubSuite: Suite = {
       token: 'saved',
       kind: 'classic',
       savedAt: '2026-10-18T10:00:00.000Z',
+      login: null,
+      expiresAt: null,
+      repoCount: null,
+      checkedAt: null,
+      tokenUrl: 'https://github.com/settings/personal-access-tokens/new',
     };
     const lines = pageLines(githubPage(sample)).join('\n');
     t.check(

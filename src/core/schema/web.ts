@@ -67,7 +67,7 @@ export const WebSchema = z.strictObject({
   enabled: z
     .boolean()
     .describe(
-      '(Beta) The web UI: your sandbox sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every sandbox start also starts it in the background (it keeps running until you stop it in Maintenance > Web UI or restart the PC). Off: it runs only when you start it there. Open it signed in from the same page.',
+      '(Beta) The web UI: your sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every start of a sandbox also starts it in the background (it keeps running until you stop it in Maintenance > Web UI or restart the PC). Off: it runs only when you start it there. Open it signed in from the same page.',
     ),
   port: z
     .number()

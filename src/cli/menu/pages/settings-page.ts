@@ -216,7 +216,18 @@ export class SettingsPage extends ListPage<string> {
     lastFailure: null,
   };
   /** Whether a GitHub token is saved (never the token): the token row needs only its state. */
-  private github: GithubStatus = { shareToken: false, gitAccess: 'full', token: 'none', kind: null, savedAt: null };
+  private github: GithubStatus = {
+    shareToken: false,
+    gitAccess: 'full',
+    token: 'none',
+    kind: null,
+    savedAt: null,
+    login: null,
+    expiresAt: null,
+    repoCount: null,
+    checkedAt: null,
+    tokenUrl: '',
+  };
 
   constructor(
     app: App,

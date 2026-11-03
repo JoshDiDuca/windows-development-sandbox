@@ -61,7 +61,9 @@ export async function saveGithubTokenFlow(
         repos.count +
         (repos.count >= 100 ? ' or more' : '') +
         ' repositories' +
-        (repos.sample.length ? ' (' + repos.sample.join(', ') + (repos.count > repos.sample.length ? ', ...' : '') + ')' : '') +
+        (repos.sample.length
+          ? ' (' + repos.sample.join(', ') + (repos.count > repos.sample.length ? ', ...' : '') + ')'
+          : '') +
         '.',
       'ok',
     );

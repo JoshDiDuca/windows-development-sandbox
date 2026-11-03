@@ -149,13 +149,10 @@ function serviceActions(s: ServiceRow): Action[] {
   ];
 }
 
-/** How to get a first sign-in, in words. */
+/** How to get a first sign-in, in words (the actions below do it). */
 function howTo(s: ServiceRow): string {
-  const ways = [
-    ...(s.canImport ? ['sandbox account import ' + s.kind + (s.needsFile ? ' --from <file>' : '')] : []),
-    ...(s.canLogin ? ['sandbox account login ' + s.kind] : []),
-  ];
-  return ways.length ? ways.join(', or ') : 'sign in once inside a sandbox';
+  const ways = [...(s.canImport ? ['import it'] : []), ...(s.canLogin ? ['type it in'] : [])];
+  return ways.length ? ways.join(' or ') : 'sign in once inside a sandbox';
 }
 
 /** One service's section: its facts, its warnings and its actions. */
@@ -164,7 +161,7 @@ export function serviceSection(s: ServiceRow): Section {
     {
       id: s.kind + ':share',
       label: 'Shared with sandboxes',
-      value: s.share ? 'on' : 'off  (sandbox config set accounts.' + s.kind + '.share true)',
+      value: s.share ? 'on' : 'off',
       tone: s.share ? 'ok' : 'muted',
       description: 'For sandboxes that use ' + s.usedBy.join(' or ') + '. ' + s.warnings.join(' '),
     },

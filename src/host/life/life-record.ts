@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { JsonFile } from '../../shared/io/index.js';
 import { hostStateFile } from '../storage/index.js';
-import { causeSince, IsoSchema, type StopCause } from './stop-events.js';
+import { causeSince, IsoSchema, STOP_KINDS, type StopCause } from './stop-events.js';
 import { stopWarning } from './stop-warning.js';
 import { saveCrashReport } from './crash-report.js';
 
@@ -18,7 +18,7 @@ const LifeSchema = z.object({
       at: IsoSchema,
       cause: z
         .object({
-          kind: z.enum(['updates', 'restart', 'crash', 'sleep', 'memory', 'sandboxCrash']),
+          kind: z.enum(STOP_KINDS),
           at: IsoSchema,
           text: z.string().max(400),
         })

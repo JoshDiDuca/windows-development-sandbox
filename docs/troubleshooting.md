@@ -148,6 +148,10 @@ samples) is kept in `<storage>\logs\crashes`; `sandbox logs --crash` prints the 
 - **Memory.** Inside the sandbox, `C:\AgentData\logs\memory-*.log` samples memory every 30 seconds (every 5 when it is
   high), and `memory-pressure.txt` says ok, high or critical. Fewer builds at once (cargo `build.jobs`) helps. See
   [heavy load](#the-sandbox-closes-under-heavy-load).
+- **It just vanished.** When Windows logged nothing, but the sandbox was working and left no word of leaving, it counts
+  as a crash ("ended suddenly while it was working"; the guest cannot tell a closed window from a crash). The report
+  says what it was doing in its last seconds, and also reads graphics driver resets (Display 4101, GPU live kernel
+  events) and Hyper-V or `vmwp.exe` errors. Closing the window while it sits idle is still on purpose.
 - **Blue screens on your PC too?** Test its memory (Windows Memory Diagnostic, or turn off XMP/EXPO for a while).
 
 ## The PC froze or restarted during heavy builds
@@ -171,6 +175,27 @@ If the whole PC stops responding and restarts (not only the sandbox window closi
    - `Resource-Exhaustion-Detector 2004`: this PC ran out of memory (RAM plus paging file), with the biggest users.
    - `C:\Windows\Minidump` and `C:\Windows\MEMORY.DMP` hold blue-screen dumps; the report lists their names and times.
 4. **Memory:** see the next section.
+
+## Windows says the sandbox was signed out, or one is already running
+
+After the sandbox died (a crash, or Windows stopping it), Windows Sandbox can leave its own programs behind
+(`WindowsSandbox.exe`, `WindowsSandboxClient.exe`, `WindowsSandboxRemoteSession.exe`, `WindowsSandboxServer.exe`) and
+its service (`CmService`) can keep the old session. The next start then fails, or Windows says the sandbox was signed
+out. The known way out is to close those leftover programs and try again, and when Windows still refuses, to restart
+the Windows Sandbox service (that needs administrator permission).
+
+The sandbox does this for you, after asking:
+
+- **Starting** a sandbox: when it finds Windows Sandbox programs but no sign of life from your sandbox (the sandbox
+  writes a heartbeat every 10 seconds; its watcher saw it end, or the heartbeat stopped minutes ago), it asks to close
+  them and goes on. It never closes a sandbox that is working, one that started a moment ago, or another Windows
+  user's, and it ends only the four Windows Sandbox programs above in your own Windows session.
+- **Menu and web:** the Sandbox page shows "Windows Sandbox: programs left over" with a **Clean up** action. It asks
+  first; if the programs will not go it offers to restart the Windows Sandbox service (Windows asks for permission).
+- **`sandbox cleanup`** does the same on the command line (`--service` also restarts the service), and
+  `sandbox repair` lists it as "Leftover Windows Sandbox programs".
+
+If Windows still refuses after both, restart the PC.
 
 ## The sandbox closes under heavy load
 

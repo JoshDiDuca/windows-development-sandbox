@@ -96,6 +96,7 @@ path cannot contain `|`).
 | `sandbox resume`                                          | reopen the sessions from the last sandbox, each in its own conversation. Starts the sandbox if none runs ([settings](configuration.md#reopening-sessions))   |
 | `sandbox stop [--yes]`                                    | shut down (history syncs back). Asks first when other projects' sessions would end                                                                           |
 | `sandbox show` / `hide`                                   | show or hide the window (also `sbx-show`, `sbx-hide`). Hidden, it keeps running                                                                              |
+| `sandbox cleanup [--service] [--yes]` | close the Windows Sandbox programs a dead sandbox left behind (Windows then says the sandbox was signed out, or that one is already running); `--service` also restarts the Windows Sandbox service (administrator permission). Asks first; never touches a working sandbox |
 
 Any number of terminals can show a session, in the sandbox and on your PC at once. Closing a tab or terminal never
 stops a session; only the agent (or shell) exiting does, or `sandbox close`.

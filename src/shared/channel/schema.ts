@@ -162,7 +162,8 @@ export const HeartbeatSchema = z.object({
   topProcesses: z.array(z.object({ name: Text(64), privateMb: z.number().int().min(0).max(1e7) })).max(5),
   /** The disk queue this PC last reported while asking the sandbox to slow down. */
   diskQueueReported: z.number().min(0).max(100000).optional(),
-  phase: z.enum(['ready', 'working']),
+  /** "ending": the sandbox is shutting down in order (idle shutdown, sandbox stop, Windows shutting down). */
+  phase: z.enum(['ready', 'working', 'ending']),
 });
 export type Heartbeat = z.output<typeof HeartbeatSchema>;
 

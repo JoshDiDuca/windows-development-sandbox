@@ -27,5 +27,5 @@ safely('leftover processes', () => sessions.sweepLeftovers());
 safely('memory governor', () => governor.start());
 log('Memory governor: ' + governor.describe());
 safely('service sign-ins', startAccountWatch);
-safely('heartbeat', startHeartbeat);
+safely('heartbeat', () => startHeartbeat(() => sessions.count));
 new Daemon().start();

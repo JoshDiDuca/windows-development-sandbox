@@ -11,6 +11,11 @@ const ADVICE: Record<StopKind, string> = {
     'sandbox.keepAwake keeps this PC awake while a sandbox runs (closing a laptop lid still sleeps it). Check it is on, and that sleep is not forced by a policy.',
   sandboxCrash:
     'C:\\AgentData\\logs\\memory-*.log shows what used memory just before. Fewer builds at once inside the sandbox (e.g. cargo build.jobs) makes it less likely.',
+  gpu: 'The graphics driver reset while the sandbox used the GPU (vGPU). Turn vGPU off (sandbox config set sandbox.vGpu false) or lower the GPU load, and keep heavy builds and a GPU game apart.',
+  hyperv:
+    'Hyper-V, which runs the sandbox, reported an error. Closing other virtual machines, updating the graphics driver, or turning vGPU off usually helps; sandbox logs --crash has the events.',
+  vanished:
+    'If you did not close its window, this is the known pattern of heavy builds plus a GPU game with vGPU on: turn vGPU off or run fewer builds at once. sandbox logs --crash says what it was doing in its last seconds.',
   memory:
     'Give the sandbox less RAM (sandbox.maxMemoryMb, sandbox.reserveHostMb) or run fewer builds at once inside it.',
 };

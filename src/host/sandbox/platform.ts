@@ -107,7 +107,7 @@ export async function confirmSandboxStarted(wsbPath: string, waitMs: number = ST
         'Windows Sandbox did not start within ' + Math.round(waitMs / 1000) + ' seconds.',
         'Open ' +
           wsbPath +
-          ' yourself to see the message Windows gives, or run sandbox doctor to check the Windows Sandbox feature.',
+          ' yourself to see the message Windows gives, or run sandbox doctor to check the Windows Sandbox feature. If Windows says the sandbox was signed out, a sandbox that died left its programs behind: run sandbox cleanup.',
       );
     await sleep(1000);
   }

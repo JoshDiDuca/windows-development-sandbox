@@ -23,7 +23,7 @@ import {
   chooseTargetDir,
 } from '../shared/memory/index.js';
 import { HeartbeatSchema } from '../shared/channel/index.js';
-import { heartbeatLine, lastEndOf, type Life } from '../host/life/index.js';
+import { heartbeatLine, lastEndOf, vanishedCause, stopWarning, type Life } from '../host/life/index.js';
 import {
   cappedMemoryMb,
   decideMemory,
@@ -33,6 +33,9 @@ import {
   resolveMemoryMb,
 } from '../host/launch/index.js';
 import { vgpuWarning, GENTLE_NOTE } from '../host/launch/risk-notes.js';
+import { judgeSandbox, type SandboxFacts } from '../host/health/index.js';
+import { cleanUpLeftovers, cleanupQuestion, killArgs, type CleanupDeps } from '../host/sandbox/index.js';
+import { parseTasklist } from '../host/sharing/index.js';
 import {
   bugcheckCode,
   cpuPercentBetween,
@@ -491,7 +494,7 @@ export const heavyLoadSuite: Suite = {
       'an oversize heartbeat is refused',
     );
     t.check(
-      heartbeatLine({ ...beat, topProcesses: [{ name: 'ab', privateMb: 5 }] }).includes('') === false,
+      heartbeatLine({ ...beat, topProcesses: [{ name: 'a\u0007b', privateMb: 5 }] }).includes('\u0007') === false,
       'guest text in the heartbeat line goes through safeText',
     );
     const life: Life = { started: '2026-11-02T20:45:00.000Z', lastSeen: '2026-11-02T21:31:30.000Z', keepAwake: false };
@@ -501,6 +504,111 @@ export const heavyLoadSuite: Suite = {
         lastEndOf(null, beat, false) === null &&
         lastEndOf({ ...life, ended: { at: life.lastSeen, cause: null } }, beat, false) === null,
       'last end: an unexpected end names the disks; running, no record or a normal close say nothing',
+    );
+
+    t.section('Windows Sandbox programs left behind by a dead sandbox');
+    const list = [
+      '"explorer.exe","1200","Console","1","90,000 K"',
+      '"WindowsSandboxClient.exe","4100","Console","1","30,000 K"',
+      '"WindowsSandboxRemoteSession.exe","4200","Console","1","40,000 K"',
+      '"vmwp.exe","4300","Services","0","50,000 K"',
+      '"WindowsSandboxServer.exe","4400","Console","2","30,000 K"',
+    ].join('\n');
+    const baseFacts: SandboxFacts = {
+      rows: parseTasklist(list),
+      mySession: 1,
+      heartbeatAgeMs: null,
+      lifeEnded: false,
+      startedAgeMs: 3_600_000,
+      answers: null,
+    };
+    const judged = (patch: Partial<SandboxFacts>) => judgeSandbox({ ...baseFacts, ...patch });
+    t.check(
+      judged({ rows: parseTasklist('"explorer.exe","1200","Console","1","1 K"') }).state === 'none',
+      'no Windows Sandbox program: none',
+    );
+    t.check(
+      judged({ heartbeatAgeMs: 10_000 }).state === 'running' &&
+        judged({ answers: true, lifeEnded: true }).state === 'running',
+      'a fresh heartbeat, or a ping answered: the sandbox is ours and running',
+    );
+    t.check(judged({ startedAgeMs: 60_000 }).state === 'starting', 'started a minute ago, no heartbeat yet: starting');
+    const leftoverJudged = judged({ lifeEnded: true });
+    t.check(
+      leftoverJudged.state === 'leftover' &&
+        leftoverJudged.pids.join() === '4100,4200' &&
+        leftoverJudged.images.join() === 'WindowsSandboxClient.exe,WindowsSandboxRemoteSession.exe',
+      'the watcher saw it end but the programs remain: leftover; only this session, only the user programs (not vmwp.exe, not session 2)',
+      leftoverJudged.pids.join(),
+    );
+    t.check(
+      judged({ heartbeatAgeMs: 600_000 }).state === 'leftover',
+      'a heartbeat that stopped ten minutes ago: leftover',
+    );
+    t.check(judged({ heartbeatAgeMs: 100_000 }).state === 'running', 'a heartbeat 100 seconds old is not yet "gone"');
+    t.check(
+      judged({}).state === 'running',
+      'no heartbeat at all (an older sandbox) and no end: treated as running, never ended',
+    );
+    t.check(
+      judged({ mySession: null, lifeEnded: true }).state === 'foreign' &&
+        judged({ mySession: 3, lifeEnded: true }).pids.length === 0,
+      "another session's sandbox is never touched",
+    );
+    t.check(
+      killArgs([4100, 4200, 0, 2, -5, 1.5]).join(' ') === '/F /PID 4100 /PID 4200' &&
+        cleanupQuestion(leftoverJudged).lines.join(' ').includes('Nothing else'),
+      'taskkill gets only real process ids; the question names what is closed',
+    );
+    const run = async (facts: SandboxFacts[], answers: boolean[], over: Partial<CleanupDeps> = {}) => {
+      const did: string[] = [];
+      let n = 0;
+      let asked = 0;
+      const outcome = await cleanUpLeftovers({
+        facts: () => Promise.resolve(facts[Math.min(n++, facts.length - 1)]),
+        end: (pids) => {
+          did.push('end ' + pids.join(','));
+          return true;
+        },
+        restartService: () => {
+          did.push('service');
+          return true;
+        },
+        confirm: () => Promise.resolve(answers[asked++] ?? false),
+        say: (line) => did.push('say ' + line),
+        ...over,
+      });
+      return { outcome, did };
+    };
+    const noneLeft = { ...baseFacts, rows: [] };
+    const asked = await run([{ ...baseFacts, lifeEnded: true }, noneLeft], [true]);
+    t.check(
+      asked.outcome === 'cleaned' && asked.did[0] === 'end 4100,4200' && !asked.did.includes('service'),
+      'leftover, yes: they are closed and nothing else happens',
+    );
+    const declinedRun = await run([{ ...baseFacts, lifeEnded: true }], [false]);
+    t.check(declinedRun.outcome === 'declined' && declinedRun.did.length === 0, 'leftover, no: nothing is closed');
+    const live = await run([{ ...baseFacts, heartbeatAgeMs: 5000 }], [true]);
+    t.check(
+      live.outcome === 'alive' && !live.did.some((d) => d.startsWith('end')),
+      'a sandbox that is alive is never closed, whatever the answer',
+    );
+    t.check((await run([noneLeft], [true])).outcome === 'nothing', 'nothing left: nothing to do');
+    const stuck = { ...baseFacts, lifeEnded: true };
+    const serviceYes = await run([stuck, stuck], [true, true]);
+    t.check(
+      serviceYes.outcome === 'service-restarted' && serviceYes.did.includes('service'),
+      'programs that will not go: asks, then restarts the service (elevated)',
+    );
+    const serviceNo = await run([stuck, stuck], [true, false]);
+    t.check(
+      serviceNo.outcome === 'declined' && !serviceNo.did.includes('service'),
+      'the service is only restarted when you say yes',
+    );
+    const forced = await run([stuck, noneLeft], [true], { alsoService: true });
+    t.check(
+      forced.outcome === 'service-restarted',
+      'asked to restart the service as well: it does, without a second question',
     );
 
     t.section('the governor over a port (fake Windows)');
@@ -720,6 +828,93 @@ export const heavyLoadSuite: Suite = {
 
     t.section('the crash report');
     const ev = (id: number, provider: string, at: string, process = ''): StopEvent => ({ id, provider, at, process });
+    t.section('a sandbox that vanishes');
+    const kindOf = (events: StopEvent[]): string => explainStop(events)?.kind ?? 'none';
+    t.check(
+      kindOf([
+        ev(
+          4101,
+          'Display',
+          '2026-11-02T21:31:00Z',
+          'Display driver nvlddmkm stopped responding and has successfully recovered.',
+        ),
+      ]) === 'gpu' && explainStop([ev(4101, 'Display', '2026-11-02T21:31:00Z')])!.text.includes('graphics driver'),
+      'Display 4101: the graphics driver reset (gpu)',
+    );
+    t.check(
+      kindOf([
+        ev(
+          1001,
+          'Windows Error Reporting',
+          '2026-11-02T21:31:00Z',
+          'Fault bucket 1, type 5' + ' Event Name: LiveKernelEvent' + ' P1: 141' + ' P2: ffff',
+        ),
+      ]) === 'gpu' &&
+        kindOf([
+          ev(1001, 'Windows Error Reporting', '2026-11-02T21:31:00Z', 'Event Name: LiveKernelEvent P1: 1a8 P2: 0'),
+        ]) === 'gpu' &&
+        kindOf([
+          ev(1001, 'Windows Error Reporting', '2026-11-02T21:31:00Z', 'Event Name: LiveKernelEvent P1: 999 P2: 0'),
+        ]) === 'none',
+      'LiveKernelEvent 117, 141 and 1a8 are GPU resets; other codes are not a cause',
+    );
+    t.check(
+      explainStop([ev(1000, 'Application Error', '2026-11-02T21:31:00Z', 'Faulting application name: vmwp.exe')])
+        ?.kind === 'hyperv' &&
+        kindOf([ev(1001, 'Windows Error Reporting', '2026-11-02T21:31:00Z', 'vmmemWindowsSandbox crashed')]) ===
+          'hyperv' &&
+        kindOf([ev(1000, 'Application Error', '2026-11-02T21:31:00Z', 'Faulting application name: notepad.exe')]) ===
+          'none',
+      'a crash report of vmwp.exe or vmmem is a cause; another program is not',
+    );
+    t.check(
+      kindOf([ev(12010, 'Microsoft-Windows-Hyper-V-VmSwitch', '2026-11-02T21:31:00Z')]) === 'hyperv' &&
+        kindOf([ev(40001, 'Microsoft-Windows-Hyper-V-Worker', '2026-11-02T21:31:00Z')]) === 'none' &&
+        kindOf([ev(18590, 'Microsoft-Windows-Hyper-V-Worker', '2026-11-02T21:31:00Z', 'ErrorCode0: 0x50')]) ===
+          'sandboxCrash',
+      'Hyper-V worker, switch and compute errors are a cause; the sandbox crashing inside is still its own kind',
+    );
+    const started = '2026-11-02T20:45:00.000Z';
+    const endMs = Date.parse('2026-11-02T21:32:00.000Z');
+    const working = {
+      at: '2026-11-02T21:31:50.000Z',
+      uptimeS: 2800,
+      ramFreePct: 60,
+      commitPct: 30,
+      step: 0,
+      hostStep: 0,
+      topProcesses: [],
+      phase: 'working' as const,
+    };
+    t.check(
+      vanishedCause(working, started, false, endMs)?.kind === 'vanished',
+      'busy, fresh heartbeat, no word of leaving: vanished',
+    );
+    t.check(
+      vanishedCause({ ...working, phase: 'ending' }, started, false, endMs) === null &&
+        vanishedCause(working, started, true, endMs) === null &&
+        vanishedCause(null, started, false, endMs) === null,
+      'an orderly end, a stop on purpose, or no heartbeat is not a vanishing',
+    );
+    t.check(
+      vanishedCause({ ...working, phase: 'ready' }, started, false, endMs) === null &&
+        vanishedCause({ ...working, phase: 'ready', step: 2 }, started, false, endMs)?.kind === 'vanished',
+      'an idle sandbox (window closed by hand) is on purpose; one that was slowing builds down is not',
+    );
+    t.check(
+      vanishedCause({ ...working, at: '2026-11-02T21:20:00.000Z' }, started, false, endMs) === null &&
+        vanishedCause({ ...working, at: '2026-11-01T21:31:50.000Z' }, started, false, endMs) === null,
+      'a stale heartbeat, or one from an earlier run, says nothing about this end',
+    );
+    const gone = vanishedCause(working, started, false, endMs)!;
+    const warning = stopWarning(
+      { started, lastSeen: '2026-11-02T21:31:30.000Z', keepAwake: false, ended: { at: gone.at, cause: gone } },
+      () => null,
+    );
+    t.check(
+      (warning ?? '').includes('ended suddenly') && (warning ?? '').includes('vGPU'),
+      'the next launch warns about a vanished sandbox, and says what usually causes it',
+    );
     t.check(
       bugcheckCode('BugcheckCode 209') === '0xD1' && bugcheckCode('BugcheckCode 0') === null,
       'Kernel-Power 41 stop code',

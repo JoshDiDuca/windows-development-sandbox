@@ -6,10 +6,17 @@ import path from 'node:path';
 import { diskUsage, humanBytes } from '../../../../core/disk.js';
 import { dirExists, fileExists, isLink } from '../../../../core/util/index.js';
 import { SandboxChannel } from '../../../../host/channel/index.js';
-import { orphanWatchers, runStateProblems, staleLaunchFolders, watcherRecords } from '../../../../host/health/index.js';
+import {
+  judgeSandbox,
+  orphanWatchers,
+  readSandboxFacts,
+  runStateProblems,
+  staleLaunchFolders,
+  watcherRecords,
+} from '../../../../host/health/index.js';
 import { vgpuSource, vgpuWarning } from '../../../../host/launch/index.js';
 import { hostToolsExe } from '../../../../host/native.js';
-import { sandboxFeatureInstalled } from '../../../../host/sandbox/index.js';
+import { endSandboxPrograms, sandboxFeatureInstalled } from '../../../../host/sandbox/index.js';
 import { assertTestWritable, refuseInSelfTest } from '../../../../host/test-guard.js';
 import { conptyDir, terminalDir, terminalExe } from '../../../../host/tools/index.js';
 import { RunDir } from '../../../../shared/channel/index.js';
@@ -95,6 +102,32 @@ export const SANDBOX_CHECKS: Check[] = [
           'It was started by another user, by hand, or its status files were removed. Windows allows only one at a time.',
         fix: 'Close its window (or run sandbox stop) before starting yours.',
       };
+    },
+  },
+  {
+    id: 'sandbox-leftover',
+    group: 'Sandbox',
+    name: 'Leftover Windows Sandbox programs',
+    run: async (env: RepairEnv): Promise<Finding> => {
+      if (!env.running) return ok('none');
+      const found = judgeSandbox(await readSandboxFacts(env.storageRoot, env.dataPath, false));
+      if (found.state !== 'leftover') return ok(found.state === 'none' ? 'none' : 'the sandbox is working');
+      return {
+        status: 'needs-you',
+        detail: found.why,
+        means:
+          'A sandbox that died leaves its Windows programs behind, and Windows then refuses to start a new one ("the sandbox was signed out" or "already running").',
+        plan: 'close ' + found.images.join(', ') + ' (only the ones in your Windows session)',
+        data: found.pids,
+      };
+    },
+    fix: (_env: RepairEnv, finding: Finding): FixOutcome => {
+      const pids = Array.isArray(finding.data) ? (finding.data as number[]) : [];
+      return endSandboxPrograms(pids)
+        ? { done: 'closed the leftover Windows Sandbox programs' }
+        : {
+            done: 'Windows would not close some of them; sandbox cleanup can also restart the Windows Sandbox service',
+          };
     },
   },
   {

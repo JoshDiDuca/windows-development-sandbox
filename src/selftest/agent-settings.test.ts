@@ -112,6 +112,21 @@ export const agentSettingsSuite: Suite = {
       'a short or malformed key is refused',
     );
     t.check(anthropicKeyProblem('sk-ant-usr01-' + body) === null, 'no problem for a user-workspace key');
+    t.check(
+      anthropicKeyProblem('skt-ant-usr-' + 'b'.repeat(40)) === null &&
+        ANTHROPIC_KEY_PATTERN.test('skt-ant-usr-' + 'b'.repeat(40)),
+      'a key with any Console prefix (skt-ant-usr-...) is accepted',
+    );
+    t.check(
+      anthropicKeyProblem('sk-ant-api03-' + 'c'.repeat(20) + ' x') !== null &&
+        anthropicKeyProblem('k'.repeat(19)) !== null,
+      'a key with a space, or under 20 characters, is refused',
+    );
+    t.check(
+      anthropicKeyProblem('sk-ant-oat01-' + body)?.includes('subscription token') === true &&
+        anthropicKeyProblem('sk-ant-admin01-' + body)?.includes('Admin key') === true,
+      'a subscription token and an Admin key still get their own messages',
+    );
 
     t.section('Claude environment catalogue');
     const names = CLAUDE_ENV.map((s) => s.name);

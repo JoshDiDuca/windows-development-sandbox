@@ -405,7 +405,7 @@ async function apiKeyAccounts(t: Harness, f: Fixtures): Promise<void> {
   t.check(
     asked.seen.questions.length === 2 &&
       asked.seen.questions.every((q) => q.kind === 'secret') &&
-      (asked.seen.questions[1] as { problem?: string }).problem?.includes('sk-ant-api') === true &&
+      (asked.seen.questions[1] as { problem?: string }).problem?.includes('does not look like an API key') === true &&
       out.message === 'Saved account "typed" (API key sk-ant-...Type).' &&
       !said.includes(TYPED_KEY.slice(13)),
     'save --api-key asks for the key hidden, asks again on a bad one, and says only sk-ant-...last4',

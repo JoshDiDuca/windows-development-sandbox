@@ -35,12 +35,13 @@ export interface CaptureOptions {
   readonly envKey?: string | null;
 }
 
-/** What is wrong with a typed or found API key (sk-ant-api or sk-ant-usr), or null. Never quotes the key. */
+/** What is wrong with a typed or found API key (any Claude Console key), or null. Never quotes the key. */
 export const apiKeyProblem = anthropicKeyProblem;
 
-/** The most of a key that is ever shown: sk-ant-...abcd. */
+/** The most of a key that is ever shown: its prefix (sk-ant-...abcd, skt-ant-...abcd), then its last 4 characters. */
 export function maskApiKey(key: string): string {
-  return 'sk-ant-...' + key.slice(-4);
+  const prefix = /^[A-Za-z0-9]{1,8}-[A-Za-z]{1,8}-/.exec(key)?.[0] ?? '';
+  return prefix + '...' + key.slice(-4);
 }
 
 /** What Claude Code records in customApiKeyResponses for a key it may use (its last 20 characters). */

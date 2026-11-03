@@ -97,10 +97,14 @@ export function vsExitText(code: number): string {
   }
 }
 
-/** Room the staging copy of the layout needs on the sandbox's own disk, on top of the reserve. */
-export const LAYOUT_STAGING_BYTES = 12 * 1024 ** 3;
+/**
+ * Room the staging copy of the layout needs on the sandbox's own disk, on top of the reserve. The layout of the Unreal
+ * components is about the size of their download (5-8 GB); the sandbox's ~40 GB disk has about 14 GB free at boot
+ * (a fixed paging file takes 16 GB), so the estimate must stay under that. A layout that outgrows it fails cleanly.
+ */
+export const LAYOUT_STAGING_BYTES = 8 * 1024 ** 3;
 /** Spare room on the sandbox's disk while the layout is built there (before Visual Studio is installed). */
-export const STAGING_RESERVE_BYTES = 3 * 1024 ** 3;
+export const STAGING_RESERVE_BYTES = 1.5 * 1024 ** 3;
 
 /**
  * What to do after the layout attempt in the data disk: 'done' when it worked, 'stage' (build it on the sandbox's

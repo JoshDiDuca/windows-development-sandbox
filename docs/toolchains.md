@@ -91,10 +91,10 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
 | VS install    | redone from the layout at boot, no download (about 10-20 minutes)  |
 | autosdk       | kept                                                               |
 
-- The layout is made with the installer's scratch folder on the same disk. If the installer still crashes (exit
-  `0xE0434352`), the layout is built on the sandbox's own disk (12 GB free needed), copied over, and the scratch copy is
-  deleted. A failure is explained in the log, and the installer's log is copied to
-  `C:\AgentData\logs\vs-layout-<date>.log`.
+- The installer crashes (exit `0xE0434352`) when it builds the layout in the shared data folder, so the layout is built
+  on the sandbox's own disk before Visual Studio is installed (9.5 GB free needed; a sandbox has about 14 GB free at
+  boot), copied to `tools\visualstudio`, and deleted from C:. A failure is explained in the log, and the installer's log
+  is copied to `C:\AgentData\logs\vs-layout-<date>.log`.
 - `toolchains.unreal.visualStudio: "autosdk"` (experimental, default `"full"`) skips Visual Studio: UnrealBuildTool finds
   the portable MSVC through an AutoSDK tree (`tools\unreal\autosdk`, copies, made once and kept). The editor's Visual
   Studio integration is not available. It needs `toolchains.msvc`, turned on for you under Unreal's licence acceptance.

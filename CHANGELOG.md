@@ -7,6 +7,12 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.23.2
+
+- **Visual Studio install files fit on the sandbox disk.** A sandbox has only about 14 GB free on C: at boot (the disk is
+  about 40 GB and the paging file takes 16 GB), and building the install files there asked for 15 GB, so every boot
+  downloaded 5-8 GB again. It now asks for 9.5 GB, so the first boot saves them and later boots install offline.
+
 ## 1.23.1
 
 - **API keys of any Console shape are accepted** (for example `skt-ant-usr-...`): the check now only refuses text with spaces or under 20 characters, and subscription or Admin tokens.

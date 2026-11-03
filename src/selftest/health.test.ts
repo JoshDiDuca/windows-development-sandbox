@@ -300,7 +300,7 @@ async function engine(t: Harness): Promise<void> {
   const text = out.join('');
   t.includes(text, '\nThis PC\n  [ok] Windows: p1 is fine', 'headings, then one line per check with a status mark');
   t.includes(text, 'What it means: it hurts', 'a problem says what it means');
-  t.includes(text, 'Fix: repair will mend the cracks', 'a fixable problem says repair will fix it');
+  t.includes(text, 'Fix: sandbox repair will mend the cracks', 'a fixable problem says repair will fix it');
   t.includes(text, 'Fix: check your VPN', 'a problem repair cannot mend says what to do');
   t.includes(text, 'Repair will change:', 'the changes are listed before they are made');
   t.includes(text, '[fixed] Cracks: mended the cracks', 'a fix is reported on its own line');

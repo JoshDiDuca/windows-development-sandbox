@@ -31,11 +31,14 @@ export interface MemoryDecision {
 
 const roundDown = (mb: number): number => Math.floor(mb / 1024) * 1024;
 
-/** GPU-PV (vGPU) needs room of its own on this PC: memory the graphics driver pins for the sandbox. */
-const VGPU_RESERVE_MB = 2048;
+/**
+ * GPU-PV (vGPU) needs room of its own on this PC: the GPU's shared memory for the sandbox comes out of this PC's RAM,
+ * and a GPU game plus heavy builds with vGPU on has killed the VM when the PC had no RAM left for it.
+ */
+export const VGPU_RESERVE_MB = 4096;
 
 /**
- * The most memory this PC can keep in RAM for the sandbox (pure): its RAM minus max(reserveHostMb, 25 %), and 2 GB
+ * The most memory this PC can keep in RAM for the sandbox (pure): its RAM minus max(reserveHostMb, 25 %), and 4 GB
  * more with vGPU. Windows Sandbox's memory is this PC's memory taken as needed; beyond what the PC can keep resident it
  * is paged to this PC's disk while the sandbox pages to its own, and that is what can freeze the whole PC.
  */
@@ -76,8 +79,9 @@ export function decideMemory(
   commitAvailableMb: number | null,
 ): MemoryDecision {
   const shareMb = Math.floor((totalMb * sandbox.maxMemoryPercent) / 100);
-  const byFree = freeMb - sandbox.reserveHostMb;
-  const byCommit = commitAvailableMb === null ? Infinity : commitAvailableMb - sandbox.reserveHostMb;
+  const reserveMb = sandbox.reserveHostMb + (sandbox.vGpu ? VGPU_RESERVE_MB : 0);
+  const byFree = freeMb - reserveMb;
+  const byCommit = commitAvailableMb === null ? Infinity : commitAvailableMb - reserveMb;
   const candidates: [MemoryLimit, number][] = [
     ['max', sandbox.maxMemoryMb],
     ['share', shareMb],

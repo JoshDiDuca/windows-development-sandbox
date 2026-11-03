@@ -144,7 +144,7 @@
               "maximum": 9007199254740991
             }
           ],
-          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered."
+          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 4 GB more with vGPU): a bigger value is lowered."
         },
         "maxMemoryMb": {
           "type": "integer",
@@ -792,7 +792,7 @@
             "targetDir": {
               "type": "string",
               "minLength": 1,
-              "description": "\"shared\": cargo's default target\\ (shared with builds on this PC, so builds on either side invalidate the other), \"separate\": <workspace>\\target\\sandbox (kept, no cross-talk), \"local\": on the sandbox's own disk (fastest, lost every boot), or a guest path."
+              "description": "\"auto\" (default): on the sandbox's own disk when C: has 25 GB free at boot, else \"separate\" (builds then write through the mapped workspace, which can overload this PC's disk). \"shared\": cargo's default target\\ (shared with builds on this PC, so builds on either side invalidate the other), \"separate\": <workspace>\\target\\sandbox (kept, no cross-talk), \"local\": on the sandbox's own disk (fastest, lost every boot), or a guest path."
             },
             "linker": {
               "type": "string",
@@ -814,7 +814,7 @@
                   "maximum": 32
                 }
               ],
-              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 3 GB of sandbox memory after 6 GB, 2 to 8 (the memory governor slows links down too when memory runs short)."
+              "description": "GNU host: how many programs may link at the same time in the whole sandbox (other links wait). \"auto\" = one per 6 GB of sandbox memory, 1 to 4 (the memory governor slows links down too when memory runs short)."
             }
           },
           "additionalProperties": false
@@ -2287,6 +2287,62 @@
         "additionalProperties": false
       },
       "description": "Agents that can run in the sandbox."
+    },
+    "codex": {
+      "type": "object",
+      "properties": {
+        "sandboxMode": {
+          "type": "string",
+          "enum": [
+            "danger-full-access",
+            "workspace-write",
+            "read-only"
+          ],
+          "description": "Codex's own sandbox. Inside Windows Sandbox Codex's own sandbox only slows it down (it re-grants file permissions over your profile at every boot), so the default is danger-full-access: Windows Sandbox is the sandbox."
+        },
+        "approvalPolicy": {
+          "type": "string",
+          "enum": [
+            "never",
+            "on-request",
+            "on-failure",
+            "untrusted"
+          ],
+          "description": "When Codex asks before it runs a command. \"never\" with danger-full-access starts it with no questions."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9._:/-]*$",
+          "description": "The model Codex uses. Empty = Codex's own default."
+        },
+        "reasoningEffort": {
+          "type": "string",
+          "enum": [
+            "default",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "description": "How hard Codex thinks. \"default\" = Codex's own default."
+        },
+        "windowsSandbox": {
+          "type": "string",
+          "enum": [
+            "off",
+            "unelevated",
+            "elevated"
+          ],
+          "description": "Codex's Windows sandbox mode in its config.toml. \"off\" removes the setting so Codex does not set up its sandbox users and firewall rules at every boot."
+        },
+        "mcpLoginsInFile": {
+          "type": "boolean",
+          "description": "Keep the sign-ins of Codex's MCP servers in a file in the saved Codex folder (mcp_oauth_credentials_store = \"file\"), so they survive between sandboxes. A value you set in config.toml is kept."
+        }
+      },
+      "additionalProperties": false
     },
     "hooks": {
       "type": "object",

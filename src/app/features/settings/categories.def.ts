@@ -42,7 +42,7 @@ export const CATEGORIES: SettingsCategory[] = [
     label: 'Agents & sessions',
     description:
       'The agents you can start (also: Agents section), attaching your terminal to them, the (Beta) web UI and agent commands, which of your Claude settings are copied in, and reopening sessions.',
-    keys: ['harnesses', 'attach', 'web', 'agentCommands', 'claudeProfile', 'resume'],
+    keys: ['harnesses', 'codex', 'attach', 'web', 'agentCommands', 'claudeProfile', 'resume'],
   },
   {
     id: 'network',
@@ -108,6 +108,7 @@ const NAMES: Record<string, string> = {
   projects: 'Projects',
   resume: 'Reopening sessions',
   harnesses: 'Agents',
+  codex: 'Codex',
   databases: 'Databases',
   toolchains: 'Toolchains',
   git: 'Git',
@@ -163,6 +164,8 @@ const LABELS: Readonly<Record<string, string>> = {
   'projects.wsbShare': 'Add folders while the sandbox runs',
   'projects.liveFolders': 'Add folders through HCS (alpha, untested)',
   'projects.all': 'Map all known projects at start',
+  'codex.sandboxMode': "Codex's own sandbox",
+  'codex.windowsSandbox': 'Windows sandbox mode for Codex',
   'claudeProfile.hostDir': 'Claude folder on this PC',
   'claudeProfile.globalStateFile': 'Claude state file on this PC',
 };

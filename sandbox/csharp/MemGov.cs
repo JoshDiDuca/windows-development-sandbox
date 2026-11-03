@@ -6,6 +6,7 @@
 //     procs = the processes in the agents' job (the job ptyhost makes for everything the agents start), nothing else.
 //   stdin, one command per line:
 //     priority <pid> <idle|below|normal>   lowers (or restores) the priority of a process in that job
+//     iopriority <pid> <verylow|low|normal>  the disk queue priority of a process in that job
 //     suspend <pid> <ms>                   pauses a process in that job, resumes it after ms (at most 30000)
 //     exit
 //
@@ -45,6 +46,11 @@ static class MemGov
     private const int ProcessMemoryPriorityClass = 0;
     private const uint MemoryPriorityLow = 2;
     private const uint MemoryPriorityNormal = 5;
+    // NtSetInformationProcess(ProcessIoPriority): IO_PRIORITY_HINT VeryLow = 0, Low = 1, Normal = 2.
+    private const int ProcessIoPriority = 33;
+    private const int IoPriorityVeryLow = 0;
+    private const int IoPriorityLow = 1;
+    private const int IoPriorityNormal = 2;
 
     // JOBOBJECT_CPU_RATE_CONTROL_INFORMATION (CpuRate in hundredths of a percent).
     [StructLayout(LayoutKind.Sequential)]
@@ -132,6 +138,13 @@ static class MemGov
 
         [DllImport("kernel32.dll", EntryPoint = "K32GetProcessMemoryInfo", SetLastError = true)]
         public static extern bool GetProcessMemoryInfo(IntPtr process, ref MemoryCounters counters, uint size);
+
+        // NTSTATUS, not Win32: SetLastError does not apply, the status is the result (0 = success).
+        [DllImport("ntdll.dll")]
+        public static extern int NtSetInformationProcess(IntPtr process, int infoClass, ref int info, int length);
+
+        [DllImport("ntdll.dll")]
+        public static extern uint RtlNtStatusToDosError(int status);
 
         [DllImport("ntdll.dll")]
         public static extern int NtSuspendProcess(IntPtr process);
@@ -397,6 +410,14 @@ static class MemGov
         {
             SetMemoryPriority(pid, parts[2] == "low" ? MemoryPriorityLow : MemoryPriorityNormal);
         }
+        else if (parts[0] == "iopriority")
+        {
+            int level = ParseIoPriority(parts[2]);
+            if (level >= 0)
+            {
+                SetIoPriority(pid, level);
+            }
+        }
         else if (parts[0] == "priority")
         {
             uint cls = parts[2] == "idle" ? IdleClass : parts[2] == "below" ? BelowNormalClass : NormalClass;
@@ -480,6 +501,43 @@ static class MemGov
         {
             uint value = priority;
             NativeMethods.SetProcessInformation(process, ProcessMemoryPriorityClass, ref value, sizeof(uint));
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
+    }
+
+    /// <summary>verylow, low or normal to the IO priority value; -1 when it is none of them.</summary>
+    private static int ParseIoPriority(string word)
+    {
+        if (word == "verylow")
+        {
+            return IoPriorityVeryLow;
+        }
+        if (word == "low")
+        {
+            return IoPriorityLow;
+        }
+        return word == "normal" ? IoPriorityNormal : -1;
+    }
+
+    /// <summary>The process's disk requests queue behind the others' (needs no privilege for very low and low).</summary>
+    private static void SetIoPriority(int pid, int level)
+    {
+        IntPtr process = NativeMethods.OpenProcess(ProcessSetInformation, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return;
+        }
+        try
+        {
+            int value = level;
+            int status = NativeMethods.NtSetInformationProcess(process, ProcessIoPriority, ref value, sizeof(int));
+            if (status != 0)
+            {
+                throw new Win32Exception((int)NativeMethods.RtlNtStatusToDosError(status));
+            }
         }
         finally
         {

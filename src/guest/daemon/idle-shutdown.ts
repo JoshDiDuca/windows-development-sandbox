@@ -9,6 +9,7 @@ import { log } from '../runtime/log.js';
 import { session } from '../runtime/session.js';
 import { safely } from './state.js';
 import { flushAccounts } from './accounts.js';
+import { markEnding } from './heartbeat.js';
 
 /** How long the sandbox must stay idle before it shuts down. */
 const GRACE_MS = 15000;
@@ -24,6 +25,7 @@ export class IdleShutdown {
     setTimeout(() => {
       if (!this.idle()) return;
       log('Headless sandbox has no sessions left; shutting down.');
+      safely('heartbeat', markEnding);
       safely('claude-mem save', saveClaudeMem);
       safely('agent databases save', saveLocalState);
       // Renewed sign-ins go to the PC, and a held one (a Unity seat) is let go, before Windows stops.

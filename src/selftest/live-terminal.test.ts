@@ -267,6 +267,10 @@ export const liveTerminalSuite: Suite = {
         if (target) {
           for (const command of [
             'memprio ' + target.pid + ' low',
+            'iopriority ' + target.pid + ' verylow',
+            'iopriority ' + target.pid + ' low',
+            'iopriority ' + target.pid + ' normal',
+            'iopriority ' + target.pid + ' bogus',
             'throttle ' + target.pid,
             'cpurate 20',
             'trim ' + target.pid,

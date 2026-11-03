@@ -148,6 +148,10 @@ samples) is kept in `<storage>\logs\crashes`; `sandbox logs --crash` prints the 
 - **Memory.** Inside the sandbox, `C:\AgentData\logs\memory-*.log` samples memory every 30 seconds (every 5 when it is
   high), and `memory-pressure.txt` says ok, high or critical. Fewer builds at once (cargo `build.jobs`) helps. See
   [heavy load](#the-sandbox-closes-under-heavy-load).
+- **It just vanished.** When Windows logged nothing, but the sandbox was working and left no word of leaving, it counts
+  as a crash ("ended suddenly while it was working"; the guest cannot tell a closed window from a crash). The report
+  says what it was doing in its last seconds, and also reads graphics driver resets (Display 4101, GPU live kernel
+  events) and Hyper-V or `vmwp.exe` errors. Closing the window while it sits idle is still on purpose.
 - **Blue screens on your PC too?** Test its memory (Windows Memory Diagnostic, or turn off XMP/EXPO for a while).
 
 ## The PC froze or restarted during heavy builds
@@ -172,6 +176,27 @@ If the whole PC stops responding and restarts (not only the sandbox window closi
    - `C:\Windows\Minidump` and `C:\Windows\MEMORY.DMP` hold blue-screen dumps; the report lists their names and times.
 4. **Memory:** see the next section.
 
+## Windows says the sandbox was signed out, or one is already running
+
+After the sandbox died (a crash, or Windows stopping it), Windows Sandbox can leave its own programs behind
+(`WindowsSandbox.exe`, `WindowsSandboxClient.exe`, `WindowsSandboxRemoteSession.exe`, `WindowsSandboxServer.exe`) and
+its service (`CmService`) can keep the old session. The next start then fails, or Windows says the sandbox was signed
+out. The known way out is to close those leftover programs and try again, and when Windows still refuses, to restart
+the Windows Sandbox service (that needs administrator permission).
+
+The sandbox does this for you, after asking:
+
+- **Starting** a sandbox: when it finds Windows Sandbox programs but no sign of life from your sandbox (the sandbox
+  writes a heartbeat every 10 seconds; its watcher saw it end, or the heartbeat stopped minutes ago), it asks to close
+  them and goes on. It never closes a sandbox that is working, one that started a moment ago, or another Windows
+  user's, and it ends only the four Windows Sandbox programs above in your own Windows session.
+- **Menu and web:** the Sandbox page shows "Windows Sandbox: programs left over" with a **Clean up** action. It asks
+  first; if the programs will not go it offers to restart the Windows Sandbox service (Windows asks for permission).
+- **`sandbox cleanup`** does the same on the command line (`--service` also restarts the service), and
+  `sandbox repair` lists it as "Leftover Windows Sandbox programs".
+
+If Windows still refuses after both, restart the PC.
+
 ## The sandbox closes under heavy load
 
 `sandbox.memoryMb` is a ceiling, not a reservation: the sandbox takes memory from your PC as it goes (it shows as
@@ -180,11 +205,11 @@ file), not only the sandbox's size. These protections are on by default and need
 
 | Protection              | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Default                         |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Memory sizing           | `memoryMb: "auto"` gives the sandbox at most the free RAM and the PC's unused commit, minus `reserveHostMb`. Whatever you ask, it never gets more than your PC can keep in RAM for it: your RAM minus max(`reserveHostMb`, 25 %), plus 2 GB with vGPU. A larger fixed `memoryMb` is lowered, and the launch says so                                                                                                                                                                                                                                                                                                                                                                                                               | on                              |
+| Memory sizing           | `memoryMb: "auto"` gives the sandbox at most the free RAM and the PC's unused commit, minus `reserveHostMb`. Whatever you ask, it never gets more than your PC can keep in RAM for it: your RAM minus max(`reserveHostMb`, 25 %), plus 4 GB with vGPU. A larger fixed `memoryMb` is lowered, and the launch says so                                                                                                                                                                                                                                                                                                                                                                                                               | on                              |
 | Build budget            | Programs see only the CPUs and memory they may use: with a CPU cap they run on that share of the processors, and `NUMBER_OF_PROCESSORS` matches. Each session gets `CARGO_BUILD_JOBS` and `CMAKE_BUILD_PARALLEL_LEVEL` (if not set) from a budget of one job per 3 GB after 6 GB, at most 8 per session and shared with other sessions. `run\budget.json` (path in `SANDBOX_BUDGET_FILE`) holds the numbers                                                                                                                                                                                                                                                                                                                       | on                              |
 | Governor in the sandbox | Every 2 seconds it checks the sandbox's memory and turns a dial in steps. **1** (below 15 % free RAM or above 80 % commit): compilers, linkers and build tools run at lower CPU and memory priority. **2** (10 % / 88 %): idle priority, compilers share at most 60 % of the CPU and take turns (paused a few seconds at a time, never killed). **3** (6 % / 94 %): 35 % CPU, a third of the compilers at a time, the waiting ones moved to the paging file. **4** (4 % / 97 %): 15 % CPU, one compiler at a time. It turns up at once and down one step after three calm samples. Agents, shells and Windows are never touched. It logs to `C:\AgentData\logs\memory-*.log` (lines starting `governor:`) and `run\pressure.json` | on (`sandbox.pressureResponse`) |
-| Watchdog on your PC     | Every 10 seconds it checks your PC. When RAM, commit, CPU or disk run short for a while, it asks the governor for at least step 2. When your PC is nearly out of memory (under 1.5 GB free, or commit near its limit), it asks for step 4 at once. It logs to `host-sync-<data>.log`                                                                                                                                                                                                                                                                                                                                                                                                                                              | on                              |
-| Gentler with vGPU       | The CPU cap is 15 points lower (at least 50 %), every governor step and the watchdog start earlier, compilers run below normal priority from the start, and at most max(2, cores / 4) heavy compilers run at once                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | automatic                       |
+| Watchdog on your PC     | Every 10 seconds it checks your PC. When RAM, commit, CPU or disk run short for a while, it asks the governor for at least step 2. When your PC is nearly out of memory (under 1.5 GB free, or commit near its limit), it asks for step 4 at once. A disk queue at twice the limit for 40 seconds (or the limit itself for three times as long) also asks for step 4, and builds then get very low disk priority. It logs to `host-sync-<data>.log`                                                                                                                                                                                                                                                                                                                                                                                                                                              | on                              |
+| Gentler with vGPU       | The CPU cap is 15 points lower (at least 50 %), every governor step and the watchdog start earlier, compilers run below normal priority from the start, and at most max(2, cores / 4), never more than 4, heavy compilers run at once from step 1. While a compiler or linker runs, the dial is at step 2 at least. Your PC keeps 4 GB more RAM free for the graphics driver. Games and other GPU programs are never touched; only build programs are slowed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | automatic                       |
 | Last-resort backstop    | Everything the agents start shares one Windows job object, with one limit just below the sandbox's commit limit (`sandbox.agentMemoryHeadroomMb`). It only matters when Windows inside is about to refuse memory to everyone: then a build is refused instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | on                              |
 
 The settings for all of this are in [CPU, RAM and GPU](configuration.md#cpu-ram-and-gpu). A project file cannot change
@@ -198,6 +223,27 @@ for you.
 
 If it still closes, `sandbox logs --crash` and the last lines of `C:\AgentData\logs\memory-*.log` show what used the
 memory.
+
+### Heavy builds plus a GPU game with vGPU: the known crash pattern
+
+The whole sandbox (the Windows Sandbox VM) can be killed from your PC's side, with nothing wrong inside it, when:
+many compilers and linkers (rustc, ld, link, clang) run at once, a GPU-heavy game or program runs in the sandbox too,
+and `sandbox.vGpu` is on. The graphics driver's shared memory comes out of your PC's RAM, and build output written
+through a mapped folder can saturate your PC's disk. Windows then stops the VM. The sandbox now does the following by
+itself:
+
+- With vGPU on, builds run at step 2 or harder while any compiler or linker is running, and at most 4 heavy compilers
+  run at once. The game is never slowed.
+- Compilers and linkers get low disk priority (very low from step 3), and linkers run one at a time from step 2.
+- Your PC keeps 4 GB more RAM free with vGPU on.
+- A disk queue that stays high now asks for the hardest step (4), not only a mild slowdown.
+- Rust builds go to the sandbox's own disk when C: has 25 GB free (`toolchains.rust.targetDir: "auto"`), so they do
+  not write through your PC's disks.
+- Every 10 seconds the sandbox writes what it was doing; after a crash, `sandbox logs --crash` and `sandbox status`
+  say what it was doing in its last seconds.
+
+If it still happens, turn vGPU off (`sandbox config set sandbox.vGpu false`) while you build, or play the game outside
+the sandbox.
 
 ## Contained storage (Beta)
 

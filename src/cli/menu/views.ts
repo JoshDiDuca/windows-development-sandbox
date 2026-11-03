@@ -1,7 +1,7 @@
 // The shared core's views the menu shows, and in which section (the parity self-test reads this list: an operation or
 // query is reachable in the menu when a view here offers it). Settings is drawn by its own page over the same rows,
 // because the menu stages changes until Ctrl+S.
-import { agentsView } from '../../app/features/agents/index.js';
+import { agentEnvView, agentsView } from '../../app/features/agents/index.js';
 import { dataView } from '../../app/features/data/index.js';
 import { accountsView } from '../../app/features/accounts/index.js';
 import { appsView } from '../../app/features/apps/index.js';
@@ -29,6 +29,7 @@ export interface MenuViewPlace {
 
 export const MENU_VIEWS: readonly MenuViewPlace[] = [
   { view: agentsView, section: 'Agents' },
+  { view: agentEnvView, section: 'Agents' },
   { view: sessionsView, section: 'Sessions' },
   { view: sandboxView, section: 'Sandbox' },
   { view: settingsView, section: 'Settings' },

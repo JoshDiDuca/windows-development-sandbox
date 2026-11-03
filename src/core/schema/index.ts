@@ -4,6 +4,7 @@ export { GitAccessSchema, NameSchema, secret } from './common.js';
 export { REDACTED, redactSecrets, scrubSecrets, secretPaths, secretValues } from './redact.js';
 export { ConfigSchema, LocalOverridesSchema } from './config.js';
 export { HarnessSchema } from './harness.js';
+export { CodexSchema } from './codex.js';
 export { describeIssues, jsonSchemas } from './json-schema.js';
 export { MappingSchema } from './sandbox.js';
 export { ToolchainsSchema } from './toolchains.js';

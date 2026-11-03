@@ -7,6 +7,7 @@ import type { z } from 'zod';
 import {
   GuestRequestSchema,
   GuestResponseSchema,
+  HeartbeatSchema,
   IdSchema,
   PressureStatusSchema,
   ProjectStatusSchema,
@@ -17,6 +18,7 @@ import {
 import type {
   GuestRequest,
   GuestResponse,
+  Heartbeat,
   PressureStatus,
   ProjectStatus,
   SandboxStatus,
@@ -55,6 +57,8 @@ export class RunDir {
   readonly vpnFile: string;
   /** What the memory governor in the sandbox is doing (pressure.json). */
   readonly pressureFile: string;
+  /** The daemon's heartbeat every 10 seconds (heartbeat.json): what the sandbox did last. */
+  readonly heartbeatFile: string;
   /** What the sandbox's programs may really use (budget.json): processors, memory, build jobs, link slots. */
   readonly budgetFile: string;
   readonly requestsDir: string;
@@ -79,6 +83,7 @@ export class RunDir {
     this.sandboxFile = path.join(this.root, 'sandbox.json');
     this.vpnFile = path.join(this.root, 'vpn.json');
     this.pressureFile = path.join(this.root, 'pressure.json');
+    this.heartbeatFile = path.join(this.root, 'heartbeat.json');
     this.budgetFile = path.join(this.root, 'budget.json');
     this.requestsDir = path.join(this.root, 'requests');
     this.responsesDir = path.join(this.root, 'responses');
@@ -126,6 +131,9 @@ export class RunDir {
   }
   readPressure(): PressureStatus | null {
     return readValid(PressureStatusSchema, this.pressureFile);
+  }
+  readHeartbeat(): Heartbeat | null {
+    return readValid(HeartbeatSchema, this.heartbeatFile);
   }
   readSession(id: string): SessionStatus | null {
     return readValid(SessionStatusSchema, this.sessionFile(id));

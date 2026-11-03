@@ -8,7 +8,34 @@ import { execOutput } from '../../runtime/process.js';
 import { ensureCompiled } from '../../runtime/csc.js';
 import { arch, tool, type ToolEnv } from '../tool-env.js';
 import { wanted } from '../detect.js';
-import { cargoJobs, linkSlotsFor } from '../../../shared/memory/index.js';
+import { cargoJobs, chooseTargetDir } from '../../../shared/memory/index.js';
+import { linkerSlots } from '../../governor/decide.js';
+import { warn } from '../../runtime/log.js';
+import { freeBytes } from '../persisted.js';
+
+/**
+ * "auto" (the default): build on the sandbox's own disk when C: has 25 GB free, else keep the target next to the
+ * project, which writes every object file through the mapped workspace to this PC's disk. Other values stay as set.
+ */
+export function resolveTargetDir(
+  rust: Toolchains['rust'],
+  free: number = freeBytes((process.env.SystemDrive ?? 'C:') + '\\'),
+  note: (text: string) => void = warn,
+): Toolchains['rust'] {
+  if (rust.targetDir !== 'auto') return rust;
+  const chosen = chooseTargetDir(rust.targetDir, free);
+  if (chosen.warning) note(chosen.warning);
+  return { ...rust, targetDir: chosen.targetDir };
+}
+
+/** One summary line for the agent: where cargo builds. */
+export function targetSummary(rust: Toolchains['rust']): string {
+  const target = cargoTarget(rust.targetDir);
+  if (target) return 'rust builds: ' + target + ' (CARGO_TARGET_DIR)';
+  return rust.targetDir === 'shared'
+    ? 'rust builds: target\\ in each project (shared with this PC)'
+    : 'rust builds: target\\sandbox in each project (on the mapped workspace)';
+}
 
 /**
  * Where cargo builds: shared with the PC's target\, one on the sandbox's disk, or a path. "separate" sets no variable:
@@ -40,8 +67,7 @@ export function linkGate(env: ToolEnv, rust: Toolchains['rust'], host: string): 
   if (!host.endsWith('-pc-windows-gnu') || !exists(gcc)) return;
   const gate = path.join(mkdirp(tool('shims')), 'linkgate.exe');
   fs.copyFileSync(ensureCompiled('linkgate'), gate);
-  const memoryGb = os.totalmem() / 1024 ** 3;
-  const slots = rust.linkSlots === 'auto' ? linkSlotsFor(memoryGb) : rust.linkSlots;
+  const slots = rust.linkSlots === 'auto' ? linkerSlots(os.totalmem() / 1024 ** 2, os.cpus().length) : rust.linkSlots;
   env.vars.AGENT_LINK_SLOTS = String(slots);
   env.vars.AGENT_REAL_LINKER = gcc;
   env.vars.CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = gate;

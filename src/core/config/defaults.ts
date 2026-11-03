@@ -40,6 +40,14 @@ export const DEFAULTS: Config = {
   network: { blockPrivateRanges: true, allowOnly: [], blockHosts: [], forwardPorts: [], dns: [], proxy: '' },
   vpn: { enabled: false, provider: 'nordvpn', protocol: 'udp', country: '', configFile: '', killSwitch: true },
   github: { shareToken: false },
+  codex: {
+    sandboxMode: 'danger-full-access',
+    approvalPolicy: 'never',
+    model: '',
+    reasoningEffort: 'default',
+    windowsSandbox: 'off',
+    mcpLoginsInFile: true,
+  },
   accounts: {
     epic: { share: false },
     steam: { share: false },
@@ -72,7 +80,7 @@ export const DEFAULTS: Config = {
       components: [],
       targets: [],
       crates: [],
-      targetDir: 'separate',
+      targetDir: 'auto',
       linker: 'lld',
       linkSlots: 'auto',
     },

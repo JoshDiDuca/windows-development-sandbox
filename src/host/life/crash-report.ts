@@ -6,6 +6,7 @@ import { assertNoLinks, safeText } from '../../core/util/index.js';
 import { vgpuWarning } from '../launch/risk-notes.js';
 import { hostMemoryLine, readHostMemory } from './host-memory.js';
 import { hostDataFolder, hostDataRoot } from '../storage/index.js';
+import { heartbeatLine, readHeartbeat } from './last-end.js';
 import { bugcheckCode, explainStop, readStopEvents, type StopCause, type StopEvent } from './stop-events.js';
 
 const KEEP_REPORTS = 20;
@@ -27,7 +28,12 @@ export interface CrashExtra {
   readonly hostMemoryNow?: string;
   /** The frozen sandbox's launch had vGPU on (read from its .wsb). */
   readonly vgpu?: boolean;
+  /** The sandbox's last heartbeat as a line (see heartbeatLine): what it was doing inside. */
+  readonly lastInside?: string;
 }
+
+/** The ends that get a crash report (not updates, restarts and sleep: those are plain). */
+const REPORTED: readonly StopCause['kind'][] = ['sandboxCrash', 'crash', 'memory', 'gpu', 'hyperv', 'vanished'];
 
 function crashDir(storageRoot: string): string {
   return path.join(storageRoot, 'logs', 'crashes');
@@ -202,6 +208,7 @@ export function crashReportText(
     ...(hostLines.length ? hostLines : ['  (none: the background sync was not running)']),
     ...(extra.hostMemoryNow ? ['  after the restart: ' + extra.hostMemoryNow] : []),
     '',
+    ...(extra.lastInside ? [safeText(extra.lastInside), ''] : []),
     "The sandbox's memory log, last lines (C:\\AgentData\\logs\\memory-*.log inside it):",
     ...memoryLines,
     '',
@@ -257,21 +264,28 @@ function memoryLogTail(dataPath: string): string {
 /**
  * When the sandbox ended in a crash (its own, this PC's, power, low memory): writes the report and returns its path.
  */
-export function saveCrashReport(storageRoot: string, dataPath: string, lastSeen: string): string | null {
+export function saveCrashReport(
+  storageRoot: string,
+  dataPath: string,
+  lastSeen: string,
+  known: StopCause | null = null,
+): string | null {
   const events = readStopEvents(new Date(Date.parse(lastSeen) - 2 * 60 * 1000), storageRoot);
-  const cause = explainStop(events);
-  if (!cause || !['sandboxCrash', 'crash', 'memory'].includes(cause.kind)) return null;
+  const cause = explainStop(events) ?? known;
+  if (!cause || !REPORTED.includes(cause.kind)) return null;
   const dir = crashDir(storageRoot);
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'crash-' + cause.at.replace(/[:.]/g, '-') + '.txt');
   const since = new Date(Date.parse(lastSeen) - 10 * 60 * 1000);
   const windir = process.env.SystemRoot ?? 'C:\\Windows';
   const memoryNow = readHostMemory(storageRoot);
+  const heartbeat = readHeartbeat(dataPath);
   fs.writeFileSync(
     file,
     crashReportText(cause, events, memoryLogTail(dataPath), lastSeen, {
       hostMemoryLog: hostMemoryTail(storageRoot, dataPath),
       vgpu: launchHadVgpu(storageRoot, lastSeen),
+      ...(heartbeat ? { lastInside: heartbeatLine(heartbeat) } : {}),
       dumps: findDumps([path.join(windir, 'Minidump'), windir], since),
       ...(memoryNow ? { hostMemoryNow: hostMemoryLine(memoryNow) } : {}),
     }),

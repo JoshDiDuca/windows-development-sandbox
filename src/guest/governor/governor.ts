@@ -15,7 +15,7 @@ import { warn } from '../runtime/log.js';
 import { run } from '../runtime/paths.js';
 import { session } from '../runtime/session.js';
 import { errMsg } from '../../core/util/errors.js';
-import { GovernorCore, type GovernorPort } from './core.js';
+import { GovernorCore, type GovernorPort, type GovernorSnapshot } from './core.js';
 import type { MemSample } from './decide.js';
 
 const SampleSchema = z.object({
@@ -76,6 +76,10 @@ class MemGovProcess implements GovernorPort {
 
   setMemoryPriority(pid: number, low: boolean): void {
     this.send('memprio ' + pid + ' ' + (low ? 'low' : 'normal'));
+  }
+
+  setIoPriority(pid: number, to: 'verylow' | 'low' | 'normal'): void {
+    this.send('iopriority ' + pid + ' ' + to);
   }
 
   throttle(pid: number): void {
@@ -153,8 +157,13 @@ export class Governor {
   }
 
   /** The host's watchdog: this PC is low (or nearly out of memory) for a while. */
-  hostPressure(seconds: number, reason: string, level: 'slow' | 'severe' = 'slow'): void {
-    this.core?.hostPressure(seconds, reason, level);
+  hostPressure(seconds: number, reason: string, level: 'slow' | 'severe' = 'slow', diskQueue?: number): void {
+    this.core?.hostPressure(seconds, reason, level, diskQueue);
+  }
+
+  /** The newest numbers, for the heartbeat (null when the governor is off or has not sampled yet). */
+  snapshot(): GovernorSnapshot | null {
+    return this.core?.snapshot ?? null;
   }
 }
 

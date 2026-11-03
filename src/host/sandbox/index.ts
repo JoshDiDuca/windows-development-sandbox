@@ -1,4 +1,5 @@
 export * from './platform.js';
+export * from './cleanup.js';
 export * from './probe.js';
 export * from './tasklist.js';
 export * from './host-claude.js';

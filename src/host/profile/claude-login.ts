@@ -9,6 +9,7 @@
 // written through. A key read from the sandbox must have the shape of an API key.
 import fs from 'node:fs';
 import path from 'node:path';
+import { anthropicKeyProblem } from '../../shared/accounts/index.js';
 import { assertTestWritable } from '../test-guard.js';
 import { hostDataFolder, hostDataRoot } from '../storage/index.js';
 import { assertNoLinks, fail, fileExists, isLink, removeLink, tryReadJson, writeJson } from '../../core/util/index.js';
@@ -34,18 +35,8 @@ export interface CaptureOptions {
   readonly envKey?: string | null;
 }
 
-/** sk-ant-api03-...: a normal Anthropic API key (letters, digits, - and _, which is what Claude Code accepts). */
-const API_KEY = /^sk-ant-api\d{2}-[A-Za-z0-9_-]{20,400}$/;
-const API_USER_KEY = /^sk-ant-usr\d{2}-[A-Za-z0-9_-]{20,400}$/;
-
-/** What is wrong with a typed or found API key, or null when it has the right shape. Never quotes the key. */
-export function apiKeyProblem(key: string): string | null {
-  if (API_KEY.test(key) || API_USER_KEY.test(key)) return null;
-  if (key.startsWith('sk-ant-oat'))
-    return 'That is a Claude subscription token (from claude setup-token), not an API key. Save the subscription login instead.';
-  if (key.startsWith('sk-ant-admin')) return 'That is an Admin key: it cannot run Claude. Make an API key instead.';
-  return 'An Anthropic API key starts with sk-ant-api or sk-ant-usr and has only letters, digits, - and _ (copy it from the Claude Console).';
-}
+/** What is wrong with a typed or found API key (sk-ant-api or sk-ant-usr), or null. Never quotes the key. */
+export const apiKeyProblem = anthropicKeyProblem;
 
 /** The most of a key that is ever shown: sk-ant-...abcd. */
 export function maskApiKey(key: string): string {

@@ -20,6 +20,8 @@ import {
 } from './kernel/index.js';
 import {
   addAgentRun,
+  agentEnvRun,
+  agentsEnvSetRun,
   listAgentsRun,
   makeDefaultAgentRun,
   removeAgentRun,
@@ -60,7 +62,13 @@ import {
   removeProjectRun,
 } from './features/projects/index.js';
 import { checkHealthRun, enableSandboxRun, lastHealthRun, repairHealthRun } from './features/health/index.js';
-import { hideWindowRun, sandboxStatusRun, showWindowRun, stopSandboxRun } from './features/sandbox/index.js';
+import {
+  cleanUpSandboxRun,
+  hideWindowRun,
+  sandboxStatusRun,
+  showWindowRun,
+  stopSandboxRun,
+} from './features/sandbox/index.js';
 import { listLogsRun, tailLogRun } from './features/logs/index.js';
 import { listAuditRun } from './features/audit/index.js';
 import { closeSessionRun, listSessionsRun, restartSessionsRun, startShellRun } from './features/sessions/index.js';
@@ -91,6 +99,7 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   showWindowRun,
   hideWindowRun,
   stopSandboxRun,
+  cleanUpSandboxRun,
   listSessionsRun,
   restartSessionsRun,
   startShellRun,
@@ -100,6 +109,8 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   makeDefaultAgentRun,
   removeAgentRun,
   listAgentsRun,
+  agentEnvRun,
+  agentsEnvSetRun,
   listSettingsRun,
   getSettingRun,
   setSettingRun,

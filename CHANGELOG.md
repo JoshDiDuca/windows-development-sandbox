@@ -22,6 +22,36 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   saved logins include that file (`.credentials.json` in `harnesses.codex.home.loginFiles`), so they last between
   sandboxes.
 
+## 1.19.0
+
+- **Codex runs commands inside the sandbox, with settings.** Codex now starts with flags that skip its own Windows
+  sandbox (which ignored the config file and set up users and firewall rules at every start), and a new Codex section in
+  Settings (menu and web) sets its sandbox mode, approvals, model and reasoning effort. The Agents page gets a Claude
+  environment editor (models, limits, subagents at once and more), and one key pattern accepts `sk-ant-api` and
+  `sk-ant-usr` keys everywhere.
+
+## 1.18.4
+
+- **A sandbox that vanished is no longer "closed on purpose".** When the sandbox ends while it was working, with no
+  word of leaving and nothing in the Windows log, it now counts as a crash: a crash report is written, the next launch
+  and the status page say so, and `resume.restartAfterCrash` applies. The report also reads graphics driver resets
+  (Display 4101, GPU live kernel events 117/141/1a8) and Hyper-V or `vmwp.exe` errors.
+- **Relaunch after a crash ("the sandbox was signed out").** Windows Sandbox leaves its programs behind when the VM
+  dies. Launch, the Sandbox page (menu and web, a Clean up action), `sandbox cleanup` and `sandbox repair` now find
+  them, ask, close them, and if Windows still refuses restart the Windows Sandbox service (administrator permission).
+
+## 1.18.3
+
+- **Fewer sandbox crashes under heavy load.** With vGPU on, builds run at step 2 or harder while a compiler or linker runs,
+  at most 4 heavy compilers run at once, and your PC keeps 4 GB more RAM free. Compilers and linkers get low disk
+  priority, linkers run one at a time from step 2, and an overloaded disk asks for the hardest step. Rust builds go to
+  the sandbox's own disk when C: has 25 GB free (`toolchains.rust.targetDir` is now `auto`). The sandbox writes a
+  heartbeat every 10 seconds, so the status page and the crash report say what it was doing when it vanished. See
+  [troubleshooting](docs/troubleshooting.md#heavy-builds-plus-a-gpu-game-with-vgpu-the-known-crash-pattern).
+## 1.18.1 - 1.18.2
+
+- Claude API keys that start with `sk-ant-usr` are accepted.
+
 ## 1.18.0
 
 - **Service sign-ins in Accounts.** `sandbox account status|import|login|logout <service>`, and the menu and web

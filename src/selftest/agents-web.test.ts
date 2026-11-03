@@ -26,7 +26,6 @@ import type { GuestAdapter } from '../guest/accounts/adapter.js';
 import { AccountWatch } from '../guest/accounts/watch.js';
 import { cometAdapter, cometPendingFile, takePendingComet } from '../guest/accounts/kinds/comet.js';
 import { perplexityAdapter } from '../guest/accounts/kinds/perplexity.js';
-import { codexConfigWithMcpLoginsInFile, codexConfigWithoutSandbox } from '../guest/agents/agent-files.js';
 import { chromiumBin, keptInstaller, nextInner } from '../guest/apps/comet-unpack.js';
 import {
   acceptFor,
@@ -720,27 +719,6 @@ export const agentsWebSuite: Suite = {
     );
 
     t.section("Codex's config.toml");
-    const userToml = '[tui]\nscreen_reader_detection_done = true\n';
-    const inFile = codexConfigWithMcpLoginsInFile(userToml) ?? '';
-    t.check(
-      inFile.split('\n').find((l) => !l.startsWith('#')) === 'mcp_oauth_credentials_store = "file"' &&
-        inFile.endsWith(userToml) &&
-        codexConfigWithMcpLoginsInFile('') === inFile.slice(0, inFile.indexOf('\n\n') + 1),
-      'MCP sign-ins are kept in a file: the key goes above the first table, the rest is kept',
-    );
-    t.equal(
-      [
-        codexConfigWithMcpLoginsInFile(inFile),
-        codexConfigWithMcpLoginsInFile('mcp_oauth_credentials_store = "keyring"\n[tui]\n'),
-      ],
-      [null, null],
-      'a store already set (by the sandbox or by you) is left alone',
-    );
-    const both = codexConfigWithoutSandbox(codexConfigWithMcpLoginsInFile(userToml) ?? '') ?? '';
-    t.check(
-      codexConfigWithMcpLoginsInFile(both) === null && codexConfigWithoutSandbox(both) === null,
-      'it sits beside sandbox_mode: each boot step leaves the other alone',
-    );
     t.check(
       DEFAULTS.harnesses.codex.home?.loginFiles.includes('.credentials.json') === true &&
         DEFAULTS.harnesses.codex.home?.loginFiles.includes('auth.json') === true,

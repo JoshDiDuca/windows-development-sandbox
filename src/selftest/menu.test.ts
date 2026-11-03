@@ -781,7 +781,9 @@ export const menuSuite: Suite = {
         keyFor('x', 'agent:mine') &&
         !keyFor('x', 'agent:codex') &&
         typeof actionList.actions === 'function' &&
-        actionList.actions('start').length === 2 &&
+        actionList.actions('start').length === 3 &&
+        keyFor('e', 'agent:claude') &&
+        !keyFor('e', 'agent:codex') &&
         actionList.actions('options').length === 0,
       'Make default shows on any other agent, Remove only on one you added; neither on built-in agents or other rows',
     );

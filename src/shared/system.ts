@@ -12,6 +12,7 @@ export const SYSTEM = {
   cmd: (): string => system32('cmd.exe'),
   powershell: (): string => system32('WindowsPowerShell\\v1.0\\powershell.exe'),
   tasklist: (): string => system32('tasklist.exe'),
+  taskkill: (): string => system32('taskkill.exe'),
   whoami: (): string => system32('whoami.exe'),
   icacls: (): string => system32('icacls.exe'),
   tar: (): string => system32('tar.exe'),

@@ -5,13 +5,8 @@ import { spawn } from 'node:child_process';
 import { writeGuides } from './guide.js';
 import { setupToolchains, type ToolchainResult } from '../toolchains/index.js';
 import { agents } from '../agents/agent-installer.js';
-import { agentShims, sbxAgentText, shimText } from '../agents/agent-files.js';
-import {
-  codexMcpLoginsInFile,
-  codexWithoutInnerSandbox,
-  resetMachineBound,
-  restoreLocalState,
-} from '../agents/local-state.js';
+import { agentArguments, agentShims, codexArguments, sbxAgentText, shimText } from '../agents/agent-files.js';
+import { codexBootConfig, resetMachineBound, restoreLocalState } from '../agents/local-state.js';
 import { installShellPath } from '../setup/shell-path.js';
 import { linkProfileDirs } from '../agents/profile-links.js';
 import { restoreClaudeMem } from '../setup/claude-mem.js';
@@ -138,7 +133,11 @@ function writeDevToolCommands(dir: string): void {
  */
 function writeAgentCommands(dir: string): void {
   const install = { node: process.execPath, script: path.join(path.dirname(process.argv[1]), 'agent.js') };
-  for (const shim of agentShims(toolsDir, session.agents ?? {}))
+  for (const shim of agentShims(
+    toolsDir,
+    session.agents ?? {},
+    session.codex ? { codex: codexArguments(session.codex) } : {},
+  ))
     fs.writeFileSync(path.join(dir, shim.command + '.cmd'), shimText(shim, install));
   fs.writeFileSync(path.join(dir, 'sbx-agent.cmd'), sbxAgentText(install));
 }
@@ -307,8 +306,7 @@ export class Boot {
       await soft('Claude settings', () => syncClaudeProfile(this.secrets.claudeCredentials));
     await soft('claude-mem restore', restoreClaudeMem);
     await soft('Agent files of the last sandbox', resetMachineBound);
-    await soft('Codex without its own sandbox', codexWithoutInnerSandbox);
-    await soft('Codex MCP sign-ins in a file', codexMcpLoginsInFile);
+    await soft('Codex settings', codexBootConfig);
     await soft('Agent databases restore', restoreLocalState);
     // Agent add-ons: MCP servers in the sandbox's Claude Code, and the Headroom proxy before the managed settings point
     // Claude Code at it (the guide reads them back, so it comes last).
@@ -346,7 +344,12 @@ export class Boot {
       const launch = agents.resolveLaunch(session.harnessName, session.harness);
       log(
         '(dry run) would run: ' +
-          [launch.file, ...launch.args, ...session.harness.arguments, ...session.harnessArguments].join(' ') +
+          [
+            launch.file,
+            ...launch.args,
+            ...agentArguments(session.harnessName, session.harness, session.codex),
+            ...session.harnessArguments,
+          ].join(' ') +
           ' | cwd=' +
           workspace,
       );

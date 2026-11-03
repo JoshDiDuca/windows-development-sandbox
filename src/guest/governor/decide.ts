@@ -13,6 +13,8 @@ import {
 } from '../../shared/memory/index.js';
 
 export type Priority = 'idle' | 'below' | 'normal';
+/** I/O priority of a process (NtSetInformationProcess ProcessIoPriority): its disk requests queue behind the rest. */
+export type IoPriority = 'verylow' | 'low' | 'normal';
 
 export interface ProcSample {
   readonly pid: number;
@@ -130,6 +132,13 @@ const HEAVY = new Set([
   'ld',
   'ld.lld',
 ]);
+/** Linkers: the biggest memory and disk users of a build, so they run one at a time from step 2. */
+const LINKERS = new Set(['link', 'lld', 'lld-link', 'ld', 'ld.lld']);
+export const isLinker = (name: string): boolean => !isNeverTouched(name) && LINKERS.has(key(name));
+/** Links that may run at once ("auto"): one per 6 GB of RAM, 1 to 4 (never more than the processors). */
+export function linkerSlots(totalMb: number, cpus: number): number {
+  return Math.max(1, Math.min(4, Math.max(1, Math.floor(cpus)), Math.floor(totalMb / 6144)));
+}
 export const isHeavyCompiler = (name: string): boolean => !isNeverTouched(name) && HEAVY.has(key(name));
 export const canPause = (name: string): boolean => !isNeverTouched(name) && COMPILERS.has(key(name));
 
@@ -148,6 +157,8 @@ export interface GovernorState {
   readonly throttled: readonly number[];
   /** Pids whose working set was trimmed while they waited. */
   readonly trimmed: readonly number[];
+  /** Pids whose I/O priority was lowered, and to what. */
+  readonly ioLowered: Readonly<Record<number, IoPriority>>;
   /** The CPU cap last set on the throttle job (percent; 100 = none). */
   readonly cpuRate: number;
   /** Used commit (MB) and when, at the last sample: how fast it grows. */
@@ -168,6 +179,7 @@ export const INITIAL_STATE: GovernorState = {
   memLow: [],
   throttled: [],
   trimmed: [],
+  ioLowered: {},
   cpuRate: 100,
   lastCommitMb: 0,
   lastAt: 0,
@@ -178,6 +190,8 @@ export const INITIAL_STATE: GovernorState = {
 
 export type Action =
   | { readonly kind: 'priority'; readonly pid: number; readonly name: string; readonly to: Priority }
+  /** Disk requests of a compiler or linker queue behind everything else (the PC's disks are the scarce thing). */
+  | { readonly kind: 'io'; readonly pid: number; readonly name: string; readonly to: IoPriority }
   | { readonly kind: 'memory'; readonly pid: number; readonly name: string; readonly low: boolean }
   /** Into the throttle job, whose CPU cap follows the dial. */
   | { readonly kind: 'throttle'; readonly pid: number; readonly name: string }
@@ -263,6 +277,10 @@ export function decide(
     }
   }
 
+  // vGPU on (the gentle profile): a GPU game and a build together have killed the whole VM, so while any heavy compiler
+  // or linker runs the dial is at step 2 at least. The game itself is never touched (only build programs are).
+  if (profile === 'gentle' && step < 2 && sample.procs.some((p) => isHeavyCompiler(p.name))) step = 2;
+
   const actions: Action[] = [];
   const present = new Set(sample.procs.map((p) => p.pid));
   const keep = (pids: readonly number[]): number[] => pids.filter((pid) => present.has(pid));
@@ -284,6 +302,20 @@ export function decide(
       actions.push({ kind: 'priority', pid: p.pid, name: p.name, to: target });
     if (target === 'normal') delete lowered[p.pid];
     else lowered[p.pid] = target;
+  }
+
+  // I/O priority of compilers and linkers: low while their CPU priority is below normal, very low from step 3 (a PC
+  // whose disks are overloaded asks for step 4). Restored to normal when they are released.
+  const ioLowered: Record<number, IoPriority> = {};
+  for (const [pid, to] of Object.entries(prev.ioLowered)) if (present.has(Number(pid))) ioLowered[Number(pid)] = to;
+  for (const p of sample.procs) {
+    if (!canPause(p.name)) continue;
+    const cpu = lowered[p.pid] ?? 'normal';
+    const target: IoPriority = step >= 3 ? 'verylow' : cpu !== 'normal' ? 'low' : 'normal';
+    const was = ioLowered[p.pid] ?? 'normal';
+    if (was !== target) actions.push({ kind: 'io', pid: p.pid, name: p.name, to: target });
+    if (target === 'normal') delete ioLowered[p.pid];
+    else ioLowered[p.pid] = target;
   }
 
   // Memory priority: low from step 1, so Windows trims the builds' pages before the agents'.
@@ -310,18 +342,30 @@ export function decide(
   let allowed = compilersAllowed(step, heavy.length);
   // The cap is a memory measure: with memory to spare, Windows shares the CPU (the priorities above) and no compiler
   // waits. A waiting rustc also holds cargo's job tokens, which stalls the whole build.
-  if (maxCompilers !== null && step >= 2) allowed = Math.min(allowed, Math.max(1, maxCompilers));
-  if (allowed < heavy.length) {
-    const turn = Math.floor(nowMs / ROTATE_MS) % heavy.length;
-    const order = [...heavy.slice(turn), ...heavy.slice(0, turn)];
-    for (const p of order.slice(allowed)) {
+  if (maxCompilers !== null && step >= 1) allowed = Math.min(allowed, Math.max(1, maxCompilers));
+  const turn = heavy.length > 0 ? Math.floor(nowMs / ROTATE_MS) % heavy.length : 0;
+  const order = [...heavy.slice(turn), ...heavy.slice(0, turn)];
+  let waiting = order.slice(Math.min(allowed, order.length));
+  // From step 2 the linkers that would run go one at a time, whatever the cap: a link reads and writes the most.
+  if (step >= 2) {
+    const waitingPids = new Set(waiting.map((p) => p.pid));
+    let linking = 0;
+    for (const p of order)
+      if (isLinker(p.name) && !waitingPids.has(p.pid) && ++linking > 1) {
+        waiting = [...waiting, p];
+        waitingPids.add(p.pid);
+      }
+  }
+  if (waiting.length > 0) {
+    const waitingPids = new Set(waiting.map((p) => p.pid));
+    for (const p of waiting) {
       actions.push({ kind: 'hold', pid: p.pid, name: p.name, ms: HOLD_MS });
       if (step >= 3 && !trimmed.has(p.pid)) {
         actions.push({ kind: 'trim', pid: p.pid, name: p.name });
         trimmed.add(p.pid);
       }
     }
-    for (const p of order.slice(0, allowed)) trimmed.delete(p.pid);
+    for (const p of order) if (!waitingPids.has(p.pid)) trimmed.delete(p.pid);
   } else trimmed.clear();
 
   const level: Level = step >= 3 ? 'suspending' : step >= 1 ? 'throttled' : 'ok';
@@ -333,6 +377,7 @@ export function decide(
       memLow: [...memLow],
       throttled: [...throttled],
       trimmed: [...trimmed],
+      ioLowered,
       cpuRate,
       lastCommitMb: usedMb,
       lastAt: nowMs,

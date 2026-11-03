@@ -103,12 +103,14 @@ installed on your PC read-only into sandboxes ([configuration](configuration.md#
   otherwise.
 - **`rust.crates`:** cargo binaries to install. They are downloaded prebuilt (cargo-binstall) when the crate publishes a
   Windows build, else compiled once.
-- **`rust.targetDir`:** keeps the sandbox's builds apart from your PC's. `"separate"` (default) builds into
+- **`rust.targetDir`:** keeps the sandbox's builds apart from your PC's. `"auto"` (default) builds on the sandbox's
+  own disk when C: has 25 GB free at boot (fast, and it spares your PC's disk), else like `"separate"`, with a
+  warning that builds then write through the mapped workspace. `"separate"` builds into
   `target\sandbox` of each checkout, so each agent's git worktree gets its own; `"shared"` uses cargo's normal `target`;
   `"local"` uses the sandbox's own disk (fast, lost on close). A `CARGO_TARGET_DIR` you set always wins.
 - **`rust.linker`, `rust.linkSlots`:** on the GNU host, `"lld"` (default, far less memory than GNU ld) or `"gnu"`, and
-  how many programs may link at once in the whole sandbox (`"auto"` = one per 3 GB of the sandbox's memory after the
-  first 6 GB, 2 to 8).
+  how many programs may link at once in the whole sandbox (`"auto"` = one per 6 GB of the sandbox's memory, 1 to 4).
+  When this PC is under load the memory governor also lets only one linker run at a time.
 - sccache keeps its cache in `C:\AgentData\cache\sccache` unless the project sets `SCCACHE_DIR`.
 
 The first time, `C:\AgentData\tools\rust\cargo\config.toml` gets Windows-friendly defaults: a quarter of the CPUs as

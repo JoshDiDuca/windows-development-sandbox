@@ -28,12 +28,31 @@ const StopEventsSchema = z
   )
   .max(100);
 
-export type StopKind = 'updates' | 'restart' | 'crash' | 'sleep' | 'memory' | 'sandboxCrash';
+/** The ways a sandbox can end that nobody asked for (the life record stores one of these). */
+export const STOP_KINDS = [
+  'updates',
+  'restart',
+  'crash',
+  'sleep',
+  'memory',
+  'sandboxCrash',
+  /** The graphics driver reset (display 4101, a GPU LiveKernelEvent): vGPU and the GPU's shared memory. */
+  'gpu',
+  /** Hyper-V reported an error, or a program that holds the VM (vmwp.exe, vmmem) crashed. */
+  'hyperv',
+  /** Nothing was logged, but the sandbox was working and left no word of leaving. */
+  'vanished',
+] as const;
+export type StopKind = (typeof STOP_KINDS)[number];
 export interface StopCause {
   kind: StopKind;
   at: string;
   text: string;
 }
+
+/** Windows live kernel events that are a graphics driver (GPU) reset or timeout. */
+const GPU_LIVE_KERNEL = ['117', '141', '1a8'];
+const VM_PROGRAMS = /vmwp\.exe|vmmem\w*|vmcompute|windowssandbox\w*/i;
 
 const UPDATERS =
   /^(trustedinstaller|mousocoreworker|musnotification(ux)?|usoclient|wuauclt|tiworker|updateorchestrator)\.exe$/i;
@@ -108,6 +127,50 @@ export function explainStop(events: StopEvent[]): StopCause | null {
         },
       ];
     }
+    // The graphics driver stopped responding and was reset: with vGPU the sandbox shares the GPU, so the VM goes too.
+    if (e.id === 4101 && p === 'display')
+      return [
+        {
+          kind: 'gpu',
+          at: e.at,
+          text: 'the graphics driver stopped responding and was reset while the sandbox used the GPU (vGPU)',
+        },
+      ];
+    const programs = VM_PROGRAMS.exec(e.process)?.[0];
+    if (e.id === 1001 && p.includes('windows error reporting') && /LiveKernelEvent/i.test(e.process)) {
+      const code = /\bP1:\s*([0-9a-f]{2,4})\b/i.exec(e.process)?.[1]?.toLowerCase();
+      if (code && GPU_LIVE_KERNEL.includes(code))
+        return [
+          {
+            kind: 'gpu',
+            at: e.at,
+            text:
+              'the graphics driver reset (Windows live kernel event ' +
+              code +
+              ') while the sandbox used the GPU (vGPU)',
+          },
+        ];
+    }
+    if (
+      (e.id === 1000 || e.id === 1001) &&
+      programs &&
+      /^(application error|windows error reporting)$/i.test(e.provider)
+    )
+      return [
+        {
+          kind: 'hyperv',
+          at: e.at,
+          text: 'a program that runs the sandbox VM (' + programs.toLowerCase() + ') crashed',
+        },
+      ];
+    if (/^microsoft-windows-hyper-v-(worker|vmswitch|compute)/.test(p) && e.id !== 18590 && e.id !== 40001)
+      return [
+        {
+          kind: 'hyperv',
+          at: e.at,
+          text: 'Hyper-V, which runs the sandbox VM, reported an error (event ' + e.id + ')',
+        },
+      ];
     return [];
   });
   return causes.sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0] ?? null;

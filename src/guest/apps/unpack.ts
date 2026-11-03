@@ -4,6 +4,7 @@ import { type AppEntry } from '../../shared/apps/index.js';
 import { downloader, extractArchive, githubAsset } from '../../shared/download/index.js';
 import { SYSTEM } from '../../shared/system.js';
 import { execAsync } from '../runtime/process.js';
+import { heavy, runInstallerChecked } from '../runtime/pools.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { tool } from '../toolchains/tool-env.js';
 import { type Download } from './resolvers.js';
@@ -18,7 +19,7 @@ export async function unpack(entry: AppEntry, file: string, out: string, d: Down
     const sevenZr = path.join(path.dirname(file), '7zr.exe');
     const zr = await githubAsset('ip7z/7zip', /^7zr\.exe$/);
     await downloader.file(zr.url, sevenZr, zr.sha256);
-    await execAsync(sevenZr, ['x', '-y', '-o' + out, file], { stdio: 'ignore' });
+    await heavy.run(() => execAsync(sevenZr, ['x', '-y', '-o' + out, file], { stdio: 'ignore' }));
     return;
   }
   switch (entry.unpack ?? 'archive') {
@@ -31,10 +32,10 @@ export async function unpack(entry: AppEntry, file: string, out: string, d: Down
       if (!exists(sevenZip()))
         throw new Error('7-Zip is needed to unpack ' + entry.name + ' and could not be installed');
       const raw = path.join(path.dirname(out), 'raw');
-      await execAsync(sevenZip(), ['x', '-y', '-o' + raw, file], { stdio: 'ignore' });
+      await heavy.run(() => execAsync(sevenZip(), ['x', '-y', '-o' + raw, file], { stdio: 'ignore' }));
       // electron-builder installers carry the app as one more archive inside.
       const inner = findExe(raw, '/^app-64\\.7z$/');
-      if (inner) await execAsync(sevenZip(), ['x', '-y', '-o' + out, inner], { stdio: 'ignore' });
+      if (inner) await heavy.run(() => execAsync(sevenZip(), ['x', '-y', '-o' + out, inner], { stdio: 'ignore' }));
       else fs.renameSync(raw, out);
       return;
     }
@@ -48,7 +49,7 @@ export async function unpack(entry: AppEntry, file: string, out: string, d: Down
     case 'msi': {
       // An administrative install only extracts the files: nothing is registered with Windows.
       mkdirp(out);
-      await execAsync(SYSTEM.msiexec(), ['/a', file, '/qn', 'TARGETDIR=' + out], { stdio: 'ignore' });
+      await runInstallerChecked(SYSTEM.msiexec(), ['/a', file, '/qn', 'TARGETDIR=' + out]);
       return;
     }
     default:

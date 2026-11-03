@@ -7,7 +7,7 @@ import { SYSTEM } from '../../shared/system.js';
 import { setupUv, uvVars } from '../toolchains/runtimes.js';
 import { emptyEnv } from '../toolchains/tool-env.js';
 import { dryRun, hostToolsDir, isWin, toolsDir } from '../runtime/paths.js';
-import { execAsync } from '../runtime/process.js';
+import { execHeavy as execAsync } from '../runtime/pools.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log, warn } from '../runtime/log.js';
 import { session } from '../runtime/session.js';

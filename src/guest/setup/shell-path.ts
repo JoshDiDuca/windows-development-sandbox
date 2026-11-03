@@ -5,13 +5,13 @@ import path from 'node:path';
 import { dryRun, isWin, localDir, testMode, toolsDir } from '../runtime/paths.js';
 import { mkdirp } from '../runtime/fs.js';
 import { ensureCompiled } from '../runtime/csc.js';
-import { runScript } from '../runtime/process.js';
+import { runScriptAsync } from '../runtime/process.js';
 
-export function installShellPath(): void {
+export async function installShellPath(): Promise<void> {
   if (!isWin || dryRun || testMode) return;
   const helper = path.join(mkdirp(path.join(localDir, 'bin')), 'pathsync.exe');
   fs.copyFileSync(ensureCompiled('pathsync'), helper);
-  runScript('install-shell-path.ps1', [
+  await runScriptAsync('install-shell-path.ps1', [
     '-Helper',
     helper,
     '-PwshDir',

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { safeRemove } from '../io/index.js';
+import type { Limiter } from '../concurrency/index.js';
 import { SYSTEM } from '../system.js';
 import { scriptArgs } from '../scripts.js';
 import { spawnAsync } from './spawn.js';
@@ -21,11 +22,22 @@ export function moveIntoPlace(work: string, destination: string): void {
   fs.renameSync(work, destination);
 }
 
+/** The guest's heavy pool (set by the guest at start-up; host code leaves it unset). */
+let extractLimit: Limiter | null = null;
+
+export function limitExtraction(limiter: Limiter | null): void {
+  extractLimit = limiter;
+}
+
 /**
  * Extracts .zip / .nupkg / .7z / .tar.gz with the tar.exe that ships with Windows, falling back to Expand-Archive.
  * `members` limits it to those paths inside the archive (e.g. skip pgAdmin in the PostgreSQL zip).
  */
-export async function extractArchive(archive: string, destination: string, members: string[] = []): Promise<void> {
+export function extractArchive(archive: string, destination: string, members: string[] = []): Promise<void> {
+  return extractLimit ? extractLimit.run(() => extract(archive, destination, members)) : extract(archive, destination, members);
+}
+
+async function extract(archive: string, destination: string, members: string[]): Promise<void> {
   fs.mkdirSync(destination, { recursive: true });
   let status = await spawnAsync(SYSTEM.tar(), ['-xf', archive, '-C', destination, ...members]);
   if (status !== 0 && /\.(zip|nupkg)$/i.test(archive)) {

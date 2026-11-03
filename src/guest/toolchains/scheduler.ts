@@ -16,6 +16,10 @@ export interface RunOptions {
   report?: (message: string) => void;
   /** What machine-wide (shared) steps contributed at boot: reused instead of run again. */
   reuse?: Record<string, ToolEnv>;
+  /** The boot: gets what runs now instead of the scheduler writing the sandbox status itself. */
+  progress?: (p: { active: { name: string; percent?: number }[]; done: number; total: number }) => void;
+  /** A step finished (installed, failed or reused). */
+  onDone?: (name: string) => void;
 }
 
 /** Runs one installer; a failure is reported and skipped so it never blocks the other toolchains. */
@@ -37,8 +41,28 @@ export class StepScheduler {
   private readonly locks = new Map<string, Promise<void>>();
   /** The step a download belongs to (several run at once), for its progress. */
   private readonly currentStep = new AsyncLocalStorage<string>();
+  /** Downloads started ahead of their steps (by name), until the step has used them. */
+  private readonly fetches = new Map<string, Promise<void>>();
 
   constructor(private readonly parallel = PARALLEL) {}
+
+  /**
+   * Starts the downloads of these steps now (once per step); `run` waits for a step's own download before it installs.
+   * Failures are not reported here: the install downloads again and reports the real reason.
+   */
+  startFetches(steps: readonly ToolchainStep[]): void {
+    for (const s of steps) {
+      if (!s.fetch || this.fetches.has(s.name)) continue;
+      this.fetches.set(
+        s.name,
+        this.currentStep
+          .run(s.name, async () => s.fetch!())
+          .catch(() => {
+            /* install downloads again and says why it failed */
+          }),
+      );
+    }
+  }
 
   /** Runs the steps (each with its own environment) and returns each step's environment, in plan order. */
   async run(steps: readonly ToolchainStep[], o: RunOptions): Promise<Map<string, ToolEnv>> {
@@ -54,10 +78,14 @@ export class StepScheduler {
       [...running].map((name) => ({ name, ...(percent.has(name) ? { percent: percent.get(name)! } : {}) }));
     const say =
       o.report ??
-      ((message: string) => setSandboxStatus('provisioning', message, { active: active(), done, total: steps.length }));
+      ((message: string) =>
+        o.progress
+          ? o.progress({ active: active(), done, total: steps.length })
+          : setSandboxStatus('provisioning', message, { active: active(), done, total: steps.length }));
     const report = (): void => {
       if (running.size) say('Installing ' + [...running].join(', ') + ' (' + done + ' of ' + steps.length + ' done)');
     };
+    this.startFetches(steps.filter((s) => !(s.shared && o.reuse?.[s.name])));
     if (!o.report)
       downloader.watch(() => {
         const name = this.currentStep.getStore();
@@ -79,8 +107,12 @@ export class StepScheduler {
           if (reused) {
             envs.set(s.name, structuredClone(reused));
             done++;
+            o.onDone?.(s.name);
             return;
           }
+          // Its download (started above, before the dependencies finished) is in by now, or still coming.
+          await this.fetches.get(s.name);
+          this.fetches.delete(s.name);
           while (running.size >= this.parallel) await new Promise<void>((r) => waiting.push(r));
           running.add(s.name);
           report();
@@ -94,6 +126,7 @@ export class StepScheduler {
             done++;
             report();
             waiting.shift()?.();
+            o.onDone?.(s.name);
           }
         })(),
       );
@@ -103,7 +136,8 @@ export class StepScheduler {
     } finally {
       if (!o.report) downloader.watch(null);
     }
-    if (!o.report)
+    o.progress?.({ active: [], done, total: steps.length });
+    if (!o.report && !o.progress)
       setSandboxStatus('provisioning', 'Set up ' + steps.length + ' toolchains and databases', {
         active: [],
         done,

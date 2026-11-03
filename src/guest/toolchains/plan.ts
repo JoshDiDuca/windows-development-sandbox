@@ -1,7 +1,7 @@
 // Which toolchain and database steps this sandbox runs, in the order their PATH entries are listed, and what each
 // step depends on. The scheduler (scheduler.ts) runs them.
 import type { Toolchains, ToolVersions } from '../../core/types.js';
-import { appsNeedMesa, appsNeedUv, setupApps } from '../apps/index.js';
+import { appsNeedMesa, appsNeedUv, prefetchApps, setupApps } from '../apps/index.js';
 import { dryRun } from '../runtime/paths.js';
 import { wanted } from './detect.js';
 import { DATABASE_NAMES, setupDatabase } from '../databases/index.js';
@@ -14,18 +14,18 @@ import { setupCpp } from './native/cpp.js';
 import { setupDotnet } from './native/dotnet.js';
 import { setupMesa } from './native/mesa.js';
 import { setupMsvc } from './native/msvc/index.js';
-import { setupUnreal } from './native/unreal.js';
-import { setupRust } from './native/rust.js';
+import { fetchDirectX, setupUnreal } from './native/unreal.js';
+import { fetchRustupInit, setupRust } from './native/rust.js';
 import { setupNode } from './languages/node.js';
 import { setupPwsh } from './tools/pwsh.js';
 import { setupPython } from './languages/python.js';
 import { setupBun, setupDeno, setupUv } from './runtimes.js';
-import { setupPhp } from './languages/php.js';
+import { fetchPhp, setupPhp } from './languages/php.js';
 import { setupRuby } from './languages/ruby.js';
-import { setupVcRuntime } from './native/vcruntime.js';
+import { fetchVcRuntime, setupVcRuntime } from './native/vcruntime.js';
 import { setupVscode } from './tools/vscode.js';
 import type { ToolchainOptions, ToolchainStep, ToolCtx } from './step.js';
-import { ensureVisualStudio, unrealUsesAutosdk, visualStudioWanted } from './native/visual-studio.js';
+import { ensureVisualStudio, prefetchVisualStudio, unrealUsesAutosdk, visualStudioWanted } from './native/visual-studio.js';
 import { duringSession } from '../runtime/project-context.js';
 import { setupSteam } from './steam/steam.js';
 import { setupGodot } from './engines/godot.js';
@@ -62,6 +62,9 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
     pcInstalls: o.pcInstalls ?? { items: [] },
     duringSession: duringSession(),
   };
+  // Downloads that run ahead of their steps (the scheduler starts them at once); a dry run downloads nothing.
+  const ahead = (work: () => Promise<void>): { fetch?: () => Promise<void> } => (dryRun ? {} : { fetch: work });
+  const deferred = o.deferHeavy === true && !dryRun;
   return [
     {
       name: 'Git',
@@ -84,8 +87,10 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       name: 'Visual Studio',
       enabled: vs !== null,
       shared: true,
+      background: deferred,
+      ...ahead(() => prefetchVisualStudio(vs!)),
       install: async (env) => {
-        await ensureVisualStudio(env, vs!, { keepInstallFiles: config.unreal.keepInstallFiles });
+        await ensureVisualStudio(env, vs!, { keepInstallFiles: config.unreal.keepInstallFiles, lowPriority: deferred });
       },
     },
     {
@@ -93,6 +98,7 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       enabled: unreal,
       shared: true,
       after: ['Visual Studio', 'MSVC'],
+      ...ahead(() => fetchDirectX(config.unreal)),
       install: (env) => setupUnreal(env, config.unreal, ctx),
     },
     {
@@ -111,7 +117,9 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
     {
       name: 'Rust',
       enabled: wanted(config.rust.enabled, 'rust'),
-      after: ['C/C++', 'MSVC', 'Visual Studio', 'Unreal'],
+      // Only the msvc host links with Visual Studio (and Unreal's tools): the GNU host does not wait for them.
+      after: rustHost(config).endsWith('-msvc') ? ['C/C++', 'MSVC', 'Visual Studio', 'Unreal'] : ['C/C++'],
+      ...ahead(fetchRustupInit),
       install: async (env) => {
         await setupRust(env, { ...config.rust, host: rustHost(config) }, o.refresh);
         const rust = resolveTargetDir(config.rust);
@@ -181,6 +189,7 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       name: 'Visual C++ runtime',
       enabled: config.vcRuntime.enabled || apps,
       shared: true,
+      ...ahead(fetchVcRuntime),
       install: async (env) => {
         await setupVcRuntime(env);
       },
@@ -189,6 +198,7 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       name: 'PHP',
       enabled: wanted(config.php.enabled, 'php'),
       after: ['Visual C++ runtime'],
+      ...ahead(() => fetchPhp(config.php)),
       install: (env) => setupPhp(env, config.php),
     },
     { name: 'Deno', enabled: wanted(config.deno.enabled, 'deno'), install: (env) => setupDeno(env) },
@@ -225,6 +235,7 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       enabled: apps,
       shared: true,
       after: ['Mesa 3D', 'Visual C++ runtime', 'uv'],
+      ...ahead(() => prefetchApps(o.apps!, { gitAccess: o.gitAccess, refresh: o.refresh })),
       install: (env) => setupApps(env, o.apps!, { gitAccess: o.gitAccess, refresh: o.refresh }),
     },
     {

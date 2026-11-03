@@ -5,6 +5,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { safeRemove } from '../io/index.js';
+import type { Limiter } from '../concurrency/index.js';
 import { fetchRetry } from './http.js';
 import { extractArchive, findFile, moveIntoPlace, stagingFolder } from './archive.js';
 
@@ -27,6 +28,8 @@ export interface ArchiveOptions extends Checksums {
   /** Folders above `locate`'s to keep. */
   up?: number;
   fileName?: string;
+  /** A copy of the archive that `file()` already downloaded (checked then): used and removed instead of downloading. */
+  cached?: string;
   members?: string[];
 }
 
@@ -39,6 +42,8 @@ export type DownloadWatcher = () => ((fraction: number) => void) | null;
 export class Downloader {
   /** downloads.requireChecksum: refuse anything without an expected hash. The guest sets it from session.json. */
   requireChecksum = false;
+  /** The guest's net pool: how many HTTP bodies stream at once. Host code leaves it null. */
+  limit: Limiter | null = null;
   private watcher: DownloadWatcher | null = null;
 
   /** Reports coarse progress of the downloads that start from now on to `watcher` (null: stop). */
@@ -62,45 +67,49 @@ export class Downloader {
           '): no checksum is published for it, and downloads.requireChecksum is on. Turn that setting off to allow downloads that cannot be verified.',
       );
     }
-    const response = await fetchRetry(url, {}, 3, 20 * 60 * 1000);
-    if (!response.body) throw new Error('Empty response for ' + url);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     // Only the hashes that will be checked (sha512 of a 330 MB archive is not free).
     const checks = (['sha256', 'sha512', 'sha1'] as const).flatMap((kind) => {
       const want = sums[kind]?.trim().toLowerCase();
       return want ? [{ want, hash: crypto.createHash(kind) }] : [];
     });
-    // Progress for the boot screen: every 10% or 5 s at most, never per chunk; called here so it knows who is
-    // downloading.
-    const size = Number(response.headers.get('content-length')) || 0;
-    const report = size > 0 ? (this.watcher?.() ?? null) : null;
-    let received = 0;
-    let tenth = 0;
-    let reportedAt = Date.now();
-    const tap = new Transform({
-      transform(chunk: Buffer, _encoding, done) {
-        for (const c of checks) c.hash.update(chunk);
-        if (report) {
-          received += chunk.length;
-          const now = Math.floor((received * 10) / size);
-          if (now !== tenth || Date.now() - reportedAt > 5000) {
-            tenth = now;
-            reportedAt = Date.now();
-            try {
-              report(Math.min(1, received / size));
-            } catch {
-              /* progress never breaks a download */
-            }
-          }
-        }
-        done(null, chunk);
-      },
-    });
     // Written to <destination>.part and moved into place only once complete and verified, so an interrupted download
     // never leaves a partial file under the real name.
     const partial = destination + '.part';
-    try {
+    // Only the transfer holds a net slot; the signature check and the rename below stay outside it.
+    const transfer = async (): Promise<void> => {
+      const response = await fetchRetry(url, {}, 3, 20 * 60 * 1000);
+      if (!response.body) throw new Error('Empty response for ' + url);
+      // Progress for the boot screen: every 10% or 5 s at most, never per chunk; called here so it knows who is
+      // downloading.
+      const size = Number(response.headers.get('content-length')) || 0;
+      const report = size > 0 ? (this.watcher?.() ?? null) : null;
+      let received = 0;
+      let tenth = 0;
+      let reportedAt = Date.now();
+      const tap = new Transform({
+        transform(chunk: Buffer, _encoding, done) {
+          for (const c of checks) c.hash.update(chunk);
+          if (report) {
+            received += chunk.length;
+            const now = Math.floor((received * 10) / size);
+            if (now !== tenth || Date.now() - reportedAt > 5000) {
+              tenth = now;
+              reportedAt = Date.now();
+              try {
+                report(Math.min(1, received / size));
+              } catch {
+                /* progress never breaks a download */
+              }
+            }
+          }
+          done(null, chunk);
+        },
+      });
       await pipeline(Readable.fromWeb(response.body as WebReadableStream), tap, fs.createWriteStream(partial));
+    };
+    try {
+      await (this.limit ? this.limit.run(transfer) : transfer());
       if (checks.some((c) => c.hash.digest('hex') !== c.want)) throw new Error('Checksum mismatch for ' + url);
       if (sums.verify) await sums.verify(partial);
       // Mapped folders refuse rename-over, so the old file goes first.
@@ -119,12 +128,17 @@ export class Downloader {
     const work = stagingFolder(destination);
     try {
       const archive = path.join(work, options.fileName ?? path.basename(new URL(url).pathname));
-      await this.file(url, archive, {
-        sha256: options.sha256,
-        sha512: options.sha512,
-        sha1: options.sha1,
-        ...(options.verify ? { verify: options.verify } : {}),
-      });
+      if (options.cached && fs.existsSync(options.cached)) {
+        fs.mkdirSync(work, { recursive: true });
+        fs.copyFileSync(options.cached, archive);
+        fs.rmSync(options.cached, { force: true });
+      } else
+        await this.file(url, archive, {
+          sha256: options.sha256,
+          sha512: options.sha512,
+          sha1: options.sha1,
+          ...(options.verify ? { verify: options.verify } : {}),
+        });
       const extracted = path.join(work, 'x');
       await extractArchive(archive, extracted, options.members);
       let root = extracted;

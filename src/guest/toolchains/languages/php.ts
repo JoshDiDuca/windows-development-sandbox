@@ -87,6 +87,18 @@ const setupComposer = async (env: ToolEnv, php: string): Promise<void> => {
   );
 };
 
+const PHP_RELEASES = 'https://windows.php.net/downloads/releases/';
+const phpCache = (zip: string): string => tool('downloads', 'php-' + path.basename(zip));
+
+/** Downloads PHP's zip ahead of the install (which unpacks it); nothing when PHP is there already. */
+export async function fetchPhp(config: Toolchains['php']): Promise<void> {
+  const spec = versionFromFiles(['.php-version']) ?? { spec: config.version, source: 'config' };
+  const version = await resolveCached('php:' + spec.spec, async () => (await phpBuild(spec.spec)).version);
+  if (exists(path.join(tool('php', version), 'php.exe'))) return;
+  const build = await phpBuild(version);
+  await downloader.file(PHP_RELEASES + build.path, phpCache(build.path), build.sha256);
+}
+
 export async function setupPhp(env: ToolEnv, config: Toolchains['php']): Promise<void> {
   const wantedSpec = versionFromFiles(['.php-version']) ?? { spec: config.version, source: 'config' };
   if (dryRun) {
@@ -100,10 +112,11 @@ export async function setupPhp(env: ToolEnv, config: Toolchains['php']): Promise
   if (!exists(path.join(home, 'php.exe'))) {
     const build = await phpBuild(version);
     log('Downloading PHP ' + version + ' (~30 MB once) ...');
-    await downloader.archive('https://windows.php.net/downloads/releases/' + build.path, home, {
+    await downloader.archive(PHP_RELEASES + build.path, home, {
       sha256: build.sha256,
       locate: 'php.exe',
       fileName: build.path,
+      cached: phpCache(build.path),
     });
   }
   writePhpIni(home);

@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { errMsg } from '../../../core/util/errors.js';
+import { heavy } from '../../runtime/pools.js';
 import { moveIntoPlace, spawnAsync, stagingFolder } from '../../../shared/download/index.js';
 import { safeRemove } from '../../../shared/io/safe-remove.js';
 import { exists } from '../../runtime/fs.js';
@@ -45,7 +46,7 @@ async function installSteamClient(): Promise<string> {
   try {
     log('Unpacking the Steam client into tools\\steam ...');
     // NSIS: /S silent, /D= the folder (last, unquoted: the staging path has no spaces).
-    const code = await spawnAsync(setup, ['/S', '/D=' + work], { timeout: SETUP_TIMEOUT_MS });
+    const code = await heavy.run(() => spawnAsync(setup, ['/S', '/D=' + work], { timeout: SETUP_TIMEOUT_MS }));
     const unpacked = path.join(work, 'steam.exe');
     if (!exists(unpacked)) throw new Error('SteamSetup.exe did not unpack steam.exe (exit code ' + code + ')');
     if (!signedBy(unpacked, SIGNERS.valve)) throw new Error('the unpacked steam.exe is not signed by Valve');

@@ -24,6 +24,12 @@ export const BootProgressSchema = z.strictObject({
   total: z.number().int().min(0).max(1000),
 });
 
+/** Work that goes on after the agent has started (Visual Studio installing): its name and how it is going. */
+export const BackgroundWorkSchema = z.strictObject({
+  name: Text(64),
+  state: z.enum(['running', 'done', 'failed']),
+});
+
 /** C:\AgentData\run\sandbox.json: boot progress of the sandbox as a whole. */
 export const SandboxStatusSchema = z.object({
   launchId: Text(64),
@@ -37,6 +43,8 @@ export const SandboxStatusSchema = z.object({
   addresses: z.array(z.string().max(45)).max(8).optional(),
   /** A malformed progress is dropped, never the status (the phase still counts). */
   progress: BootProgressSchema.optional().catch(undefined),
+  /** Installs that continue after the boot is ready; a malformed list is dropped, never the status. */
+  background: z.array(BackgroundWorkSchema).max(16).optional().catch(undefined),
 });
 
 const VersionSchema = z.strictObject({ spec: Text(128), source: Text(256) });
@@ -233,6 +241,7 @@ export type ProjectStatus = z.output<typeof ProjectStatusSchema>;
 export type AttachEndpoint = z.output<typeof AttachEndpointSchema>;
 export type SandboxStatus = z.output<typeof SandboxStatusSchema>;
 export type BootProgress = z.output<typeof BootProgressSchema>;
+export type BackgroundWork = z.output<typeof BackgroundWorkSchema>;
 export type GuestRequest = z.output<typeof GuestRequestSchema>;
 export type GuestResponse = z.output<typeof GuestResponseSchema>;
 export type SessionStatus = z.output<typeof SessionStatusSchema>;

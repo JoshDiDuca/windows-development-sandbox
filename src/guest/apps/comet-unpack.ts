@@ -8,6 +8,7 @@ import path from 'node:path';
 import type { AppSigner } from '../../shared/signer.js';
 import { installedCometExe } from '../browser/comet.js';
 import { execAsync } from '../runtime/process.js';
+import { heavy } from '../runtime/pools.js';
 import { mkdirp } from '../runtime/fs.js';
 import { signedBy } from '../toolchains/signature.js';
 
@@ -84,7 +85,7 @@ export async function unpackChromium(
   for (let level = 0; level < MAX_LEVELS; level++) {
     const dir = path.join(work, 'stage' + level);
     try {
-      await execAsync(sevenZip, ['x', '-y', '-o' + dir, current], { stdio: 'ignore' });
+      await heavy.run(() => execAsync(sevenZip, ['x', '-y', '-o' + dir, current], { stdio: 'ignore' }));
     } catch {
       break; // Not an archive 7-Zip opens: keep the installer.
     }

@@ -1,7 +1,7 @@
 // The Visual C++ runtime (vcruntime140.dll & co.) that PHP and other native tools need.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnAsync } from '../../../shared/download/index.js';
+import { runInstaller } from '../../runtime/pools.js';
 import { dryRun } from '../../runtime/paths.js';
 import { exists } from '../../runtime/fs.js';
 import { log } from '../../runtime/log.js';
@@ -12,6 +12,14 @@ import { tool, type ToolEnv } from '../tool-env.js';
 const VC_REDIST = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
 /** 1638: a newer version is already installed; 3010: installed, a restart would finish it (not needed for the DLLs). */
 const OK_EXIT_CODES: readonly number[] = [0, 1638, 3010];
+
+/** Downloads the installer ahead of `setupVcRuntime` (nothing when the runtime or the installer is there). */
+export async function fetchVcRuntime(): Promise<void> {
+  const system32 = path.join(process.env.WINDIR ?? 'C:\Windows', 'System32');
+  const installer = tool('vcredist', 'vc_redist.x64.exe');
+  if (exists(installer) || exists(path.join(system32, 'vcruntime140.dll'))) return;
+  await downloadFile(VC_REDIST, installer);
+}
 
 /**
  * A real installer (it writes to System32), so it runs on every boot; the installer itself is kept in persistent
@@ -36,7 +44,7 @@ export async function setupVcRuntime(env: ToolEnv, summary = true): Promise<bool
       throw new Error('vc_redist.x64.exe is not signed by Microsoft; deleted it (it is downloaded again next boot)');
     }
     log('Installing the Visual C++ runtime ...');
-    const code = await spawnAsync(installer, ['/install', '/quiet', '/norestart']);
+    const code = await runInstaller(installer, ['/install', '/quiet', '/norestart']);
     if (!OK_EXIT_CODES.includes(code ?? -1) || !exists(path.join(system32, 'vcruntime140.dll')))
       throw new Error('the Visual C++ runtime installer failed (exit ' + code + ')');
   }

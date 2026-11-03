@@ -7,7 +7,7 @@ import type { Toolchains } from '../../../../core/types.js';
 import { downloader, extractArchive, fetchJson } from '../../../../shared/download/index.js';
 import { safeRemove } from '../../../../shared/io/safe-remove.js';
 import { system32 } from '../../../../shared/system.js';
-import { execAsync } from '../../../runtime/process.js';
+import { runInstallerChecked } from '../../../runtime/pools.js';
 import { exists, mkdirp } from '../../../runtime/fs.js';
 import { log } from '../../../runtime/log.js';
 import { msiCabs, pickMsvcVersion, pickWindowsSdk } from '../../../../core/detect/versions.js';
@@ -110,9 +110,7 @@ const unpackVsix = async (vsix: string, work: string): Promise<void> => {
 const unpackMsi = async (msi: string): Promise<void> => {
   const logFile = msi + '.log';
   try {
-    await execAsync(system32('msiexec.exe'), ['/a', msi, '/quiet', '/qn', 'TARGETDIR=' + ROOT, '/l*v', logFile], {
-      stdio: 'ignore',
-    });
+    await runInstallerChecked(system32('msiexec.exe'), ['/a', msi, '/quiet', '/qn', 'TARGETDIR=' + ROOT, '/l*v', logFile]);
   } catch (e) {
     const lines = exists(logFile)
       ? fs

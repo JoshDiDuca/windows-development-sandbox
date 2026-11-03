@@ -7,6 +7,18 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **The menu and the web no longer tell you to type commands.** A failure can carry a fix as a button (the menu asks, the
+  web shows it next to the message; the command line prints `Run: ...`). Pages, setting descriptions and messages that
+  named a command now say where to click, and a self-test (`ui-text`) keeps it so. A second self-test (`menu-coverage`)
+  checks that every command, operation and setting has a place in the menu or a written reason. Links can open one
+  setting (`Settings` at that row) or GitHub's token form.
+- **GitHub token: a filled-in form, a check, and the expiry.** "Make a new token" opens GitHub with the name, 90 days and
+  the permissions already chosen. After you type the token GitHub is asked who it belongs to, when it ends and how many
+  repositories it reaches (a refused token is not saved). The card shows "expires soon" under 14 days, a launch
+  mentions a token that ends within 7 days, and the GitHub card is also on the Accounts page.
+
 ## 1.20.0
 
 - **Agent commands are a feature, not a beta, and work from every surface.** The switch is an action on the Agents page

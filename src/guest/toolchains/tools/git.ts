@@ -103,6 +103,21 @@ const pointAtOwnCertificates = (root: string): void => {
   if (fixed !== text) fs.writeFileSync(config, fixed);
 };
 
+/**
+ * Coreutils' link.exe (hard links) next to MSVC's linker: Git Bash puts its own /usr/bin first on PATH, whatever the
+ * Windows PATH says, so a msvc Rust build ran the wrong `link` (os error 1392). Renamed; nobody needs it here.
+ */
+const hideCoreutilsLink = (usrBin: string): void => {
+  const link = path.join(usrBin, 'link.exe');
+  if (!exists(link)) return;
+  try {
+    fs.rmSync(path.join(usrBin, 'link-coreutils.exe'), { force: true });
+    fs.renameSync(link, path.join(usrBin, 'link-coreutils.exe'));
+  } catch (e) {
+    warn("Could not rename Git's coreutils link.exe (MSVC link may be shadowed in Git Bash): " + errMsg(e));
+  }
+};
+
 export async function setupGit(env: ToolEnv, hostCopy: boolean, refresh: boolean, access: GitAccess): Promise<void> {
   const root = tool('git');
   const bash = path.join(root, 'bin', 'bash.exe');
@@ -136,6 +151,8 @@ export async function setupGit(env: ToolEnv, hostCopy: boolean, refresh: boolean
   if (!exists(bash)) throw new Error('bash.exe missing after installing Git');
   pointAtOwnCertificates(root);
   env.vars.CLAUDE_CODE_GIT_BASH_PATH = bash;
+  // usr\bin is on PATH for Git's tools in cmd and PowerShell, last (path-plan.ts keeps MSVC before it).
+  hideCoreutilsLink(path.join(root, 'usr', 'bin'));
   env.append.push(path.join(root, 'usr', 'bin'));
   const version = execOutput(gitExe, ['--version']).replace(/^git version /, '');
   if (access === 'full') {

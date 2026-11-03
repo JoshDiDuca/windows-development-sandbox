@@ -26,6 +26,7 @@ const PORTABLE_CORE = [
 const PURE_GUEST = [
   'guest/git/decision.js',
   'guest/setup/git-rules.js',
+  'guest/boot/guide-lines.js',
   'guest/boot/project-env.js',
   'guest/audit/parse.js',
   'guest/sessions/cmdline.js',

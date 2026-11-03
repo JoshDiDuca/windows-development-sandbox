@@ -50,6 +50,9 @@ Claude's project history working, since both store absolute paths.
 | anywhere else                                                                   | `C:\Workspace\app`              | its PC path (a shared folder: `C:\Workspace\app`) |
 
 - Starting from `app` maps its whole root and opens `app` inside it (no second mapping).
+- The sandbox guide (the managed `CLAUDE.md` every agent reads) names each mapped root as
+  `C:\Projects\AgentProjects\*` = the PC folder, so agents know every project in it persists, and lists the tools of
+  each project that was set up.
 - Some projects keep their own `C:\Workspace\app` mapping even in a root, with a note at launch: a fixed
   `guestWorkspace` path, `readOnly`, or `workspaceFilter` (the root would show the folder unfiltered and writable).
 - Two projects with the same folder name: the second gets `C:\Workspace\app-2`.

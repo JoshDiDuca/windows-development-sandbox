@@ -10,7 +10,15 @@ import { warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
 import { localStateVars } from '../agents/local-state.js';
 import { agentPaths } from '../agents/agent-files.js';
-import { appendMissing, expandVars, isPinnedNodeDir, parseRegPath, pathKey, planPath } from './path-plan.js';
+import {
+  appendMissing,
+  expandVars,
+  isPinnedNodeDir,
+  msvcBeforeGitUsr,
+  parseRegPath,
+  pathKey,
+  planPath,
+} from './path-plan.js';
 
 /** Older launch folders have no agentHomes: these two were always set. */
 const LEGACY_HOMES: Record<string, string> = { CODEX_HOME: 'codex', GEMINI_CLI_HOME: 'gemini' };
@@ -75,7 +83,8 @@ export function agentEnv(
   // The runner's own Node (bootstrap.ps1 puts it first on PATH) is not exposed: `node` is whatever nvm selected.
   const runners = [path.join(toolsDir, 'node'), path.dirname(process.execPath)].map((d) => d.toLowerCase());
   const base = (target.base.PATH ?? '').split(path.delimiter).filter((d) => d && !runners.includes(d.toLowerCase()));
-  env.PATH = [...new Set([...tools.prepend, ...base, ...tools.append])].join(path.delimiter);
+  // MSVC's link.exe before Git's coreutils link.exe, wherever each came from.
+  env.PATH = msvcBeforeGitUsr([...new Set([...tools.prepend, ...base, ...tools.append])]).join(path.delimiter);
   return env;
 }
 

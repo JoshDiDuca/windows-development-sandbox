@@ -12,7 +12,7 @@ import { ListPage, type Outcome } from './list-page.js';
 /** What the page shows: the sessions query's result (the folder column is never shown here). */
 export type SessionsModel = Omit<SessionsList, 'wide'>;
 
-function view(m: SessionsModel): MenuView {
+export function sessionsMenu(m: SessionsModel): MenuView {
   // Reopening the last sessions runs the hand-written `resume` on the normal screen: a key of the menu, not a link.
   const resume = link({ kind: 'command', argv: ['resume'] }, 'Reopen last sessions', {
     key: 'o',
@@ -25,7 +25,7 @@ function view(m: SessionsModel): MenuView {
 
 /** The list for the sessions tab. Pure. */
 export function sessionsOptions(m: SessionsModel): ListOptions<string> {
-  const v = view(m);
+  const v = sessionsMenu(m);
   return { path: [], items: v.items, actions: v.actions, enterLabel: v.enterLabel };
 }
 
@@ -52,7 +52,7 @@ export class SessionsPage extends ListPage<string> {
   }
 
   protected async act(result: ListResult<string>): Promise<Outcome<string>> {
-    const chosen = view(this.model).resolve(result);
+    const chosen = sessionsMenu(this.model).resolve(result);
     if (!chosen) return {};
     if (chosen.kind === 'refresh') return { reload: true };
     return this.operations.perform(chosen.action, [this.label], (text) => this.busy(text));

@@ -165,7 +165,7 @@ const NO_UPDATES: UpdatesStatus = {
  * The logs view's rows and keys for the Logs category (its own empty row is left out: the category shows the page's
  * "Nothing here yet.").
  */
-function logsMenu(files: LogFiles): MenuView {
+export function logsMenu(files: LogFiles): MenuView {
   // Following a log runs the hand-written `logs --follow` on the normal screen: a menu key, not a page link.
   const follow = link({ kind: 'command', argv: ['logs', '--follow'] }, 'Follow the newest log', {
     key: 'f',

@@ -33,6 +33,8 @@ import { keepShownSecrets, settingsPage } from '../app/features/settings/index.j
 import { checkEngine, checkText, enginePage, type Leftovers } from '../app/features/engine/index.js';
 import { runUpdate, updatesPage, type UpdatesStatus } from '../app/features/updates/index.js';
 import { MenuOperations } from '../cli/menu/io-menu.js';
+import { sessionsMenu } from '../cli/menu/pages/sessions-page.js';
+import { logsMenu } from '../cli/menu/pages/maintenance-page.js';
 import type { AppContext } from '../app/context.js';
 import {
   accessNeeded,
@@ -480,7 +482,8 @@ export const appSuite: Suite = {
       'No sessions. Start one with: sandbox claude',
       'an empty page prints its command-line text',
     );
-    const menu = menuView(sessions);
+    const { wide: _wide, ...sessionsModel } = { ...list, wide: false };
+    const menu = sessionsMenu(sessionsModel);
     const chosen = menu.resolve({ kind: 'pick', value: 'new' });
     t.check(
       menu.items.length === 2 &&
@@ -1389,7 +1392,7 @@ export const appSuite: Suite = {
       'the logs page: one row per log, the shown one badged, the crash report last, the end of the log as text',
       itemIds.join(),
     );
-    const logsMenuNow = menuView(logsPage(withCrash), { category: 'logs', refresh: false });
+    const logsMenuNow = logsMenu(withCrash);
     t.check(
       logsMenuNow.actions.map((a) => a.key).join() === 'f' &&
         logsMenuNow.enterLabel('logs', 'log:guest-a.log') === 'show' &&

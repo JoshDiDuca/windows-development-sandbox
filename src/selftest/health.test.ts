@@ -300,7 +300,7 @@ async function engine(t: Harness): Promise<void> {
   const text = out.join('');
   t.includes(text, '\nThis PC\n  [ok] Windows: p1 is fine', 'headings, then one line per check with a status mark');
   t.includes(text, 'What it means: it hurts', 'a problem says what it means');
-  t.includes(text, 'Fix: sandbox repair will mend the cracks', 'a fixable problem says repair will fix it');
+  t.includes(text, 'Fix: repair will mend the cracks', 'a fixable problem says repair will fix it');
   t.includes(text, 'Fix: check your VPN', 'a problem repair cannot mend says what to do');
   t.includes(text, 'Repair will change:', 'the changes are listed before they are made');
   t.includes(text, '[fixed] Cracks: mended the cracks', 'a fix is reported on its own line');
@@ -743,7 +743,7 @@ async function sharedCore(t: Harness): Promise<void> {
   const logged = fake.seen.logs.map((l) => l.text).join('\n');
   t.includes(logged, '  [ok] Windows: p1 is fine', 'ioEvents writes a line per result, like the printer');
   t.includes(logged, 'What it means: it hurts', 'ioEvents says what a problem means');
-  t.includes(logged, 'Fix: sandbox repair will mend the cracks', 'ioEvents says what repair would do');
+  t.includes(logged, 'Fix: repair will mend the cracks', 'ioEvents says what repair would do');
   t.includes(logged, 'Repair will change:', 'ioEvents lists the changes before they are made');
   t.includes(logged, '[fixed] Cracks: mended the cracks', 'ioEvents reports a fix on its own line');
 

@@ -22,7 +22,7 @@ export function forwardTarget(packageRoot: string, installRoot: string | null, n
 }
 
 const posix = (p: string): string =>
-  p.replace(/^([A-Za-z]):/, (_m, d: string) => '/' + d.toLowerCase()).replace(/\/g, '/');
+  p.replace(/^([A-Za-z]):/, (_m, d: string) => '/' + d.toLowerCase()).replace(/\\/g, '/');
 
 /** The .cmd file for one agent (cmd, PowerShell and Windows Terminal all run it). */
 export function forwardingCmd(a: AgentCommand, target: ForwardTarget): string {
@@ -51,7 +51,7 @@ export function forwardingCmd(a: AgentCommand, target: ForwardTarget): string {
 
 /** The same for Git Bash, which looks for a file without an extension. */
 export function forwardingSh(a: AgentCommand, target: ForwardTarget): string {
-  const q = (s: string): string => "'" + s.replace(/'/g, "'\''") + "'";
+  const q = (s: string): string => "'" + s.replace(/'/g, "'\\''") + "'";
   const launch = ' launch --harness ' + a.harness + ' --headless --terminal -- "$@"';
   const shLauncher = target.launcher ? posix(target.launcher).replace(/\.cmd$/i, '') : null;
   return [

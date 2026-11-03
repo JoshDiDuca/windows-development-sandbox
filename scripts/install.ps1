@@ -188,7 +188,7 @@ param(
     Send-EnvironmentChange
   }
   function Remove-AgentCommands {
-    # The agent commands (claude, codex ... forwarding files) sit in <data folder>gent-commands, first on YOUR PATH.
+    # The agent commands (claude, codex ... forwarding files) sit in <data folder>/agent-commands, first on YOUR PATH.
     # After an uninstall their files would call a program that is gone, so the files this tool wrote (they carry the
     # marker) and the PATH entries that point at such a folder go too.
     $marker = 'windows-development-sandbox agent command'
@@ -196,8 +196,8 @@ param(
     try {
       $raw = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
     } finally { $key.Close() }
-    foreach ($entry in @($raw -split ';' | Where-Object { $_ -and $_.TrimEnd('') -match '\agent-commands$' })) {
-      $folder = [Environment]::ExpandEnvironmentVariables($entry.TrimEnd(''))
+    foreach ($entry in @($raw -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -match '\\agent-commands$' })) {
+      $folder = [Environment]::ExpandEnvironmentVariables($entry.TrimEnd('\'))
       if (Test-Path -LiteralPath $folder) {
         $ours = @(Get-ChildItem -LiteralPath $folder -File -Force -ErrorAction SilentlyContinue | Where-Object { Select-String -LiteralPath $_.FullName -SimpleMatch $marker -Quiet -ErrorAction SilentlyContinue })
         if ($ours.Count -eq 0) { continue }

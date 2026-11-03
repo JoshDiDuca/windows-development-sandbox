@@ -58,6 +58,10 @@ export function guestSession(o: GenerateOptions, parts: SessionParts): GuestSess
     projectsDir: PROJECTS_GUEST,
     // Every folder mapped for other projects (roots and projects mapped at boot): the guest accepts projects in them.
     roots: [...parts.boot.roots, ...parts.boot.projects].map((r) => r.guest),
+    mappedProjects: [
+      ...parts.boot.roots.map((r) => ({ host: r.host, guest: r.guest, root: true })),
+      ...parts.boot.projects.map((r) => ({ host: r.host, guest: r.guest })),
+    ],
     ...(o.autoSession === false ? { autoSession: false } : {}),
     harnessName,
     // The environment (it may hold API keys) travels in a one-shot file in <data>\secrets, never in this file.

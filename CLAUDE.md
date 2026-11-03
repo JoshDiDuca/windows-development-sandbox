@@ -32,7 +32,7 @@ User docs: README.md and docs/. Contributor summary: CONTRIBUTING.md. Releases: 
   (`NEVER_LOOSER` in `core/local-config/overrides.ts`). Never add storage, executables, secrets or host folders to
   `LocalOverrides`. Machine-wide protections are never loosened (`core/local-config/policy.ts`).
 - **No side-effect imports across the boundary.** Host code and tests may import only these guest files:
-  `git/decision`, `setup/git-rules`, `boot/project-env`, `audit/parse`, `sessions/cmdline`, `toolchains/catalogue`,
+  `git/decision`, `setup/git-rules`, `boot/project-env`, `boot/guide-lines`, `audit/parse`, `sessions/cmdline`, `toolchains/catalogue`,
   `toolchains/tools/vscode-profile`, `governor/decide`, `governor/core`, `daemon/live-folders`, `accounts/*` (not
   `daemon/accounts`), `toolchains/persisted`, `toolchains/native/vs-request` (`runtime/session.ts`
   reads session.json and `runtime/log.ts` creates the logs folder on import; inside a sandbox that file exists, so a bad

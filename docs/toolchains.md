@@ -157,6 +157,16 @@ One planner sets the machine PATH: in order, without duplicates or missing folde
 machine and user PATH, whatever started it. Agent sessions and `sandbox exec` also get folders added to the machine PATH
 since the sandbox started.
 
+Python and Rust that are already installed in `C:\AgentData\tools` (`python\python-<version>`, `rust\cargo`) are on
+PATH for every project and terminal in the sandbox, even one whose own files did not turn them on (they go last, so a
+project's own toolchains still win). Nothing is installed or changed for that: a project that wants a version, or a
+toolchain that is not installed yet, still gets it from its own settings and detection. A `python` or `python.cmd`
+file you put in `C:\AgentData\tools\bin` as a workaround is no longer needed and can be deleted.
+
+Git's `usr\bin` (coreutils) is last on PATH, after MSVC's folder, and its `link.exe` is renamed to
+`link-coreutils.exe` in the sandbox's copy of Git. Otherwise `link` was the coreutils program, which made MSVC Rust
+builds fail with os error 1392.
+
 ## Databases
 
 Each database starts only when the project needs it. That is found from compose images, dependencies in every ecosystem

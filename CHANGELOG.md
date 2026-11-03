@@ -7,6 +7,19 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Python and Rust are on PATH for every project once installed.** A session of another project in the same sandbox
+  (or a terminal tab) had no `python` or `rustup` when that project's own files did not turn them on, although both
+  were installed in `C:\AgentData\tools`. They are now added to PATH (at the end) whenever they are installed there;
+  nothing is installed for it. Workaround shims in `C:\AgentData\tools\bin` can be deleted.
+- **The sandbox guide lists every project.** The "persists" line names each mapped project root
+  (`C:\Projects\AgentProjects\*` = your PC folder) instead of only the launch folder, and the tools of each project
+  set up in the sandbox are listed by project.
+- **MSVC's `link` comes before Git's.** Git's coreutils `link.exe` shadowed the linker, so MSVC Rust builds failed
+  with os error 1392. MSVC's folder is now always before Git's `usr\bin` on PATH, and the coreutils `link.exe` is
+  renamed in the sandbox's Git.
+
 ## 1.20.1
 
 - **C++ persists (Visual Studio install files saved).** The Visual Studio installer always crashes (0xE0434352) when it

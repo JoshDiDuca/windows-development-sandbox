@@ -17,7 +17,11 @@ import {
 import {
   appendMissing,
   expandVars,
+  installedToolPaths,
+  isGitUsrBin,
+  isMsvcToolsDir,
   isPinnedNodeDir,
+  msvcBeforeGitUsr,
   parseRegPath,
   pathKey,
   planPath,
@@ -165,6 +169,79 @@ export const agentPathsSuite: Suite = {
       'reg query output is parsed',
     );
     t.equal(parseRegPath('ERROR: nothing'), '', 'no Path value is an empty PATH');
+
+    t.section('MSVC link before Git coreutils link');
+    const gitUsr = 'C:\\AgentData\\tools\\git\\usr\\bin';
+    const msvcBin = 'C:\\AgentData\\tools\\msvc\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64';
+    t.check(
+      isGitUsrBin(gitUsr) && isGitUsrBin('C:\\Program Files\\Git\\usr\\bin\\') && !isGitUsrBin('C:\\x\\usr\\bin'),
+      "only Git's usr\\bin is recognised",
+    );
+    t.check(isMsvcToolsDir(msvcBin) && !isMsvcToolsDir('C:\\a\\bin'), "MSVC's compiler folder is recognised");
+    t.equal(
+      msvcBeforeGitUsr(['C:\\a', gitUsr, 'C:\\b', msvcBin, 'C:\\c']),
+      ['C:\\a', msvcBin, gitUsr, 'C:\\b', 'C:\\c'],
+      'MSVC found after Git usr\\bin moves just before it',
+    );
+    t.equal(msvcBeforeGitUsr([msvcBin, 'C:\\a', gitUsr]), [msvcBin, 'C:\\a', gitUsr], 'already in order: unchanged');
+    t.equal(msvcBeforeGitUsr(['C:\\a', gitUsr]), ['C:\\a', gitUsr], 'no MSVC: unchanged');
+    t.equal(
+      planPath({ entries: [gitUsr, msvcBin], exists: () => true }),
+      [msvcBin, gitUsr],
+      'the machine PATH plan puts MSVC first',
+    );
+    t.equal(
+      appendMissing(gitUsr, msvcBin).split(';'),
+      [msvcBin, gitUsr],
+      'a process that gains the MSVC folder later still finds its link first',
+    );
+
+    t.section('installed python and rust on every project');
+    const tree = new Set(
+      [
+        'python\\python-3.9.1\\python.exe',
+        'python\\python-3.15.2\\python.exe',
+        'python\\python-3.15.2',
+        'python\\python2-2.7.18\\python.exe',
+        'python\\python-3.20.0',
+        'shims\\py.cmd',
+        'rust\\cargo\\bin\\rustup.exe',
+      ].map((p) => 'c:\\t\\' + p.toLowerCase()),
+    );
+    const names: Record<string, string[]> = {
+      'c:\\t\\python': ['python-3.9.1', 'python-3.15.2', 'python2-2.7.18', 'python-3.20.0'],
+    };
+    const toolsFs = {
+      exists: (f: string): boolean => tree.has(f.toLowerCase()),
+      list: (d: string): string[] => names[d.toLowerCase()] ?? [],
+    };
+    const both = installedToolPaths('C:\\T', toolsFs);
+    t.equal(
+      both.append,
+      [
+        'C:\\T\\python\\python-3.15.2',
+        'C:\\T\\python\\python-3.15.2\\Scripts',
+        'C:\\T\\shims',
+        'C:\\T\\rust\\cargo\\bin',
+      ],
+      'the newest complete Python (not Python 2, not an unfinished folder) and rust go on PATH',
+    );
+    t.equal(
+      both.vars,
+      { RUSTUP_HOME: 'C:\\T\\rust\\rustup', CARGO_HOME: 'C:\\T\\rust\\cargo' },
+      "rust's own tools find their homes",
+    );
+    t.check(both.summary.length === 2, 'the guide can say what is there');
+    t.equal(
+      installedToolPaths('C:\\T', toolsFs, new Set(['python', 'rust'])).append,
+      [],
+      'a toolchain whose step runs brings its own entries',
+    );
+    t.equal(
+      installedToolPaths('C:\\Empty', { exists: () => false, list: () => [] }).append,
+      [],
+      'nothing installed: nothing added',
+    );
 
     t.section('Windows Terminal reloads the environment');
     t.equal(

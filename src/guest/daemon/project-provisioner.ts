@@ -77,7 +77,12 @@ function refreshGuide(projects: readonly Provisioned[]): void {
   if (dryRun || (process.env.AGENT_SANDBOX_SELFTEST === '1' && !process.env.AGENT_MANAGED_DIR)) return;
   const boot = readBootEnv();
   if (!boot) return;
-  const list = projects.map((p) => ({ guest: p.spec.workspace, host: p.spec.workspaceHost }));
+  const list = projects.map((p) => ({
+    guest: p.spec.workspace,
+    host: p.spec.workspaceHost,
+    name: p.spec.name,
+    tools: p.summary,
+  }));
   try {
     writeGuides(boot.summary, boot.lan, list);
   } catch (e) {

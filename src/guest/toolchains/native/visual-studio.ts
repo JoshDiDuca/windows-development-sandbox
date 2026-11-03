@@ -20,9 +20,15 @@ import { logsDir } from '../../runtime/paths.js';
 import { duringSession } from '../../runtime/project-context.js';
 import { errMsg } from '../../../core/util/errors.js';
 import { SIGNERS, signedInstaller } from '../installers.js';
-import { assertLocalRoom, freeBytes, LOCAL_RESERVE_BYTES } from '../persisted.js';
+import { assertLocalRoom, freeBytes } from '../persisted.js';
 import { tool, type ToolEnv } from '../tool-env.js';
-import { layoutNextStep, vsExitText, type VsRequest } from './vs-request.js';
+import {
+  LAYOUT_STAGING_BYTES,
+  layoutNextStep,
+  STAGING_RESERVE_BYTES,
+  vsExitText,
+  type VsRequest,
+} from './vs-request.js';
 
 export {
   BUILD_TOOLS_COMPONENTS,
@@ -168,18 +174,18 @@ async function layoutInstaller(req: VsRequest, bootstrapper: string): Promise<st
   }
   log('Saving the Visual Studio install files for later boots (~10 GB, once) ...');
   fs.rmSync(marker, { force: true });
-  // (a) The installer writes its scratch files to TEMP and moves them into the layout: a TEMP on the same (mapped)
-  // volume, inside the layout's folder tree, keeps those moves on one volume.
-  const scratch = mkdirp(path.join(VS_DIR, 'tmp'));
-  const code = await spawnAsync(bootstrapper, layoutArgs(req, layout), {
-    env: { ...process.env, TEMP: scratch, TMP: scratch },
-  });
-  if (OK_EXIT_CODES.includes(code) && exists(installer)) return finish();
-  reportLayoutFailure(code, [scratch, os.tmpdir()]);
-  // (b) Build it on the sandbox's own disk instead, then copy it over.
+  // The installer crashes (0xE0434352) when it builds the layout in a mapped folder, so it is built on the sandbox's
+  // own disk and copied over. That runs before Visual Studio is installed and the copy on C: is deleted first, so it
+  // needs room for the layout only (STAGING_RESERVE_BYTES spare), not for the layout and the install together.
   const drive = (process.env.SystemDrive ?? 'C:') + '\\';
-  if (layoutNextStep(code, freeBytes(drive), LOCAL_RESERVE_BYTES) !== 'stage') {
-    warn('Visual Studio: not enough room on ' + drive + ' to build the install files there; downloading this boot');
+  if (layoutNextStep(null, freeBytes(drive), STAGING_RESERVE_BYTES) !== 'stage') {
+    warn(
+      'Visual Studio: less than ' +
+        Math.round((LAYOUT_STAGING_BYTES + STAGING_RESERVE_BYTES) / 1024 ** 3) +
+        ' GB free on ' +
+        drive +
+        ' to build the install files; downloading this boot',
+    );
     return null;
   }
   const staging = path.join(drive, 'vs-layout-staging');
@@ -213,15 +219,22 @@ async function install(req: VsRequest, keepInstallFiles: boolean): Promise<void>
       warn('Visual Studio: the offline copy failed (' + errMsg(e) + '); downloading this boot');
     }
   }
+  const run = (from: string, offline: boolean): Promise<number> =>
+    spawnAsync(from, [
+      '--quiet',
+      '--wait',
+      '--norestart',
+      '--nocache',
+      ...(offline ? ['--noWeb'] : []),
+      ...req.components.flatMap((id) => ['--add', id]),
+    ]);
   log('Installing ' + boot.name + (installer ? ' from the saved install files' : ' (downloads ~5-8 GB)') + ' ...');
-  const code = await spawnAsync(installer ?? bootstrapper, [
-    '--quiet',
-    '--wait',
-    '--norestart',
-    '--nocache',
-    ...(installer ? ['--noWeb'] : []),
-    ...req.components.flatMap((id) => ['--add', id]),
-  ]);
+  let code = await run(installer ?? bootstrapper, installer !== null);
+  if (installer && (!OK_EXIT_CODES.includes(code) || !installedVs())) {
+    // The saved copy is on the shared data disk: if installing from it fails, this boot downloads instead.
+    warn('Visual Studio: installing from the saved install files failed (' + vsExitText(code) + '); downloading');
+    code = await run(bootstrapper, false);
+  }
   if (!OK_EXIT_CODES.includes(code) || !installedVs())
     throw new Error(
       'the Visual Studio installer failed (exit ' +

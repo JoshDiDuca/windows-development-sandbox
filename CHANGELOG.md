@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.20.1
+
+- **C++ persists (Visual Studio install files saved).** The Visual Studio installer always crashes (0xE0434352) when it
+  builds its install files in the shared data folder. They are now built on the sandbox's own disk before Visual Studio
+  is installed (15 GB free is enough instead of 25 GB), copied to the data disk and deleted from C:, so later boots
+  install offline. If installing from the saved copy fails, that boot downloads instead.
+
 ## 1.20.0
 
 - **Agent commands are a feature, not a beta, and work from every surface.** The switch is an action on the Agents page

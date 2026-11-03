@@ -18,7 +18,13 @@ import {
   UNREAL_COMPONENTS,
   visualStudioWanted,
 } from '../guest/toolchains/native/vs-request.js';
-import { autosdkLayout, layoutNextStep, unrealUsesAutosdk, vsExitText } from '../guest/toolchains/native/vs-request.js';
+import {
+  autosdkLayout,
+  layoutNextStep,
+  STAGING_RESERVE_BYTES,
+  unrealUsesAutosdk,
+  vsExitText,
+} from '../guest/toolchains/native/vs-request.js';
 import { freeBytesAt } from '../shared/io/disk.js';
 import { SIGNERS, signerMatches } from '../shared/signer.js';
 import { decideToolchains } from '../core/detect/toolchains.js';
@@ -238,6 +244,11 @@ export const persistedInstallsSuite: Suite = {
         layoutNextStep(3762504530, room(20 * GB), reserve) === 'skip' &&
         layoutNextStep(null, room(40 * GB), reserve) === 'stage',
       'a failed layout is built on the sandbox disk only with room for it (12 GB plus the reserve)',
+    );
+    t.check(
+      layoutNextStep(null, room(15 * GB), STAGING_RESERVE_BYTES) === 'stage' &&
+        layoutNextStep(null, room(14 * GB), STAGING_RESERVE_BYTES) === 'skip',
+      'before Visual Studio is installed, 15 GB free on C: is enough to build the install files there',
     );
     t.equal(
       freeBytesAt(path.join(t.dir('layout-room'), 'not', 'there'), () => ({ bavail: 3, bsize: 2 })),

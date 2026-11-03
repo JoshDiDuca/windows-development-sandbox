@@ -99,6 +99,8 @@ export function vsExitText(code: number): string {
 
 /** Room the staging copy of the layout needs on the sandbox's own disk, on top of the reserve. */
 export const LAYOUT_STAGING_BYTES = 12 * 1024 ** 3;
+/** Spare room on the sandbox's disk while the layout is built there (before Visual Studio is installed). */
+export const STAGING_RESERVE_BYTES = 3 * 1024 ** 3;
 
 /**
  * What to do after the layout attempt in the data disk: 'done' when it worked, 'stage' (build it on the sandbox's

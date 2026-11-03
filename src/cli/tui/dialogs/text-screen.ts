@@ -124,7 +124,9 @@ export class TextScreen implements Screen<string | undefined> {
     if (key.text) {
       const accept = this.o.accept;
       // Line breaks and the bracketed-paste markers a terminal wraps around pasted text are not part of the text.
-      const add = [...key.text.replace(/\x1b?\[20[01]~/g, '').replace(/[\r\n]/g, '')].filter((c) => !accept || accept.test(c));
+      const add = [...key.text.replace(/\x1b?\[20[01]~/g, '').replace(/[\r\n]/g, '')].filter(
+        (c) => !accept || accept.test(c),
+      );
       if (!add.length) return;
       set([...chars.slice(0, this.cursor), ...add, ...chars.slice(this.cursor)], this.cursor + add.length);
     }

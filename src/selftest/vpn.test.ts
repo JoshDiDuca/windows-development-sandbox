@@ -15,8 +15,11 @@ import { ConfigSchema, LocalOverridesSchema } from '../core/schema/index.js';
 import { SecretStore } from '../host/secrets/index.js';
 import { clearSecrets } from '../host/secrets/index.js';
 import { generateSandbox } from '../host/launch/index.js';
+import { classifyFailure, FAILURE_TEXT } from '../shared/vpn/failure.js';
 import {
   findCountry,
+  loginProblem,
+  loginWarning,
   nordProfile,
   prepareVpn,
   wireguardFileProblem,
@@ -382,6 +385,75 @@ export const vpnSuite: Suite = {
     login.remove('nordvpn');
     t.check(login.state('nordvpn') === 'none', 'logout deletes it');
 
+    t.section('NordVPN login checks and why a tunnel failed');
+    const sampleStatus = (): VpnStatus => ({
+      enabled: true,
+      provider: 'nordvpn',
+      protocol: 'udp',
+      country: '',
+      killSwitch: true,
+      login: 'saved',
+      loginSavedAt: '2026-11-02T19:00:00.000Z',
+      running: null,
+      lastFailure: null,
+    });
+    t.check(
+      (loginProblem({ username: 'me@example.com', password: 'x' }, 'nordvpn') ?? '').includes('service credentials') &&
+        loginProblem({ username: 'me@example.com', password: 'x' }, 'openvpn-file') === null &&
+        (loginProblem({ username: 'abc', password: 'p[200~w' }, 'nordvpn') ?? '').includes('paste'),
+      'an e-mail is refused for NordVPN only (it needs the service credentials); hidden paste markers are refused',
+    );
+    login.save('nordvpn', { username: '  ' + USERNAME + ' ', password: ' ' + PASSWORD + '  ' });
+    t.equal(
+      login.read('nordvpn'),
+      { username: USERNAME, password: PASSWORD },
+      'spaces around the user name and the password are not saved (a pasted login often has them)',
+    );
+    t.check(
+      loginWarning({ username: 'x', password: 'y' }, 'openvpn-file') === null &&
+        loginWarning({ username: 'a'.repeat(24), password: 'B'.repeat(24) }, 'nordvpn') === null &&
+        loginWarning({ username: 'a b', password: 'c' }, 'nordvpn') !== null,
+      'a NordVPN login that does not look like service credentials gets a hint, not a refusal',
+    );
+    login.remove('nordvpn');
+    const failed = (log: string): string | undefined => classifyFailure(log)?.code;
+    t.equal(
+      [
+        failed('AUTH: Received control message: AUTH_FAILED'),
+        failed('TLS Error: TLS key negotiation failed to occur within 60 seconds'),
+        failed('Could not create Wintun interface'),
+        failed('Exiting due to fatal error'),
+        failed('all fine'),
+      ],
+      ['auth', 'unreachable', 'driver', 'other', undefined],
+      'the OpenVPN log is turned into a stable code the host acts on',
+    );
+    const refusedPage = vpnPage({
+      ...sampleStatus(),
+      lastFailure: { code: 'auth', text: FAILURE_TEXT.auth, at: '2026-11-02T19:15:21.000Z' },
+    });
+    const refusedText = pageLines(refusedPage).join('\n');
+    const refusedOps = pageActions(refusedPage).flatMap((a) => (a.kind === 'operation' ? [[a.op, a.label]] : []));
+    t.check(
+      refusedText.includes('Last attempt') &&
+        refusedText.includes('login refused') &&
+        refusedText.includes('service credentials') &&
+        refusedOps.some(([op, label]) => op === 'vpn.login' && label === 'Save the login again…') &&
+        !/sandbox (vpn|config|agent)/.test(refusedText),
+      'after a refused login the VPN page says so and offers to save the login again, without naming a command',
+    );
+    const unreachablePage = vpnPage({
+      ...sampleStatus(),
+      lastFailure: { code: 'unreachable', text: FAILURE_TEXT.unreachable, at: '2026-11-02T19:15:21.000Z' },
+    });
+    t.check(
+      pageActions(unreachablePage).some((a) => a.kind === 'operation' && a.input.key === 'vpn.protocol') &&
+        !pageActions(
+          vpnPage({ ...sampleStatus(), protocol: 'tcp', lastFailure: { code: 'unreachable', text: 'x', at: 'y' } }),
+        ).some((a) => a.kind === 'operation' && a.input.key === 'vpn.protocol'),
+      'a server that could not be reached offers TCP instead of UDP (once)',
+    );
+
     t.section('settings: what a project may and may not do');
     t.check(
       DEFAULTS.vpn.enabled === false && DEFAULTS.vpn.provider === 'nordvpn' && DEFAULTS.vpn.killSwitch === true,
@@ -742,7 +814,7 @@ export const vpnSuite: Suite = {
     };
     const lines = pageLines(vpnPage(sample)).join('\n');
     t.check(
-      !lines.includes('sandbox ') &&
+      !/sandbox (vpn|config|agent)/.test(lines) &&
         VPN_WARNINGS.every((w) => lines.includes(w)) &&
         !lines.includes('Running now'),
       'vpn status page: the facts and the warnings, no command to type',

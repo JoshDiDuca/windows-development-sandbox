@@ -17,5 +17,5 @@ export {
   updatesBeforeCommand,
   watcher,
 } from './maintenance/index.js';
-export { agentCommandsCommand, syncAgentCommands } from './agent-commands.js';
+export { syncAgentCommands } from './agent-commands.js';
 export { HANDLERS, type Handler } from './registry.js';

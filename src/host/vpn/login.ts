@@ -29,6 +29,9 @@ export function loginProblem(c: VpnCredentials, provider?: VpnProvider): string 
   const clean = (v: string): boolean => !/[\u0000-\u001f\u007f]/.test(v);
   if (!c.username.trim() || !c.password) return 'Both the user name and the password are needed.';
   if (!clean(c.username) || !clean(c.password)) return 'The login may not contain line breaks or control characters.';
+  // The markers a terminal puts around pasted text ([200~ ... [201~) are not part of any login.
+  if (/\[20[01]~/.test(c.username + c.password))
+    return 'The login has hidden paste characters in it (the terminal added them when you pasted).';
   if (c.username.length > 256 || c.password.length > 1024) return 'The user name or password is too long.';
   if (provider === 'nordvpn' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.username.trim()))
     return 'That looks like your NordVPN account e-mail. Use the service credentials: Nord Account > NordVPN > Manual setup.';

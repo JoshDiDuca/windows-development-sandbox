@@ -57,7 +57,7 @@ export const VpnStatusSchema = z.object({
       at: z.string().describe('When (ISO date and time)'),
     })
     .nullable()
-    .describe('The last sandbox's VPN attempt, when it failed (kept after the sandbox closed)'),
+    .describe("The last sandbox's VPN attempt, when it failed (kept after the sandbox closed)"),
 });
 export type VpnStatus = z.output<typeof VpnStatusSchema>;
 

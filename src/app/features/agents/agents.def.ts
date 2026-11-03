@@ -1,6 +1,13 @@
 // The agents you can start: the list, starting one in a project of the running sandbox, adding one, making one the
 // default and removing one you added. Pure: schemas, labels and the view; agents.run.ts does the work.
 import { z } from 'zod';
+import {
+  agentCommandsOff,
+  agentCommandsOn,
+  agentCommandsSection,
+  agentCommandsStatus,
+  type AgentCommandsStatus,
+} from '../agent-commands/agent-commands.def.js';
 import { action, defineOperation, defineQuery, defineView, link, type Item, type Page } from '../../kernel/index.js';
 
 /** Agent and project names as the web UI has always accepted them. */
@@ -125,7 +132,7 @@ function agentItem(a: AgentRow, where: string): Item {
 }
 
 /** The agents page: the default agent first, then the others, then "Add an agent…" (ids `agent:<name>` and `add`). */
-export function agentsPage(o: AgentsList): Page {
+export function agentsPage(o: AgentsList, commands: AgentCommandsStatus): Page {
   const where = folderName(o.folder);
   const sorted = [...o.agents].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
   return {
@@ -146,6 +153,7 @@ export function agentsPage(o: AgentsList): Page {
           },
         ],
       },
+      agentCommandsSection(commands),
     ],
   };
 }
@@ -154,7 +162,7 @@ export const agentsView = defineView({
   id: 'agents',
   title: 'Agents',
   summary: 'The agents you can start: start one, add one, choose the default.',
-  queries: { agents: listAgents },
-  operations: [startAgent, addAgent, makeDefaultAgent, removeAgent],
-  build: ({ agents }) => agentsPage(agents),
+  queries: { agents: listAgents, agentCommands: agentCommandsStatus },
+  operations: [startAgent, addAgent, makeDefaultAgent, removeAgent, agentCommandsOn, agentCommandsOff],
+  build: ({ agents, agentCommands }) => agentsPage(agents, agentCommands),
 });

@@ -406,14 +406,18 @@ export const appSuite: Suite = {
     }
 
     t.section('agents');
-    const agentsSample = agentsPage({
-      folder: 'C:\\code\\api',
-      defaultAgent: 'claude',
-      agents: [
-        { name: 'codex', ready: false, isDefault: false, removable: true },
-        { name: 'claude', ready: true, isDefault: true, removable: false },
-      ],
-    });
+    const noCommands = { enabled: false, dir: 'C:/x', found: [] };
+    const agentsSample = agentsPage(
+      {
+        folder: 'C:\\code\\api',
+        defaultAgent: 'claude',
+        agents: [
+          { name: 'codex', ready: false, isDefault: false, removable: true },
+          { name: 'claude', ready: true, isDefault: true, removable: false },
+        ],
+      },
+      noCommands,
+    );
     const agentItems = agentsSample.sections[0].items ?? [];
     const agentKeys = (id: string): string =>
       (agentItems.find((i) => i.id === id)?.actions ?? [])

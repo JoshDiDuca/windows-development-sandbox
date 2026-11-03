@@ -74,7 +74,7 @@ export const SETTINGS_ELSEWHERE: readonly string[] = ['apps'];
 const NAMES: Record<string, string> = {
   sandbox: 'Sandbox machine',
   attach: 'Attaching your terminal',
-  agentCommands: 'Agent commands (Beta)',
+  agentCommands: 'Agent commands',
   web: 'Web UI (Beta)',
   provisioning: 'Provisioning',
   downloads: 'Downloads',

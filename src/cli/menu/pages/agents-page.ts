@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Action } from '../../../app/kernel/index.js';
+import type { AgentCommandsStatus as AgentCommandsFacts } from '../../../app/features/agent-commands/index.js';
 import { agentsPage, listAgents, type AgentsList } from '../../../app/features/agents/index.js';
 import type { ConfigFile } from '../../../app/features/settings/index.js';
 import { readQuery } from '../../../app/registry.js';
@@ -40,8 +41,15 @@ export interface AgentsModel {
   readonly window: WindowChoice;
   /** Agents that can be run on this PC without the sandbox (see hostAgentsToShow). */
   readonly hostAgents: readonly string[];
+  /** Whether agent commands are on and which agents were found (the "On this PC" category). */
+  readonly agentCommands?: AgentCommandsFacts;
   /** The agents you added yourself: only these can be removed (the built-in ones stay). */
   readonly removable?: readonly string[];
+}
+
+/** What the agent commands section shows (before the status is read: off, nothing found). Pure. */
+function commandsOf(m: AgentsModel): AgentCommandsFacts {
+  return m.agentCommands ?? { enabled: m.hostAgents.length > 0, dir: '', found: [] };
 }
 
 /** The agents page's data as the agents view takes it. Pure. */
@@ -61,7 +69,14 @@ export function agentsList(m: AgentsModel): AgentsList {
 
 /** The Start category: the agents view's rows and keys, as the menu draws them. Pure. */
 function startView(m: AgentsModel): MenuView {
-  return menuView(agentsPage(agentsList(m)), { category: 'start', refresh: false });
+  const page = agentsPage(agentsList(m), commandsOf(m));
+  return menuView({ ...page, sections: page.sections.slice(0, 1) }, { category: 'start', refresh: false });
+}
+
+/** The On this PC category: the agent commands switch and the agents it covers (the view's second section). Pure. */
+function commandsView(m: AgentsModel): MenuView {
+  const page = agentsPage(agentsList(m), commandsOf(m));
+  return menuView({ ...page, sections: page.sections.slice(1) }, { category: 'host', refresh: false });
 }
 
 /**
@@ -100,15 +115,12 @@ export function agentCategories(m: Pick<AgentsModel, 'folder' | 'hostAgents'>): 
       description: 'Agents you can start in ' + m.folder + '. Add an agent at the end of the list.',
     },
     { id: 'options', label: 'Options', description: 'How a start goes, and the other ways to start.' },
-    ...(m.hostAgents.length
-      ? [
-          {
-            id: 'host',
-            label: 'On this PC',
-            description: 'The real agents on this PC, with no sandbox around them.',
-          },
-        ]
-      : []),
+    {
+      id: 'host',
+      label: 'On this PC',
+      description:
+        'Agent commands: typing claude, codex ... here starts them in a sandbox. The real agents are listed too.',
+    },
   ];
 }
 
@@ -126,6 +138,7 @@ function startRow(item: ListItem<string>, m: AgentsModel, cwd: string): ListItem
 /** The list for the agents section. Pure. */
 export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): ListOptions<string> {
   const view = startView(m);
+  const commands = commandsView(m);
   return {
     path: [],
     categories: agentCategories(m),
@@ -143,6 +156,7 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
           ]
         : []),
       ...view.items.map((item) => startRow(item, m, cwd)),
+      ...commands.items,
       {
         value: 'opt:attach',
         label: 'Attach this terminal',
@@ -196,9 +210,16 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
         description: 'Runs the real ' + agent + ' on this PC, with no sandbox around it.',
       })),
     ],
-    enterLabel: (_category, id) =>
-      ENTER[id ?? ''] ?? (id?.startsWith('agent:') ? 'start' : id?.startsWith('host:') ? 'run' : 'open'),
-    actions: (category) => (category === 'start' ? view.actions : []),
+    enterLabel: (category, id) =>
+      ENTER[id ?? ''] ??
+      (id?.startsWith('agent:')
+        ? 'start'
+        : id?.startsWith('host:')
+          ? 'run'
+          : category === 'host'
+            ? commands.enterLabel(category, id)
+            : 'open'),
+    actions: (category) => (category === 'start' ? view.actions : category === 'host' ? commands.actions : []),
   };
 }
 
@@ -250,6 +271,11 @@ export class AgentsPage extends ListPage<string> {
       attach: this.attach,
       window: this.window,
       hostAgents: hostAgentsToShow(commands.enabled, commands.found),
+      agentCommands: {
+        enabled: commands.enabled,
+        dir: commands.dir,
+        found: commands.found.map((a) => ({ command: a.command, harness: a.harness, real: a.real })),
+      },
       removable: agents.agents.filter((a) => a.removable).map((a) => a.name),
     };
   }
@@ -275,7 +301,7 @@ export class AgentsPage extends ListPage<string> {
 
   protected async act(result: ListResult<string>): Promise<Outcome<string>> {
     const model = this.current();
-    const chosen = startView(model).resolve(result);
+    const chosen = startView(model).resolve(result) ?? commandsView(model).resolve(result);
     if (chosen?.kind === 'action') {
       const { action } = chosen;
       // A start keeps the options of this page (attach, window, folder), which the plain link does not know.

@@ -3,7 +3,12 @@
 // runs, rollback on failure) stays in host/update.
 import { userDir } from '../../../core/config/index.js';
 import { errMsg, fail } from '../../../core/util/index.js';
-import { AgentCommandsService, MigrateService, NPM_UPDATE_COMMAND, UpdateService } from '../../../cli/services/index.js';
+import {
+  AgentCommandsService,
+  MigrateService,
+  NPM_UPDATE_COMMAND,
+  UpdateService,
+} from '../../../cli/services/index.js';
 import { implement } from '../../context.js';
 import { cancelled, type InputOf, type OperationIO, type OutputOf } from '../../kernel/index.js';
 import { describeResult, whereOf } from './update-lines.js';

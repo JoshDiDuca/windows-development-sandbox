@@ -79,7 +79,11 @@ export async function startTunnel(o: TunnelOptions): Promise<TunnelOutcome> {
       if (exited !== null || reason) {
         if (exited === null) child.kill();
         keepLog();
-        return { ok: false, code: failure?.code ?? 'other', message: (reason ?? 'OpenVPN stopped') + '. ' + tail(text, 4) };
+        return {
+          ok: false,
+          code: failure?.code ?? 'other',
+          message: (reason ?? 'OpenVPN stopped') + '. ' + tail(text, 4),
+        };
       }
       if (Date.now() > deadline) {
         child.kill();

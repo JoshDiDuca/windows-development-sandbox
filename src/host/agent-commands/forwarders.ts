@@ -33,10 +33,7 @@ export function forwardingCmd(a: AgentCommand, target: ForwardTarget): string {
     'if "%SANDBOX_AGENT_DIRECT%"=="1" goto direct',
     // A missing program (the tool was uninstalled or moved) runs the real agent instead of failing.
     ...(target.launcher
-      ? [
-          'if not exist "' + target.launcher + '" goto direct',
-          'call "' + target.launcher + '"' + launch,
-        ]
+      ? ['if not exist "' + target.launcher + '" goto direct', 'call "' + target.launcher + '"' + launch]
       : [
           'if not exist "' + target.node + '" goto direct',
           'if not exist "' + target.entry + '" goto direct',

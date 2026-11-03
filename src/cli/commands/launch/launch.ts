@@ -121,12 +121,12 @@ class Launcher {
     return this.launchHere();
   }
 
-  /** agentCommands (Beta) follows the config: a setting changed in the file takes effect here too. Never blocks. */
+  /** agentCommands follows the config: a setting changed in the file takes effect here too. Never blocks. */
   private syncAgentCommands(): void {
     try {
       syncAgentCommands(this.ctx, this.ctx.loaded.config);
     } catch (e) {
-      console.warn('Agent commands (Beta): ' + errMsg(e));
+      console.warn('Agent commands: ' + errMsg(e));
     }
   }
 

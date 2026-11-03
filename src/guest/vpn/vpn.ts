@@ -144,10 +144,10 @@ export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null):
       );
   };
   setVpnStatus('starting', 'Starting the VPN');
+  let failureCode: VpnStatus['code'];
   try {
     if (!session.networking) throw new Error('networking is off for this sandbox');
     let result: TunnelOutcome;
-    let failureCode: VpnStatus['code'];
     let wireguardExe: string | null = null;
     if (vpn.provider === 'wireguard-file') {
       // The config came from the host (through the one-shot file), but it is data like any other: checked again here.

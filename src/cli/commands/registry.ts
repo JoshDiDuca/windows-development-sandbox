@@ -12,7 +12,6 @@ import { fail } from '../../core/util/index.js';
 import { claudeHost, config, doctor, hostCommand, logs, sync, watcher } from './maintenance/index.js';
 import { engine } from './engine.js';
 import { resume } from './resume.js';
-import { agentCommandsCommand } from './agent-commands.js';
 import { vpn } from './vpn.js';
 import { github } from './github.js';
 import { web, webServer } from './web.js';
@@ -25,7 +24,6 @@ export const HANDLERS: Readonly<Partial<Record<string, Handler>>> = {
   generate: (ctx) => launch(ctx, true),
   attach: attach,
   exec: exec,
-  'agent-commands': agentCommandsCommand,
   db: db,
   resume: resume,
   // The bare command lists; its actions (save, use ...) are the operations' hints.

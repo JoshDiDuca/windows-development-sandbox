@@ -70,7 +70,7 @@ export function reservedEnvName(name: string): boolean {
 export const ConfigSchema = z
   .strictObject({
     $schema: SchemaRefSchema.optional(),
-    defaultHarness: NameSchema.describe('Agent started by `sandbox launch` (sandbox claude always runs claude).'),
+    defaultHarness: NameSchema.describe('The agent that starts when you do not name one (starting claude by name always runs claude).'),
     guestWorkspace: GuestWorkspaceSchema,
     readOnly: z.boolean().describe('Map the workspace read-only.'),
     workspaceFilter: WorkspaceFilterSchema,
@@ -83,7 +83,7 @@ export const ConfigSchema = z
         .string()
         .min(1)
         .describe(
-          'Where everything is kept on this PC (tools, databases, logins, launches). The default is a private folder for you under %ProgramData%\\AgentSandbox\\users, which works for installs for one user and for everyone. sandbox storage move <folder> moves it.',
+          'Where everything is kept on this PC (tools, databases, logins, launches). The default is a private folder for you under %ProgramData%\\AgentSandbox\\users, which works for installs for one user and for everyone. Maintenance > Storage moves it.',
         ),
       persistAgentState: z.boolean().describe('Keep agent logins and history between sandboxes.'),
       dataName: NameSchema.describe('Name of the persistent data set (C:\\AgentData) shared by all workspaces.'),
@@ -95,7 +95,7 @@ export const ConfigSchema = z
       contained: z
         .enum(['off', 'vhdx'])
         .describe(
-          '(beta) Keep the sandbox tools, state and logs inside one disk image file (vhdx) instead of loose folders, so scanning programs on this PC see one file. Not yet tried on a real PC. Turn it on with sandbox storage contained on (it moves your files and asks first); Windows asks for permission to mount the image when a sandbox starts. "off" = loose folders, as always. Yours only: a project file (.sandbox-config.json) cannot set it.',
+          '(beta) Keep the sandbox tools, state and logs inside one disk image file (vhdx) instead of loose folders, so scanning programs on this PC see one file. Not yet tried on a real PC. Turn it on in Maintenance > Storage (it moves your files and asks first); Windows asks for permission to mount the image when a sandbox starts. "off" = loose folders, as always. Yours only: a project file (.sandbox-config.json) cannot set it.',
         ),
       containedMaxGb: z
         .number()
@@ -107,7 +107,7 @@ export const ConfigSchema = z
         .number()
         .min(0)
         .describe(
-          'Say at launch when the persisted data (tools, databases, logins) is bigger than this many GB; 0 = never. sandbox data shows what takes the space.',
+          'Say at launch when the persisted data (tools, databases, logins) is bigger than this many GB; 0 = never. Maintenance > Data shows what takes the space.',
         ),
     }),
     network: NetworkSchema,

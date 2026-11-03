@@ -3,7 +3,7 @@
 // page; access.run.ts does the work. Everything here is the owner's: a device or another Windows user never manages
 // access, whatever their role.
 import { z } from 'zod';
-import { action, defineOperation, defineQuery, defineView, fieldOf, type Item, type Page } from '../../kernel/index.js';
+import { action, defineOperation, defineQuery, defineView, fieldOf, link, type Item, type Page } from '../../kernel/index.js';
 
 const RoleSchema = z.enum(['view', 'control']);
 
@@ -277,11 +277,14 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
             value: o.windowsSignIn ? 'on' : 'off',
             tone: o.windowsSignIn ? 'ok' : 'muted',
             description:
-              'They run sandbox remote (or sandbox remote --browser) as themselves. Turn on web.remote.windowsSignIn and list them in web.remote.users (Settings).',
+              'They sign in to the web UI with their own Windows account. Turn it on and list them in Settings (web.remote.windowsSignIn and web.remote.users).',
           },
           ...o.users.map((u, i) => ({ id: 'user-' + i, label: u.name, value: u.role })),
         ],
         items: windowsItems,
+        actions: [
+          link({ kind: 'setting', key: 'web.remote.windowsSignIn' }, 'Windows sign-in setting…', { verb: 'settings' }),
+        ],
       },
     ],
     actions: [action(revokeAllAccess, {}, { key: 'X', verb: 'sign out all' })],

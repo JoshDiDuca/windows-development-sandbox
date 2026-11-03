@@ -73,7 +73,7 @@ function iso(msAgo: number): string {
   return new Date(Date.now() - msAgo).toISOString();
 }
 
-const SESSIONS: SessionStatus[] = [
+export const SESSIONS: SessionStatus[] = [
   {
     id: 'mva4ungc50e051',
     launchId: 'launch1',
@@ -111,7 +111,7 @@ const SESSIONS: SessionStatus[] = [
 ];
 
 /** The sandbox as the status query would say it: running, two projects, the helper answering. */
-function sampleStatus(running: boolean): unknown {
+export function sampleStatus(running: boolean): unknown {
   const project = (name: string, here: boolean, sessions: SessionStatus[]): unknown => ({
     name,
     host: 'F:\\AgentProjects\\' + name,
@@ -160,9 +160,10 @@ function sampleStatus(running: boolean): unknown {
 }
 
 /** Sample logins (names and emails only, no credentials): Claude with two, codex with one, opencode keeps none. */
-function sampleAccounts(): unknown {
+export function sampleAccounts(): unknown {
   return listAccounts.output.parse({
     agent: 'claude',
+    services: [],
     agents: [
       {
         name: 'claude',
@@ -209,7 +210,7 @@ function sampleAccounts(): unknown {
   });
 }
 
-function sampleSessions(running: boolean): unknown {
+export function sampleSessions(running: boolean): unknown {
   return listSessions.output.parse({
     sandboxRunning: running,
     defaultAgent: 'claude',
@@ -227,7 +228,7 @@ function sampleSessions(running: boolean): unknown {
 }
 
 /** The program's updates: installed for you, one previous version, one failed update, one saved-settings change. */
-function sampleUpdates(): unknown {
+export function sampleUpdates(): unknown {
   return updatesStatus.output.parse({
     managed: true,
     version: '1.4.3',
@@ -246,7 +247,7 @@ function sampleUpdates(): unknown {
 }
 
 /** Where the saved data is (the storage area's query), parsed with its own output schema. */
-function sampleStorage(): unknown {
+export function sampleStorage(): unknown {
   return showStorage.output.parse({
     root: 'F:\\AgentSandbox',
     exists: true,
@@ -260,7 +261,7 @@ function sampleStorage(): unknown {
 }
 
 /** Contained storage (beta): off, and this PC can use it. */
-function sampleContained(): unknown {
+export function sampleContained(): unknown {
   return containedStatus.output.parse({
     setting: 'off',
     maxGb: 60,
@@ -278,7 +279,7 @@ function sampleContained(): unknown {
 }
 
 /** What is stored: a toolchain, the agent's login folder, databases and logs, and what this PC keeps (sample sizes). */
-function sampleData(): unknown {
+export function sampleData(): unknown {
   const GB = (n: number): string => (n / 1e9).toFixed(1) + ' GB';
   const entry = (area: string, name: string, bytes: number, target: string | null) => ({
     area,
@@ -331,7 +332,7 @@ function sampleData(): unknown {
 }
 
 /** The agents as settings and the sandbox say them: two built in (one ready), two added (one ready). */
-function sampleAgents(): unknown {
+export function sampleAgents(): unknown {
   return listAgents.output.parse({
     folder: 'F:\\AgentProjects\\windows-sandbox',
     defaultAgent: 'claude',
@@ -345,7 +346,7 @@ function sampleAgents(): unknown {
 }
 
 /** Sample projects: this folder's project and a root's (mapped), one not mapped, and one excluded. */
-function sampleProjects(running: boolean): unknown {
+export function sampleProjects(running: boolean): unknown {
   const inSandbox = (name: string, how: string): string | null => (running ? name + ' (' + how + ')' : null);
   return listProjects.output.parse({
     all: false,
@@ -393,7 +394,7 @@ function sampleProjects(running: boolean): unknown {
 }
 
 /** The last check: a few results of each kind, the doctor rows, the setup and a log (nothing here is run). */
-function sampleHealth(): unknown {
+export function sampleHealth(): unknown {
   const at = new Date(Date.now() - 3 * MINUTE).toISOString();
   return lastHealth.output.parse({
     last: {
@@ -462,7 +463,7 @@ function sampleHealth(): unknown {
 const LOG_DIR = 'C:\\AgentData\\logs';
 
 /** The engines and their checks (what engine.status returns): HCS is missing its features on this sample PC. */
-function sampleEngines(): unknown {
+export function sampleEngines(): unknown {
   const capabilities = {
     desktop: true,
     gpu: true,
@@ -513,7 +514,7 @@ function sampleEngines(): unknown {
 }
 
 /** The sandbox's log files, newest first, and a crash report (what logs.list returns). */
-function sampleLogs(): unknown {
+export function sampleLogs(): unknown {
   return listLogs.output.parse({
     folder: LOG_DIR,
     files: [
@@ -541,7 +542,7 @@ function sampleLogs(): unknown {
 }
 
 /** The end of one log (what logs.tail returns): plausible sandbox lines, one of them very long. */
-function sampleLogTail(input: { readonly name?: string }): unknown {
+export function sampleLogTail(input: { readonly name?: string }): unknown {
   const name = input.name ?? 'guest-2026-10-16.log';
   if (name === CRASH)
     return tailLog.output.parse({
@@ -564,7 +565,7 @@ function sampleLogTail(input: { readonly name?: string }): unknown {
 }
 
 /** A plausible audit log: two agents' sessions, the sandbox's own setup, a commit each, a guard finding. */
-function sampleAuditLog(dir: string): AuditLog {
+export function sampleAuditLog(dir: string): AuditLog {
   const log = new AuditLog(dir, { days: 7, maxMb: 100 });
   const at = (minutesAgo: number): string => new Date(Date.now() - minutesAgo * MINUTE).toISOString();
   const claude = { s: SESSIONS[0].id, ag: 'claude', pj: 'windows-sandbox', sv: 'p' as const };
@@ -656,7 +657,7 @@ const ACCESS_FINGERPRINT =
   '3A:7F:01:C2:9B:44:E8:15:6D:A0:2B:93:CC:71:58:0E:F4:12:9A:BD:63:07:E5:2C:48:D9:B1:76:0A:3F:C8:E2';
 
 /** Remote access: LAN mode on, two devices, one Windows sign-in, a code waiting. */
-function sampleAccess(): unknown {
+export function sampleAccess(): unknown {
   const at = (hours: number): string => new Date(Date.now() + hours * 3_600_000).toISOString();
   return {
     lan: {
@@ -1077,4 +1078,5 @@ async function main(): Promise<void> {
   console.log('http://127.0.0.1:' + server.port + '/#k=' + TOKEN);
 }
 
-void main();
+// Only when run as the preview itself (the UI-text self-test imports the sample data above).
+if (/web-preview\.js$/.test(process.argv[1] ?? '')) void main();

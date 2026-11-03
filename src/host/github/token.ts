@@ -15,8 +15,18 @@ import {
 import { fail } from '../../core/util/index.js';
 import { SecretStore } from '../secrets/index.js';
 
+/** What GitHub said about the token when it was saved (never the token): shown in the status. */
+const SavedCheckSchema = z.object({
+  login: z.string().max(100),
+  expiresAt: z.string().max(64).nullable(),
+  repoCount: z.number().int().min(0).max(100000),
+  checkedAt: z.string().max(64),
+});
+export type SavedCheck = z.output<typeof SavedCheckSchema>;
+
 const SavedSchema = z.object({
   savedAt: z.string().max(64),
+  check: SavedCheckSchema.optional(),
   kind: z.enum(GITHUB_TOKEN_KINDS),
   sealed: z.string().max(10000),
 });
@@ -43,10 +53,20 @@ export class GithubToken {
   }
 
   /** Checks, encrypts and saves the token (replacing an earlier one). Returns its kind. */
-  save(token: string): GithubTokenKind {
+  save(token: string, check?: SavedCheck): GithubTokenKind {
     const kind = checkGithubToken(token);
-    this.file().write({ savedAt: new Date().toISOString(), kind, sealed: this.secrets.sealJson({ token }) });
+    this.file().write({
+      savedAt: new Date().toISOString(),
+      kind,
+      sealed: this.secrets.sealJson({ token }),
+      ...(check ? { check } : {}),
+    });
     return kind;
+  }
+
+  /** What GitHub said when the token was saved: who it is, when it expires, how many repositories (or null). */
+  check(): SavedCheck | null {
+    return this.file().read()?.check ?? null;
   }
 
   /** The token, decrypted. Only the launch calls this; throws when this Windows user cannot open it. */

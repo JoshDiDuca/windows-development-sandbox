@@ -135,13 +135,13 @@ function freshConfig(ctx: AppContext): Config {
 function readImport(config: Config, file: string): ImportPlan {
   const source = path.resolve(file);
   if (!fs.existsSync(source))
-    fail('There is no file ' + source + '.', 'Give the path of a file made by sandbox config export.');
+    fail('There is no file ' + source + '.', 'Give the path of a file made by Export settings.');
   if (fs.statSync(source).size > MAX_BYTES) fail(source + ' is too big to be a settings file.');
   const plan = planImport(fs.readFileSync(source, 'utf8'), config);
   if (plan.problems.length)
     fail(
       source + ' is not valid settings:\n  ' + plan.problems.map(safeText).join('\n  '),
-      'Nothing was changed. Fix the file, or export a new one with: sandbox config export',
+      'Nothing was changed. Fix the file, or export a new one with Export settings.',
     );
   return plan;
 }
@@ -179,7 +179,7 @@ export const importConfigRun = implement(importConfig, async (ctx, input, io) =>
     input.settingsFile ??
     (await io.path({
       title: 'Which settings file',
-      lines: ['A file made by Export settings (or sandbox config export).'],
+      lines: ['A file made by Export settings (or one exported on the command line).'],
       pathKind: 'file',
     }));
   if (file === undefined) cancelled();

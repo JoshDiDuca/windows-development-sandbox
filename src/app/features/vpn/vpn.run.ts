@@ -36,7 +36,7 @@ export const vpnLoginRun = implement(vpnLogin, async (ctx, _input, io) => {
   if (password === undefined) cancelled();
   service.save({ username, password });
   VPN_WARNINGS.forEach((w) => io.log(w, 'muted'));
-  return { message: 'Saved. Turn the VPN on with: sandbox config set vpn.enabled true' };
+  return { message: 'Saved. Turn the VPN on in Settings (vpn.enabled) to use it.' };
 });
 
 export const vpnLogoutRun = implement(vpnLogout, async (ctx, _input, io) => {

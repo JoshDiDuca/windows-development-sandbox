@@ -7,6 +7,8 @@ import { SegmentedControl, Select } from '@mantine/core';
 import { useEffect, type ReactNode } from 'react';
 import { embeddingOf, NAV, navGroupOf, navSections, viewById } from '../../../src/app/features/defs';
 import { viewInputs, type AnyView } from '../../../src/app/kernel/index';
+import type { ErrorAction } from '../../../src/core/util/errors';
+import { useAct } from '../render/actions';
 import { PageView } from '../render/PageView';
 import { ErrorState, PageSkeleton } from '../render/states';
 import { useQueryData } from '../rpc/hooks';
@@ -71,10 +73,21 @@ function LoadedView({ view, params, extras }: LoadedViewProps) {
   const names = Object.keys(view.queries);
   // The same queries on every render of one view (the page is keyed by the view and its parameters).
   const results = names.map((name) => [name, useQueryData(view.queries[name], inputs[name])] as const);
+  const act = useAct();
   const failed = results.find(([, r]) => r.error);
   if (failed) {
-    const error = failed[1].error as Error & { fix?: string };
-    return <ErrorState message={error.message} fix={error.fix} retry={() => location.reload()} />;
+    const error = failed[1].error as Error & { fix?: string; action?: ErrorAction };
+    const fixAction = error.action && {
+      label: error.action.label,
+      run: () =>
+        void act({
+          kind: 'operation',
+          op: error.action!.op,
+          input: error.action!.input ?? {},
+          label: error.action!.label,
+        }),
+    };
+    return <ErrorState message={error.message} fix={error.fix} fixAction={fixAction} retry={() => location.reload()} />;
   }
   if (results.some(([, r]) => r.pending)) return <PageSkeleton />;
   const page = view.build(Object.fromEntries(results.map(([name, r]) => [name, r.data])) as never, params as never);

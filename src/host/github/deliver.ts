@@ -25,6 +25,21 @@ export interface GithubDelivery {
   readonly notes: readonly string[];
 }
 
+/** A token that ends within this many days is mentioned at launch. */
+const EXPIRY_NOTE_DAYS = 7;
+
+/** "Your GitHub token expires in 3 days" (or has expired), from what GitHub said when it was saved. */
+function expiryNotes(tokens: GithubToken, now: number = Date.now()): string[] {
+  const at = Date.parse(tokens.check()?.expiresAt ?? '');
+  if (Number.isNaN(at)) return [];
+  const days = Math.ceil((at - now) / 86_400_000);
+  if (at <= now) return ['Your GitHub token has expired, so GitHub will refuse it. Make a new one in Accounts.'];
+  if (days > EXPIRY_NOTE_DAYS) return [];
+  return [
+    'Your GitHub token expires ' + (days <= 1 ? 'within a day' : 'in ' + days + ' days') + '. Make a new one in Accounts.',
+  ];
+}
+
 /** What this launch hands over. Never throws: a token that cannot be read is a note, and the launch goes on. */
 export function prepareGithubToken(
   config: Config,
@@ -64,6 +79,7 @@ export function prepareGithubToken(
     token,
     notes: [
       'Your GitHub token is handed to this sandbox (github.shareToken): the agent can read it and use it for whatever it allows.',
+      ...expiryNotes(tokens),
     ],
   };
 }

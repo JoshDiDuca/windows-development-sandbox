@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { requireOnPc } from '../../../cli/commands/context.js';
-import { fail, safeText } from '../../../core/util/index.js';
+import { fail, failWith, safeText } from '../../../core/util/index.js';
 import type { Config } from '../../../core/types.js';
 import {
   AccountLeases,
@@ -108,7 +108,7 @@ function savedMessage(kind: ServiceKind, share: boolean): string {
     'Saved your ' +
     SERVICE_SPECS[kind].label +
     ' sign-in (encrypted for your Windows user).' +
-    (share ? '' : ' Sandboxes get it once you share it: sandbox config set accounts.' + kind + '.share true')
+    (share ? '' : ' Sandboxes get it once you turn on Share with sandboxes.')
   );
 }
 
@@ -128,7 +128,12 @@ export async function importServiceFlow(
   const spec: ServiceSpec = SERVICE_SPECS[kind];
   const source = HOST_SOURCES[kind];
   if (!source.fromPc && !source.fromFile)
-    fail(spec.label + ' cannot be imported.', 'Type it instead: sandbox account login ' + kind);
+    failWith(spec.label + ' cannot be imported.', 'Type it instead.', {
+      op: 'accounts.service.login',
+      input: { name: kind },
+      label: 'Sign in…',
+      cli: 'sandbox account login ' + kind,
+    });
   let file = from === undefined ? undefined : path.resolve(from);
   const isFile = (p: string): boolean => {
     try {
@@ -186,11 +191,17 @@ export async function loginServiceFlow(
   const spec: ServiceSpec = SERVICE_SPECS[kind];
   const source = HOST_SOURCES[kind];
   if (!source.fromAnswers)
-    fail(
+    failWith(
       spec.label + ' has nothing to type.',
       spec.sources.includes('sandbox')
-        ? 'Sign in once inside a sandbox (it is kept), or: sandbox account import ' + kind
-        : 'Run: sandbox account import ' + kind + ' --from <file>',
+        ? 'Sign in once inside a sandbox (it is kept), or import it.'
+        : 'Import it from a file.',
+      {
+        op: 'accounts.service.import',
+        input: { name: kind },
+        label: 'Import…',
+        cli: 'sandbox account import ' + kind + (spec.sources.includes('sandbox') ? '' : ' --from <file>'),
+      },
     );
   const payload = source.fromAnswers(await askFields(io, spec));
   deps.store.save(kind, payload as never, 'typed', source.summary(payload as never));

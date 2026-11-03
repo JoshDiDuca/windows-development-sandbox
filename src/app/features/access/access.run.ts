@@ -3,7 +3,7 @@
 // remote settings, the firewall rule and the network check of LAN mode. The one-time code is returned once and only
 // its hash is kept.
 import { requireOnPc } from '../../../cli/commands/context.js';
-import { fail } from '../../../core/util/index.js';
+import { fail, failWith } from '../../../core/util/index.js';
 import {
   AccessStore,
   addRuleRequest,
@@ -82,7 +82,11 @@ export const accessStatusRun = implement(accessStatus, (ctx) => {
 export const allowDeviceRun = implement(allowDevice, (ctx, input) => {
   requireOnPc('web');
   if (!ctx.loaded.config.web.remote.lan.enabled)
-    fail('LAN mode is off, so no device on your network can reach the web UI.', 'Turn it on first: sandbox web lan-on');
+    failWith('LAN mode is off, so no device on your network can reach the web UI.', 'Turn it on first.', {
+      op: 'access.lanOn',
+      label: 'Turn on LAN mode',
+      cli: 'sandbox web lan-on',
+    });
   const { code, expiresAt } = accessStoreOf(ctx).newDeviceCode(input.role);
   const lan = lanStateOf(ctx);
   return { code: showCode(code), expiresAt, role: input.role, address: lan.url, fingerprint: lan.fingerprint };
@@ -91,7 +95,7 @@ export const allowDeviceRun = implement(allowDevice, (ctx, input) => {
 export const revokeAccessRun = implement(revokeAccess, (ctx, input) => {
   requireOnPc('web');
   if (!accessStoreOf(ctx).revoke(input.id))
-    fail('There is no device or sign-in ' + input.id + '.', 'See sandbox web devices.');
+    fail('There is no device or sign-in ' + input.id + '.', 'Check the list of devices and sign-ins.');
   return { message: 'Signed out. Its open pages close within half a minute.' };
 });
 

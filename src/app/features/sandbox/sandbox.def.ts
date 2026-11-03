@@ -216,7 +216,7 @@ function facts(o: SandboxStatus): Fact[] {
     }),
     ...(s.running
       ? [
-          fact('window', 'Window', s.headless ? 'hidden (sandbox show opens it)' : 'shown'),
+          fact('window', 'Window', s.headless ? 'hidden' : 'shown'),
           fact('uptime', 'Uptime', uptime(s) ?? '-'),
           // The session count is its own fact: the helper only says whether it answers.
           fact('helper', 'Helper', s.daemon === '-' ? '-' : s.daemon.startsWith('pong') ? 'Responding' : s.daemon),
@@ -225,7 +225,7 @@ function facts(o: SandboxStatus): Fact[] {
       : []),
     ...(o.leftover ? [fact('leftover', 'Windows Sandbox', o.leftover.text, { tone: 'warn' })] : []),
     ...(o.lastEnd ? [fact('lastEnd', 'Last sandbox', o.lastEnd.text, { tone: 'warn' })] : []),
-    fact('account', 'Account', s.account ?? 'none selected (sandbox account use)'),
+    fact('account', 'Account', s.account ?? 'none selected'),
     fact('sync', 'Background sync', s.syncWatcher ? 'on' : 'off'),
   ];
 }
@@ -242,10 +242,11 @@ function projectsSection(o: SandboxStatus): Section {
     id: 'projects',
     title: 'Projects',
     items: [...o.projects.map(projectItem), ...roots],
+    ...(here ? {} : { actions: [link({ kind: 'view', view: 'agents' }, 'Start an agent here…', { verb: 'start' })] }),
     notes: [
       here
         ? { text: '* = the project of this folder', tone: 'muted' }
-        : { text: o.here.folder + ' is not in this sandbox (start it here: sandbox claude)', tone: 'muted' },
+        : { text: o.here.folder + ' is not in this sandbox.', tone: 'muted' },
     ],
   };
 }
@@ -282,6 +283,9 @@ export function sandboxPage(o: SandboxStatus): Page {
     facts: facts(o),
     // Only the window action that changes something: show a hidden window, hide a shown one.
     actions: [
+      ...(running && !o.sandbox.account
+        ? [link({ kind: 'view', view: 'accounts' }, 'Choose an account…', { verb: 'choose', importance: 4 })]
+        : []),
       ...(o.leftover ? [action(cleanUpSandbox, {}, { key: 'c', verb: 'clean up', importance: 1 })] : []),
       ...(running
         ? [

@@ -71,7 +71,7 @@ async function shellPlace(
   const projects = runningProjects({ ctx, line: null, limited: false, owner: null });
   if (project !== undefined) {
     const named = projects.find((p) => p.name.toLowerCase() === project.toLowerCase());
-    if (!named) fail('The running sandbox has no project "' + project + '".', 'sandbox status lists its projects.');
+    if (!named) fail('The running sandbox has no project "' + project + '".', 'Check the project names on the Sandbox page.');
     return { name: named.name, guest: named.guest };
   }
   const here = locateHere(ctx, new RunDir(ctx.dataPath).readSandboxStatus());
@@ -116,7 +116,7 @@ export const closeSessionRun = implement(closeSession, async (asked, input, io) 
     typedConfirm(io),
   );
   const session = find(ctx);
-  if (!session) fail('No running session ' + input.session + '.', 'sandbox sessions lists the running ones.');
+  if (!session) fail('No running session ' + input.session + '.', 'Check the list of running sessions.');
   const what = safeText(session.harness) + (session.kind === 'shell' ? ' (shell)' : '');
   const yes = await io.confirm({
     title: 'Close ' + what + ' session ' + input.session + '?',

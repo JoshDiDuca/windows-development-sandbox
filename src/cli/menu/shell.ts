@@ -83,6 +83,7 @@ export class Shell implements Screen<ShellExit> {
     private readonly afterSave: (result: DraftResult) => string | undefined = () => undefined,
   ) {
     app.nav = () => this.nav();
+    app.goTo = (section, where) => this.goTo(section, where);
   }
 
   get page(): Page {
@@ -142,6 +143,16 @@ export class Shell implements Screen<ShellExit> {
     if (wanted?.category && (this.page.loading || this.page.categories().some((c) => c.id === wanted.category)))
       await this.page.selectCategory(wanted.category);
     if (wanted?.search) this.page.restoreSearch?.(wanted.search);
+  }
+
+  /** Opens a section by name, on a category and/or with a search typed (a link from another page). */
+  async goTo(section: string, where: { category?: string; search?: string } = {}): Promise<void> {
+    const index = this.pages.findIndex((p) => p.label === section);
+    if (index < 0) return;
+    await this.openTab(index);
+    if (where.category) await this.page.selectCategory(where.category);
+    if (where.search) this.page.restoreSearch?.(where.search);
+    this.setFocus('list');
   }
 
   /** Puts the keyboard in the navigation or in the list. */

@@ -1,7 +1,7 @@
 // The accounts feature's work: the saved logins of each agent, and saving, using, defaulting, renaming and removing
 // them (through AccountsService). Talks only through io; prints nothing. Emails and the sandbox's own words go through
 // safeText. Logins are never read here: the store keeps them sealed, and outputs hold names, emails and dates only.
-import { fail, safeText } from '../../../core/util/index.js';
+import { fail, failWith, safeText } from '../../../core/util/index.js';
 import { AccountsService, type AccountRef } from '../../../cli/services/index.js';
 import { AccountLeases, ServiceAccountStore } from '../../../host/accounts/index.js';
 import { SERVICE_KINDS } from '../../../shared/accounts/index.js';
@@ -65,7 +65,12 @@ async function accountName(
     return typed.trim();
   }
   const rows = service.list(agent);
-  if (!rows.length) fail('No saved accounts.', 'Sign in inside the sandbox, then run: sandbox account save <name>');
+  if (!rows.length) failWith('No saved accounts.', 'Sign in inside the sandbox, then save the login.', {
+      op: 'accounts.save',
+      input: { agent },
+      label: 'Save a login…',
+      cli: 'sandbox account save <name>',
+    });
   const picked = await io.choose({
     title: 'Which account?',
     choices: rows.map((a) => {

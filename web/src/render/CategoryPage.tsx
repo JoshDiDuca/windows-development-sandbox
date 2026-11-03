@@ -170,6 +170,14 @@ function fromHash(
   extras: readonly CategoryExtra[] = [],
 ): { section?: string; item?: string } {
   const hash = decodeURIComponent(location.hash.slice(1));
+  // A link to one setting: /v/settings?focus=<key> opens its category and flashes its row.
+  const focus = new URLSearchParams(location.search).get('focus');
+  if (focus) {
+    for (const s of sections) {
+      const item = s.items?.find((i) => i.id === focus || i.code === focus);
+      if (item) return { section: s.id, item: item.id };
+    }
+  }
   if (hash.startsWith('item-')) {
     for (const s of sections) {
       const item = s.items?.find((i) => itemAnchor(i.id) === hash);

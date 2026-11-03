@@ -22,7 +22,7 @@ const NEXT_START = 'This changes what is mapped from the next start.';
 
 function runningNote(): string {
   return isSandboxRunning()
-    ? ' The running sandbox keeps what it has; start a project in it (sandbox claude there) and it joins without a restart when it can, or you are offered one.'
+    ? ' The running sandbox keeps what it has; start a project in it (from its folder) and it joins without a restart when it can, or you are offered one.'
     : '';
 }
 
@@ -52,7 +52,7 @@ export const chooseProjectsRun = implement(chooseProjects, async (ctx, _input, i
   if (!rows.length)
     return {
       message:
-        'No projects to choose from yet (projects in a root are always mapped with it). Start one with sandbox claude in its folder.',
+        'No projects to choose from yet (projects in a root are always mapped with it). Start an agent in a project folder first.',
     };
   const all = service.settings().all;
   const picked = await io.checklist({
@@ -130,7 +130,7 @@ function includeOrExcludeText(
       ? (action === 'exclude' ? 'Excluded ' : 'Included ') + path.resolve(dir) + '. ' + NEXT_START
       : 'Nothing changed.') +
     (action === 'include' && !service.settings().all
-      ? ' Mapping all projects is off: sandbox projects all on maps your projects at every start.'
+      ? ' Mapping all projects is off: turn it on in Projects to map them at every start.'
       : '') +
     (changed ? runningNote() : '')
   );
@@ -157,10 +157,10 @@ export const projectRootsRun = implement(projectRoots, async (ctx, input, io) =>
   if (input.change === 'list') {
     const list = service.settings().roots;
     return {
-      message: list.length ? list.join('\n') : 'No project roots. Add one: sandbox projects roots add <folder>',
+      message: list.length ? list.join('\n') : 'No project roots. Add one on the Projects page.',
     };
   }
-  if (!input.rootFolder) fail('Which folder?', 'Usage: sandbox projects roots ' + input.change + ' <folder>');
+  if (!input.rootFolder) fail('Which folder?', 'Give the folder to ' + input.change + '.');
   if (input.change === 'add') {
     const { dir, added } = service.addRoot(input.rootFolder);
     return {

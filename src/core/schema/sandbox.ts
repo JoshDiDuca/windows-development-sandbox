@@ -26,7 +26,7 @@ export const SandboxSchema = z.strictObject({
   engine: z
     .enum(['windows-sandbox', 'hcs'])
     .describe(
-      '(alpha) What runs the sandbox. "windows-sandbox" = Windows Sandbox (the default: desktop, Windows Terminal, GPU, clipboard, audio, printers). "hcs" = a headless Hyper-V isolated Server Core container for agents (no desktop, GPU or clipboard); it needs Windows features and an image on this PC (sandbox engine check hcs lists what is missing), and starting it is not enabled yet in this alpha. sandbox engine shows what each engine can do. Yours only: a project file (.sandbox-config.json) cannot set it.',
+      '(alpha) What runs the sandbox. "windows-sandbox" = Windows Sandbox (the default: desktop, Windows Terminal, GPU, clipboard, audio, printers). "hcs" = a headless Hyper-V isolated Server Core container for agents (no desktop, GPU or clipboard); it needs Windows features and an image on this PC (Maintenance > Engine lists what is missing), and starting it is not enabled yet in this alpha. Maintenance > Engine shows what each engine can do. Yours only: a project file (.sandbox-config.json) cannot set it.',
     ),
   memoryMb: z
     .union([z.literal('auto'), z.number().int().min(2048)])
@@ -79,7 +79,7 @@ export const SandboxSchema = z.strictObject({
   clipboard: z
     .boolean()
     .describe(
-      "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in sandbox attach) reach this PC's clipboard.",
+      "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in an attached terminal) reach this PC's clipboard.",
     ),
   audioInput: z.boolean().describe('Microphone access.'),
   videoInput: z.boolean().describe('Camera access.'),
@@ -160,7 +160,7 @@ export const AuditSchema = z.strictObject({
   enabled: z
     .boolean()
     .describe(
-      'Keep an audit log on this PC of what your agents did: programs started (with their command lines, secrets hidden), files changed in the projects, git commits, sessions, and what the repo guard caught, each linked to the agent session that did it where that can be known. The sandbox cannot change it. Read it with sandbox audit or on the Activity page.',
+      'Keep an audit log on this PC of what your agents did: programs started (with their command lines, secrets hidden), files changed in the projects, git commits, sessions, and what the repo guard caught, each linked to the agent session that did it where that can be known. The sandbox cannot change it. Read it on the Activity page.',
     ),
   days: z
     .number()

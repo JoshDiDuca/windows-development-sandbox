@@ -8,7 +8,7 @@ export const ResumeSchema = z.strictObject({
   sessions: z
     .enum(RESUME_SESSIONS)
     .describe(
-      'When a sandbox starts after one that had agent sessions: "ask" lists them and asks whether to reopen them (without a terminal it prints the command sandbox resume), "always" reopens them, "afterCrash" reopens them only when the last sandbox ended unexpectedly, "never" leaves it to sandbox resume. Terminal tabs you opened yourself in the sandbox are never reopened.',
+      'When a sandbox starts after one that had agent sessions: "ask" lists them and asks whether to reopen them (without a terminal it only says they can be reopened), "always" reopens them, "afterCrash" reopens them only when the last sandbox ended unexpectedly, "never" leaves it to you (Sessions reopens them). Terminal tabs you opened yourself in the sandbox are never reopened.',
     ),
   restartAfterCrash: z
     .boolean()

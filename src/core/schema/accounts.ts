@@ -24,18 +24,18 @@ function share(kind: ServiceKind, how: string): z.ZodObject<{ share: z.ZodBoolea
 
 export const AccountsSchema = z
   .strictObject({
-    epic: share('epic', "sign in to the launcher once in a sandbox, or take this PC's: sandbox account import epic"),
+    epic: share('epic', "sign in to the launcher once in a sandbox, or take this PC's from Accounts"),
     steam: share(
       'steam',
-      'sign in once with sbx-steam login, or: sandbox account import steam --from <steamcmd folder>',
+      'sign in once with sbx-steam login, or take it from a SteamCMD folder in Accounts',
     ),
-    unity: share('unity', "sign in once in a sandbox, or take this PC's licence: sandbox account import unity"),
-    cfx: share('cfx', 'sandbox account login cfx'),
-    keystore: share('keystore', 'sandbox account import keystore --from <upload.jks>'),
-    play: share('play', 'sandbox account import play --from <service-account.json>'),
-    expo: share('expo', 'sandbox account login expo'),
-    appstore: share('appstore', 'sandbox account import appstore --from <AuthKey.p8>'),
+    unity: share('unity', "sign in once in a sandbox, or take this PC's licence from Accounts"),
+    cfx: share('cfx', 'type the key in Accounts'),
+    keystore: share('keystore', 'import the upload.jks file in Accounts'),
+    play: share('play', 'import the service-account.json file in Accounts'),
+    expo: share('expo', 'type the token in Accounts'),
+    appstore: share('appstore', 'import the AuthKey.p8 file in Accounts'),
   })
   .describe(
-    'Service sign-ins for sandboxes (game stores, engines, app signing). Manage them in Accounts: sandbox account status.',
+    'Service sign-ins for sandboxes (game stores, engines, app signing). Manage them in Accounts.',
   );

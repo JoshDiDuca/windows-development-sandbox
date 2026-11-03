@@ -42,6 +42,16 @@ export const guestBootSuite: Suite = {
       'would provision uv',
       'would provision Git for Windows from this PC',
     ];
+    const headers = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => boot.out.indexOf('[' + n + '/9] '));
+    t.check(
+      headers.every((at, i) => at >= 0 && (i === 0 || at > headers[i - 1])),
+      'the boot prints its nine stages, [1/9] to [9/9], in order',
+      headers.join(', '),
+    );
+    t.check(
+      boot.out.includes('Boot ready in ') && boot.out.includes('] Developer tools: done in '),
+      'the boot says how long it took and how long each task took',
+    );
     t.equal(
       steps.filter((s) => !boot.out.includes(s)),
       [],

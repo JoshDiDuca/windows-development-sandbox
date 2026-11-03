@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Toolchains } from '../../../core/types.js';
 import { downloader, fetchJson } from '../../../shared/download/index.js';
 import { dryRun } from '../../runtime/paths.js';
-import { execAsync } from '../../runtime/process.js';
+import { execHeavy as execAsync } from '../../runtime/pools.js';
 import { exists } from '../../runtime/fs.js';
 import { log } from '../../runtime/log.js';
 import { arch, tool, versionOf, type ToolEnv } from '../tool-env.js';

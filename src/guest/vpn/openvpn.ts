@@ -4,7 +4,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { downloader, spawnAsync } from '../../shared/download/index.js';
+import { runInstaller } from '../runtime/pools.js';
+import { downloader } from '../../shared/download/index.js';
 import { SYSTEM } from '../../shared/system.js';
 import { dryRun, isWin, toolsDir } from '../runtime/paths.js';
 import { exists, mkdirp } from '../runtime/fs.js';
@@ -50,9 +51,7 @@ export async function ensureOpenVpn(): Promise<string> {
   repairServiceQueries();
   log('VPN: installing OpenVPN');
   const logFile = path.join(toolsDir, 'downloads', 'openvpn-install.log');
-  const code = await spawnAsync(SYSTEM.msiexec(), ['/i', msi, '/qn', '/norestart', '/l*v', logFile], {
-    stdio: 'ignore',
-  });
+  const code = await runInstaller(SYSTEM.msiexec(), ['/i', msi, '/qn', '/norestart', '/l*v', logFile]);
   // 3010: installed, a restart is wanted (nothing here needs one).
   if (code !== 0 && code !== 3010)
     throw new Error('The OpenVPN installer failed (exit ' + code + '). Its log: ' + logFile);

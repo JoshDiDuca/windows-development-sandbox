@@ -12,6 +12,12 @@ export interface ToolchainOptions {
   apps?: Config['apps'];
   /** pcInstalls: this PC's games, engines and editors mapped read-only (session.json). */
   pcInstalls?: PcInstallManifest;
+  /**
+   * Boot only: the heavy installs (Visual Studio, and what depends on it) run in the background after the agent has
+   * started. Off with a VPN or network.allowOnly (their firewall would cut the downloads), in a dry run and when a
+   * project joins a running sandbox.
+   */
+  deferHeavy?: boolean;
 }
 
 /** What a toolchain module's step gets besides its settings. */
@@ -33,5 +39,12 @@ export interface ToolchainStep {
    * git guard): a project added after boot reuses what the boot's run contributed instead of running it again.
    */
   readonly shared?: boolean;
+  /**
+   * Download only what `install` will need (no-op when it is there). The scheduler starts every step's fetch at once,
+   * outside the step slots and `after`; only the net pool limits them. A failure is ignored: install downloads again.
+   */
+  fetch?(): Promise<void>;
+  /** At boot, runs after the agent has started (the steps that depend on it follow it). */
+  readonly background?: boolean;
   install(env: ToolEnv): Promise<void> | void;
 }

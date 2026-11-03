@@ -80,6 +80,7 @@ import { appSuite } from './app.test.js';
 import { uiTextSuite } from './ui-text.test.js';
 import { menuCoverageSuite } from './menu-coverage.test.js';
 import { auditSuite } from './audit.test.js';
+import { bootRunnerSuite } from './boot-runner.test.js';
 import { layoutSuite } from './layout.test.js';
 import { menuSuite } from './menu.test.js';
 import { menuPerfSuite } from './menu-perf.test.js';
@@ -133,6 +134,7 @@ export const SUITES: Suite[] = [
   testGuardSuite,
   // pure helpers and the command line
   layoutSuite,
+  bootRunnerSuite,
   toolchainsSuite,
   persistedInstallsSuite,
   steamSuite,

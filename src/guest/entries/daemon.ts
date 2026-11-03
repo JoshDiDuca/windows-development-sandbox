@@ -7,6 +7,7 @@ import { startProcessCollector } from '../audit/process-audit.js';
 import { safely } from '../daemon/state.js';
 import { log, warn } from '../runtime/log.js';
 import { adoptBootSecrets } from '../runtime/secrets.js';
+import { installPools } from '../runtime/pools.js';
 import { errMsg } from '../../core/util/errors.js';
 import { Daemon } from '../daemon/daemon.js';
 import { startLiveFolders } from '../daemon/live.js';
@@ -18,6 +19,7 @@ import { startHeartbeat } from '../daemon/heartbeat.js';
 process.on('uncaughtException', (e) => warn('daemon: unexpected error (continuing): ' + (e.stack ?? errMsg(e))));
 process.on('unhandledRejection', (e) => warn('daemon: unexpected error (continuing): ' + errMsg(e)));
 
+installPools();
 const liveKey = adoptBootSecrets();
 log('Session daemon started (pid ' + process.pid + ').');
 safely('live folders', () => startLiveFolders(liveKey));

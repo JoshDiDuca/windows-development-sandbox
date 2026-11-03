@@ -34,6 +34,7 @@ Start with the [README](../README.md). Version history is in the [changelog](../
 | [../CLAUDE.md](../CLAUDE.md)                             | Code layout, coding standard, hard rules                                          |
 | [design/shared-core.md](design/shared-core.md)           | One core for the CLI, the menu and the web UI: how a feature is written and drawn |
 | [design/web-ui-standard.md](design/web-ui-standard.md)   | How every web page looks, the Page hints, checking with screenshots               |
+| [design/parallel-boot.md](design/parallel-boot.md)       | The parallel boot: task graph, download and install pools, background Visual Studio |
 | [design/engines.md](design/engines.md)                   | Sandbox engines and storage: contained storage, the HCS engine, the go/no-go test |
 | [design/remote-access.md](design/remote-access.md)       | Remote access to the web UI: other Windows users and phones                       |
 | [design/hcs-live-folders.md](design/hcs-live-folders.md) | Adding folders to a running sandbox through HCS, and its test plan                |

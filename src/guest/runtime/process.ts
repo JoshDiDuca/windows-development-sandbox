@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync, type SpawnOptions, type SpawnSyncOptions } from 'node:child_process';
+import { spawn, spawnSync, type SpawnOptions, type SpawnSyncOptions } from 'node:child_process';
 import { moveIntoPlace, spawnAsync, stagingFolder } from '../../shared/download/index.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
 import { robocopyErrors, robocopyFailed, robocopyMeaning } from '../../shared/io/robocopy-result.js';
@@ -43,6 +43,29 @@ export function runScript(name: string, args: readonly string[] = []): void {
     throw new Error(name + ' failed with exit code ' + result.status + (errors ? ': ' + errors.slice(0, 400) : ''));
 }
 
+/** runScript without blocking the event loop (other boot tasks keep going while the script runs). */
+export function runScriptAsync(name: string, args: readonly string[] = []): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(SYSTEM.powershell(), scriptArgs(name, args), {
+      stdio: ['inherit', 'inherit', 'pipe'],
+      windowsHide: true,
+    });
+    let errors = '';
+    child.stderr?.setEncoding('utf8');
+    child.stderr?.on('data', (chunk: string) => {
+      if (errors.length < 4096) errors += chunk;
+    });
+    child.once('error', reject);
+    child.once('close', (code) => {
+      errors = errors.trim();
+      if (errors) process.stderr.write(errors + '\n');
+      if (code !== 0)
+        reject(new Error(name + ' failed with exit code ' + code + (errors ? ': ' + errors.slice(0, 400) : '')));
+      else resolve();
+    });
+  });
+}
+
 /** runScript for what it prints ('' when it fails). */
 export function scriptOutput(name: string, args: readonly string[] = [], options: SpawnSyncOptions = {}): string {
   return execOutput(SYSTEM.powershell(), scriptArgs(name, args), options);
@@ -55,6 +78,23 @@ export function runScriptWithJson(name: string, param: string, data: unknown, ar
   try {
     fs.writeFileSync(file, JSON.stringify(data), 'utf8');
     runScript(name, ['-' + param, file, ...args]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** runScriptWithJson without blocking the event loop. */
+export async function runScriptWithJsonAsync(
+  name: string,
+  param: string,
+  data: unknown,
+  args: readonly string[] = [],
+): Promise<void> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sbx-'));
+  const file = path.join(dir, 'input.json');
+  try {
+    fs.writeFileSync(file, JSON.stringify(data), 'utf8');
+    await runScriptAsync(name, ['-' + param, file, ...args]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

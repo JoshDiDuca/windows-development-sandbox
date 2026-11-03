@@ -1,4 +1,4 @@
-import { execAsync } from '../../runtime/process.js';
+import { execHeavy as execAsync } from '../../runtime/pools.js';
 import { exists } from '../../runtime/fs.js';
 import { tool, type ToolEnv } from '../tool-env.js';
 import { installOnce } from '../package-ledger.js';

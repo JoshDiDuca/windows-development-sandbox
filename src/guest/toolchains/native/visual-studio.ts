@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 import { spawnAsync } from '../../../shared/download/index.js';
+import { heavy, runInstaller } from '../../runtime/pools.js';
 import { writeJsonAtomic } from '../../../shared/io/json.js';
 import { robocopyFailed } from '../../../shared/io/robocopy-result.js';
 import { safeRemove } from '../../../shared/io/safe-remove.js';
@@ -18,6 +19,7 @@ import { exists, mkdirp } from '../../runtime/fs.js';
 import { log, warn } from '../../runtime/log.js';
 import { logsDir } from '../../runtime/paths.js';
 import { duringSession } from '../../runtime/project-context.js';
+import { backgroundRunning } from '../../runtime/status.js';
 import { errMsg } from '../../../core/util/errors.js';
 import { SIGNERS, signedInstaller } from '../installers.js';
 import { assertLocalRoom, freeBytes } from '../persisted.js';
@@ -143,12 +145,14 @@ function reportLayoutFailure(code: number, temps: readonly string[]): void {
 /** Copies a finished layout onto the data disk (never /MOV: mapped folders refuse rename-over). */
 async function copyLayout(from: string, to: string): Promise<boolean> {
   mkdirp(to);
-  const code = await spawnAsync(SYSTEM.robocopy(), [from, to, '/E', '/COPY:DAT', '/R:1', '/W:1', '/MT:8', '/NP']);
+  const code = await heavy.run(() =>
+    spawnAsync(SYSTEM.robocopy(), [from, to, '/E', '/COPY:DAT', '/R:1', '/W:1', '/MT:8', '/NP']),
+  );
   return !robocopyFailed(code);
 }
 
 /** The offline copy's installer when it holds every component; made or completed when there is room. */
-async function layoutInstaller(req: VsRequest, bootstrapper: string): Promise<string | null> {
+async function layoutInstaller(req: VsRequest, bootstrapper: string, lowPriority: boolean): Promise<string | null> {
   const layout = layoutDir(req.product);
   const marker = path.join(layout, '.complete.json');
   const installer = path.join(layout, BOOTSTRAPPERS[req.product].file);
@@ -190,7 +194,7 @@ async function layoutInstaller(req: VsRequest, bootstrapper: string): Promise<st
   }
   const staging = path.join(drive, 'vs-layout-staging');
   log('Building the install files on ' + drive + ' and copying them to ' + layout + ' ...');
-  const stagedCode = await spawnAsync(bootstrapper, layoutArgs(req, staging));
+  const stagedCode = await runInstaller(bootstrapper, layoutArgs(req, staging), { lowPriority });
   const staged = path.join(staging, BOOTSTRAPPERS[req.product].file);
   let kept = false;
   if (OK_EXIT_CODES.includes(stagedCode) && exists(staged)) {
@@ -203,31 +207,42 @@ async function layoutInstaller(req: VsRequest, bootstrapper: string): Promise<st
   return kept && exists(installer) ? finish() : null;
 }
 
-async function install(req: VsRequest, keepInstallFiles: boolean): Promise<void> {
+/** The bootstrapper, downloaded (net pool) and checked; kept in tools\ for later boots. */
+function bootstrapperFor(req: VsRequest): Promise<string> {
   const boot = BOOTSTRAPPERS[req.product];
-  const bootstrapper = await signedInstaller(
-    boot.url,
-    path.join(VS_DIR, boot.file),
-    'the ' + boot.name + ' installer',
-    SIGNERS.microsoft,
-  );
+  return signedInstaller(boot.url, path.join(VS_DIR, boot.file), 'the ' + boot.name + ' installer', SIGNERS.microsoft);
+}
+
+/** Downloads the bootstrapper now, so the install later starts without waiting for it. */
+export async function prefetchVisualStudio(req: VsRequest): Promise<void> {
+  if (!req.accepted || installedVs()) return;
+  await bootstrapperFor(req);
+}
+
+async function install(req: VsRequest, keepInstallFiles: boolean, lowPriority: boolean): Promise<void> {
+  const boot = BOOTSTRAPPERS[req.product];
+  const bootstrapper = await bootstrapperFor(req);
   let installer: string | null = null;
   if (keepInstallFiles) {
     try {
-      installer = await layoutInstaller(req, bootstrapper);
+      installer = await layoutInstaller(req, bootstrapper, lowPriority);
     } catch (e) {
       warn('Visual Studio: the offline copy failed (' + errMsg(e) + '); downloading this boot');
     }
   }
   const run = (from: string, offline: boolean): Promise<number> =>
-    spawnAsync(from, [
-      '--quiet',
-      '--wait',
-      '--norestart',
-      '--nocache',
-      ...(offline ? ['--noWeb'] : []),
-      ...req.components.flatMap((id) => ['--add', id]),
-    ]);
+    runInstaller(
+      from,
+      [
+        '--quiet',
+        '--wait',
+        '--norestart',
+        '--nocache',
+        ...(offline ? ['--noWeb'] : []),
+        ...req.components.flatMap((id) => ['--add', id]),
+      ],
+      { lowPriority },
+    );
   log('Installing ' + boot.name + (installer ? ' from the saved install files' : ' (downloads ~5-8 GB)') + ' ...');
   let code = await run(installer ?? bootstrapper, installer !== null);
   if (installer && (!OK_EXIT_CODES.includes(code) || !installedVs())) {
@@ -250,7 +265,7 @@ async function install(req: VsRequest, keepInstallFiles: boolean): Promise<void>
 export async function ensureVisualStudio(
   env: ToolEnv,
   req: VsRequest,
-  o: { keepInstallFiles: boolean },
+  o: { keepInstallFiles: boolean; lowPriority?: boolean },
 ): Promise<{ path: string; version: string }> {
   if (!req.accepted)
     throw new Error(
@@ -265,9 +280,13 @@ export async function ensureVisualStudio(
   const have = installedVs();
   if (have) return have;
   if (duringSession())
-    throw new Error('Visual Studio is installed when the sandbox starts: restart it (sandbox restart) to get it');
+    throw new Error(
+      backgroundRunning('Visual Studio')
+        ? 'Visual Studio is still installing in the background; it is ready in a few minutes'
+        : 'Visual Studio is installed when the sandbox starts: restart it (sandbox restart) to get it',
+    );
   assertLocalRoom(INSTALL_BYTES[req.product], BOOTSTRAPPERS[req.product].name);
-  await install(req, o.keepInstallFiles);
+  await install(req, o.keepInstallFiles, o.lowPriority === true);
   const vs = installedVs()!;
   env.summary.push(
     'visual studio: ' +

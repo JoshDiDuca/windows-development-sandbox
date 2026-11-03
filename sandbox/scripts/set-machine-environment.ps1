@@ -34,24 +34,39 @@ foreach ($folder in @($settings.create)) {
     if ($folder) { New-Item -ItemType Directory -Force -Path $folder | Out-Null }
 }
 
-foreach ($variable in $settings.vars.PSObject.Properties) {
-    if ($additive -and [Environment]::GetEnvironmentVariable($variable.Name, 'Machine')) { continue }
-    [Environment]::SetEnvironmentVariable($variable.Name, [string]$variable.Value, 'Machine')
-}
-
-if ($null -ne $settings.path) {
-    [Environment]::SetEnvironmentVariable('Path', (Join-Folders ([string]$settings.path -split ';')), 'Machine')
-}
-
-if ($settings.add) {
-    $current = [Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';'
-    $known = @{}
-    foreach ($folder in $current) { $known[(Get-Key $folder)] = $true }
-    $missing = @($settings.add | Where-Object { -not $known.ContainsKey((Get-Key $_)) })
-    if ($missing.Count) {
-        $combined = if ($additive) { $current + $missing } else { $missing + $current }
-        [Environment]::SetEnvironmentVariable('Path', (Join-Folders $combined), 'Machine')
+# The boot, its background re-persist and the daemon can all run this script: the read-modify-write of the machine
+# Environment key happens under one named mutex (an abandoned mutex, from a killed script, is ours to take).
+$mutex = New-Object System.Threading.Mutex($false, 'Global\AgentSandboxMachineEnv')
+$owned = $false
+try {
+    try {
+        $owned = $mutex.WaitOne(60000)
+    } catch [System.Threading.AbandonedMutexException] {
+        $owned = $true
     }
+    if (-not $owned) { throw 'Another script has held the machine environment lock for over 60 seconds' }
+    foreach ($variable in $settings.vars.PSObject.Properties) {
+        if ($additive -and [Environment]::GetEnvironmentVariable($variable.Name, 'Machine')) { continue }
+        [Environment]::SetEnvironmentVariable($variable.Name, [string]$variable.Value, 'Machine')
+    }
+
+    if ($null -ne $settings.path) {
+        [Environment]::SetEnvironmentVariable('Path', (Join-Folders ([string]$settings.path -split ';')), 'Machine')
+    }
+
+    if ($settings.add) {
+        $current = [Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';'
+        $known = @{}
+        foreach ($folder in $current) { $known[(Get-Key $folder)] = $true }
+        $missing = @($settings.add | Where-Object { -not $known.ContainsKey((Get-Key $_)) })
+        if ($missing.Count) {
+            $combined = if ($additive) { $current + $missing } else { $missing + $current }
+            [Environment]::SetEnvironmentVariable('Path', (Join-Folders $combined), 'Machine')
+        }
+    }
+} finally {
+    if ($owned) { $mutex.ReleaseMutex() }
+    $mutex.Dispose()
 }
 
 try {

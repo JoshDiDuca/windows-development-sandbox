@@ -4,7 +4,7 @@ import type { ToolEnv } from '../toolchains/index.js';
 import { claudeDir, session, stateDir, workspace } from '../runtime/session.js';
 import { dataDir, dryRun, isWin, testMode, toolsDir } from '../runtime/paths.js';
 import { exists, mkdirp } from '../runtime/fs.js';
-import { execOutput, runScriptWithJson } from '../runtime/process.js';
+import { execOutput, runScriptWithJson, runScriptWithJsonAsync } from '../runtime/process.js';
 import { SYSTEM } from '../../shared/system.js';
 import { warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
@@ -89,7 +89,7 @@ export function agentEnv(
 }
 
 /** Makes the agent environment machine-wide, so new terminal tabs and anything the agent starts see the same tools. */
-export function persistEnvironment(env: NodeJS.ProcessEnv, toolVars: string[]): void {
+export async function persistEnvironment(env: NodeJS.ProcessEnv, toolVars: string[], additive = false): Promise<void> {
   if (!isWin || dryRun || testMode) return;
   const vars = Object.fromEntries(
     [...toolVars, ...AGENT_VARS, ...Object.keys(agentHomes()), ...Object.keys(localStateVars())]
@@ -97,15 +97,27 @@ export function persistEnvironment(env: NodeJS.ProcessEnv, toolVars: string[]): 
       .map((n) => [n, env[n] as string]),
   );
   try {
-    runScriptWithJson('set-machine-environment.ps1', 'SettingsFile', {
+    await runScriptWithJsonAsync('set-machine-environment.ps1', 'SettingsFile', {
       vars,
-      path: planPath({
-        entries: [env.PATH ?? '', ...installedAgentDirs()],
-        exists,
-        drop: (dir) => isPinnedNodeDir(dir, nvmHome()),
-      }).join(path.delimiter),
-      add: [],
-      additive: false,
+      ...(additive
+        ? {
+            // Visual Studio done: variables not set yet, new folders at the end of the machine PATH.
+            path: null,
+            add: planPath({
+              entries: (env.PATH ?? '').split(path.delimiter),
+              exists,
+              drop: (dir) => isPinnedNodeDir(dir, nvmHome()),
+            }),
+          }
+        : {
+            path: planPath({
+              entries: [env.PATH ?? '', ...installedAgentDirs()],
+              exists,
+              drop: (dir) => isPinnedNodeDir(dir, nvmHome()),
+            }).join(path.delimiter),
+            add: [],
+          }),
+      additive,
     });
   } catch (e) {
     warn('Could not persist the environment machine-wide: ' + errMsg(e));

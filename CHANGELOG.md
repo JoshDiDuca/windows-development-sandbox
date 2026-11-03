@@ -7,6 +7,14 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Parallel boot** ([design](docs/design/parallel-boot.md)). The nine start-up steps are tasks that run as soon as what
+  they need is done: the required ones first, the rest alongside. Downloads (4 at a time), unpacking and npm/uv/rustup
+  work (2) and installers (1, with a retry while Windows Installer is busy) run in pools, so one toolchain's download
+  overlaps another's install. Headroom starts early, Visual Studio installs in the background after the agent has
+  started (not with a VPN or `network.allowOnly`), the log has times and task names, and the boot prints how long it took.
+
 ## 1.22.0
 
 - **The menu and the web no longer tell you to type commands.** A failure can carry a fix as a button (the menu asks, the

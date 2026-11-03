@@ -7,11 +7,11 @@ import { appsToInstall, type AppEntry } from '../../shared/apps/index.js';
 import { downloader, moveIntoPlace, stagingFolder } from '../../shared/download/index.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
 import { dryRun, launchDir } from '../runtime/paths.js';
-import { execAsync } from '../runtime/process.js';
+import { execHeavy as execAsync } from '../runtime/pools.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log, warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
-import { tool, type ToolEnv } from '../toolchains/tool-env.js';
+import { emptyEnv, tool, type ToolEnv } from '../toolchains/tool-env.js';
 import { uvVars } from '../toolchains/runtimes.js';
 import { COMET_MCP_PORT, cometShortcutArgs } from '../browser/comet.js';
 import { afterInstall } from './after-install.js';
@@ -30,6 +30,11 @@ export interface AppsOptions {
 }
 
 const MARKER = '.agent-sandbox-app';
+
+/** Where `prefetch` keeps an app's download until `download()` takes it (next to the app's folder, never inside). */
+function prefetchedFile(entry: AppEntry, fileName: string): string {
+  return path.join(tool('apps', ...entry.id.split('/')) + '.download', fileName.replace(/[\\/:*?"<>|]/g, '_'));
+}
 /** How many apps download and unpack at once (they are big: a few at a time keeps the disk and network busy). */
 const PARALLEL = 3;
 
@@ -42,6 +47,36 @@ export class AppInstaller {
     private readonly options: AppsOptions,
     private readonly parallel = PARALLEL,
   ) {}
+
+  /**
+   * Downloads the plain downloads (not pinned, not npm, not remote) of the apps that are not installed yet, into
+   * `<app folder>.download`, which `download()` uses instead of downloading again. A failure is left for the install.
+   */
+  async prefetch(entries: readonly AppEntry[]): Promise<void> {
+    const todo = entries.filter(
+      (e) =>
+        !('remote' in e.source) &&
+        !('locked' in e.source) &&
+        !('npm' in e.source) &&
+        e.id !== '7zip' &&
+        (this.options.refresh || !exists(path.join(tool('apps', ...e.id.split('/')), MARKER))),
+    );
+    await Promise.all(
+      todo.map(async (entry) => {
+        try {
+          const d = await resolve(entry);
+          const file = prefetchedFile(entry, d.fileName);
+          if (exists(file)) return;
+          await downloader.file(d.url, file, {
+            sha256: d.sha256 ?? null,
+            ...(entry.signer ? { verify: signatureCheck(entry.signer, d.fileName) } : {}),
+          });
+        } catch {
+          /* the install resolves and downloads again, and reports the reason if it fails too */
+        }
+      }),
+    );
+  }
 
   /** Installs the entries (7-Zip first: the NSIS apps need it to unpack), then their shortcuts. */
   async installAll(entries: readonly AppEntry[]): Promise<void> {
@@ -127,10 +162,14 @@ export class AppInstaller {
         const d = await resolve(entry);
         log('Downloading ' + entry.name + ' (' + d.fileName + ', ~' + entry.size + ' once) ...');
         const file = path.join(mkdirp(work), d.fileName.replace(/[\\/:*?"<>|]/g, '_'));
-        await downloader.file(d.url, file, {
-          sha256: d.sha256 ?? null,
-          ...(entry.signer ? { verify: signatureCheck(entry.signer, d.fileName) } : {}),
-        });
+        const ahead = prefetchedFile(entry, d.fileName);
+        if (exists(ahead)) fs.copyFileSync(ahead, file);
+        else
+          await downloader.file(d.url, file, {
+            sha256: d.sha256 ?? null,
+            ...(entry.signer ? { verify: signatureCheck(entry.signer, d.fileName) } : {}),
+          });
+        fs.rmSync(ahead, { force: true });
         await unpack(entry, file, out, d);
       }
       fs.writeFileSync(path.join(out, MARKER), JSON.stringify({ id: entry.id, at: new Date().toISOString() }));
@@ -202,4 +241,11 @@ export async function setupApps(env: ToolEnv, apps: Config['apps'], o: AppsOptio
     return;
   }
   await new AppInstaller(env, { ...o, chosen: apps.install }).installAll(entries);
+}
+
+/** Downloads the apps ahead of their install (the Apps step waits for Mesa, uv and the runtime first). */
+export async function prefetchApps(apps: Config['apps'], o: AppsOptions): Promise<void> {
+  const { entries } = appsToInstall(apps, o.gitAccess);
+  if (dryRun) return;
+  await new AppInstaller(emptyEnv(), { ...o, chosen: apps.install }).prefetch(entries);
 }

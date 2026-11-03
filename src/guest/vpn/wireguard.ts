@@ -7,7 +7,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { downloader, spawnAsync } from '../../shared/download/index.js';
+import { runInstaller } from '../runtime/pools.js';
+import { downloader } from '../../shared/download/index.js';
 import { SYSTEM } from '../../shared/system.js';
 import { WIREGUARD_MSI } from '../../shared/vpn/download.js';
 import { handshakeDone, serviceRunning } from '../../shared/vpn/wireguard.js';
@@ -52,13 +53,15 @@ export async function ensureWireguard(): Promise<string> {
   log('VPN: installing WireGuard');
   const logFile = path.join(toolsDir, 'downloads', 'wireguard-install.log');
   // DO_NOT_LAUNCH: the installer would otherwise start the manager window.
-  const code = await spawnAsync(
-    SYSTEM.msiexec(),
-    ['/i', msi, '/qn', '/norestart', 'DO_NOT_LAUNCH=1', '/l*v', logFile],
-    {
-      stdio: 'ignore',
-    },
-  );
+  const code = await runInstaller(SYSTEM.msiexec(), [
+    '/i',
+    msi,
+    '/qn',
+    '/norestart',
+    'DO_NOT_LAUNCH=1',
+    '/l*v',
+    logFile,
+  ]);
   if (code !== 0 && code !== 3010)
     throw new Error('The WireGuard installer failed (exit ' + code + '). Its log: ' + logFile);
   if (!exists(exe))

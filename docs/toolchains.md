@@ -62,6 +62,10 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
 - Visual Studio is a real installer, so it runs at every boot and takes about 7 GB of the sandbox's disk (about 40 GB,
   shared with the paging file and every build). It is installed only when 20 GB are free; otherwise boot says so and
   skips it.
+- Visual Studio installs in the background: the agent starts first, and Visual Studio (with Unreal, and Rust when it
+  builds with the MSVC host) finishes some minutes later, at a lower priority. A project that needs it in the meantime
+  is told that it is still installing. With a VPN or `network.allowOnly` it installs before the agent starts, because
+  their firewall would cut its downloads.
 - `keepInstallFiles` (default on) saves an offline copy of its install files in `tools\visualstudio` once (about 10 GB,
   only when 15 GB are free). Later boots then install without downloading; otherwise each boot downloads 5-8 GB. The
   installers run only when Microsoft's signature on them checks out.

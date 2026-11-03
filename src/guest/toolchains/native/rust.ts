@@ -2,7 +2,7 @@
 import path from 'node:path';
 import type { Toolchains } from '../../../core/types.js';
 import { dryRun } from '../../runtime/paths.js';
-import { execAsync } from '../../runtime/process.js';
+import { execHeavy as execAsync } from '../../runtime/pools.js';
 import { exists } from '../../runtime/fs.js';
 import { log } from '../../runtime/log.js';
 import { arch, tool, versionOf, type ToolEnv } from '../tool-env.js';
@@ -10,6 +10,18 @@ import { downloadFile } from '../install.js';
 import { installOnce } from '../package-ledger.js';
 import { crateInstaller } from './binstall.js';
 import { installedMsvcEnv } from './msvc/index.js';
+
+/** rustup-init.exe (the small installer; the toolchain itself downloads when it runs), kept with Rust's tools. */
+export async function fetchRustupInit(): Promise<void> {
+  const init = tool('rust', 'rustup-init.exe');
+  if (exists(init) || exists(path.join(tool('rust', 'cargo'), 'bin', 'rustup.exe'))) return;
+  await downloadFile(
+    'https://static.rust-lang.org/rustup/dist/' +
+      (arch === 'arm64' ? 'aarch64' : 'x86_64') +
+      '-pc-windows-msvc/rustup-init.exe',
+    init,
+  );
+}
 
 export async function setupRust(env: ToolEnv, config: Toolchains['rust'], refresh: boolean): Promise<void> {
   const RUSTUP_HOME = tool('rust', 'rustup');
@@ -23,12 +35,7 @@ export async function setupRust(env: ToolEnv, config: Toolchains['rust'], refres
   if (!exists(rustup)) {
     const init = tool('rust', 'rustup-init.exe');
     log('Installing Rust with rustup (~300 MB once; the toolchain downloads after rustup itself) ...');
-    await downloadFile(
-      'https://static.rust-lang.org/rustup/dist/' +
-        (arch === 'arm64' ? 'aarch64' : 'x86_64') +
-        '-pc-windows-msvc/rustup-init.exe',
-      init,
-    );
+    await fetchRustupInit();
     await execAsync(
       init,
       [

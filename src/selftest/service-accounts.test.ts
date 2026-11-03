@@ -465,7 +465,7 @@ export const serviceAccountsSuite: Suite = {
         JSON.stringify(asked).includes('signs the launcher on this PC out') &&
         !JSON.stringify(seen).includes(SIGN_IN) &&
         !taken.message.includes(SIGN_IN) &&
-        taken.message.includes('accounts.epic.share'),
+        taken.message.includes('Share with sandboxes'),
       'importing asks first (the command line too: --yes answers it), warns the PC is signed out, never shows the sign-in',
     );
     const empty = await importServiceFlow(fakeIO([true]).io, 'epic', undefined, {

@@ -19,6 +19,41 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   repositories it reaches (a refused token is not saved). The card shows "expires soon" under 14 days, a launch
   mentions a token that ends within 7 days, and the GitHub card is also on the Accounts page.
 
+## 1.21.1
+
+- **Python and Rust are on PATH for every project once installed.** A session of another project in the same sandbox
+  (or a terminal tab) had no `python` or `rustup` when that project's own files did not turn them on, although both
+  were installed in `C:\AgentData\tools`. They are now added to PATH (at the end) whenever they are installed there;
+  nothing is installed for it. Workaround shims in `C:\AgentData\tools\bin` can be deleted.
+- **The sandbox guide lists every project.** The "persists" line names each mapped project root
+  (`C:\Projects\AgentProjects\*` = your PC folder) instead of only the launch folder, and the tools of each project
+  set up in the sandbox are listed by project.
+- **MSVC's `link` comes before Git's.** Git's coreutils `link.exe` shadowed the linker, so MSVC Rust builds failed
+  with os error 1392. MSVC's folder is now always before Git's `usr\bin` on PATH, and the coreutils `link.exe` is
+  renamed in the sandbox's Git.
+
+## 1.21.0
+
+- **FiveM / RedM.** A FiveM toolchain (FXServer builds from the Cfx.re versions list, `sbx-fivem init|serve|new`, Lua, JS, TS and C# resource templates, txAdmin, oxmysql) and a `cfx` account for the server key. `sandbox account import cfx --from server.cfg` reads `sv_licenseKey` and `steam_webApiKey` from a server.cfg. See docs/fivem.md.
+- **Perplexity and computer-use tools** ([docs/agents-web.md](docs/agents-web.md)). New apps: Perplexity Computer MCP
+  (Perplexity's cloud agent, a remote MCP server: sign in once with your Perplexity account), Perplexity MCP (search,
+  answers and research from the Perplexity API), the Comet browser (portable, its installer checked against Perplexity's
+  signature), Comet MCP, Chrome DevTools MCP (with Edge) and Browser Use MCP. Their MCP servers go into the sandbox's
+  Claude Code and Codex. Two new sign-ins in Accounts: `perplexity`, the API key (`sandbox account import perplexity`
+  takes this PC's `PERPLEXITY_API_KEY`, `--from .env` reads a file, `login` types it; the agent gets it only as a
+  variable in memory), and `comet`, your perplexity.ai sign-in in Comet (sign in once in a sandbox; it can't be copied
+  from your PC). Both are off until you set `accounts.perplexity.share` / `accounts.comet.share`.
+- Codex keeps MCP sign-ins in a file now (`mcp_oauth_credentials_store = "file"` at boot, unless you set it), and its
+  saved logins include that file (`.credentials.json` in `harnesses.codex.home.loginFiles`), so they last between
+  sandboxes.
+
+## 1.20.1
+
+- **C++ persists (Visual Studio install files saved).** The Visual Studio installer always crashes (0xE0434352) when it
+  builds its install files in the shared data folder. They are now built on the sandbox's own disk before Visual Studio
+  is installed (15 GB free is enough instead of 25 GB), copied to the data disk and deleted from C:, so later boots
+  install offline. If installing from the saved copy fails, that boot downloads instead.
+
 ## 1.20.0
 
 - **Agent commands are a feature, not a beta, and work from every surface.** The switch is an action on the Agents page
@@ -78,7 +113,6 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
 - **Steam:** SteamCMD (signature checked), `sbx-steam` for games and servers, Workshop get/push and depot builds; your
   PC's Steam libraries can be mapped read-only (`pcInstalls`). See [steam](docs/steam.md).
 - Big installs go on the data disk with free-space checks; a project's file can no longer accept a licence for you.
-
 - **API key accounts for Claude.** Besides subscription logins, a saved Claude account can now be an Anthropic API key
   (from the Claude Console, for free or paid API credits) or a Claude Console login.
   `sandbox account save <name> --api-key` asks for the key (hidden); add `--from-host` to take this PC's Console key or

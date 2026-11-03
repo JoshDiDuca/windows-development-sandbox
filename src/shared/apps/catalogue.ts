@@ -3,9 +3,11 @@
 // shared by the menu on the PC (to list them) and the sandbox (to install them, guest/apps). VS Code and Windows
 // Terminal have settings of their own (toolchains.vscode, provisioning.terminal) and are listed here too, like
 // claude-mem (claudeProfile.syncClaudeMem) among the agent add-ons.
+import { AGENTS_WEB_APPS } from './catalogue-agents-web.js';
 import { GAMEDEV_APPS } from './catalogue-gamedev.js';
 import { MOBILE_APPS } from './catalogue-mobile.js';
 import { MODDING_APPS } from './catalogue-modding.js';
+import type { AppSigner } from '../signer.js';
 
 export type AppCategory =
   | 'agents'
@@ -84,14 +86,30 @@ export type AppSource =
   | { url: string; sha256?: string }
   | { resolve: string }
   | { npm: string }
-  | { locked: 'npm' | 'uv'; package: string; version: string };
+  | { locked: 'npm' | 'uv'; package: string; version: string }
+  /** Nothing to download: a remote MCP server (AddonMcp.url). */
+  | { remote: true };
 
-/** An MCP server an add-on adds to the sandbox's Claude Code: `node <its folder>\<script> <args>`. */
+/**
+ * An MCP server an add-on adds to the sandbox's Claude Code (and Codex, with `codex`): `node <its folder>\<script>
+ * <args>`, the add-on's own program (`program`), or a remote server (`url`).
+ */
 export interface AddonMcp {
   /** The server's name in Claude Code (sbx-...: the sandbox removes its own names again when the add-on is off). */
   readonly name: string;
-  readonly script: string;
+  /** The script node runs, below the add-on's folder. */
+  readonly script?: string;
+  /** Instead: the add-on's own program (its exe) runs the server. */
+  readonly program?: boolean;
+  /** Instead: a remote server over HTTP; nothing runs in the sandbox, and it signs in with OAuth on first use. */
+  readonly url?: string;
   readonly args?: readonly string[];
+  /** Variables of the agent's environment the server reads (Codex passes on only those it is told about). */
+  readonly envVars?: readonly string[];
+  /** Fixed variables for the server (switches such as telemetry off; never a secret). */
+  readonly env?: Readonly<Record<string, string>>;
+  /** Also in the sandbox's Codex (its config.toml), not only Claude Code. */
+  readonly codex?: boolean;
 }
 
 export interface AppEntry {
@@ -104,7 +122,7 @@ export interface AppEntry {
   /**
    * How the download is unpacked: an archive (zip/7z/tar, the default), the file itself, an NSIS installer or an MSI.
    */
-  unpack?: 'archive' | 'file' | 'nsis' | 'msi';
+  unpack?: 'archive' | 'file' | 'nsis' | 'msi' | 'chromium';
   /** The program to start (or the tool on PATH): a file name, or a regex (/.../) for names with a version in them. */
   exe: string;
   /** A command-line tool: its folder goes on PATH (no desktop shortcut). */
@@ -126,6 +144,11 @@ export interface AppEntry {
   service?: boolean;
   /** The MCP server it adds to the sandbox's Claude Code while it is on. */
   mcp?: AddonMcp;
+  /**
+   * Who must sign the download (Authenticode), for a vendor that publishes no checksum: a download signed by anyone
+   * else is refused, and it counts as integrity for downloads.requireChecksum.
+   */
+  signer?: AppSigner;
 }
 
 const gh = (github: string, asset: string): AppSource => ({ github, asset });
@@ -974,7 +997,7 @@ const CORE_APPS: AppEntry[] = [
 ];
 
 /** Every app: the ones above, then the game-development, modding and mobile ones (each list in its own file). */
-export const APPS: AppEntry[] = [...CORE_APPS, ...GAMEDEV_APPS, ...MODDING_APPS, ...MOBILE_APPS];
+export const APPS: AppEntry[] = [...CORE_APPS, ...GAMEDEV_APPS, ...MODDING_APPS, ...MOBILE_APPS, ...AGENTS_WEB_APPS];
 
 export function appById(id: string): AppEntry | undefined {
   return APPS.find((a) => a.id === id);

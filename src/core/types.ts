@@ -225,6 +225,8 @@ export interface GuestSession {
    */
   projectsDir?: string;
   roots?: string[];
+  /** The same folders with the PC folder each shows (roots first), for the sandbox guide. */
+  mappedProjects?: { host: string; guest: string; root?: boolean }[];
   /** false: start no agent session at boot (a restart that adds a project opens its sessions itself). */
   autoSession?: boolean;
   harnessName: string;

@@ -307,7 +307,8 @@ A repo can ship this file, so it is **untrusted**:
   certificate bundles, `ANTHROPIC_*`, `CLAUDE*`, `OPENAI_*` and other agent and cloud prefixes. Registry mirrors such as
   `NPM_CONFIG_REGISTRY` or `PIP_INDEX_URL` are fine.
 - **Apps:** it may add catalogue apps (`apps.install`, added to yours), but never programs of its own (`apps.custom`)
-  and never the agent add-ons `rtk`, `headroom`, `ccusage`, `playwright-mcp` or `context7`.
+  and never the agent add-ons (`rtk`, `headroom`, `ccusage`, `playwright-mcp`, `context7`, the Perplexity and
+  browser MCP servers) or Comet.
 - **Never:** storage, agent executables, secrets handling, CPU, memory, the paging file, host folders for tools or
   Claude settings, or any setting marked "yours only" above.
 

@@ -74,14 +74,8 @@ export function takeHandoffs(
       const spec = SERVICE_SPECS[kind];
       const bytes = readBoundedFile(file, spec.maxBytes + ENVELOPE_BYTES);
       const parsed = bytes ? handoffSchema(kind).safeParse(JSON.parse(bytes.toString('utf8'))) : null;
-      const lease = leases.holder(kind);
-      if (
-        parsed?.success &&
-        spec.returns &&
-        lease &&
-        lease.dataSet === dataSet &&
-        lease.launchId === parsed.data.launchId
-      ) {
+      const lease = leases.leaseOf(kind, dataSet);
+      if (parsed?.success && spec.returns && lease && lease.launchId === parsed.data.launchId) {
         const payload = parsed.data.payload;
         store.save(kind, payload as never, 'sandbox', HOST_SOURCES[kind].summary(payload as never));
         ok = true;

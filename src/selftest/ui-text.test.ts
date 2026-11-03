@@ -119,6 +119,7 @@ function serviceRow(over: Partial<ServiceRow>): ServiceRow {
     summary: null,
     heldBy: null,
     usedBy: ['fivem'],
+    usedFor: 'fivem',
     warnings: ['Steam allows one sign-in at a time.'],
     canImport: true,
     canLogin: true,

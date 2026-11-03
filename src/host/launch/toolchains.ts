@@ -1,6 +1,6 @@
 import type { BootWant } from '../../core/local-config/index.js';
 import type { GenerateOptions } from '../../core/types.js';
-import { USED_BY, type UsedBy } from '../../shared/accounts/index.js';
+import { appUsersOn, USED_BY, type UsedBy } from '../../shared/accounts/index.js';
 import { decideToolchains, readPwshScripts, usesPwsh } from '../../core/detect/index.js';
 import { pcLanguages } from './pc-scan.js';
 import { msvcHint, projectEntries, uvHint } from './project-scan.js';
@@ -30,12 +30,16 @@ export function decideProjectToolchains(
 
 /**
  * The toolchains a service sign-in may serve that are on for this boot: the launch's own project (its files decide
- * "auto") and the other boot projects that turn one on in their settings.
+ * "auto") and the other boot projects that turn one on in their settings. Plus the apps that use one (Perplexity's
+ * MCP server, Comet), from your apps.install: apps are installed for the launch's settings only.
  */
 export function toolchainsOnForBoot(
   o: Pick<GenerateOptions, 'run' | 'pcLanguages'>,
   others: readonly BootWant[] = [],
 ): Set<UsedBy> {
   const decisions = decideProjectToolchains(o);
-  return new Set(USED_BY.filter((u) => decisions[u].on || others.some((p) => p.config.toolchains[u].enabled === true)));
+  const toolchains = USED_BY.filter(
+    (u) => decisions[u].on || others.some((p) => p.config.toolchains[u].enabled === true),
+  );
+  return new Set<UsedBy>([...toolchains, ...appUsersOn(o.run.config.apps.install)]);
 }

@@ -157,6 +157,16 @@ One planner sets the machine PATH: in order, without duplicates or missing folde
 machine and user PATH, whatever started it. Agent sessions and `sandbox exec` also get folders added to the machine PATH
 since the sandbox started.
 
+Python and Rust that are already installed in `C:\AgentData\tools` (`python\python-<version>`, `rust\cargo`) are on
+PATH for every project and terminal in the sandbox, even one whose own files did not turn them on (they go last, so a
+project's own toolchains still win). Nothing is installed or changed for that: a project that wants a version, or a
+toolchain that is not installed yet, still gets it from its own settings and detection. A `python` or `python.cmd`
+file you put in `C:\AgentData\tools\bin` as a workaround is no longer needed and can be deleted.
+
+Git's `usr\bin` (coreutils) is last on PATH, after MSVC's folder, and its `link.exe` is renamed to
+`link-coreutils.exe` in the sandbox's copy of Git. Otherwise `link` was the coreutils program, which made MSVC Rust
+builds fail with os error 1392.
+
 ## Databases
 
 Each database starts only when the project needs it. That is found from compose images, dependencies in every ecosystem
@@ -198,13 +208,13 @@ list them in `apps.install`:
 
 | Category             | Apps                                                                                                                                                                                                         |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Agent add-ons        | rtk, Headroom, ccusage, Playwright MCP, Context7 MCP, claude-mem, REA ([details](#agent-add-ons))                                                                                                            |
+| Agent add-ons        | rtk, Headroom, ccusage, Playwright MCP, Context7 MCP, claude-mem, REA ([details](#agent-add-ons)); Perplexity MCP, Perplexity Computer MCP, Comet MCP, Chrome DevTools MCP, Browser Use MCP ([agents-web.md](agents-web.md)) |
 | Editors              | Notepad++, Sublime Text, Neovim ([VS Code](#vs-code) is its own setting)                                                                                                                                     |
 | Database clients     | DBeaver, pgAdmin 4, HeidiSQL, DB Browser for SQLite, MongoDB Compass, Redis Insight, DbGate, Beekeeper Studio, dynamodb-admin                                                                                |
 | API clients          | Bruno, Insomnia                                                                                                                                                                                              |
 | Git                  | SourceGit, lazygit, GitHub Desktop and Jujutsu `jj` (these two need git access `full`: they push past the sandbox's git guard)                                                                               |
 | Utilities            | 7-Zip, WinMerge, Everything, Sysinternals Suite, ImHex (Windows Terminal is on by default)                                                                                                                   |
-| Browsers             | Chrome for Testing, Firefox                                                                                                                                                                                  |
+| Browsers             | Chrome for Testing, Firefox, Comet (Perplexity's agentic browser, [agents-web.md](agents-web.md))                                                                                                           |
 | Game development     | Godot, Blender, LÖVE, Defold, Pixelorama, Tiled (Mesa is added for OpenGL without a GPU)                                                                                                                     |
 | Reverse engineering  | Ghidra, x64dbg, ILSpy, dnSpyEx, Detect It Easy, PE-bear, Cutter, radare2, JADX, System Informer (for programs you are allowed to analyse)                                                                    |
 | Cloud and Kubernetes | kubectl, Helm, k9s, Terraform, Azure CLI, Google Cloud CLI, AWS CLI                                                                                                                                          |
@@ -263,8 +273,11 @@ rtk, Headroom, ccusage and the two MCP servers can be turned on only in your own
   plugin on your PC into the sandbox. The switch in Apps changes that setting.
 - **REA** (Reverse Engineer Anything) installs from npm. Run `rea setup` once to add its MCP server to Claude Code and
   Codex.
+- **Perplexity, Comet and browser-driving MCP servers** (Perplexity MCP, Perplexity Computer MCP, Comet MCP, Chrome
+  DevTools MCP, Browser Use MCP) are in [agents-web.md](agents-web.md). They go into Codex's `config.toml` too.
 
-ccusage 20.0.36, Playwright MCP 0.0.83 and Context7 MCP 4.4.2 install with `npm ci --ignore-scripts` from the
+ccusage 20.0.36, Playwright MCP 0.0.83, Context7 MCP 4.4.2 and the npm servers in [agents-web.md](agents-web.md)
+install with `npm ci --ignore-scripts` from the
 `package-lock.json` in `sandbox\addons\<id>`, which checks every package against its sha512. The MCP servers are added
 to the sandbox's own Claude Code (user scope, names starting `sbx-`) every boot while on, and removed when off. Your own
 MCP servers are left alone.

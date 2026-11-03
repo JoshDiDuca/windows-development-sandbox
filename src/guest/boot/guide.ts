@@ -6,6 +6,7 @@ import { claudeDir, session, stateDir, workspace } from '../runtime/session.js';
 import { dataDir, launchDir, logsDir, toolsDir } from '../runtime/paths.js';
 import { addonGuideLine, APPS, headroomGuideLine, RTK_GUIDE_LINE } from '../../shared/apps/index.js';
 import { installedAddon, installedRtk } from '../setup/agent-addons.js';
+import { projectFolderLines, toolLines, type GuideProject, type MappedFolder } from './guide-lines.js';
 
 const BEGIN = '<!-- agent-sandbox:begin (generated every boot, do not edit) -->';
 const END = '<!-- agent-sandbox:end -->';
@@ -24,12 +25,11 @@ const mirrorLine = (): string[] => {
   ];
 };
 
-/** Deliberately tiny: it is loaded into every conversation. */
-export interface GuideProject {
-  guest: string;
-  host: string;
-}
+/** Folders mapped for other projects at boot; launch folders from before mappedProjects only list the guest side. */
+const mappedFolders = (): MappedFolder[] =>
+  session.mappedProjects ?? (session.roots ?? []).map((guest) => ({ host: 'a folder on the PC', guest }));
 
+/** Deliberately tiny: it is loaded into every conversation. */
 export function sandboxGuide(
   toolSummary: string[],
   lan: 'blocked' | 'open' | 'offline' = 'blocked',
@@ -40,16 +40,7 @@ export function sandboxGuide(
     BEGIN,
     '## Sandbox manifest — you are in a DISPOSABLE Windows Sandbox',
     'Wiped on close: everything except the paths below (installers, winget/choco, C:\\Users, Program Files, registry).',
-    '- RW, persists: `' + workspace + '` = host folder ' + session.workspaceHost,
-    // Projects started from other folders while this sandbox runs: every agent here can see them.
-    ...projects.map(
-      (p) =>
-        '- RW, persists: `' +
-        p.guest +
-        '` = host folder ' +
-        p.host +
-        ' (another project in this sandbox; your own is `%AGENT_WORKSPACE%`)',
-    ),
+    ...projectFolderLines(workspace, session.workspaceHost, mappedFolders(), projects),
     '- RW, persists: `' +
       toolsDir +
       '` (toolchains) — put portable exes in `' +
@@ -62,7 +53,7 @@ export function sandboxGuide(
       '`',
     '- RO: `' + launchDir + "` (this boot's scripts) · lost on close: everything else, incl. `C:\\nvm` (Node symlink)",
     ...mirrorLine(),
-    '- Tools: ' + toolSummary.join(' · '),
+    ...toolLines(session.project, toolSummary, projects),
     // Agent add-ons that change how the agent works (rtk, Headroom, MCP servers, ccusage).
     ...addons,
     '- Persistent installs: `npm i -g` (per nvm version), `pip`, `cargo install`, `dotnet tool -g`, `uv tool`, `bun add -g`. Real installers must re-run each boot via a hook (ask the user).',

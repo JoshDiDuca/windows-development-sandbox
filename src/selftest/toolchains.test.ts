@@ -13,6 +13,7 @@ import {
 } from '../core/detect/index.js';
 import { parseReleasePage, parseReleaseTags } from '../shared/download/index.js';
 import { decidePwsh, pcHasPwsh, PWSH_MAX_BYTES, readPwshScripts, usesPwsh } from '../core/detect/index.js';
+import { projectFolderLines, toolLines } from '../guest/boot/guide-lines.js';
 import { binstallAsset, CLI_TOOLS, decideCli, pwshAsset, type CliSettings } from '../guest/toolchains/catalogue.js';
 import { missingExtensions, vscodeExtensions, vscodeSettings } from '../guest/toolchains/tools/vscode-profile.js';
 import {
@@ -559,7 +560,8 @@ export const toolchainsSuite: Suite = {
     const on = withAddonMcpServers(mine, pw ? { 'sbx-playwright': pw } : {}, known);
     const off = withAddonMcpServers({ ...on, 'sbx-context7': {} }, {}, known);
     t.check(
-      known.length === 2 &&
+      ['sbx-playwright', 'sbx-context7'].every((n) => known.includes(n)) &&
+        new Set(known).size === known.length &&
         known.every((n) => n.startsWith('sbx-')) &&
         context7?.name === 'sbx-context7' &&
         'sbx-playwright' in on &&
@@ -573,6 +575,49 @@ export const toolchainsSuite: Suite = {
         addonGuideLine(['sbx-playwright'], true).length === 2 &&
         addonGuideLine(['sbx-playwright'], false)[0].includes('sbx-playwright'),
       'add-ons: the agent guide names the MCP servers and ccusage only when they are on',
+    );
+
+    t.section('sandbox guide: every project in the sandbox');
+    const wsGuest = 'C:\\Projects\\AgentProjects\\windows-sandbox';
+    const rootMap = { host: 'F:\\AgentProjects', guest: 'C:\\Projects\\AgentProjects', root: true };
+    const inRoot = projectFolderLines(wsGuest, 'F:\\AgentProjects\\windows-sandbox', [rootMap], []);
+    t.equal(
+      inRoot.length,
+      1,
+      'a launch folder inside a mapped root is covered by the one root line (not listed twice)',
+    );
+    t.check(
+      inRoot[0].includes('`C:\\Projects\\AgentProjects\\*`') && inRoot[0].includes('F:\\AgentProjects\\*'),
+      'the persists line names the mapped root and its PC folder',
+    );
+    const outside = projectFolderLines(
+      'C:\\Workspace\\app',
+      'D:\\app',
+      [rootMap],
+      [
+        { guest: 'C:\\Projects\\AgentProjects\\mw2-agent', host: 'F:\\AgentProjects\\mw2-agent' },
+        { guest: 'C:\\Workspace\\other', host: 'D:\\other' },
+      ],
+    );
+    t.check(
+      outside.length === 3 && outside[0].includes('C:\\Workspace\\app') && outside[2].includes('C:\\Workspace\\other'),
+      'the workspace outside any root is listed, a project already under a root is not repeated',
+    );
+    t.equal(toolLines('a', ['node: 24'], []), ['- Tools: node: 24'], 'one project: the single Tools line, as before');
+    const many = toolLines(
+      'a',
+      ['node: 24'],
+      [
+        { guest: 'C:\\Projects\\b', host: 'F:\\b', name: 'b', tools: ['python: 3.15.2', 'rust: 1.99'] },
+        { guest: 'C:\\Projects\\c', host: 'F:\\c', name: 'c', tools: [] },
+      ],
+    );
+    t.check(
+      many[0] === '- Tools (a): node: 24' &&
+        many[1] === '- Tools (b): python: 3.15.2 · rust: 1.99' &&
+        many.length === 3 &&
+        !many.join().includes('(c)'),
+      'several projects: the tools of each one that was set up, by name',
     );
   },
 };

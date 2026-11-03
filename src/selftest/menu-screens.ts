@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Draft } from '../cli/menu/settings/draft.js';
 import { ConfigFile } from '../app/features/settings/index.js';
+import { SERVICE_SPECS } from '../shared/accounts/index.js';
 import { accountsOptions, type AccountsModel } from '../cli/menu/pages/accounts-page.js';
 import { appsOptions, stageTicks } from '../cli/menu/pages/apps-page.js';
 import { maintenanceOptions, type MaintenanceModel } from '../cli/menu/pages/maintenance-page.js';
@@ -39,7 +40,42 @@ const DATA_FOLDER_ROW = [
 
 const ACCOUNTS: AccountsModel = {
   agent: 'claude',
-  services: [],
+  services: [
+    {
+      kind: 'perplexity',
+      label: SERVICE_SPECS.perplexity.label,
+      share: true,
+      state: 'saved',
+      source: 'pc',
+      savedAt: '2026-10-14T10:00:00Z',
+      summary: 'pplx-...wxyz',
+      heldBy: null,
+      usedBy: ['perplexity'],
+      usedFor: 'the Perplexity MCP app',
+      warnings: [...SERVICE_SPECS.perplexity.warnings],
+      canImport: true,
+      canLogin: true,
+      needsFile: false,
+      ready: true,
+    },
+    {
+      kind: 'comet',
+      label: SERVICE_SPECS.comet.label,
+      share: false,
+      state: 'none',
+      source: null,
+      savedAt: null,
+      summary: null,
+      heldBy: null,
+      usedBy: ['comet'],
+      usedFor: 'the Comet app',
+      warnings: [...SERVICE_SPECS.comet.warnings],
+      canImport: false,
+      canLogin: false,
+      needsFile: false,
+      ready: true,
+    },
+  ],
   agents: [
     {
       name: 'claude',

@@ -41,7 +41,7 @@ export function planPath(input: PathPlanInput): string[] {
     seen.add(key);
     result.push(entry);
   }
-  return result;
+  return msvcBeforeGitUsr(result);
 }
 
 /** `base` with the folders of `extra` it lacks added at the end (a process keeps its own order and entries). */
@@ -53,7 +53,7 @@ export function appendMissing(base: string, extra: string, skip: (folder: string
     seen.add(key);
     return true;
   });
-  return [...splitPath(base), ...added].join(';');
+  return msvcBeforeGitUsr([...splitPath(base), ...added]).join(';');
 }
 
 /**
@@ -84,4 +84,84 @@ export function isPinnedNodeDir(folder: string, nvmHome: string): boolean {
   const key = pathKey(folder);
   const home = pathKey(nvmHome);
   return key.startsWith(home + '\\') && /^v\d/.test(path.win32.basename(key));
+}
+
+/** MSVC's compiler folder (`...\VC\Tools\MSVC\<version>\bin\Host<arch>\<arch>`): where the real link.exe lives. */
+export function isMsvcToolsDir(folder: string): boolean {
+  return /\\vc\\tools\\msvc\\[^\\]+\\bin\\host[^\\]+\\[^\\]+$/.test(pathKey(folder));
+}
+
+/** Git for Windows' `usr\bin` (coreutils): its link.exe is not MSVC's linker, and it has many other lookalikes. */
+export function isGitUsrBin(folder: string): boolean {
+  const key = pathKey(folder);
+  return key.endsWith('\\usr\\bin') && /\\git(\\|$)/.test(key);
+}
+
+/**
+ * The same folders with MSVC's tools before Git's `usr\bin`, so `link` is the linker and not coreutils' `link` (a
+ * msvc Rust build then died with os error 1392). Nothing else moves: MSVC folders found after the first Git `usr\bin`
+ * are put just before it, in their own order.
+ */
+export function msvcBeforeGitUsr(folders: readonly string[]): string[] {
+  const firstGit = folders.findIndex(isGitUsrBin);
+  if (firstGit < 0 || !folders.slice(firstGit).some(isMsvcToolsDir)) return [...folders];
+  const late = folders.slice(firstGit).filter(isMsvcToolsDir);
+  return [...folders.slice(0, firstGit), ...late, ...folders.slice(firstGit).filter((f) => !isMsvcToolsDir(f))];
+}
+
+/** How `installedToolPaths` looks at the tools folder (injected so it is a pure function). */
+export interface ToolsFs {
+  readonly exists: (file: string) => boolean;
+  /** Names in a folder ([] when it is missing). */
+  readonly list: (folder: string) => readonly string[];
+}
+
+/** Compares "3.9.1" and "3.15.2" by their numbers. */
+function compareVersions(a: string, b: string): number {
+  const x = a.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const y = b.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/**
+ * What a toolchain that is already installed in the persistent tools folder adds to PATH even when the project in this
+ * session did not ask for it (python and rust: another project of the same sandbox, a terminal tab, a script that
+ * calls `python`). Only PATH entries and the two variables rust's own tools read, nothing is installed or changed,
+ * and the folders go at the END so they never shadow what a project's own toolchains put first. `skip` names the
+ * toolchains whose own step already runs (they bring their own entries).
+ */
+export function installedToolPaths(
+  toolsDir: string,
+  fsApi: ToolsFs,
+  skip: ReadonlySet<'python' | 'rust'> = new Set(),
+): { readonly append: string[]; readonly vars: Record<string, string>; readonly summary: string[] } {
+  const join = (...parts: string[]): string => path.win32.join(toolsDir, ...parts);
+  const append: string[] = [];
+  const vars: Record<string, string> = {};
+  const summary: string[] = [];
+  if (!skip.has('python')) {
+    const newest = fsApi
+      .list(join('python'))
+      .filter((n) => /^python-\d+(\.\d+)*$/.test(n) && fsApi.exists(join('python', n, 'python.exe')))
+      .map((n) => n.slice('python-'.length))
+      .sort(compareVersions)
+      .pop();
+    if (newest) {
+      const dir = join('python', 'python-' + newest);
+      append.push(dir, join('python', 'python-' + newest, 'Scripts'));
+      if (fsApi.exists(join('shims', 'py.cmd'))) append.push(join('shims'));
+      summary.push('python: ' + newest + ' (already installed here, on PATH for every project)');
+    }
+  }
+  if (!skip.has('rust') && fsApi.exists(join('rust', 'cargo', 'bin', 'rustup.exe'))) {
+    append.push(join('rust', 'cargo', 'bin'));
+    vars.RUSTUP_HOME = join('rust', 'rustup');
+    vars.CARGO_HOME = join('rust', 'cargo');
+    summary.push('rust: rustup (already installed here, on PATH for every project)');
+  }
+  return { append, vars, summary };
 }

@@ -21,6 +21,7 @@ import {
   type AccountSource,
   type ServiceKind,
   type ServiceSpec,
+  usedByText,
 } from '../../../shared/accounts/index.js';
 import { readBoundedFile } from '../../../shared/io/index.js';
 import { implement } from '../../context.js';
@@ -50,6 +51,7 @@ export function serviceRow(
     summary: info?.summary ? safeText(info.summary) : null,
     heldBy: holder ? safeText(holder.dataSet) : null,
     usedBy: [...spec.usedBy],
+    usedFor: usedByText(spec.usedBy),
     warnings: [...spec.warnings],
     canImport: Boolean(source.fromPc || source.fromFile),
     canLogin: Boolean(source.fromAnswers),
@@ -81,10 +83,10 @@ async function kindOf(
   return picked;
 }
 
-/** Asks for the kind's fields; optional ones may stay empty. */
-async function askFields(io: OperationIO, spec: ServiceSpec): Promise<Record<string, string>> {
+/** Asks for the kind's fields (those for typing it, or for a file); optional ones may stay empty. */
+async function askFields(io: OperationIO, spec: ServiceSpec, mode: 'typed' | 'file'): Promise<Record<string, string>> {
   const answers: Record<string, string> = {};
-  for (const field of spec.fields) {
+  for (const field of spec.fields.filter((f) => !f.only || f.only === mode)) {
     const validate = (value: string): true | string => {
       const v = value.trim();
       if (!v) return field.optional ? true : 'This one is needed.';
@@ -101,6 +103,15 @@ async function askFields(io: OperationIO, spec: ServiceSpec): Promise<Record<str
     if (answer.trim()) answers[field.name] = answer.trim();
   }
   return answers;
+}
+
+/** A kind that only ever comes from a sandbox (Comet): why it cannot be taken from this PC, and what to do instead. */
+function refuseSandboxOnly(spec: ServiceSpec): void {
+  if (spec.sources.length !== 1 || spec.sources[0] !== 'sandbox') return;
+  fail(
+    'Your ' + spec.label + " sign-in can't be copied from this PC: Windows locks it to your PC account.",
+    'Sign in once inside a sandbox (with accounts.' + spec.kind + '.share on): it is kept for the next ones.',
+  );
 }
 
 function savedMessage(kind: ServiceKind, share: boolean): string {
@@ -127,6 +138,7 @@ export async function importServiceFlow(
 ): Promise<{ message: string }> {
   const spec: ServiceSpec = SERVICE_SPECS[kind];
   const source = HOST_SOURCES[kind];
+  if (!source.fromPc && !source.fromFile) refuseSandboxOnly(spec);
   if (!source.fromPc && !source.fromFile)
     failWith(spec.label + ' cannot be imported.', 'Type it instead.', {
       op: 'accounts.service.login',
@@ -160,9 +172,10 @@ export async function importServiceFlow(
   let payload: unknown;
   let saved: AccountSource;
   if (useFile) {
-    const bytes = readBoundedFile(file!, spec.maxBytes);
-    if (!bytes) fail('Cannot read ' + file + ' (missing, a link, or bigger than ' + spec.maxBytes / 1024 + ' KB).');
-    payload = source.fromFile!(bytes, await askFields(io, spec));
+    const maxBytes = spec.maxFileBytes ?? spec.maxBytes;
+    const bytes = readBoundedFile(file!, maxBytes);
+    if (!bytes) fail('Cannot read ' + file + ' (missing, a link, or bigger than ' + maxBytes / 1024 + ' KB).');
+    payload = source.fromFile!(bytes, await askFields(io, spec, 'file'));
     saved = 'file';
   } else {
     payload = source.fromPc!(deps.pc, file);
@@ -175,7 +188,11 @@ export async function importServiceFlow(
         spec.label +
         ' sign-in found on this PC' +
         (file ? ' in ' + file : '') +
-        (spec.returns ? ' (sign in there first, or sign in once inside a sandbox).' : '.'),
+        (spec.returns
+          ? ' (sign in there first, or sign in once inside a sandbox).'
+          : kind === 'perplexity'
+            ? ' (PERPLEXITY_API_KEY is not set for your Windows user: import a .env file, or type the key).'
+            : '.'),
     };
   deps.store.save(kind, payload as never, saved, source.summary(payload as never));
   for (const w of spec.warnings) io.log(w, 'warn');
@@ -190,6 +207,7 @@ export async function loginServiceFlow(
 ): Promise<{ message: string }> {
   const spec: ServiceSpec = SERVICE_SPECS[kind];
   const source = HOST_SOURCES[kind];
+  if (!source.fromAnswers) refuseSandboxOnly(spec);
   if (!source.fromAnswers)
     failWith(
       spec.label + ' has nothing to type.',
@@ -203,7 +221,7 @@ export async function loginServiceFlow(
         cli: 'sandbox account import ' + kind + (spec.sources.includes('sandbox') ? '' : ' --from <file>'),
       },
     );
-  const payload = source.fromAnswers(await askFields(io, spec));
+  const payload = source.fromAnswers(await askFields(io, spec, 'typed'));
   deps.store.save(kind, payload as never, 'typed', source.summary(payload as never));
   for (const w of spec.warnings) io.log(w, 'warn');
   return { message: savedMessage(kind, deps.share) };

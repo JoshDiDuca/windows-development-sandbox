@@ -18,7 +18,13 @@ import {
   UNREAL_COMPONENTS,
   visualStudioWanted,
 } from '../guest/toolchains/native/vs-request.js';
-import { autosdkLayout, layoutNextStep, unrealUsesAutosdk, vsExitText } from '../guest/toolchains/native/vs-request.js';
+import {
+  autosdkLayout,
+  layoutNextStep,
+  STAGING_RESERVE_BYTES,
+  unrealUsesAutosdk,
+  vsExitText,
+} from '../guest/toolchains/native/vs-request.js';
 import { freeBytesAt } from '../shared/io/disk.js';
 import { SIGNERS, signerMatches } from '../shared/signer.js';
 import { decideToolchains } from '../core/detect/toolchains.js';
@@ -239,6 +245,11 @@ export const persistedInstallsSuite: Suite = {
         layoutNextStep(null, room(40 * GB), reserve) === 'stage',
       'a failed layout is built on the sandbox disk only with room for it (12 GB plus the reserve)',
     );
+    t.check(
+      layoutNextStep(null, room(15 * GB), STAGING_RESERVE_BYTES) === 'stage' &&
+        layoutNextStep(null, room(14 * GB), STAGING_RESERVE_BYTES) === 'skip',
+      'before Visual Studio is installed, 15 GB free on C: is enough to build the install files there',
+    );
     t.equal(
       freeBytesAt(path.join(t.dir('layout-room'), 'not', 'there'), () => ({ bavail: 3, bsize: 2 })),
       6,
@@ -280,8 +291,9 @@ export const persistedInstallsSuite: Suite = {
     );
     const shown = settingsOf(ConfigFile.user(t.at('settings', 'config.json'))).map((r) => r.key.join('.'));
     t.check(
-      !shown.some((k) => /^toolchains\.(unity|godot|android|flutter|dart|reactNative|fivem)\./.test(k)) &&
-        shown.includes('toolchains.unreal.visualStudio'),
+      !shown.some((k) => /^toolchains\.(unity|godot|android|flutter|dart|reactNative)\./.test(k)) &&
+        shown.includes('toolchains.unreal.visualStudio') &&
+        shown.some((k) => k.startsWith('toolchains.fivem.')),
       'settings do not list the toolchains that are not written yet',
     );
   },

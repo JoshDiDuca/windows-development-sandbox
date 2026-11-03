@@ -2,7 +2,10 @@
 // failing never blocks the rest. The boot runs them for the launch folder; the session daemon runs them again for
 // each project registered later, possibly several at once (the scheduler keeps same-kind steps apart).
 import type { Toolchains, ToolVersions } from '../../core/types.js';
+import fs from 'node:fs';
 import { log } from '../runtime/log.js';
+import { toolsDir } from '../runtime/paths.js';
+import { installedToolPaths } from '../setup/path-plan.js';
 import { mkdirp } from '../runtime/fs.js';
 import { emptyEnv, tool, type ToolEnv } from './tool-env.js';
 import { plan } from './plan.js';
@@ -32,6 +35,17 @@ export async function setupToolchains(
     env.append.push(...part.append);
     env.summary.push(...part.summary);
   }
+  // Python and rust already installed in the persistent tools are on PATH for every project (at the end, nothing is
+  // installed): the project this session is for may not have asked for them, but its scripts and neighbours use them.
+  const have = new Set(steps.map((s) => s.name));
+  const installed = installedToolPaths(
+    toolsDir,
+    { exists: fs.existsSync, list: (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir) : []) },
+    new Set([...(have.has('Python') ? ['python' as const] : []), ...(have.has('Rust') ? ['rust' as const] : [])]),
+  );
+  env.append.push(...installed.append);
+  env.summary.push(...installed.summary);
+  for (const [name, value] of Object.entries(installed.vars)) env.vars[name] ??= value;
   Object.assign(env.vars, config.environment);
   // The git guard's variables (AGENT_GIT_ACCESS, GIT_DIR, GIT_CONFIG_*, BASH_ENV) always win over
   // toolchains.environment.

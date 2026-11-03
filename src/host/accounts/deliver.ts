@@ -1,8 +1,9 @@
 // Which saved service sign-ins a launch hands to its sandbox: only kinds you share (accounts.<kind>.share), that a
-// toolchain on for this boot uses, and that no other project in the boot turned off. A one-holder kind (Epic, Steam,
-// Unity) also needs its lease; the lease is claimed even when nothing is saved yet, so a first sign-in made in the
-// sandbox can come back. What a sandbox left behind earlier is taken first, so the newest one travels. The payloads
-// are returned for generateSandbox's one-shot file only; the notes never hold a secret.
+// toolchain (or app) on for this boot uses, and that no other project in the boot turned off. A one-holder kind (Epic,
+// Steam, Unity) also needs its lease, and a kind several sandboxes share that comes back (Comet) gets one of its own;
+// the lease is claimed even when nothing is saved yet, so a first sign-in made in the sandbox can come back. What a
+// sandbox left behind earlier is taken first, so the newest one travels. The payloads are returned for
+// generateSandbox's one-shot file only; the notes never hold a secret.
 import type { BootWant } from '../../core/local-config/index.js';
 import type { Config } from '../../core/types.js';
 import {
@@ -47,6 +48,7 @@ function howToSave(spec: ServiceSpec): string {
   if (spec.kind === 'epic')
     return "sign in to the Epic Games Launcher in this sandbox once, or take this PC's: sandbox account import epic";
   if (spec.kind === 'steam') return 'sign in once in this sandbox with sbx-steam login';
+  if (spec.kind === 'comet') return 'sign in to Comet once in this sandbox, and it is kept for the next ones';
   if (spec.returns) return 'sign in once in this sandbox, or: sandbox account import ' + spec.kind;
   return spec.sources.includes('typed')
     ? 'save one: sandbox account login ' + spec.kind
@@ -93,6 +95,10 @@ export function prepareServiceAccounts(i: DeliveryInput): AccountDelivery {
           continue;
         }
         if (spec.returns) leased.push(kind);
+      } else if (spec.returns) {
+        // Several sandboxes may use it at once: each gets its own lease, so each may hand a renewed one back.
+        leases.claimShared(kind, dataSet, i.launchId, payload ? fingerprint(payload) : null);
+        leased.push(kind);
       }
       if (unreadable) {
         notes.push(

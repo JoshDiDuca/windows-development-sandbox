@@ -17,6 +17,8 @@ export interface GuestAdapter<K extends ServiceKind> {
   apply(p: Payload<K>): Promise<Applied> | Applied;
   /** Bounded, BOM-aware read of what the tool holds now; null when it holds none. */
   current?(): Payload<K> | null;
+  /** Asks the tool before each look, for tools that only answer asynchronously (Comet over its DevTools port). */
+  refresh?(): Promise<void>;
   /** How often current() is asked (default 60000 ms). */
   readonly checkMs?: number;
   /** When the sandbox stops: let go of what must not stay taken (a Unity seat). */

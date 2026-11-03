@@ -56,20 +56,7 @@ export function sizeWithin(p: string, ms: number): number | null {
   }
 }
 
-/**
- * Free bytes on the drive that holds `dir` (which may not exist yet: the nearest existing parent is asked); null if
- * unknown.
- */
-export function freeBytesAt(dir: string): number | null {
-  let at = path.resolve(dir);
-  while (!fs.existsSync(at) && path.dirname(at) !== at) at = path.dirname(at);
-  try {
-    const s = fs.statfsSync(at);
-    return s.bavail * s.bsize;
-  } catch {
-    return null;
-  }
-}
+export { freeBytesAt } from '../shared/io/disk.js';
 
 export interface DiskUsage {
   drive: string;

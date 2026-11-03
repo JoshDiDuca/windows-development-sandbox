@@ -105,6 +105,11 @@ export const ToolchainsSchema = z.strictObject({
       .describe(
         'Keep an offline copy of the Visual Studio install files in tools\\visualstudio (~10 GB, made once), so later boots install without downloading them again. Skipped while that disk has too little room.',
       ),
+    visualStudio: z
+      .enum(['full', 'autosdk'])
+      .describe(
+        '"full": install Visual Studio Community (the engine finds it through the Setup API; ~10 GB, redone every boot). "autosdk" (experimental): skip Visual Studio and build an Unreal AutoSDK tree from the portable MSVC in tools\\unreal\\autosdk (kept between sandboxes); UnrealBuildTool finds MSVC through AutoSDK, but the editor\'s Visual Studio integration is not available. Needs toolchains.msvc (turned on for you).',
+      ),
     persistEngines: z
       .boolean()
       .describe(

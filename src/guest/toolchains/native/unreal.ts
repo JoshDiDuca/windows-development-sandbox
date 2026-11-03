@@ -14,6 +14,7 @@ import { setupUnrealEngines } from '../engines/unreal-engines.js';
 import { SIGNERS, signedInstaller } from '../installers.js';
 import type { ToolCtx } from '../step.js';
 import { tool, type ToolEnv } from '../tool-env.js';
+import { setupAutosdk } from './autosdk.js';
 import { installedVs } from './visual-studio.js';
 
 export { UNREAL_COMPONENTS } from './vs-request.js';
@@ -51,6 +52,7 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], ct
     return;
   }
   await installDirectX();
+  if (config.visualStudio === 'autosdk') await setupAutosdk(env);
   await setupUnrealEngines(env, config, ctx);
   const vs = installedVs();
   env.summary.push(

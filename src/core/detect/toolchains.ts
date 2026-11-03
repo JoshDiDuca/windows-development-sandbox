@@ -2,6 +2,7 @@
 // a language is installed when the project uses it, and a folder that is no project yet gets the languages this PC has.
 // Pure: file names and the PC's languages in, decisions out.
 import type { Toolchains } from '../types.js';
+import { isToolchainReady } from '../../shared/readiness.js';
 import { projectUses } from './versions.js';
 
 /** Files that show a project uses a language (looked for in the workspace and one folder down). */
@@ -104,6 +105,7 @@ export function decideToolchains(
   const decide = (name: AutoToolchain): ToolchainDecision => {
     const setting = settings[name].enabled;
     if (setting !== 'auto') return { on: setting, reason: setting ? 'enabled in config' : 'disabled in config' };
+    if (!isToolchainReady(name)) return { on: false, reason: 'coming in a later version' };
     const marker = MARKERS[name].map((m) => entries.find((e) => projectUses([e], [m]))).find(Boolean);
     if (marker) return { on: true, reason: marker };
     if (hints[name]) return { on: true, reason: hints[name]! };
@@ -147,8 +149,13 @@ function applyImplications(settings: Toolchains, result: Record<AutoToolchain, T
   if (result.flutter.on) imply(settings, result, 'android', 'Flutter builds for Android');
   if (result.reactNative.on) imply(settings, result, 'android', 'React Native builds for Android');
   if (result.godot.on && settings.godot.dotnet === true) imply(settings, result, 'dotnet', "Godot's .NET build");
+  if (result.unreal.on && settings.unreal.visualStudio === 'autosdk')
+    imply(settings, result, 'msvc', 'Unreal builds from the portable MSVC (AutoSDK)');
+  // Unreal's licence acceptance covers the MSVC it builds from (the same Visual Studio terms).
+  const autosdkLicence = settings.unreal.visualStudio === 'autosdk' && settings.unreal.acceptLicense;
   for (const name of LICENSED_TOOLCHAINS) {
     if (settings[name].enabled !== 'auto' || !result[name].on || settings[name].acceptLicense) continue;
+    if (name === 'msvc' && autosdkLicence) continue;
     result[name] = {
       on: false,
       reason: 'would be used (' + result[name].reason + '); set toolchains.' + name + '.acceptLicense to install it',

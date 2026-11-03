@@ -187,6 +187,10 @@ static class Program
             new[] { "Microsoft-Windows-Hyper-V-Compute-Admin", "*[System[(Level=1 or Level=2) and " + time + "]]" },
             // A crash report of the programs that hold the VM (kept only when it names one of them, see Detail).
             new[] { "Application", "*[System[(EventID=1000 or EventID=1001) and " + time + "]]" },
+            // The graphics driver stopped responding and was reset (with vGPU the sandbox shares the GPU).
+            new[] { "System", "*[System[Provider[@Name='Display'] and EventID=4101 and " + time + "]]" },
+            // Errors of the Hyper-V services that run the VM.
+            new[] { "System", "*[System[(Provider[@Name='Microsoft-Windows-Hyper-V-Worker'] or Provider[@Name='Microsoft-Windows-Hyper-V-VmSwitch'] or Provider[@Name='Microsoft-Windows-Hyper-V-Compute']) and (Level=1 or Level=2) and " + time + "]]" },
         };
         List<string> items = new List<string>();
         foreach (string[] query in queries)
@@ -274,7 +278,7 @@ static class Program
     static bool MentionsVmProgram(string detail)
     {
         string lower = detail.ToLowerInvariant();
-        return lower.Contains("vmwp.exe") || lower.Contains("vmmem") || lower.Contains("vmcompute") || lower.Contains("windowssandbox");
+        return lower.Contains("vmwp.exe") || lower.Contains("vmmem") || lower.Contains("vmcompute") || lower.Contains("windowssandbox") || lower.Contains("livekernelevent");
     }
 
     /// <summary>A JSON string literal.</summary>

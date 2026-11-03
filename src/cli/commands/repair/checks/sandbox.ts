@@ -3,12 +3,20 @@
 // on the PC.
 import fs from 'node:fs';
 import path from 'node:path';
+import { diskUsage, humanBytes } from '../../../../core/disk.js';
 import { dirExists, fileExists, isLink } from '../../../../core/util/index.js';
 import { SandboxChannel } from '../../../../host/channel/index.js';
-import { orphanWatchers, runStateProblems, staleLaunchFolders, watcherRecords } from '../../../../host/health/index.js';
+import {
+  judgeSandbox,
+  orphanWatchers,
+  readSandboxFacts,
+  runStateProblems,
+  staleLaunchFolders,
+  watcherRecords,
+} from '../../../../host/health/index.js';
 import { vgpuSource, vgpuWarning } from '../../../../host/launch/index.js';
 import { hostToolsExe } from '../../../../host/native.js';
-import { sandboxFeatureInstalled } from '../../../../host/sandbox/index.js';
+import { endSandboxPrograms, sandboxFeatureInstalled } from '../../../../host/sandbox/index.js';
 import { assertTestWritable, refuseInSelfTest } from '../../../../host/test-guard.js';
 import { conptyDir, terminalDir, terminalExe } from '../../../../host/tools/index.js';
 import { RunDir } from '../../../../shared/channel/index.js';
@@ -20,6 +28,21 @@ import { fromFacts } from './pc.js';
 import { ok, plural, rel } from './common.js';
 
 const LAUNCH_DAYS = 7;
+
+/** The paging file may take at most this share of the disk it sits on. */
+const PAGE_FILE_MAX_SHARE = 0.4;
+
+/** A warning when the sandbox's paging file takes more than 40 % of the drive (pure); null when it is fine. */
+export function pageFileFinding(pageFileMb: number, driveBytes: number): Finding | null {
+  if (pageFileMb <= 0 || driveBytes <= 0 || pageFileMb * 1024 * 1024 <= PAGE_FILE_MAX_SHARE * driveBytes) return null;
+  return {
+    status: 'warn',
+    detail: 'the paging file is ' + pageFileMb + ' MB on a ' + humanBytes(driveBytes) + ' drive',
+    means:
+      'sandbox.pageFileMb takes more than 40% of the drive, so builds and installs have little room left and the disk fills up (a full disk can freeze the sandbox).',
+    fix: 'Run: sandbox config set sandbox.pageFileMb 8192 (or 0 to let Windows decide).',
+  };
+}
 
 const hiddenWindowsFile = (env: RepairEnv): string => path.join(env.storageRoot, 'run', 'hidden-windows.json');
 
@@ -37,6 +60,16 @@ export const SANDBOX_CHECKS: Check[] = [
             fix: 'Run: sandbox config set sandbox.vGpu false',
           }
         : ok('off'),
+  },
+  {
+    id: 'sandbox-pagefile',
+    group: 'Sandbox',
+    name: 'Paging file size',
+    run: (env: RepairEnv): Finding => {
+      const mb = env.ctx.loaded.config.sandbox.pageFileMb;
+      const drive = diskUsage(env.storageRoot).find((d) => d.drive.toUpperCase() === 'C:\\');
+      return pageFileFinding(mb, drive?.totalBytes ?? 0) ?? ok(mb > 0 ? mb + ' MB' : "Windows' own");
+    },
   },
   {
     id: 'sandbox-exe',
@@ -69,6 +102,32 @@ export const SANDBOX_CHECKS: Check[] = [
           'It was started by another user, by hand, or its status files were removed. Windows allows only one at a time.',
         fix: 'Close its window (or run sandbox stop) before starting yours.',
       };
+    },
+  },
+  {
+    id: 'sandbox-leftover',
+    group: 'Sandbox',
+    name: 'Leftover Windows Sandbox programs',
+    run: async (env: RepairEnv): Promise<Finding> => {
+      if (!env.running) return ok('none');
+      const found = judgeSandbox(await readSandboxFacts(env.storageRoot, env.dataPath, false));
+      if (found.state !== 'leftover') return ok(found.state === 'none' ? 'none' : 'the sandbox is working');
+      return {
+        status: 'needs-you',
+        detail: found.why,
+        means:
+          'A sandbox that died leaves its Windows programs behind, and Windows then refuses to start a new one ("the sandbox was signed out" or "already running").',
+        plan: 'close ' + found.images.join(', ') + ' (only the ones in your Windows session)',
+        data: found.pids,
+      };
+    },
+    fix: (_env: RepairEnv, finding: Finding): FixOutcome => {
+      const pids = Array.isArray(finding.data) ? (finding.data as number[]) : [];
+      return endSandboxPrograms(pids)
+        ? { done: 'closed the leftover Windows Sandbox programs' }
+        : {
+            done: 'Windows would not close some of them; sandbox cleanup can also restart the Windows Sandbox service',
+          };
     },
   },
   {

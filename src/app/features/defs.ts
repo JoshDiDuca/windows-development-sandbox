@@ -28,7 +28,14 @@ import {
   storageView,
   useStorage,
 } from './storage/storage.def.js';
-import { hideWindow, sandboxStatus, sandboxView, showWindow, stopSandbox } from './sandbox/sandbox.def.js';
+import {
+  cleanUpSandbox,
+  hideWindow,
+  sandboxStatus,
+  sandboxView,
+  showWindow,
+  stopSandbox,
+} from './sandbox/sandbox.def.js';
 import {
   addProject,
   allProjects,
@@ -86,6 +93,7 @@ export const OPERATIONS = [
   showWindow,
   hideWindow,
   stopSandbox,
+  cleanUpSandbox,
   restartSessions,
   startShell,
   closeSession,

@@ -6,12 +6,24 @@ import { now } from '../../shared/channel/run-dir.js';
 import type { LoadProfile } from '../../shared/memory/index.js';
 import { errMsg } from '../../core/util/errors.js';
 import { decide, HOLD_MS, INITIAL_STATE, type Action, type GovernorState, type MemSample } from './decide.js';
+/** The newest numbers the governor saw (for the heartbeat file). */
+export interface GovernorSnapshot {
+  readonly ramFreePercent: number;
+  readonly commitPercent: number;
+  readonly step: number;
+  readonly hostStep: number;
+  readonly diskQueue: number | null;
+  readonly top: readonly { readonly name: string; readonly mb: number }[];
+}
+
 /** What the governor needs from Windows (injectable: the tests use a fake). */
 export interface GovernorPort {
   setPriority(pid: number, to: 'idle' | 'below' | 'normal'): void;
   /** Suspends for `ms`, then resumes (memgov resumes it even if the daemon goes away). */
   hold(pid: number, ms: number): void;
   setMemoryPriority(pid: number, low: boolean): void;
+  /** The disk queue priority (very low, low, normal). */
+  setIoPriority(pid: number, to: 'verylow' | 'low' | 'normal'): void;
   /** Into the throttle job (whose CPU cap setCpuRate sets). */
   throttle(pid: number): void;
   setCpuRate(percent: number): void;
@@ -49,10 +61,13 @@ export class GovernorCore {
   private lastWriteAt = 0;
   /** Compilers waiting their turn now, by pid (name), to log a hold once. */
   private held = new Map<number, string>();
+  private latest: GovernorSnapshot | null = null;
+  private diskQueue: number | null = null;
 
   constructor(private readonly deps: GovernorDeps) {}
 
-  hostPressure(seconds: number, reason: string, level: 'slow' | 'severe' = 'slow'): void {
+  hostPressure(seconds: number, reason: string, level: 'slow' | 'severe' = 'slow', diskQueue?: number): void {
+    if (diskQueue !== undefined) this.diskQueue = diskQueue;
     const nowMs = this.deps.now();
     const until = nowMs + seconds * 1000;
     const active = this.state.hostUntil > nowMs;
@@ -69,6 +84,11 @@ export class GovernorCore {
     this.state = { ...this.state, hostUntil: Math.max(until, this.state.hostUntil), hostStep: step };
   }
 
+  /** The newest numbers, null before the first sample. */
+  get snapshot(): GovernorSnapshot | null {
+    return this.latest ? { ...this.latest, diskQueue: this.diskQueue } : null;
+  }
+
   get current(): GovernorState {
     return this.state;
   }
@@ -78,6 +98,17 @@ export class GovernorCore {
     const before = this.state.step;
     const d = decide(this.state, sample, nowMs, this.deps.profile, this.deps.maxCompilers ?? null);
     this.state = d.state;
+    this.latest = {
+      ramFreePercent: d.ramFreePercent,
+      commitPercent: d.commitPercent,
+      step: d.state.step,
+      hostStep: nowMs < d.state.hostUntil ? d.state.hostStep : 0,
+      diskQueue: null,
+      top: [...sample.procs]
+        .sort((a, b) => b.mb - a.mb)
+        .slice(0, 5)
+        .map((p) => ({ name: p.name.slice(0, 64), mb: Math.round(p.mb) })),
+    };
     const holding = new Set<number>();
     for (const action of d.actions) {
       if (action.kind === 'hold') holding.add(action.pid);
@@ -133,6 +164,9 @@ export class GovernorCore {
         case 'priority':
           port.setPriority(action.pid, action.to);
           this.note(action.name + ' (' + action.pid + ') priority ' + action.to);
+          return;
+        case 'io':
+          port.setIoPriority(action.pid, action.to);
           return;
         case 'memory':
           port.setMemoryPriority(action.pid, action.low);

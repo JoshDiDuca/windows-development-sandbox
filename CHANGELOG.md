@@ -7,6 +7,28 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.18.4
+
+- **A sandbox that vanished is no longer "closed on purpose".** When the sandbox ends while it was working, with no
+  word of leaving and nothing in the Windows log, it now counts as a crash: a crash report is written, the next launch
+  and the status page say so, and `resume.restartAfterCrash` applies. The report also reads graphics driver resets
+  (Display 4101, GPU live kernel events 117/141/1a8) and Hyper-V or `vmwp.exe` errors.
+- **Relaunch after a crash ("the sandbox was signed out").** Windows Sandbox leaves its programs behind when the VM
+  dies. Launch, the Sandbox page (menu and web, a Clean up action), `sandbox cleanup` and `sandbox repair` now find
+  them, ask, close them, and if Windows still refuses restart the Windows Sandbox service (administrator permission).
+
+## 1.18.3
+
+- **Fewer sandbox crashes under heavy load.** With vGPU on, builds run at step 2 or harder while a compiler or linker runs,
+  at most 4 heavy compilers run at once, and your PC keeps 4 GB more RAM free. Compilers and linkers get low disk
+  priority, linkers run one at a time from step 2, and an overloaded disk asks for the hardest step. Rust builds go to
+  the sandbox's own disk when C: has 25 GB free (`toolchains.rust.targetDir` is now `auto`). The sandbox writes a
+  heartbeat every 10 seconds, so the status page and the crash report say what it was doing when it vanished. See
+  [troubleshooting](docs/troubleshooting.md#heavy-builds-plus-a-gpu-game-with-vgpu-the-known-crash-pattern).
+## 1.18.1 - 1.18.2
+
+- Claude API keys that start with `sk-ant-usr` are accepted.
+
 ## 1.18.0
 
 - **Service sign-ins in Accounts.** `sandbox account status|import|login|logout <service>`, and the menu and web

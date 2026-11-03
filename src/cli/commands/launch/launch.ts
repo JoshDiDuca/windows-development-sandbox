@@ -41,6 +41,7 @@ import { watcherRunning } from '../../../sync/index.js';
 import { protectionsOf } from '../../../core/local-config/index.js';
 import { errMsg } from '../../../core/util/index.js';
 import { askYesNo } from '../../../core/prompt.js';
+import { offerLeftoverCleanup } from './leftover-offer.js';
 import { resolveRun } from '../../../core/run/index.js';
 import type { ResolvedMapping, ResolvedRun } from '../../../core/types.js';
 import { c, table } from '../../output/index.js';
@@ -187,7 +188,10 @@ class Launcher {
         ? {}
         : { contained: realContainedDeps(ctx.storageRoot, config.storage.containedMaxGb, Boolean(ctx.options.config)) },
     );
-    if (!generateOnly) assertCanLaunch(isSandboxRunning() ? runningOwner() : undefined);
+    if (!generateOnly) {
+      await offerLeftoverCleanup(ctx);
+      assertCanLaunch(isSandboxRunning() ? runningOwner() : undefined);
+    }
     // Contained storage: the image is mounted now (before anything reads or writes the data set), and let go of again
     // when the launch fails before the sandbox starts. The background watcher holds it from then on.
     const dataMappings = await this.prepareStorage(provider, run);

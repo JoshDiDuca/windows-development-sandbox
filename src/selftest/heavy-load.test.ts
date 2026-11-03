@@ -20,7 +20,10 @@ import {
   effectiveCpuLimit,
   gentleCpuLimit,
   maxCompilers,
+  chooseTargetDir,
 } from '../shared/memory/index.js';
+import { HeartbeatSchema } from '../shared/channel/index.js';
+import { heartbeatLine, lastEndOf, vanishedCause, stopWarning, type Life } from '../host/life/index.js';
 import {
   cappedMemoryMb,
   decideMemory,
@@ -30,6 +33,9 @@ import {
   resolveMemoryMb,
 } from '../host/launch/index.js';
 import { vgpuWarning, GENTLE_NOTE } from '../host/launch/risk-notes.js';
+import { judgeSandbox, type SandboxFacts } from '../host/health/index.js';
+import { cleanUpLeftovers, cleanupQuestion, killArgs, type CleanupDeps } from '../host/sandbox/index.js';
+import { parseTasklist } from '../host/sharing/index.js';
 import {
   bugcheckCode,
   cpuPercentBetween,
@@ -54,6 +60,8 @@ import {
   canPause,
   decide,
   INITIAL_STATE,
+  isLinker,
+  linkerSlots,
   ROTATE_MS,
   type Action,
   type MemSample,
@@ -128,12 +136,12 @@ export const heavyLoadSuite: Suite = {
     );
     t.check(
       residentCapMb({ ...MB_SANDBOX, vGpu: false }, 32768) === 24576 &&
-        residentCapMb({ ...MB_SANDBOX, vGpu: true }, 32768) === 22528 &&
+        residentCapMb({ ...MB_SANDBOX, vGpu: true }, 32768) === 20480 &&
         residentCapMb({ ...MB_SANDBOX, vGpu: false }, 65536) === 49152,
-      'what this PC can keep in RAM for the sandbox: its RAM minus max(reserve, 25 %), 2 GB more with vGPU',
+      'what this PC can keep in RAM for the sandbox: its RAM minus max(reserve, 25 %), 4 GB more with vGPU',
     );
     t.check(
-      cappedMemoryMb(32768, { ...MB_SANDBOX, vGpu: true }, 32768) === 22528 &&
+      cappedMemoryMb(32768, { ...MB_SANDBOX, vGpu: true }, 32768) === 20480 &&
         cappedMemoryMb(16384, { ...MB_SANDBOX, vGpu: true }, 32768) === 16384 &&
         cappedMemoryMb(8192, MB_SANDBOX, 6144) === 8192,
       'a fixed memoryMb above it is lowered to it (never on a PC too small to keep 4 GB)',
@@ -350,19 +358,37 @@ export const heavyLoadSuite: Suite = {
         DIAL_STEPS.gentle[0].commitPercent < DIAL_STEPS.normal[0].commitPercent,
       'every step starts earlier',
     );
-    const g = decide(INITIAL_STATE, sample(50, 50, procs), 0, 'gentle');
+    const idle = [proc(3, 'claude.exe', 900), proc(5, 'modern_mohaa.exe', 4400), proc(6, 'cargo.exe', 50)];
+    const g = decide(INITIAL_STATE, sample(50, 50, idle), 0, 'gentle');
     t.check(
-      g.state.step === 0 &&
-        g.actions.length === 3 &&
-        g.actions.every((a) => a.kind === 'priority' && a.to === 'below' && a.pid !== 3),
-      'compilers rest below normal even with plenty of memory (the agent does not)',
+      g.state.step === 0,
+      'with vGPU on and no heavy compiler running the dial stays at 0 (a game alone is fine)',
     );
-    t.check(decide(INITIAL_STATE, sample(19, 50, procs), 0, 'gentle').state.step === 1, '19 % free is step 1');
+    const building = decide(INITIAL_STATE, sample(50, 50, [...procs, proc(5, 'modern_mohaa.exe', 4400)]), 0, 'gentle');
+    t.check(
+      building.state.step === 2 &&
+        of(building, 'priority').length === 3 &&
+        of(building, 'priority').every((a) => a.kind === 'priority' && a.to === 'idle' && a.pid !== 3 && a.pid !== 5),
+      'vGPU on: while rustc or link runs the builds are at step 2 at least; the agent and the GPU game are never touched',
+    );
+    t.check(
+      decide(INITIAL_STATE, sample(50, 50, procs), 0, 'normal').state.step === 0,
+      'without vGPU the same build leaves the dial at 0',
+    );
+    t.check(
+      decide(INITIAL_STATE, sample(19, 50, procs), 0, 'gentle').state.step === 2,
+      '19 % free is step 1, lifted to 2 by the build',
+    );
+    const done = decide(building.state, sample(50, 50, idle), 1000, 'gentle').state;
+    t.check(done.step === 2, 'when the build ends the dial turns down slowly, like any other');
 
     t.section('the compiler cap (vGPU on)');
     t.check(
-      maxCompilers(16, 'gentle') === 4 && maxCompilers(4, 'gentle') === 2 && maxCompilers(16, 'normal') === null,
-      'at most max(2, cores / 4) with vGPU, none otherwise',
+      maxCompilers(16, 'gentle') === 4 &&
+        maxCompilers(64, 'gentle') === 4 &&
+        maxCompilers(4, 'gentle') === 2 &&
+        maxCompilers(16, 'normal') === null,
+      'at most 4 (and at least 2: cores / 4) with vGPU, none otherwise',
     );
     const many = [
       proc(10, 'rustc.exe', 800),
@@ -372,9 +398,16 @@ export const heavyLoadSuite: Suite = {
       proc(3, 'claude.exe', 500),
       proc(14, 'node.exe', 400),
     ];
-    // The cap is a memory measure: with memory to spare no compiler waits (a waiting rustc stalls cargo's whole build).
+    // With vGPU on a build runs at step 2 at least, so the cap holds even with memory to spare.
     const free = decide(INITIAL_STATE, sample(60, 40, many), 0, 'gentle', 2);
-    t.check(of(free, 'hold').length === 0, 'with memory to spare, nothing waits even beyond the cap');
+    t.check(
+      free.state.step === 2 && of(free, 'hold').length === 2,
+      'vGPU on: even with memory to spare compilers beyond the cap wait their turn',
+    );
+    t.check(
+      of(decide(INITIAL_STATE, sample(60, 40, many), 0, 'normal', null), 'hold').length === 0,
+      'without vGPU, with memory to spare, nothing waits',
+    );
     const capped = decide(INITIAL_STATE, sample(14, 40, many), 0, 'gentle', 2);
     const holds = of(capped, 'hold').map((a) => ('pid' in a ? a.pid : 0));
     t.check(
@@ -384,12 +417,198 @@ export const heavyLoadSuite: Suite = {
     );
     t.check(!holds.includes(3) && !holds.includes(14), 'agents (claude, and codex or gemini as node) are never held');
     t.check(
-      of(decide(INITIAL_STATE, sample(60, 40, many), 0, 'gentle', null), 'hold').length === 0,
-      'no cap, no pressure: nothing waits',
-    );
-    t.check(
       of(decide(INITIAL_STATE, sample(60, 40, many.slice(0, 2)), 0, 'gentle', 2), 'hold').length === 0,
       'under the cap nothing waits',
+    );
+
+    t.section('I/O priority and linkers');
+    const ioOf = (d: { actions: readonly Action[] }): string[] =>
+      d.actions.flatMap((a) => (a.kind === 'io' ? [a.pid + ' ' + a.to] : []));
+    const below = decide(INITIAL_STATE, sample(14, 50, procs), 0, 'normal');
+    t.check(
+      below.state.step === 1 && ioOf(below).join() === '1 low,2 low,4 low',
+      'compilers and linkers at below-normal priority get low I/O (the agent does not)',
+      ioOf(below).join(),
+    );
+    const hard = decide(INITIAL_STATE, sample(5, 60, procs), 0, 'normal');
+    t.check(
+      hard.state.step >= 3 && ioOf(hard).join() === '1 verylow,2 verylow,4 verylow',
+      'from step 3 (a disk-severe PC asks for 4) their I/O is very low',
+      ioOf(hard).join(),
+    );
+    const calmState = { ...hard.state, step: 0, calm: 0 };
+    t.check(
+      ioOf(decide(calmState, sample(90, 10, procs), 2000, 'normal')).join() === '1 normal,2 normal,4 normal',
+      'released compilers get normal I/O again',
+    );
+    t.check(
+      linkerSlots(32768, 16) === 4 &&
+        linkerSlots(8192, 16) === 1 &&
+        linkerSlots(65536, 2) === 2 &&
+        linkerSlots(2048, 8) === 1,
+      'link slots: one per 6 GB of RAM, 1 to 4, never more than the processors',
+    );
+    t.check(
+      ['ld.exe', 'ld.lld.exe', 'lld-link.exe', 'link.exe'].every(isLinker) &&
+        !isLinker('rustc.exe') &&
+        !isLinker('claude.exe'),
+      'ld, ld.lld, lld-link and link are linkers',
+    );
+    const links = [
+      proc(20, 'ld.exe', 1600),
+      proc(21, 'ld.exe', 1700),
+      proc(22, 'ld.lld.exe', 1500),
+      proc(3, 'claude.exe', 900),
+    ];
+    t.check(
+      of(decide(INITIAL_STATE, sample(40, 40, links), 0, 'normal', null), 'hold').length === 0,
+      'at step 0 several links may run',
+    );
+    const linkHolds = of(decide(INITIAL_STATE, sample(8, 40, links), 0, 'normal', null), 'hold');
+    t.check(linkHolds.length === 2, 'at step 2 the linkers run one at a time', String(linkHolds.length));
+
+    t.section('where Rust builds, the heartbeat and how the last sandbox ended');
+    t.check(
+      chooseTargetDir('auto', 30 * 1024 ** 3).targetDir === 'local' &&
+        chooseTargetDir('auto', 10 * 1024 ** 3).targetDir === 'separate' &&
+        Boolean(chooseTargetDir('auto', 10 * 1024 ** 3).warning) &&
+        chooseTargetDir('shared', 1).targetDir === 'shared',
+      'targetDir "auto": local with 25 GB free on C:, else separate with a warning; other values stay',
+    );
+    const beat = {
+      at: '2026-11-02T21:31:00.000Z',
+      uptimeS: 2800,
+      ramFreePct: 30,
+      commitPct: 40,
+      step: 2,
+      hostStep: 4,
+      topProcesses: [{ name: 'rustc.exe', privateMb: 1700 }],
+      diskQueueReported: 41,
+      phase: 'working' as const,
+    };
+    t.check(HeartbeatSchema.safeParse(beat).success, 'a heartbeat matches its schema');
+    t.check(
+      !HeartbeatSchema.safeParse({ ...beat, topProcesses: Array.from({ length: 6 }, () => beat.topProcesses[0]) })
+        .success &&
+        !HeartbeatSchema.safeParse({ ...beat, topProcesses: [{ name: 'x'.repeat(500), privateMb: 1 }] }).success,
+      'an oversize heartbeat is refused',
+    );
+    t.check(
+      heartbeatLine({ ...beat, topProcesses: [{ name: 'a\u0007b', privateMb: 5 }] }).includes('\u0007') === false,
+      'guest text in the heartbeat line goes through safeText',
+    );
+    const life: Life = { started: '2026-11-02T20:45:00.000Z', lastSeen: '2026-11-02T21:31:30.000Z', keepAwake: false };
+    t.check(
+      (lastEndOf(life, beat, false)?.text ?? '').includes('disks were overloaded') &&
+        lastEndOf(life, beat, true) === null &&
+        lastEndOf(null, beat, false) === null &&
+        lastEndOf({ ...life, ended: { at: life.lastSeen, cause: null } }, beat, false) === null,
+      'last end: an unexpected end names the disks; running, no record or a normal close say nothing',
+    );
+
+    t.section('Windows Sandbox programs left behind by a dead sandbox');
+    const list = [
+      '"explorer.exe","1200","Console","1","90,000 K"',
+      '"WindowsSandboxClient.exe","4100","Console","1","30,000 K"',
+      '"WindowsSandboxRemoteSession.exe","4200","Console","1","40,000 K"',
+      '"vmwp.exe","4300","Services","0","50,000 K"',
+      '"WindowsSandboxServer.exe","4400","Console","2","30,000 K"',
+    ].join('\n');
+    const baseFacts: SandboxFacts = {
+      rows: parseTasklist(list),
+      mySession: 1,
+      heartbeatAgeMs: null,
+      lifeEnded: false,
+      startedAgeMs: 3_600_000,
+      answers: null,
+    };
+    const judged = (patch: Partial<SandboxFacts>) => judgeSandbox({ ...baseFacts, ...patch });
+    t.check(
+      judged({ rows: parseTasklist('"explorer.exe","1200","Console","1","1 K"') }).state === 'none',
+      'no Windows Sandbox program: none',
+    );
+    t.check(
+      judged({ heartbeatAgeMs: 10_000 }).state === 'running' &&
+        judged({ answers: true, lifeEnded: true }).state === 'running',
+      'a fresh heartbeat, or a ping answered: the sandbox is ours and running',
+    );
+    t.check(judged({ startedAgeMs: 60_000 }).state === 'starting', 'started a minute ago, no heartbeat yet: starting');
+    const leftoverJudged = judged({ lifeEnded: true });
+    t.check(
+      leftoverJudged.state === 'leftover' &&
+        leftoverJudged.pids.join() === '4100,4200' &&
+        leftoverJudged.images.join() === 'WindowsSandboxClient.exe,WindowsSandboxRemoteSession.exe',
+      'the watcher saw it end but the programs remain: leftover; only this session, only the user programs (not vmwp.exe, not session 2)',
+      leftoverJudged.pids.join(),
+    );
+    t.check(
+      judged({ heartbeatAgeMs: 600_000 }).state === 'leftover',
+      'a heartbeat that stopped ten minutes ago: leftover',
+    );
+    t.check(judged({ heartbeatAgeMs: 100_000 }).state === 'running', 'a heartbeat 100 seconds old is not yet "gone"');
+    t.check(
+      judged({}).state === 'running',
+      'no heartbeat at all (an older sandbox) and no end: treated as running, never ended',
+    );
+    t.check(
+      judged({ mySession: null, lifeEnded: true }).state === 'foreign' &&
+        judged({ mySession: 3, lifeEnded: true }).pids.length === 0,
+      "another session's sandbox is never touched",
+    );
+    t.check(
+      killArgs([4100, 4200, 0, 2, -5, 1.5]).join(' ') === '/F /PID 4100 /PID 4200' &&
+        cleanupQuestion(leftoverJudged).lines.join(' ').includes('Nothing else'),
+      'taskkill gets only real process ids; the question names what is closed',
+    );
+    const run = async (facts: SandboxFacts[], answers: boolean[], over: Partial<CleanupDeps> = {}) => {
+      const did: string[] = [];
+      let n = 0;
+      let asked = 0;
+      const outcome = await cleanUpLeftovers({
+        facts: () => Promise.resolve(facts[Math.min(n++, facts.length - 1)]),
+        end: (pids) => {
+          did.push('end ' + pids.join(','));
+          return true;
+        },
+        restartService: () => {
+          did.push('service');
+          return true;
+        },
+        confirm: () => Promise.resolve(answers[asked++] ?? false),
+        say: (line) => did.push('say ' + line),
+        ...over,
+      });
+      return { outcome, did };
+    };
+    const noneLeft = { ...baseFacts, rows: [] };
+    const asked = await run([{ ...baseFacts, lifeEnded: true }, noneLeft], [true]);
+    t.check(
+      asked.outcome === 'cleaned' && asked.did[0] === 'end 4100,4200' && !asked.did.includes('service'),
+      'leftover, yes: they are closed and nothing else happens',
+    );
+    const declinedRun = await run([{ ...baseFacts, lifeEnded: true }], [false]);
+    t.check(declinedRun.outcome === 'declined' && declinedRun.did.length === 0, 'leftover, no: nothing is closed');
+    const live = await run([{ ...baseFacts, heartbeatAgeMs: 5000 }], [true]);
+    t.check(
+      live.outcome === 'alive' && !live.did.some((d) => d.startsWith('end')),
+      'a sandbox that is alive is never closed, whatever the answer',
+    );
+    t.check((await run([noneLeft], [true])).outcome === 'nothing', 'nothing left: nothing to do');
+    const stuck = { ...baseFacts, lifeEnded: true };
+    const serviceYes = await run([stuck, stuck], [true, true]);
+    t.check(
+      serviceYes.outcome === 'service-restarted' && serviceYes.did.includes('service'),
+      'programs that will not go: asks, then restarts the service (elevated)',
+    );
+    const serviceNo = await run([stuck, stuck], [true, false]);
+    t.check(
+      serviceNo.outcome === 'declined' && !serviceNo.did.includes('service'),
+      'the service is only restarted when you say yes',
+    );
+    const forced = await run([stuck, noneLeft], [true], { alsoService: true });
+    t.check(
+      forced.outcome === 'service-restarted',
+      'asked to restart the service as well: it does, without a second question',
     );
 
     t.section('the governor over a port (fake Windows)');
@@ -398,6 +617,7 @@ export const heavyLoadSuite: Suite = {
       setPriority: (pid, to) => calls.push('prio ' + pid + ' ' + to),
       hold: (pid, ms) => calls.push('hold ' + pid + ' ' + ms),
       setMemoryPriority: (pid, low) => calls.push('mem ' + pid + ' ' + (low ? 'low' : 'normal')),
+      setIoPriority: (pid, to) => calls.push('io ' + pid + ' ' + to),
       throttle: (pid) => calls.push('throttle ' + pid),
       setCpuRate: (percent) => calls.push('cpu ' + percent),
       trim: (pid) => calls.push('trim ' + pid),
@@ -522,6 +742,31 @@ export const heavyLoadSuite: Suite = {
     }
     t.check(diskSent && disk.low, 'a disk queue of 32 or more for 40 s: asks the sandbox to slow down');
     t.check(!watchdogStep(WATCHDOG_START, input(pc({ diskQueue: 40 }), 0)).state.low, 'a short disk peak is nothing');
+    t.check(!disk.severe, 'a queue of 40 (1.25 times the limit) for 40 s is low but not yet severe');
+    let double = WATCHDOG_START;
+    let doubleSevere = false;
+    for (let i = 0; i < 4; i++) {
+      const st = watchdogStep(double, input(pc({ diskQueue: 70 }), i * 10000));
+      double = st.state;
+      doubleSevere = doubleSevere || (st.severe && st.send);
+    }
+    t.check(doubleSevere, 'a queue of twice the limit for 40 s is severe and sent at once');
+    let long = WATCHDOG_START;
+    let longReason = '';
+    for (let i = 0; i < 13; i++) {
+      const st = watchdogStep(long, input(pc({ diskQueue: 40 }), i * 10000));
+      long = st.state;
+      if (st.severe) longReason = st.reason;
+    }
+    t.check(
+      longReason.includes('overloaded'),
+      'the limit itself for three times as long is severe: "disks are overloaded"',
+      longReason,
+    );
+    t.check(
+      watchdogStep(long, input(pc({ diskQueue: 0 }), 200000)).state.low,
+      'calm still needs the queue gone and the calm samples: one good sample is not recovery',
+    );
     t.check(!watchdogStep(WATCHDOG_START, input(pc(), 0)).state.low, 'no disk counter: memory and CPU only');
     t.check(
       cpuPercentBetween(
@@ -583,6 +828,93 @@ export const heavyLoadSuite: Suite = {
 
     t.section('the crash report');
     const ev = (id: number, provider: string, at: string, process = ''): StopEvent => ({ id, provider, at, process });
+    t.section('a sandbox that vanishes');
+    const kindOf = (events: StopEvent[]): string => explainStop(events)?.kind ?? 'none';
+    t.check(
+      kindOf([
+        ev(
+          4101,
+          'Display',
+          '2026-11-02T21:31:00Z',
+          'Display driver nvlddmkm stopped responding and has successfully recovered.',
+        ),
+      ]) === 'gpu' && explainStop([ev(4101, 'Display', '2026-11-02T21:31:00Z')])!.text.includes('graphics driver'),
+      'Display 4101: the graphics driver reset (gpu)',
+    );
+    t.check(
+      kindOf([
+        ev(
+          1001,
+          'Windows Error Reporting',
+          '2026-11-02T21:31:00Z',
+          'Fault bucket 1, type 5' + ' Event Name: LiveKernelEvent' + ' P1: 141' + ' P2: ffff',
+        ),
+      ]) === 'gpu' &&
+        kindOf([
+          ev(1001, 'Windows Error Reporting', '2026-11-02T21:31:00Z', 'Event Name: LiveKernelEvent P1: 1a8 P2: 0'),
+        ]) === 'gpu' &&
+        kindOf([
+          ev(1001, 'Windows Error Reporting', '2026-11-02T21:31:00Z', 'Event Name: LiveKernelEvent P1: 999 P2: 0'),
+        ]) === 'none',
+      'LiveKernelEvent 117, 141 and 1a8 are GPU resets; other codes are not a cause',
+    );
+    t.check(
+      explainStop([ev(1000, 'Application Error', '2026-11-02T21:31:00Z', 'Faulting application name: vmwp.exe')])
+        ?.kind === 'hyperv' &&
+        kindOf([ev(1001, 'Windows Error Reporting', '2026-11-02T21:31:00Z', 'vmmemWindowsSandbox crashed')]) ===
+          'hyperv' &&
+        kindOf([ev(1000, 'Application Error', '2026-11-02T21:31:00Z', 'Faulting application name: notepad.exe')]) ===
+          'none',
+      'a crash report of vmwp.exe or vmmem is a cause; another program is not',
+    );
+    t.check(
+      kindOf([ev(12010, 'Microsoft-Windows-Hyper-V-VmSwitch', '2026-11-02T21:31:00Z')]) === 'hyperv' &&
+        kindOf([ev(40001, 'Microsoft-Windows-Hyper-V-Worker', '2026-11-02T21:31:00Z')]) === 'none' &&
+        kindOf([ev(18590, 'Microsoft-Windows-Hyper-V-Worker', '2026-11-02T21:31:00Z', 'ErrorCode0: 0x50')]) ===
+          'sandboxCrash',
+      'Hyper-V worker, switch and compute errors are a cause; the sandbox crashing inside is still its own kind',
+    );
+    const started = '2026-11-02T20:45:00.000Z';
+    const endMs = Date.parse('2026-11-02T21:32:00.000Z');
+    const working = {
+      at: '2026-11-02T21:31:50.000Z',
+      uptimeS: 2800,
+      ramFreePct: 60,
+      commitPct: 30,
+      step: 0,
+      hostStep: 0,
+      topProcesses: [],
+      phase: 'working' as const,
+    };
+    t.check(
+      vanishedCause(working, started, false, endMs)?.kind === 'vanished',
+      'busy, fresh heartbeat, no word of leaving: vanished',
+    );
+    t.check(
+      vanishedCause({ ...working, phase: 'ending' }, started, false, endMs) === null &&
+        vanishedCause(working, started, true, endMs) === null &&
+        vanishedCause(null, started, false, endMs) === null,
+      'an orderly end, a stop on purpose, or no heartbeat is not a vanishing',
+    );
+    t.check(
+      vanishedCause({ ...working, phase: 'ready' }, started, false, endMs) === null &&
+        vanishedCause({ ...working, phase: 'ready', step: 2 }, started, false, endMs)?.kind === 'vanished',
+      'an idle sandbox (window closed by hand) is on purpose; one that was slowing builds down is not',
+    );
+    t.check(
+      vanishedCause({ ...working, at: '2026-11-02T21:20:00.000Z' }, started, false, endMs) === null &&
+        vanishedCause({ ...working, at: '2026-11-01T21:31:50.000Z' }, started, false, endMs) === null,
+      'a stale heartbeat, or one from an earlier run, says nothing about this end',
+    );
+    const gone = vanishedCause(working, started, false, endMs)!;
+    const warning = stopWarning(
+      { started, lastSeen: '2026-11-02T21:31:30.000Z', keepAwake: false, ended: { at: gone.at, cause: gone } },
+      () => null,
+    );
+    t.check(
+      (warning ?? '').includes('ended suddenly') && (warning ?? '').includes('vGPU'),
+      'the next launch warns about a vanished sandbox, and says what usually causes it',
+    );
     t.check(
       bugcheckCode('BugcheckCode 209') === '0xD1' && bugcheckCode('BugcheckCode 0') === null,
       'Kernel-Power 41 stop code',

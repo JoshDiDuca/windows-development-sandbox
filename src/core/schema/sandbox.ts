@@ -31,7 +31,7 @@ export const SandboxSchema = z.strictObject({
   memoryMb: z
     .union([z.literal('auto'), z.number().int().min(2048)])
     .describe(
-      'Sandbox RAM in MB (>= 2048), or "auto": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 2 GB more with vGPU): a bigger value is lowered.',
+      'Sandbox RAM in MB (>= 2048), or "auto": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 4 GB more with vGPU): a bigger value is lowered.',
     ),
   maxMemoryMb: z.number().int().positive().describe('Upper limit for memoryMb "auto".'),
   maxMemoryPercent: z

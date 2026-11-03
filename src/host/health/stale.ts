@@ -151,3 +151,84 @@ export function writeProblem(dir: string): string | null {
     fs.rmSync(probe, { force: true });
   }
 }
+
+/** The Windows Sandbox programs of the user that a dead sandbox leaves behind (never the VM's own vmwp.exe). */
+export const LEFTOVER_IMAGES = [
+  'windowssandbox.exe',
+  'windowssandboxclient.exe',
+  'windowssandboxremotesession.exe',
+  'windowssandboxserver.exe',
+] as const;
+/** A heartbeat this recent means the sandbox is alive (the sandbox writes one every 10 seconds). */
+export const ALIVE_MS = 45 * 1000;
+/** A heartbeat older than this, with the sandbox's programs still there, means the sandbox is gone. */
+export const GONE_MS = 2 * 60 * 1000;
+/** A sandbox started this recently may not have written a heartbeat yet (a first boot takes minutes). */
+export const STARTING_MS = 10 * 60 * 1000;
+
+/** What is known about the Windows Sandbox programs on this PC and our sandbox (read by the caller). */
+export interface SandboxFacts {
+  /** Every process of every session (tasklist). */
+  readonly rows: readonly TaskRow[];
+  /** The Windows session this program runs in; null when unknown (then nothing is ever ended). */
+  readonly mySession: number | null;
+  /** Age of our sandbox's last heartbeat from this run; null when there is none. */
+  readonly heartbeatAgeMs: number | null;
+  /** Our life record says the last sandbox ended (the watcher saw it go). */
+  readonly lifeEnded: boolean;
+  /** Age of our last launch; null when unknown. */
+  readonly startedAgeMs: number | null;
+  /** Did the sandbox answer a ping just now? null: not asked. */
+  readonly answers: boolean | null;
+}
+
+export type SandboxState =
+  /** No Windows Sandbox program runs. */
+  | 'none'
+  /** Ours, and alive (or not known to be gone). */
+  | 'running'
+  /** Ours, started a moment ago. */
+  | 'starting'
+  /** Programs of a sandbox that is gone: safe to end after asking. */
+  | 'leftover'
+  /** Another Windows session's sandbox: never touched. */
+  | 'foreign';
+
+export interface SandboxJudgement {
+  readonly state: SandboxState;
+  /** The programs of this user's session that cleaning up would end. */
+  readonly pids: readonly number[];
+  readonly images: readonly string[];
+  /** Why, in plain words (for the question). */
+  readonly why: string;
+}
+
+const isLeftoverImage = (image: string): boolean =>
+  (LEFTOVER_IMAGES as readonly string[]).includes(image.toLowerCase());
+
+/**
+ * Is the Windows Sandbox on this PC ours and alive, ours and gone, or someone else's? (pure) It is "leftover" only
+ * with positive evidence: our own programs in our own session, no answer, and either the watcher saw the sandbox end
+ * or its heartbeat stopped long ago. No heartbeat at all (an older sandbox) counts as running.
+ */
+export function judgeSandbox(f: SandboxFacts): SandboxJudgement {
+  const sandbox = f.rows.filter((r) => isLeftoverImage(r.image));
+  const mine = f.mySession === null ? [] : sandbox.filter((r) => r.session === f.mySession);
+  const none = (state: SandboxState, why: string): SandboxJudgement => ({ state, pids: [], images: [], why });
+  if (sandbox.length === 0) return none('none', 'No Windows Sandbox program is running.');
+  if (mine.length === 0) return none('foreign', 'The Windows Sandbox that runs belongs to another Windows session.');
+  const pids = mine.map((r) => r.pid);
+  const images = [...new Set(mine.map((r) => r.image))];
+  const found = (state: SandboxState, why: string): SandboxJudgement => ({ state, pids, images, why });
+  if (f.answers === true || (f.heartbeatAgeMs !== null && f.heartbeatAgeMs <= ALIVE_MS))
+    return found('running', 'The sandbox is working.');
+  if (f.startedAgeMs !== null && f.startedAgeMs <= STARTING_MS && !f.lifeEnded)
+    return found('starting', 'The sandbox started a moment ago.');
+  if (f.lifeEnded) return found('leftover', 'The last sandbox has ended, but its Windows programs are still there.');
+  if (f.heartbeatAgeMs !== null && f.heartbeatAgeMs > GONE_MS)
+    return found(
+      'leftover',
+      'The sandbox has not shown a sign of life for ' + Math.round(f.heartbeatAgeMs / 60000) + ' minutes.',
+    );
+  return found('running', 'A sandbox is running (there is no sign that it is gone).');
+}

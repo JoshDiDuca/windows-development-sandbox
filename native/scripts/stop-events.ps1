@@ -13,8 +13,12 @@ $filters = @(
     # Any error or critical event of the Hyper-V worker and compute services (the VM's memory, start and stop).
     @{ LogName = 'Microsoft-Windows-Hyper-V-Worker-Admin'; Level = 1, 2; StartTime = $Since },
     @{ LogName = 'Microsoft-Windows-Hyper-V-Compute-Admin'; Level = 1, 2; StartTime = $Since },
-    # A crash report of the programs that hold the VM (kept only when it names one of them).
-    @{ LogName = 'Application'; Id = 1000, 1001; StartTime = $Since; OnlyVmPrograms = $true }
+    # A crash report of the programs that hold the VM, or a graphics driver (GPU) reset: kept only when it names one.
+    @{ LogName = 'Application'; Id = 1000, 1001; StartTime = $Since; OnlyVmPrograms = $true },
+    # The graphics driver stopped responding and was reset (with vGPU the sandbox shares the GPU).
+    @{ LogName = 'System'; ProviderName = 'Display'; Id = 4101; StartTime = $Since },
+    # Errors of the Hyper-V services that run the VM.
+    @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Hyper-V-Worker', 'Microsoft-Windows-Hyper-V-VmSwitch', 'Microsoft-Windows-Hyper-V-Compute'; Level = 1, 2; StartTime = $Since }
 )
 $maxMessage = 390
 $maxResourceMessage = 1500
@@ -38,7 +42,7 @@ $events = foreach ($filter in $filters) {
         $query.Remove('OnlyVmPrograms')
         Get-WinEvent -FilterHashtable $query -MaxEvents 100 | ForEach-Object {
             $detail = Get-EventDetail $_
-            if ($onlyVm -and $detail -notmatch 'vmwp\.exe|vmmem|vmcompute|windowssandbox') { return }
+            if ($onlyVm -and $detail -notmatch 'vmwp\.exe|vmmem|vmcompute|windowssandbox|LiveKernelEvent') { return }
             [pscustomobject]@{
                 at       = $_.TimeCreated.ToUniversalTime().ToString('o')
                 id       = $_.Id

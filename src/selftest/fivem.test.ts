@@ -207,7 +207,7 @@ export const fivemSuite: Suite = {
     t.check(
       store.read('cfx')?.licenseKey === KEY &&
         !saved.message.includes(KEY) &&
-        saved.message.includes('accounts.cfx.share'),
+        saved.message.includes('Share with sandboxes'),
       'sandbox account login cfx saves it sealed, says how to share it, never shows it',
     );
 

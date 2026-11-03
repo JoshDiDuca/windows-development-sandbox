@@ -4,6 +4,7 @@ import _ from 'lodash';
 import { z } from 'zod';
 import { NameSchema, SchemaRefSchema, StringsSchema, toggle } from './common.js';
 import { DatabasesSchema } from './databases.js';
+import { CodexSchema } from './codex.js';
 import { HarnessSchema } from './harness.js';
 import { AgentCommandsSchema, AttachSchema, ClaudeProfileSchema, SecretsSchema } from './profile.js';
 import {
@@ -128,6 +129,7 @@ export const ConfigSchema = z
     apps: AppsSchema,
     claudeProfile: ClaudeProfileSchema,
     harnesses: z.record(NameSchema, HarnessSchema).describe('Agents that can run in the sandbox.'),
+    codex: CodexSchema,
     hooks: z.strictObject({ failFast: z.boolean().describe('Stop when a hook script fails.') }),
     projects: ProjectsSchema.describe(
       'Several projects in one sandbox: folders of projects mapped at every start, and adding folders while it runs.',

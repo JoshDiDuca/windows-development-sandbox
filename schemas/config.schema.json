@@ -2259,6 +2259,62 @@
       },
       "description": "Agents that can run in the sandbox."
     },
+    "codex": {
+      "type": "object",
+      "properties": {
+        "sandboxMode": {
+          "type": "string",
+          "enum": [
+            "danger-full-access",
+            "workspace-write",
+            "read-only"
+          ],
+          "description": "Codex's own sandbox. Inside Windows Sandbox Codex's own sandbox only slows it down (it re-grants file permissions over your profile at every boot), so the default is danger-full-access: Windows Sandbox is the sandbox."
+        },
+        "approvalPolicy": {
+          "type": "string",
+          "enum": [
+            "never",
+            "on-request",
+            "on-failure",
+            "untrusted"
+          ],
+          "description": "When Codex asks before it runs a command. \"never\" with danger-full-access starts it with no questions."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9._:/-]*$",
+          "description": "The model Codex uses. Empty = Codex's own default."
+        },
+        "reasoningEffort": {
+          "type": "string",
+          "enum": [
+            "default",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "description": "How hard Codex thinks. \"default\" = Codex's own default."
+        },
+        "windowsSandbox": {
+          "type": "string",
+          "enum": [
+            "off",
+            "unelevated",
+            "elevated"
+          ],
+          "description": "Codex's Windows sandbox mode in its config.toml. \"off\" removes the setting so Codex does not set up its sandbox users and firewall rules at every boot."
+        },
+        "mcpLoginsInFile": {
+          "type": "boolean",
+          "description": "Keep the sign-ins of Codex's MCP servers in a file in the saved Codex folder (mcp_oauth_credentials_store = \"file\"), so they survive between sandboxes. A value you set in config.toml is kept."
+        }
+      },
+      "additionalProperties": false
+    },
     "hooks": {
       "type": "object",
       "properties": {

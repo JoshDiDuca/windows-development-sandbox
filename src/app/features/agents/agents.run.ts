@@ -22,6 +22,7 @@ import {
   type AgentRow,
   type AgentsList,
 } from './agents.def.js';
+import { SUBAGENTS_VAR } from './env.def.js';
 import {
   addedAgents,
   agentNameProblem,
@@ -66,7 +67,13 @@ export const listAgentsRun = implement(listAgents, async (ctx) => {
     isDefault: name === config.defaultHarness,
     removable: removable.includes(name),
   }));
-  return { folder: hereDir(ctx), defaultAgent: config.defaultHarness, agents } satisfies AgentsList;
+  const limit = Number(config.harnesses.claude?.environment?.[SUBAGENTS_VAR]);
+  return {
+    folder: hereDir(ctx),
+    defaultAgent: config.defaultHarness,
+    agents,
+    ...(config.harnesses.claude ? { subagents: Number.isInteger(limit) && limit > 0 ? limit : null } : {}),
+  } satisfies AgentsList;
 });
 
 export const startAgentRun = implement(startAgent, async (ctx, input, io) => {

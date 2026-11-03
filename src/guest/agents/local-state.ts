@@ -12,7 +12,8 @@ import { session, stateDir } from '../runtime/session.js';
 import { errMsg } from '../../core/util/errors.js';
 import {
   bootResetPaths,
-  codexConfigWithoutSandbox,
+  codexConfigOwned,
+  MAX_CODEX_CONFIG_BYTES,
   isCopyableDatabaseFile,
   isDatabaseFile,
   localStateEntries,
@@ -114,15 +115,28 @@ export function resetMachineBound(): void {
   }
 }
 
-/** Boot: Codex runs its commands without its own sandbox (codexConfigWithoutSandbox), unless the user picked one. */
-export function codexWithoutInnerSandbox(): void {
-  if (dryRun || !session.agents?.codex) return;
+/**
+ * Boot: Codex's config.toml follows the codex settings (codexConfigOwned): no Windows sandbox setup of its own, its MCP
+ * logins in a file. The sandbox mode itself travels as launch flags (codexArguments), which beat this file.
+ */
+export function codexBootConfig(): void {
+  if (dryRun || !session.agents?.codex || !session.codex) return;
   const file = path.join(stateDir, 'codex', 'config.toml');
-  const updated = codexConfigWithoutSandbox(exists(file) ? fs.readFileSync(file, 'utf8') : '');
-  if (updated === null) return;
-  mkdirp(path.dirname(file));
-  fs.writeFileSync(file, updated, 'utf8');
-  log('codex: its own command sandbox is off (sandbox_mode = "danger-full-access" in config.toml).');
+  try {
+    const size = exists(file) ? fs.statSync(file).size : 0;
+    if (size > MAX_CODEX_CONFIG_BYTES) {
+      warn('codex: config.toml is over 1 MB; left as it is.');
+      return;
+    }
+    const before = size ? fs.readFileSync(file, 'utf8') : '';
+    const after = codexConfigOwned(before, session.codex);
+    if (after === before) return;
+    mkdirp(path.dirname(file));
+    fs.writeFileSync(file, after, 'utf8');
+    log('codex: config.toml updated (Windows sandbox "' + session.codex.windowsSandbox + '").');
+  } catch (e) {
+    warn('codex: could not update config.toml (' + errMsg(e) + ').');
+  }
 }
 
 /** Boot: the saved databases of every configured agent are copied to the sandbox's disk, where the agent runs them. */

@@ -26,6 +26,7 @@ import {
   waitForPtyHost,
 } from '../sessions/pty-host.js';
 import { agents } from '../agents/agent-installer.js';
+import { agentArguments } from '../agents/agent-files.js';
 import { saveClaudeMem } from '../setup/claude-mem.js';
 import { saveLocalState } from '../agents/local-state.js';
 import { projectHooks, runHooks, runHooksAsync, type HookTarget } from '../setup/hooks.js';
@@ -140,7 +141,7 @@ const agentProgram = async (
   say('Preparing ' + req.harness);
   await agents.provision(req.harness, harness, env, false);
   const launch = agents.resolveLaunch(req.harness, harness);
-  const base = [...launch.args, ...harness.arguments];
+  const base = [...launch.args, ...agentArguments(req.harness, harness, session.codex)];
   return {
     command: commandLine(launch.file, [...base, ...req.args]),
     restartCommand: commandLine(launch.file, [...base, ...(harness.resumeArguments ?? [])]),

@@ -7,6 +7,14 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.19.0
+
+- **Codex runs commands inside the sandbox, with settings.** Codex now starts with flags that skip its own Windows
+  sandbox (which ignored the config file and set up users and firewall rules at every start), and a new Codex section in
+  Settings (menu and web) sets its sandbox mode, approvals, model and reasoning effort. The Agents page gets a Claude
+  environment editor (models, limits, subagents at once and more), and one key pattern accepts `sk-ant-api` and
+  `sk-ant-usr` keys everywhere.
+
 ## 1.18.4
 
 - **A sandbox that vanished is no longer "closed on purpose".** When the sandbox ends while it was working, with no

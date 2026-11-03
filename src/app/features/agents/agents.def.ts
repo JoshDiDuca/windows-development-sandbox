@@ -1,7 +1,17 @@
 // The agents you can start: the list, starting one in a project of the running sandbox, adding one, making one the
 // default and removing one you added. Pure: schemas, labels and the view; agents.run.ts does the work.
 import { z } from 'zod';
-import { action, defineOperation, defineQuery, defineView, link, type Item, type Page } from '../../kernel/index.js';
+import { agentsEnvSet, subagentsText, SUBAGENTS_VAR } from './env.def.js';
+import {
+  action,
+  defineOperation,
+  defineQuery,
+  defineView,
+  link,
+  type Item,
+  type Page,
+  type Section,
+} from '../../kernel/index.js';
 
 /** Agent and project names as the web UI has always accepted them. */
 const NameText = z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/);
@@ -18,6 +28,12 @@ export const AgentsListSchema = z.object({
   folder: z.string().describe('The folder a start works on (the current folder)'),
   defaultAgent: z.string().describe('The default agent'),
   agents: z.array(AgentRowSchema).describe('Every agent in your settings, built in or added'),
+  subagents: z
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .describe('Claude: how many subagents run at once (null = its default); missing when Claude is not an agent here'),
 });
 export type AgentsList = z.output<typeof AgentsListSchema>;
 
@@ -99,7 +115,11 @@ function agentDescription(a: AgentRow, where: string): string {
 
 /** The menu's words for the remove key, on an agent you added that is not the default. */
 function agentKeys(a: AgentRow): string | undefined {
-  return a.removable && !a.isDefault ? 'x removes it.' : undefined;
+  const keys = [
+    ...(a.name === 'claude' ? ['e opens its environment.'] : []),
+    ...(a.removable && !a.isDefault ? ['x removes it.'] : []),
+  ];
+  return keys.length ? keys.join(' ') : undefined;
 }
 
 function agentItem(a: AgentRow, where: string): Item {
@@ -117,9 +137,55 @@ function agentItem(a: AgentRow, where: string): Item {
       ...(a.isDefault
         ? []
         : [action(makeDefaultAgent, { name: a.name }, { key: 'd', verb: 'make default', importance: 1 })]),
+      ...(a.name === 'claude'
+        ? [
+            link({ kind: 'view', view: 'agentEnv', params: { agent: 'claude' } }, 'Environment…', {
+              key: 'e',
+              verb: 'environment',
+              importance: 1,
+              description: 'Models, limits, how many subagents run at once, and other variables of Claude.',
+            }),
+          ]
+        : []),
       ...(a.removable && !a.isDefault
         ? [action(removeAgent, { name: a.name }, { key: 'x', verb: 'remove', importance: 1 })]
         : []),
+    ],
+  };
+}
+
+/** Claude's "Subagents at once": its value, changed in place (the rest of its variables: Environment…). */
+function subagentsSection(n: number | null): Section {
+  return {
+    id: 'claude',
+    title: 'Claude',
+    items: [
+      {
+        id: 'subagents',
+        label: 'Subagents at once',
+        hint: subagentsText(n),
+        description: 'How many subagents Claude may run at the same time. Empty goes back to its default.',
+        primary: action(
+          agentsEnvSet,
+          { agent: 'claude', name: SUBAGENTS_VAR },
+          {
+            label: 'Change',
+            verb: 'edit',
+            inline: true,
+            fields: [
+              {
+                name: 'value',
+                key: ['value'],
+                kind: 'text',
+                label: 'Subagents at once',
+                help: 'A whole number from 1 to 1000. Empty goes back to the default.',
+                optional: true,
+              },
+            ],
+            initial: { value: n === null ? '' : String(n) },
+          },
+        ),
+      },
     ],
   };
 }
@@ -131,6 +197,7 @@ export function agentsPage(o: AgentsList): Page {
   return {
     title: 'Agents',
     sections: [
+      ...(o.subagents !== undefined ? [subagentsSection(o.subagents)] : []),
       {
         id: 'start',
         title: 'Start in ' + where,
@@ -155,6 +222,6 @@ export const agentsView = defineView({
   title: 'Agents',
   summary: 'The agents you can start: start one, add one, choose the default.',
   queries: { agents: listAgents },
-  operations: [startAgent, addAgent, makeDefaultAgent, removeAgent],
+  operations: [startAgent, addAgent, makeDefaultAgent, removeAgent, agentsEnvSet],
   build: ({ agents }) => agentsPage(agents),
 });

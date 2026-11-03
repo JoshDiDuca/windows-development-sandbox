@@ -20,6 +20,8 @@ import {
 } from './kernel/index.js';
 import {
   addAgentRun,
+  agentEnvRun,
+  agentsEnvSetRun,
   listAgentsRun,
   makeDefaultAgentRun,
   removeAgentRun,
@@ -107,6 +109,8 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   makeDefaultAgentRun,
   removeAgentRun,
   listAgentsRun,
+  agentEnvRun,
+  agentsEnvSetRun,
   listSettingsRun,
   getSettingRun,
   setSettingRun,

@@ -493,10 +493,30 @@
             }
           },
           "additionalProperties": false
+        },
+        "perplexity": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Perplexity API key sign-in to sandboxes that use the Perplexity MCP app (sandbox account login perplexity, or: sandbox account import perplexity --from <.env>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can read the key and spend your API credit: use a separate API key with a spending limit. Perplexity Pro does not include API use; the API key is billed separately. Only the variable PERPLEXITY_API_KEY of the agent gets it: nothing in the sandbox writes it to a file. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "comet": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Comet (Perplexity browser) sign-in to sandboxes that use the Comet app (sign in to Comet once in a sandbox: it cannot be taken from this PC). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can act as you in Comet and spend your Perplexity Computer credits; agentic browsing is open to prompt injection from the pages it reads. Your Comet sign-in can't be copied from this PC: Windows locks it to your PC account. Sign in once inside a sandbox and it is kept for the next ones. Only the perplexity.ai sign-in cookies are kept: never saved passwords, other sites, localStorage or history. Never import your main browser profile. Several sandboxes can use it at once: the sign-in the last one hands back is kept. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
-      "description": "Service sign-ins for sandboxes (game stores, engines, app signing). Manage them in Accounts: sandbox account status."
+      "description": "Service sign-ins for sandboxes (game stores, engines, app signing, Perplexity). Manage them in Accounts: sandbox account status."
     },
     "pcInstalls": {
       "type": "object",
@@ -2009,7 +2029,16 @@
               "shellcheck",
               "gitleaks",
               "ast-grep",
-              "rust-analyzer"
+              "rust-analyzer",
+              "lua-language-server",
+              "stylua",
+              "selene",
+              "perplexity-mcp",
+              "perplexity-computer-mcp",
+              "comet",
+              "comet-mcp",
+              "chrome-devtools-mcp",
+              "browser-use-mcp"
             ]
           },
           "description": "Apps from the catalogue to install in every sandbox (the Apps screen in the menu lists them by category). Each is downloaded once and kept."

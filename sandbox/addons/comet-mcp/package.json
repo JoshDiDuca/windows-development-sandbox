@@ -1,0 +1,7 @@
+{
+  "name": "sandbox-addon-comet-mcp",
+  "private": true,
+  "dependencies": {
+    "comet-mcp": "2.3.0"
+  }
+}

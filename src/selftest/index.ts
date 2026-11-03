@@ -21,6 +21,7 @@ import { unitySuite } from './unity.test.js';
 import { fivemSuite } from './fivem.test.js';
 import { androidSuite } from './android.test.js';
 import { mobileSuite } from './mobile.test.js';
+import { agentsWebSuite } from './agents-web.test.js';
 import { credentialsSuite } from './credentials.test.js';
 import { vpnSuite } from './vpn.test.js';
 import { githubSuite } from './github.test.js';
@@ -138,6 +139,7 @@ export const SUITES: Suite[] = [
   fivemSuite,
   androidSuite,
   mobileSuite,
+  agentsWebSuite,
   detectSuite,
   networkSuite,
   personalizationSuite,

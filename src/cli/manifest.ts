@@ -308,6 +308,7 @@ const COMMAND_LIST = [
       'sandbox account status             the service sign-ins (Epic, Steam, Unity, signing keys ...)',
       "sandbox account import epic        take this PC's Epic Games Launcher sign-in for sandboxes",
       'sandbox account login cfx          type a FiveM server key to keep for sandboxes',
+      'sandbox account login perplexity   type a Perplexity API key (or: import perplexity --from .env)',
       'sandbox account logout steam       forget a service sign-in',
       'sandbox account save free --api-key   save an Anthropic API key you paste in (not shown)',
     ],
@@ -321,7 +322,7 @@ const COMMAND_LIST = [
       {
         name: 'name',
         description:
-          'account name, or the service (status, import, login, logout): epic, steam, unity, cfx, keystore, play, expo or appstore',
+          'account name, or the service (status, import, login, logout): epic, steam, unity, cfx, keystore, play, expo, appstore, perplexity or comet',
         required: false,
         choices: 'accounts',
       },

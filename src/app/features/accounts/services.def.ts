@@ -1,14 +1,15 @@
-// Service sign-ins for sandboxes (accounts.<kind>.share): Epic, Steam, Unity, Cfx.re, signing keys and app-store
-// keys. Whether each one is shared and saved (where it came from and when, never its value), taking one from this PC
-// or a file, typing one, and forgetting it. Pure: schemas, labels and page builders; services.run.ts does the work.
-// The kinds live in shared/accounts (a def imports no shared code): the query's rows carry everything a page shows.
+// Service sign-ins for sandboxes (accounts.<kind>.share): Epic, Steam, Unity, Cfx.re, signing keys, app-store keys
+// and Perplexity (its API key, Comet's sign-in). Whether each one is shared and saved (where it came from and when,
+// never its value), taking one from this PC or a file, typing one, and forgetting it. Pure: schemas, labels and page
+// builders; services.run.ts does the work. The kinds live in shared/accounts (a def imports no shared code): the
+// query's rows carry everything a page shows.
 import { z } from 'zod';
 import { action, type Action, type Fact, type Item, type Note, type Page, type Section } from '../../kernel/index.js';
 import { defineOperation, defineQuery } from '../../kernel/index.js';
 import { setSetting } from '../settings/settings.def.js';
 
 /** The kinds, as the help says them (the self-test checks this against shared/accounts SERVICE_KINDS). */
-export const SERVICE_NAMES_TEXT = 'epic, steam, unity, cfx, keystore, play, expo or appstore';
+export const SERVICE_NAMES_TEXT = 'epic, steam, unity, cfx, keystore, play, expo, appstore, perplexity or comet';
 
 const KindSchema = z
   .string()
@@ -25,7 +26,8 @@ export const ServiceRowSchema = z.object({
   savedAt: z.string().nullable().describe('When it was saved'),
   summary: z.string().nullable().describe('Which account (never the secret)'),
   heldBy: z.string().nullable().describe('The data set whose sandbox holds it now (one-holder services)'),
-  usedBy: z.array(z.string()).describe('The toolchains it is handed over for'),
+  usedBy: z.array(z.string()).describe('The toolchains (or apps) it is handed over for'),
+  usedFor: z.string().describe('The same, in words ("unreal", "the Comet app")'),
   warnings: z.array(z.string()).describe('What everyone who shares it must know'),
   canImport: z.boolean().describe('It can be taken from this PC or a file (sandbox account import)'),
   canLogin: z.boolean().describe('It can be typed (sandbox account login)'),
@@ -155,7 +157,9 @@ function howTo(s: ServiceRow): string {
     ...(s.canImport ? ['sandbox account import ' + s.kind + (s.needsFile ? ' --from <file>' : '')] : []),
     ...(s.canLogin ? ['sandbox account login ' + s.kind] : []),
   ];
-  return ways.length ? ways.join(', or ') : 'sign in once inside a sandbox';
+  return ways.length
+    ? ways.join(', or ')
+    : "sign in once inside a sandbox (it can't be copied from this PC: Windows locks it to your PC account)";
 }
 
 /** One service's section: its facts, its warnings and its actions. */
@@ -166,7 +170,7 @@ export function serviceSection(s: ServiceRow): Section {
       label: 'Shared with sandboxes',
       value: s.share ? 'on' : 'off  (sandbox config set accounts.' + s.kind + '.share true)',
       tone: s.share ? 'ok' : 'muted',
-      description: 'For sandboxes that use ' + s.usedBy.join(' or ') + '. ' + s.warnings.join(' '),
+      description: 'For sandboxes that use ' + s.usedFor + '. ' + s.warnings.join(' '),
     },
     {
       id: s.kind + ':state',

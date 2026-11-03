@@ -1,0 +1,7 @@
+{
+  "name": "sandbox-addon-chrome-devtools-mcp",
+  "private": true,
+  "dependencies": {
+    "chrome-devtools-mcp": "1.12.0"
+  }
+}

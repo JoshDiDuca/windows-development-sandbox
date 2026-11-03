@@ -1,0 +1,16 @@
+{
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "check": "tsc -p src/client --noEmit && tsc -p src/server --noEmit"
+  },
+  "devDependencies": {
+    "@citizenfx/client": "2.0.38182-1",
+    "@citizenfx/server": "2.0.38182-1",
+    "esbuild": "^0.28.0",
+    "typescript": "~5.9.0"
+  }
+}

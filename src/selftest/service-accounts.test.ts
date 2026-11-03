@@ -479,10 +479,10 @@ export const serviceAccountsSuite: Suite = {
       'nothing to type',
       'Epic has nothing to type',
     );
-    await t.throws(
-      () => loginServiceFlow(fakeIO([CFX, '']).io, 'cfx', { store: flowStore, share: true }),
-      'comes in a later version',
-      'a kind whose host side is not written yet says so',
+    const typed = await loginServiceFlow(fakeIO([CFX, '']).io, 'cfx', { store: flowStore, share: true });
+    t.check(
+      flowStore.read('cfx')?.licenseKey === CFX && !typed.message.includes(CFX),
+      'a typed kind (the Cfx.re key) is saved from what you type, and never shown back',
     );
     t.check(
       Boolean(HOST_SOURCES.epic.fromPc) && !HOST_SOURCES.epic.fromAnswers,

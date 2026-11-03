@@ -559,7 +559,8 @@ export const toolchainsSuite: Suite = {
     const on = withAddonMcpServers(mine, pw ? { 'sbx-playwright': pw } : {}, known);
     const off = withAddonMcpServers({ ...on, 'sbx-context7': {} }, {}, known);
     t.check(
-      known.length === 2 &&
+      ['sbx-playwright', 'sbx-context7'].every((n) => known.includes(n)) &&
+        new Set(known).size === known.length &&
         known.every((n) => n.startsWith('sbx-')) &&
         context7?.name === 'sbx-context7' &&
         'sbx-playwright' in on &&

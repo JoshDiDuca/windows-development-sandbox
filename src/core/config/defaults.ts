@@ -57,6 +57,8 @@ export const DEFAULTS: Config = {
     play: { share: false },
     expo: { share: false },
     appstore: { share: false },
+    perplexity: { share: false },
+    comet: { share: false },
   },
   pcInstalls: { steamGames: false, epicGames: false, unrealEngines: false, unityEditors: false },
   provisioning: {
@@ -194,7 +196,7 @@ export const DEFAULTS: Config = {
       npmBin: 'codex',
       arguments: [],
       environment: {},
-      home: { env: { CODEX_HOME: 'codex' }, loginFiles: ['auth.json'], hostDir: '~/.codex' },
+      home: { env: { CODEX_HOME: 'codex' }, loginFiles: ['auth.json', '.credentials.json'], hostDir: '~/.codex' },
       localState: { CODEX_SQLITE_HOME: 'sqlite' },
       // Its own command sandbox keeps local users' passwords sealed with DPAPI: unreadable in the next sandbox
       // ("CryptUnprotectData" on every command), so it sets that sandbox up again at each boot. tmp\arg0: folders

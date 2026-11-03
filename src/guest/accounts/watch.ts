@@ -50,10 +50,20 @@ export class AccountWatch {
 
   start(): void {
     for (const kind of this.kinds) {
-      const timer = setInterval(() => this.check(kind), this.adapter(kind).checkMs ?? DEFAULT_CHECK_MS);
+      const timer = setInterval(() => void this.look(kind), this.adapter(kind).checkMs ?? DEFAULT_CHECK_MS);
       timer.unref();
       this.timers.push(timer);
     }
+  }
+
+  /** Lets an adapter that answers asynchronously ask its tool first, then looks; never throws. */
+  private async look(kind: ServiceKind): Promise<boolean> {
+    try {
+      await this.adapter(kind).refresh?.();
+    } catch (e) {
+      this.o.warn?.(SERVICE_SPECS[kind].label + ' sign-in: could not read it: ' + errMsg(e));
+    }
+    return this.check(kind);
   }
 
   /** One look at one kind; true when a handoff was written. */
@@ -76,7 +86,7 @@ export class AccountWatch {
 
   /** Looks at every kind now; with `final` (the sandbox stops) each adapter also lets go of what it holds. */
   async flush(final = false): Promise<void> {
-    for (const kind of this.kinds) this.check(kind);
+    for (const kind of this.kinds) await this.look(kind);
     if (!final) return;
     for (const timer of this.timers) clearInterval(timer);
     for (const kind of this.kinds) {

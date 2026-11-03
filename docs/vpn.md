@@ -129,7 +129,7 @@ launch warns in yellow.
 | You see                                               | Likely cause                                                                     |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `no NordVPN login is saved`                           | run `sandbox vpn login`                                                          |
-| `the VPN refused the login`                           | you typed your account password: use the **service credentials** (steps above)   |
+| `the VPN refused the login`                           | not your account e-mail or password: save the **service credentials** again (see below) |
 | `it could not reach the VPN server`                   | the network blocks it: try `sandbox config set vpn.protocol tcp`                 |
 | `the network driver for the tunnel could not be used` | the driver did not install in Windows Sandbox (see below)                        |
 | `a profile ... was refused`                           | the profile has a line that could run a program; use a plain one                 |
@@ -137,6 +137,14 @@ launch warns in yellow.
 
 `sandbox doctor` checks that the login is saved and can be decrypted by your Windows user, and that the download site
 answers.
+
+## Login refused (NordVPN)
+
+The VPN page shows **Last attempt: login refused by the VPN** when NordVPN answered `AUTH_FAILED`. The server was reached
+and the kill switch let the handshake through; only the login was wrong. NordVPN accepts only its **service
+credentials** here: Nord Account > NordVPN > "Set up NordVPN manually" > Service credentials (a user name and a
+password of letters and digits, about 24 each). Choose **Save the login again** on the VPN page and paste them. Spaces
+around them are removed, and the tool warns when what you typed does not look like service credentials.
 
 ## What is not tested yet
 

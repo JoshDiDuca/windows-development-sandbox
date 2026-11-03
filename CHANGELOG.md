@@ -7,6 +7,18 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Agent commands are a feature, not a beta, and work from every surface.** The switch is an action on the Agents page
+  of the menu and the web UI (and `sandbox agent-commands on|off`); changing `agentCommands.*` anywhere now updates the
+  files and your PATH at once. Fixed: an uninstall left `claude` pointing at a program that was gone; an update broke the
+  commands (they now call the install's launcher, and fall back to the real agent if it is missing); a terminal opened
+  earlier made every launch edit your PATH again.
+- **NordVPN: clear reasons and a way forward.** The VPN page shows the last attempt ("login refused by the VPN") even
+  after the sandbox closed, with "Save the login again", or "Try TCP instead of UDP" when the server could not be
+  reached. Saving a login now refuses an e-mail for NordVPN, trims spaces, refuses hidden paste characters, and the
+  masked field no longer keeps the markers a terminal puts around pasted text.
+
 ## 1.18.4
 
 - **A sandbox that vanished is no longer "closed on purpose".** When the sandbox ends while it was working, with no

@@ -4,6 +4,7 @@ import { launch } from './launch/index.js';
 import { setup } from './setup/index.js';
 import { cleanData, showData } from '../../app/features/data/index.js';
 import { attach, db, exec } from './sessions/index.js';
+import { agentCommandsStatus } from '../../app/features/agent-commands/index.js';
 import { listAccounts } from '../../app/features/accounts/index.js';
 import { containedStatus, showStorage } from '../../app/features/storage/index.js';
 import { listProjects } from '../../app/features/projects/index.js';
@@ -59,6 +60,8 @@ export const HANDLERS: Readonly<Partial<Record<string, Handler>>> = {
   'host-claude': claudeHost,
   host: hostCommand,
   _watch: watcher,
+  // The bare command shows the status; on and off are the operations' hints (src/app/features/agent-commands).
+  'agent-commands': definitionHandler(agentCommandsStatus),
   vpn: vpn,
   github: github,
   web: web,

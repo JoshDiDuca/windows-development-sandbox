@@ -16,6 +16,8 @@ import { sizeWithin } from '../core/disk.js';
 import {
   autoRestartAllowed,
   causeSince,
+  readHeartbeat,
+  vanishedCause,
   appendHostMemory,
   cpuPercentBetween,
   KeepAwake,
@@ -95,7 +97,7 @@ export interface WatcherResume {
 }
 
 /** The ways the sandbox itself ends badly (the PC going down takes the watcher with it, so it never gets here). */
-const RESTARTABLE: readonly StopCause['kind'][] = ['sandboxCrash', 'memory'];
+const RESTARTABLE: readonly StopCause['kind'][] = ['sandboxCrash', 'memory', 'gpu', 'hyperv', 'vanished'];
 
 /**
  * The background watcher of one data folder: while the sandbox runs it syncs history back every minute, guards the
@@ -366,8 +368,19 @@ export class Watcher {
   private recordEnd(): void {
     try {
       const last = this.life.read();
-      const cause = last ? causeSince(last.lastSeen, this.storageRoot) : null;
-      const report = last && cause ? saveCrashReport(this.storageRoot, this.dataPath, last.lastSeen) : null;
+      // Windows' own log first; when it says nothing, a sandbox that was busy and left no word of leaving "vanished".
+      const logged = last ? causeSince(last.lastSeen, this.storageRoot) : null;
+      const cause =
+        logged ??
+        (last
+          ? vanishedCause(
+              readHeartbeat(this.dataPath),
+              last.started,
+              this.ledger.read()?.closedOnPurpose === true,
+              Date.now(),
+            )
+          : null);
+      const report = last && cause ? saveCrashReport(this.storageRoot, this.dataPath, last.lastSeen, cause) : null;
       this.life.end(cause, new Date(), report);
       this.cause = cause;
       // Ended with nothing wrong (its window closed, or it shut itself down idle): on purpose.

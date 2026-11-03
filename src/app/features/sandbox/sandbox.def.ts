@@ -59,6 +59,11 @@ export const SandboxStatusSchema = z.object({
     .object({ text: z.string().describe('What happened'), at: z.string().describe('When (ISO time)') })
     .optional()
     .describe('The last sandbox ended unexpectedly'),
+  /** Windows Sandbox programs left behind by a sandbox that is gone (Windows then refuses to start a new one). */
+  leftover: z
+    .object({ text: z.string().describe('What was found') })
+    .optional()
+    .describe('Windows Sandbox programs are left over from a sandbox that is gone'),
 });
 export type SandboxStatus = z.output<typeof SandboxStatusSchema>;
 
@@ -110,6 +115,7 @@ export const sandboxStatus = defineQuery({
         otherSessions: o.otherSessions,
         repoGuard: o.repoGuard,
         ...(o.lastEnd ? { lastEnd: o.lastEnd } : {}),
+        ...(o.leftover ? { leftover: o.leftover } : {}),
       };
     },
   },
@@ -135,6 +141,24 @@ export const hideWindow = defineOperation({
   output: MessageSchema,
   text: (o) => o.message,
   cli: { name: 'hide', group: 'Sessions' },
+});
+
+export const cleanUpSandbox = defineOperation({
+  id: 'sandbox.cleanUp',
+  title: 'Clean up Windows Sandbox…',
+  summary: 'close the Windows Sandbox programs a dead sandbox left behind, so a new one can start',
+  input: z.object({
+    service: z
+      .boolean()
+      .optional()
+      .describe('Also restart the Windows Sandbox service (Windows asks for administrator permission)'),
+  }),
+  output: z.object({
+    outcome: z.enum(['nothing', 'alive', 'declined', 'cleaned', 'service-restarted', 'failed']),
+    message: z.string(),
+  }),
+  text: (o) => o.message,
+  cli: { name: 'cleanup', group: 'Sessions' },
 });
 
 export const stopSandbox = defineOperation({
@@ -199,6 +223,7 @@ function facts(o: SandboxStatus): Fact[] {
           fact('sessions', 'Sessions', String(sessions)),
         ]
       : []),
+    ...(o.leftover ? [fact('leftover', 'Windows Sandbox', o.leftover.text, { tone: 'warn' })] : []),
     ...(o.lastEnd ? [fact('lastEnd', 'Last sandbox', o.lastEnd.text, { tone: 'warn' })] : []),
     fact('account', 'Account', s.account ?? 'none selected (sandbox account use)'),
     fact('sync', 'Background sync', s.syncWatcher ? 'on' : 'off'),
@@ -256,21 +281,24 @@ export function sandboxPage(o: SandboxStatus): Page {
     title: 'Status',
     facts: facts(o),
     // Only the window action that changes something: show a hidden window, hide a shown one.
-    actions: running
-      ? [
-          o.sandbox.headless
-            ? action(showWindow, {}, { key: 'w', verb: 'show', importance: 3 })
-            : action(hideWindow, {}, { key: 'h', verb: 'hide', importance: 3 }),
-          action(stopSandbox, {}, { key: 'x', verb: 'stop', importance: 1 }),
-        ]
-      : o.lastEnd
+    actions: [
+      ...(o.leftover ? [action(cleanUpSandbox, {}, { key: 'c', verb: 'clean up', importance: 1 })] : []),
+      ...(running
         ? [
-            link({ kind: 'view', view: 'logs', params: { name: CRASH } }, 'Show crash report', {
-              verb: 'show',
-              importance: 2,
-            }),
+            o.sandbox.headless
+              ? action(showWindow, {}, { key: 'w', verb: 'show', importance: 3 })
+              : action(hideWindow, {}, { key: 'h', verb: 'hide', importance: 3 }),
+            action(stopSandbox, {}, { key: 'x', verb: 'stop', importance: 1 }),
           ]
-        : [],
+        : o.lastEnd
+          ? [
+              link({ kind: 'view', view: 'logs', params: { name: CRASH } }, 'Show crash report', {
+                verb: 'show',
+                importance: 2,
+              }),
+            ]
+          : []),
+    ],
   };
   const others: Section = {
     id: 'other-sessions',
@@ -298,6 +326,6 @@ export const sandboxView = defineView({
   title: 'Sandbox',
   summary: 'Status, projects and controls of the running sandbox.',
   queries: { status: sandboxStatus },
-  operations: [showWindow, hideWindow, stopSandbox],
+  operations: [showWindow, hideWindow, stopSandbox, cleanUpSandbox],
   build: ({ status }) => sandboxPage(status),
 });

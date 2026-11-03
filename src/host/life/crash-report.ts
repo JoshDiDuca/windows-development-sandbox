@@ -32,6 +32,9 @@ export interface CrashExtra {
   readonly lastInside?: string;
 }
 
+/** The ends that get a crash report (not updates, restarts and sleep: those are plain). */
+const REPORTED: readonly StopCause['kind'][] = ['sandboxCrash', 'crash', 'memory', 'gpu', 'hyperv', 'vanished'];
+
 function crashDir(storageRoot: string): string {
   return path.join(storageRoot, 'logs', 'crashes');
 }
@@ -261,10 +264,15 @@ function memoryLogTail(dataPath: string): string {
 /**
  * When the sandbox ended in a crash (its own, this PC's, power, low memory): writes the report and returns its path.
  */
-export function saveCrashReport(storageRoot: string, dataPath: string, lastSeen: string): string | null {
+export function saveCrashReport(
+  storageRoot: string,
+  dataPath: string,
+  lastSeen: string,
+  known: StopCause | null = null,
+): string | null {
   const events = readStopEvents(new Date(Date.parse(lastSeen) - 2 * 60 * 1000), storageRoot);
-  const cause = explainStop(events);
-  if (!cause || !['sandboxCrash', 'crash', 'memory'].includes(cause.kind)) return null;
+  const cause = explainStop(events) ?? known;
+  if (!cause || !REPORTED.includes(cause.kind)) return null;
   const dir = crashDir(storageRoot);
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'crash-' + cause.at.replace(/[:.]/g, '-') + '.txt');

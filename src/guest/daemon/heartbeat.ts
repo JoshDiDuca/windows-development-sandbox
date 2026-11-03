@@ -8,7 +8,6 @@ import { governor, type GovernorSnapshot } from '../governor/index.js';
 import { run } from '../runtime/paths.js';
 import { warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
-import { sessions } from './sessions.js';
 
 const BEAT_MS = 10000;
 
@@ -22,6 +21,7 @@ export function buildHeartbeat(
   freeBytes: number,
   totalBytes: number,
   at: string,
+  ending = false,
 ): Heartbeat {
   const ramFree = snapshot?.ramFreePercent ?? Math.round((freeBytes / Math.max(1, totalBytes)) * 100);
   return {
@@ -32,23 +32,46 @@ export function buildHeartbeat(
     step: clamp(snapshot?.step ?? 0, 0, 4),
     hostStep: clamp(snapshot?.hostStep ?? 0, 0, 4),
     topProcesses: (snapshot?.top ?? []).slice(0, 5).map((p) => ({ name: p.name.slice(0, 64), privateMb: p.mb })),
-    ...(snapshot?.diskQueue != null ? { diskQueueReported: snapshot.diskQueue } : {}),
-    phase: sessionCount > 0 ? 'working' : 'ready',
+    ...(snapshot?.diskQueue !== null && snapshot?.diskQueue !== undefined
+      ? { diskQueueReported: snapshot.diskQueue }
+      : {}),
+    phase: ending ? 'ending' : sessionCount > 0 ? 'working' : 'ready',
   };
 }
 
+/** How many sessions run (set by startHeartbeat; this file must not import the sessions, which end through it). */
+let countSessions: () => number = () => 0;
+
+function writeBeat(ending: boolean): void {
+  try {
+    writeJsonAtomic(
+      run.heartbeatFile,
+      buildHeartbeat(governor.snapshot(), countSessions(), os.uptime(), os.freemem(), os.totalmem(), now(), ending),
+    );
+  } catch (e) {
+    warn('heartbeat: ' + errMsg(e));
+  }
+}
+
+/**
+ * The last heartbeat of an orderly end (idle shutdown, `sandbox stop`, Windows shutting down): the host then knows the
+ * sandbox was not lost. A sandbox that just vanishes leaves a busy heartbeat instead.
+ */
+export function markEnding(): void {
+  writeBeat(true);
+}
+
 /** Writes the heartbeat now and every 10 seconds; a failed write is only a warning. */
-export function startHeartbeat(): void {
-  const beat = (): void => {
-    try {
-      writeJsonAtomic(
-        run.heartbeatFile,
-        buildHeartbeat(governor.snapshot(), sessions.count, os.uptime(), os.freemem(), os.totalmem(), now()),
-      );
-    } catch (e) {
-      warn('heartbeat: ' + errMsg(e));
-    }
-  };
-  beat();
-  setInterval(beat, BEAT_MS).unref();
+export function startHeartbeat(sessionCount: () => number): void {
+  countSessions = sessionCount;
+  writeBeat(false);
+  const timer = setInterval(() => writeBeat(false), BEAT_MS);
+  timer.unref();
+  // Windows shutting down or the console closing: say so, then end (the default for these signals).
+  for (const signal of ['SIGHUP', 'SIGBREAK', 'SIGTERM'] as const)
+    process.on(signal, () => {
+      clearInterval(timer);
+      markEnding();
+      process.exit(0);
+    });
 }

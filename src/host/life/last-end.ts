@@ -6,6 +6,7 @@ import { RunDir, type Heartbeat, HeartbeatSchema } from '../../shared/channel/in
 import { readValid } from '../../shared/io/index.js';
 import { hostDataRoot } from '../storage/index.js';
 import type { Life } from './life-record.js';
+import type { StopCause } from './stop-events.js';
 
 /** How the last sandbox ended, when nobody closed it. */
 export interface LastEnd {
@@ -60,6 +61,31 @@ export function guessReason(hb: Heartbeat | null): string {
     return "this PC's disks were overloaded (queue " + hb.diskQueueReported + ')';
   if (hb && (hb.ramFreePct < 8 || hb.commitPct > 92)) return 'the sandbox was running out of memory';
   return 'Windows stopped it (no reason was logged)';
+}
+
+/** A heartbeat older than this before the end is not "it was working when it went". */
+const FRESH_MS = 2 * 60 * 1000;
+
+/**
+ * The sandbox went and nothing was logged (pure): its last heartbeat is fresh, from this run, says it was working
+ * (a session running, or builds slowed down) and does not say it was shutting down in order, and nobody stopped it on
+ * purpose (`sandbox stop`, a restart). The guest cannot tell a closed window from a crash, so the wording says both.
+ */
+export function vanishedCause(
+  hb: Heartbeat | null,
+  startedIso: string,
+  closedOnPurpose: boolean,
+  endedAtMs: number,
+): StopCause | null {
+  if (!hb || closedOnPurpose || hb.phase === 'ending') return null;
+  const seen = Date.parse(hb.at);
+  if (!Number.isFinite(seen) || seen < Date.parse(startedIso) - 60000 || endedAtMs - seen > FRESH_MS) return null;
+  if (hb.phase !== 'working' && hb.step === 0 && hb.hostStep === 0) return null;
+  return {
+    kind: 'vanished',
+    at: new Date(endedAtMs).toISOString(),
+    text: 'the sandbox ended suddenly while it was working (its window was closed, or it crashed: Windows logged nothing)',
+  };
 }
 
 /**

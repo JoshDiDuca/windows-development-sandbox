@@ -33,7 +33,7 @@ const MARKER = '.agent-sandbox-app';
 
 /** Where `prefetch` keeps an app's download until `download()` takes it (next to the app's folder, never inside). */
 function prefetchedFile(entry: AppEntry, fileName: string): string {
-  return path.join(tool('apps', ...entry.id.split('/')) + '.download', fileName.replace(/[\/:*?"<>|]/g, '_'));
+  return path.join(tool('apps', ...entry.id.split('/')) + '.download', fileName.replace(/[\\/:*?"<>|]/g, '_'));
 }
 /** How many apps download and unpack at once (they are big: a few at a time keeps the disk and network busy). */
 const PARALLEL = 3;

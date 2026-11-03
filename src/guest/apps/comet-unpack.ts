@@ -8,7 +8,7 @@ import path from 'node:path';
 import type { AppSigner } from '../../shared/signer.js';
 import { installedCometExe } from '../browser/comet.js';
 import { execAsync } from '../runtime/process.js';
-import { heavy } from '../runtime/pools.js';
+import { heavy } from '../../shared/concurrency/index.js';
 import { mkdirp } from '../runtime/fs.js';
 import { signedBy } from '../toolchains/signature.js';
 

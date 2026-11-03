@@ -34,7 +34,7 @@ User docs: README.md and docs/. Contributor summary: CONTRIBUTING.md. Releases: 
 - **No side-effect imports across the boundary.** Host code and tests may import only these guest files:
   `git/decision`, `setup/git-rules`, `boot/project-env`, `audit/parse`, `sessions/cmdline`, `toolchains/catalogue`,
   `toolchains/tools/vscode-profile`, `governor/decide`, `governor/core`, `daemon/live-folders`, `accounts/*` (not
-  `daemon/accounts`), `toolchains/persisted`, `toolchains/native/vs-request` (`runtime/session.ts`
+  `daemon/accounts`), `toolchains/persisted`, `toolchains/native/vs-request`, `boot/runner`, `boot/graph`, `toolchains/split`, `toolchains/step-scheduler` (`runtime/session.ts`
   reads session.json and `runtime/log.ts` creates the logs folder on import; inside a sandbox that file exists, so a bad
   import only fails on GitHub Actions — the `layout` suite catches it). Guest code imports from core only `core/types.ts`, `core/schema/**`,
   `core/detect/{toolchains,versions}.ts` and `core/util/errors.ts`. The `layout` suite checks this on the build output.
@@ -85,6 +85,10 @@ import siblings directly, never your own barrel. Guest code imports files direct
 - PowerShell: `#Requires -Version 5.1`, `param()`, approved verbs, CRLF.
 
 ## Recipes
+- **Boot actions are tasks** in `guest/boot/graph.ts` (id, stage, `after`, critical or soft, what shared boot state it
+  writes and reads), run in parallel by `boot/runner.ts` (docs/design/parallel-boot.md). Acquire the pools
+  (`shared/concurrency`: net 4, heavy 2, installer 1) at the leaf, one at a time: a nested pool throws. Boot code that
+  waits uses async calls (`execAsync`, `runScriptAsync`): a sync call stalls every task.
 - **New setting or command:** `core/schema/` or `cli/manifest.ts` first (flags, menu and JSON Schema follow), then
   `DEFAULTS` + `config.example.json`, then docs.
 - **New toolchain:** a module under `guest/toolchains/languages/`, a step in `toolchains/plan.ts`, schema + `DEFAULTS` +

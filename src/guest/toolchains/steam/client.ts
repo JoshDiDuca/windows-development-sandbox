@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { errMsg } from '../../../core/util/errors.js';
-import { heavy } from '../../runtime/pools.js';
+import { heavy } from '../../../shared/concurrency/index.js';
 import { moveIntoPlace, spawnAsync, stagingFolder } from '../../../shared/download/index.js';
 import { safeRemove } from '../../../shared/io/safe-remove.js';
 import { exists } from '../../runtime/fs.js';

@@ -80,11 +80,7 @@ export function agentEnv(
 }
 
 /** Makes the agent environment machine-wide, so new terminal tabs and anything the agent starts see the same tools. */
-export async function persistEnvironment(
-  env: NodeJS.ProcessEnv,
-  toolVars: string[],
-  additive = false,
-): Promise<void> {
+export async function persistEnvironment(env: NodeJS.ProcessEnv, toolVars: string[], additive = false): Promise<void> {
   if (!isWin || dryRun || testMode) return;
   const vars = Object.fromEntries(
     [...toolVars, ...AGENT_VARS, ...Object.keys(agentHomes()), ...Object.keys(localStateVars())]
@@ -96,7 +92,7 @@ export async function persistEnvironment(
       vars,
       ...(additive
         ? {
-            // Later in the boot (Visual Studio done): variables not set yet, new folders at the end of the machine PATH.
+            // Visual Studio done: variables not set yet, new folders at the end of the machine PATH.
             path: null,
             add: planPath({
               entries: (env.PATH ?? '').split(path.delimiter),

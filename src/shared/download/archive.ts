@@ -34,7 +34,9 @@ export function limitExtraction(limiter: Limiter | null): void {
  * `members` limits it to those paths inside the archive (e.g. skip pgAdmin in the PostgreSQL zip).
  */
 export function extractArchive(archive: string, destination: string, members: string[] = []): Promise<void> {
-  return extractLimit ? extractLimit.run(() => extract(archive, destination, members)) : extract(archive, destination, members);
+  return extractLimit
+    ? extractLimit.run(() => extract(archive, destination, members))
+    : extract(archive, destination, members);
 }
 
 async function extract(archive: string, destination: string, members: string[]): Promise<void> {

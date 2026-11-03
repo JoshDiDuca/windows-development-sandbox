@@ -11,7 +11,7 @@ import { installOnce } from '../package-ledger.js';
 import { crateInstaller } from './binstall.js';
 import { installedMsvcEnv } from './msvc/index.js';
 
-/** rustup-init.exe (the small installer; the toolchain itself downloads when it runs), kept in toolsust. */
+/** rustup-init.exe (the small installer; the toolchain itself downloads when it runs), kept with Rust's tools. */
 export async function fetchRustupInit(): Promise<void> {
   const init = tool('rust', 'rustup-init.exe');
   if (exists(init) || exists(path.join(tool('rust', 'cargo'), 'bin', 'rustup.exe'))) return;

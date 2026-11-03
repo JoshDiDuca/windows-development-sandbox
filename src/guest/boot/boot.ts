@@ -164,7 +164,7 @@ async function soft(what: string, work: () => unknown): Promise<void> {
 
 /** One boot of the sandbox: a graph of tasks (graph.ts) run by the BootRunner, each task a method below. */
 export class Boot {
-  // The shared boot state: each field is written by one task (graph.ts says which) and read by tasks that come after it.
+  // The shared boot state: each field is written by one task (graph.ts says which); readers come after that task.
   private ptyHost: string | null = null;
   private lan: LanState = session.networking ? 'open' : 'offline';
   private tools: (ToolchainResult & { later: Promise<ToolchainResult> | null }) | null = null;
@@ -277,7 +277,10 @@ export class Boot {
     let secrets: SecretsFile = { ...taken, serviceAccounts: undefined };
     if (!dryRun && (given || session.accountLeases?.length)) {
       try {
-        const env = await applyServiceAccounts(given, { leased: session.accountLeases ?? [], say: (line) => log(line) });
+        const env = await applyServiceAccounts(given, {
+          leased: session.accountLeases ?? [],
+          say: (line) => log(line),
+        });
         if (Object.keys(env).length)
           secrets = { ...secrets, harnessEnvironment: { ...env, ...secrets.harnessEnvironment } };
       } catch (e) {
@@ -491,7 +494,11 @@ export class Boot {
       const steps = { ...tools.steps, ...part.steps };
       const all = mergeToolchains(session.toolchains, tools.names, steps);
       const vars = { ...all.vars, ...proxyEnv() };
-      const env = agentEnv({ vars, prepend: [...all.prepend, ...(this.dbBin ? [this.dbBin] : [])], append: all.append });
+      const env = agentEnv({
+        vars,
+        prepend: [...all.prepend, ...(this.dbBin ? [this.dbBin] : [])],
+        append: all.append,
+      });
       // Additive: nothing the boot or a project added since is taken away.
       await persistEnvironment(env, Object.keys(vars), true);
       this.summary = this.summaryLines(all.summary);

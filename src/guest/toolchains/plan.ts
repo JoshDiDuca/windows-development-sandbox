@@ -25,7 +25,12 @@ import { setupRuby } from './languages/ruby.js';
 import { fetchVcRuntime, setupVcRuntime } from './native/vcruntime.js';
 import { setupVscode } from './tools/vscode.js';
 import type { ToolchainOptions, ToolchainStep, ToolCtx } from './step.js';
-import { ensureVisualStudio, prefetchVisualStudio, unrealUsesAutosdk, visualStudioWanted } from './native/visual-studio.js';
+import {
+  ensureVisualStudio,
+  prefetchVisualStudio,
+  unrealUsesAutosdk,
+  visualStudioWanted,
+} from './native/visual-studio.js';
 import { duringSession } from '../runtime/project-context.js';
 import { setupSteam } from './steam/steam.js';
 import { setupGodot } from './engines/godot.js';

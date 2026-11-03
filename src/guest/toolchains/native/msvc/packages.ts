@@ -110,7 +110,15 @@ const unpackVsix = async (vsix: string, work: string): Promise<void> => {
 const unpackMsi = async (msi: string): Promise<void> => {
   const logFile = msi + '.log';
   try {
-    await runInstallerChecked(system32('msiexec.exe'), ['/a', msi, '/quiet', '/qn', 'TARGETDIR=' + ROOT, '/l*v', logFile]);
+    await runInstallerChecked(system32('msiexec.exe'), [
+      '/a',
+      msi,
+      '/quiet',
+      '/qn',
+      'TARGETDIR=' + ROOT,
+      '/l*v',
+      logFile,
+    ]);
   } catch (e) {
     const lines = exists(logFile)
       ? fs

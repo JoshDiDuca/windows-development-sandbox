@@ -24,7 +24,7 @@ const DIRECTX_URL =
 
 /** The June 2010 DirectX End-User Runtime (D3DX, XAudio 2.7, XInput 1.3), which Epic lists for the engine. */
 const directXInstalled = (): boolean => {
-  const system32 = path.join(process.env.WINDIR ?? 'C:\Windows', 'System32');
+  const system32 = path.join(process.env.WINDIR ?? 'C:\\Windows', 'System32');
   return exists(path.join(system32, 'd3dx9_43.dll')) && exists(path.join(system32, 'XAudio2_7.dll'));
 };
 

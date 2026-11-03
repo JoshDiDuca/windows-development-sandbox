@@ -123,6 +123,28 @@ export const channelSuite: Suite = {
       hostile.map(() => true),
       'an oversized or malformed progress is dropped, the status itself still counts',
     );
+    const background = [{ name: 'Visual Studio', state: 'running' }];
+    const withBackground = parsed({ ...goodStatus, phase: 'ready', background });
+    t.check(
+      JSON.stringify(withBackground.data?.background) === JSON.stringify(background) &&
+        parsed({ ...goodStatus, phase: 'ready' }).data?.background === undefined,
+      'the background work of a ready sandbox is read (and is absent from an older sandbox)',
+    );
+    const hostileBackground = [
+      [{ name: 'x'.repeat(500), state: 'running' }],
+      [{ name: 'VS', state: 'pwned' }],
+      Array.from({ length: 100 }, () => ({ name: 'a', state: 'done' })),
+      [{ name: 'VS', state: 'running', extra: 1 }],
+      'pwned',
+    ];
+    t.equal(
+      hostileBackground.map((b) => {
+        const r = parsed({ ...goodStatus, background: b });
+        return r.success && r.data.background === undefined && r.data.phase === 'provisioning';
+      }),
+      hostileBackground.map(() => true),
+      'a malformed background list is dropped, the status itself still counts',
+    );
     const line = (p: unknown) => bootLine(parsed({ ...goodStatus, progress: p }).data ?? null).line;
     t.equal(
       [

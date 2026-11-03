@@ -397,6 +397,13 @@ Finding them on this PC comes in a later version; until then nothing is mapped. 
 `.ps1`, `.mjs` or `.cmd` files in `~/.agent-sandbox/hooks/pre-provision`, `pre-agent` or `post-agent` run inside the
 sandbox at that point, in name order. Use them for real installers (MSI, winget), which must run again every boot.
 
+The hooks keep their contract with the parallel boot: `pre-provision` runs before any developer tool is set up, and
+`pre-agent` runs alone, after everything else the boot does before the agent starts (the toolchains, the environment,
+Git, the VPN, Claude's settings and the agent's install); the agent starts after it. Visual Studio (and what needs it:
+Unreal, Rust with the MSVC host) is the one exception: unless a VPN or `network.allowOnly` is on, it installs in the
+background after the agent has started, so `pre-agent` hooks do not wait for it. The sandbox's log says when it
+is done.
+
 ## Agent commands
 
 Turn them on with the **Agent commands** switch (menu: Agents > On this PC; web: Agents), `sandbox agent-commands on` or `agentCommands.enabled`. They make the agents installed on this PC start in the sandbox.

@@ -3,17 +3,12 @@
 import os from 'node:os';
 import { spawn, type SpawnOptions } from 'node:child_process';
 import path from 'node:path';
-import { Limiter, INSTALLER_WAIT_MS, installerRetry } from '../../shared/concurrency/index.js';
+import { heavy, installer, net, INSTALLER_WAIT_MS, installerRetry } from '../../shared/concurrency/index.js';
 import { downloader, limitExtraction } from '../../shared/download/index.js';
 import { log } from './log.js';
 import { execAsync } from './process.js';
 
-/** HTTP bodies. */
-export const net = new Limiter(4, 'net');
-/** extractArchive, 7-Zip/NSIS unpack, npm ci/install, uv/pip, Steam, robocopy of big layouts, rustup/cargo. */
-export const heavy = new Limiter(2, 'heavy');
-/** Every msiexec, vcredist, DXSETUP and the Visual Studio bootstrapper: Windows runs one install at a time. */
-export const installer = new Limiter(1, 'installer');
+export { net, heavy, installer };
 
 /** Called at the start of the boot and of the daemon: the downloader and the extractor use the pools from then on. */
 export function installPools(): void {

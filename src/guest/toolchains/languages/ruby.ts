@@ -4,7 +4,7 @@ import type { Toolchains } from '../../../core/types.js';
 import { downloader, fetchJson } from '../../../shared/download/index.js';
 import { SYSTEM } from '../../../shared/system.js';
 import { dryRun } from '../../runtime/paths.js';
-import { execAsync } from '../../runtime/process.js';
+import { execHeavy as execAsync } from '../../runtime/pools.js';
 import { exists } from '../../runtime/fs.js';
 import { log } from '../../runtime/log.js';
 import { installOnce } from '../package-ledger.js';

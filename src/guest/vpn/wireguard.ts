@@ -53,7 +53,15 @@ export async function ensureWireguard(): Promise<string> {
   log('VPN: installing WireGuard');
   const logFile = path.join(toolsDir, 'downloads', 'wireguard-install.log');
   // DO_NOT_LAUNCH: the installer would otherwise start the manager window.
-  const code = await runInstaller(SYSTEM.msiexec(), ['/i', msi, '/qn', '/norestart', 'DO_NOT_LAUNCH=1', '/l*v', logFile]);
+  const code = await runInstaller(SYSTEM.msiexec(), [
+    '/i',
+    msi,
+    '/qn',
+    '/norestart',
+    'DO_NOT_LAUNCH=1',
+    '/l*v',
+    logFile,
+  ]);
   if (code !== 0 && code !== 3010)
     throw new Error('The WireGuard installer failed (exit ' + code + '). Its log: ' + logFile);
   if (!exists(exe))

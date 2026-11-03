@@ -210,12 +210,7 @@ async function layoutInstaller(req: VsRequest, bootstrapper: string, lowPriority
 /** The bootstrapper, downloaded (net pool) and checked; kept in tools\ for later boots. */
 function bootstrapperFor(req: VsRequest): Promise<string> {
   const boot = BOOTSTRAPPERS[req.product];
-  return signedInstaller(
-    boot.url,
-    path.join(VS_DIR, boot.file),
-    'the ' + boot.name + ' installer',
-    SIGNERS.microsoft,
-  );
+  return signedInstaller(boot.url, path.join(VS_DIR, boot.file), 'the ' + boot.name + ' installer', SIGNERS.microsoft);
 }
 
 /** Downloads the bootstrapper now, so the install later starts without waiting for it. */

@@ -161,7 +161,7 @@ export class BootRunner<Id extends string> {
       };
       const pump = (): void => {
         // Tasks that come after a failed critical (or skipped) task are skipped, and so is whatever comes after those.
-        for (let again = true; again; ) {
+        for (let again = true; again;) {
           again = false;
           for (const d of pending()) {
             const bad = d.after.find((a) => this.isBlocked(a));

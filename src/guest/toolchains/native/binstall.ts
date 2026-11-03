@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SpawnOptions } from 'node:child_process';
-import { execAsync } from '../../runtime/process.js';
+import { execHeavy as execAsync } from '../../runtime/pools.js';
 import { exists } from '../../runtime/fs.js';
 import { log, warn } from '../../runtime/log.js';
 import { errMsg } from '../../../core/util/errors.js';

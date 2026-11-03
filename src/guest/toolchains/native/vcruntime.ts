@@ -15,7 +15,7 @@ const OK_EXIT_CODES: readonly number[] = [0, 1638, 3010];
 
 /** Downloads the installer ahead of `setupVcRuntime` (nothing when the runtime or the installer is there). */
 export async function fetchVcRuntime(): Promise<void> {
-  const system32 = path.join(process.env.WINDIR ?? 'C:\Windows', 'System32');
+  const system32 = path.join(process.env.WINDIR ?? 'C:\\Windows', 'System32');
   const installer = tool('vcredist', 'vc_redist.x64.exe');
   if (exists(installer) || exists(path.join(system32, 'vcruntime140.dll'))) return;
   await downloadFile(VC_REDIST, installer);

@@ -4,6 +4,7 @@ import _ from 'lodash';
 import { DEFAULTS } from '../../../core/config/index.js';
 import { fail } from '../../../core/util/index.js';
 import { CLAUDE_ENV, envSpec, envValue, type EnvVarSpec } from './claude-env.def.js';
+import { anthropicKeyProblem } from '../../../shared/accounts/index.js';
 import { implement } from '../../context.js';
 import { ConfigFile } from '../settings/settings-file.js';
 import { agentEnv, agentsEnvSet, type AgentEnv, type EnvRow } from './env.def.js';
@@ -66,7 +67,7 @@ export const agentsEnvSetRun = implement(agentsEnvSet, (ctx, input) => {
   knownAgent(file, input.agent);
   const spec = input.agent === 'claude' ? envSpec(input.name) : undefined;
   const shownName = spec?.label ?? input.name;
-  const checked = envValue(spec, input.value);
+  const checked = envValue(spec, input.value, anthropicKeyProblem);
   if ('problem' in checked) fail(shownName + ': ' + checked.problem);
   const mine = ownVariables(file, input.agent);
   if (checked.save === null && mine[input.name] === undefined) {

@@ -9,7 +9,7 @@
 // written through. A key read from the sandbox must have the shape of an API key.
 import fs from 'node:fs';
 import path from 'node:path';
-import { anthropicKeyProblem } from '../../app/features/accounts/anthropic.def.js';
+import { anthropicKeyProblem } from '../../shared/accounts/index.js';
 import { assertTestWritable } from '../test-guard.js';
 import { hostDataFolder, hostDataRoot } from '../storage/index.js';
 import { assertNoLinks, fail, fileExists, isLink, removeLink, tryReadJson, writeJson } from '../../core/util/index.js';

@@ -5,7 +5,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Action } from '../../../app/kernel/index.js';
-import { agentsPage, listAgents, type AgentsList } from '../../../app/features/agents/index.js';
+import {
+  agentEnv,
+  agentEnvPage,
+  agentsPage,
+  listAgents,
+  type AgentEnv,
+  type AgentsList,
+} from '../../../app/features/agents/index.js';
 import type { ConfigFile } from '../../../app/features/settings/index.js';
 import { readQuery } from '../../../app/registry.js';
 import type { Context } from '../../commands/context.js';
@@ -42,6 +49,8 @@ export interface AgentsModel {
   readonly hostAgents: readonly string[];
   /** The agents you added yourself: only these can be removed (the built-in ones stay). */
   readonly removable?: readonly string[];
+  /** Claude's environment variables (the Claude environment tab); missing when Claude is not an agent here. */
+  readonly claudeEnv?: AgentEnv;
 }
 
 /** The agents page's data as the agents view takes it. Pure. */
@@ -92,13 +101,22 @@ export function agentsHaveStagedChanges(file: ConfigFile, draft: Draft): boolean
 }
 
 /** The categories of the agents section; "On this PC" only when there is something in it. Pure. */
-export function agentCategories(m: Pick<AgentsModel, 'folder' | 'hostAgents'>): Category[] {
+export function agentCategories(m: Pick<AgentsModel, 'folder' | 'hostAgents' | 'claudeEnv'>): Category[] {
   return [
     {
       id: 'start',
       label: 'Start',
       description: 'Agents you can start in ' + m.folder + '. Add an agent at the end of the list.',
     },
+    ...(m.claudeEnv
+      ? [
+          {
+            id: 'env',
+            label: 'Claude environment',
+            description: 'Models, limits, how many subagents run at once, and other variables of Claude.',
+          },
+        ]
+      : []),
     { id: 'options', label: 'Options', description: 'How a start goes, and the other ways to start.' },
     ...(m.hostAgents.length
       ? [
@@ -123,9 +141,15 @@ function startRow(item: ListItem<string>, m: AgentsModel, cwd: string): ListItem
   };
 }
 
+/** The Claude environment tab: the environment view's rows and keys, as the menu draws them. Pure. */
+function envView(m: AgentsModel): MenuView | undefined {
+  return m.claudeEnv ? menuView(agentEnvPage(m.claudeEnv), { category: 'env', refresh: false }) : undefined;
+}
+
 /** The list for the agents section. Pure. */
 export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): ListOptions<string> {
   const view = startView(m);
+  const env = envView(m);
   return {
     path: [],
     categories: agentCategories(m),
@@ -143,6 +167,7 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
           ]
         : []),
       ...view.items.map((item) => startRow(item, m, cwd)),
+      ...(env?.items ?? []),
       {
         value: 'opt:attach',
         label: 'Attach this terminal',
@@ -198,7 +223,7 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
     ],
     enterLabel: (_category, id) =>
       ENTER[id ?? ''] ?? (id?.startsWith('agent:') ? 'start' : id?.startsWith('host:') ? 'run' : 'open'),
-    actions: (category) => (category === 'start' ? view.actions : []),
+    actions: (category) => (category === 'start' ? view.actions : category === 'env' ? (env?.actions ?? []) : []),
   };
 }
 
@@ -224,6 +249,7 @@ export class AgentsPage extends ListPage<string> {
         readonly agents: AgentsList;
         readonly commands: AgentCommandsStatus;
         readonly last: string[] | undefined;
+        readonly env: AgentEnv | undefined;
       }
     | undefined;
 
@@ -241,7 +267,7 @@ export class AgentsPage extends ListPage<string> {
 
   private current(): AgentsModel {
     if (!this.facts) throw new Error('The agents tab was not loaded');
-    const { agents, commands, last } = this.facts;
+    const { agents, commands, last, env } = this.facts;
     return {
       folder: this.folder,
       defaultAgent: agents.defaultAgent,
@@ -251,6 +277,7 @@ export class AgentsPage extends ListPage<string> {
       window: this.window,
       hostAgents: hostAgentsToShow(commands.enabled, commands.found),
       removable: agents.agents.filter((a) => a.removable).map((a) => a.name),
+      ...(env ? { claudeEnv: env } : {}),
     };
   }
 
@@ -264,6 +291,10 @@ export class AgentsPage extends ListPage<string> {
       agents: await readQuery(listAgents, this.ctx),
       commands: await new AgentCommandsService(this.ctx).statusAsync(),
       last: readHistory()[0]?.argv,
+      env:
+        'claude' in this.ctx.loaded.config.harnesses
+          ? await readQuery(agentEnv, this.ctx, { agent: 'claude' })
+          : undefined,
     };
     this.model = this.current();
   }
@@ -275,9 +306,17 @@ export class AgentsPage extends ListPage<string> {
 
   protected async act(result: ListResult<string>): Promise<Outcome<string>> {
     const model = this.current();
+    const env = this.category === 'env' ? envView(model) : undefined;
+    if (env) {
+      const picked = env.resolve(result);
+      if (picked?.kind === 'action') return this.operate(picked.action);
+      return {};
+    }
     const chosen = startView(model).resolve(result);
     if (chosen?.kind === 'action') {
       const { action } = chosen;
+      if (action.kind === 'link' && action.target.kind === 'view')
+        return { notice: 'Open the Claude environment tab (left and right arrows) to change its variables.' };
       // A start keeps the options of this page (attach, window, folder), which the plain link does not know.
       if (action.kind === 'link' && action.target.kind === 'start-agent')
         return { exit: { kind: 'run', argv: startArgv(model, action.target.agent, process.cwd()) } };

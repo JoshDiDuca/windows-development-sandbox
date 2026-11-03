@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { ANTHROPIC_KEY_HINT } from '../../app/features/accounts/anthropic.def.js';
+import { ANTHROPIC_KEY_HINT } from '../../shared/accounts/index.js';
 import { isSafeFileName } from '../../shared/paths/index.js';
 import { JsonFile } from '../../shared/io/index.js';
 import { storageOf } from '../storage/index.js';

@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import { DEFAULTS } from '../core/config/index.js';
 import { CodexSchema } from '../core/schema/index.js';
 import { agentEnv, agentsEnvSet } from '../app/features/agents/index.js';
+import { agentsOptions } from '../cli/menu/pages/agents-page.js';
 import { fakeIO } from '../app/kernel/index.js';
 import { runDefinition } from '../app/registry.js';
 import { agentArguments, agentShims, codexArguments, codexConfigOwned, shimText } from '../guest/agents/agent-files.js';
-import { ANTHROPIC_KEY_PATTERN, anthropicKeyProblem } from '../app/features/accounts/anthropic.def.js';
+import { ANTHROPIC_KEY_PATTERN, anthropicKeyProblem } from '../shared/accounts/index.js';
 import { CLAUDE_ENV, ENV_GROUPS } from '../app/features/agents/claude-env.def.js';
 import type { AppContext } from '../app/context.js';
 import type { Suite } from './support/suite.js';
@@ -163,6 +164,22 @@ export const agentSettingsSuite: Suite = {
     const shown = JSON.stringify(await read());
     t.check(!shown.includes(key.slice(13)), 'a secret value is never returned');
     t.check((await read()).rows.find((r) => r.name === 'ANTHROPIC_API_KEY')?.set === true, 'but it says it is set');
+    const env = await read();
+    const menu = agentsOptions({
+      folder: 'C:\code',
+      defaultAgent: 'claude',
+      agents: [{ name: 'claude', ready: true }],
+      last: undefined,
+      attach: false,
+      window: 'config',
+      hostAgents: [],
+      claudeEnv: env as never,
+    });
+    t.check(
+      menu.categories?.some((c) => c.id === 'env') === true &&
+        menu.items.some((i) => i.label === 'Subagents at once' || i.label === 'API key'),
+      'the menu has a Claude environment tab with the variables',
+    );
     await t.throws(() => set('bad name', '1'), '', 'a bad variable name is refused');
   },
 };

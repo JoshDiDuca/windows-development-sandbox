@@ -1,7 +1,6 @@
 // The environment variables of Claude Code worth setting, for the "Claude environment" editor. Every name was found in
 // the claude.exe of the sandbox (a bounded grep -a -o -w); descriptions follow code.claude.com/docs (Environment
 // variables). Web-safe: no node imports. A flag is written as "1"; an empty value removes the variable.
-import { anthropicKeyProblem } from '../accounts/anthropic.def.js';
 
 export const ENV_GROUPS = ['Subagents', 'Models', 'Limits', 'Behaviour', 'Privacy', 'Network', 'Providers'] as const;
 export type EnvGroup = (typeof ENV_GROUPS)[number];
@@ -300,12 +299,14 @@ export const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,100}$/;
 
 /**
  * What a typed value becomes for this variable: the text to save, null when it removes the variable, or a problem the
- * person can act on. A flag is "1" or removed; a number is whole and in range; ANTHROPIC_API_KEY must look like an
- * Anthropic key. Pure.
+ * person can act on. A flag is "1" or removed; a number is whole and in range; ANTHROPIC_API_KEY must pass the key
+ * check it is given. Pure.
  */
 export function envValue(
   spec: EnvVarSpec | undefined,
   raw: string | null,
+  /** What is wrong with an Anthropic API key (the host passes anthropicKeyProblem), or null. */
+  keyProblem: (key: string) => string | null = () => null,
 ): { readonly save: string | null } | { readonly problem: string } {
   const value = raw === null ? '' : raw.trim();
   if (value === '') return { save: null };
@@ -327,7 +328,7 @@ export function envValue(
   if (spec.kind === 'enum' && !spec.choices?.includes(value))
     return { problem: 'Use one of: ' + (spec.choices ?? []).join(', ') + '.' };
   if (spec.name === 'ANTHROPIC_API_KEY') {
-    const problem = anthropicKeyProblem(value);
+    const problem = keyProblem(value);
     if (problem) return { problem };
   }
   if (/[\r\n\0]/.test(value) && spec.name !== 'ANTHROPIC_CUSTOM_HEADERS') return { problem: 'Use a single line.' };

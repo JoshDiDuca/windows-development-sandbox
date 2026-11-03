@@ -28,12 +28,13 @@ function builtFor(msvc: string, sdk: string): boolean {
   }
 }
 
-/** Makes the AutoSDK tree from the portable MSVC when it is not there for this MSVC and SDK, and points Unreal at it. */
+/** Makes the AutoSDK tree from the portable MSVC if it is missing for this MSVC and SDK, and points Unreal at it. */
 export async function setupAutosdk(env: ToolEnv): Promise<void> {
   const msvc = readInstalled();
   if (!msvc || !hasCompiler(msvc.msvc))
     throw new Error(
-      'toolchains.unreal.visualStudio = "autosdk" builds from the portable MSVC, which is not installed (is toolchains.msvc off?)',
+      'toolchains.unreal.visualStudio = "autosdk" builds from the portable MSVC, which is not installed ' +
+        '(is toolchains.msvc off?)',
     );
   if (!builtFor(msvc.msvc, msvc.sdk)) {
     log('Making the Unreal AutoSDK from MSVC ' + msvc.msvc + ' (~2 GB, once) ...');

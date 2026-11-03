@@ -20,3 +20,10 @@ export function signerMatches(signature: Signature | null, signer: AppSigner): b
     patterns.every((p) => new RegExp(p, 'i').test(text));
   return all(signature.subject, signer.subject) && all(signature.issuer, signer.issuer ?? []);
 }
+
+/** Who signs the installers the toolchains run (the patterns the signature's subject must match). */
+export const SIGNERS = {
+  microsoft: { subject: ['^CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US$'] },
+  valve: { subject: ['^CN="?Valve(,| Corp)'] },
+  unity: { subject: ['^CN="?Unity Technologies'] },
+} as const satisfies Record<string, AppSigner>;

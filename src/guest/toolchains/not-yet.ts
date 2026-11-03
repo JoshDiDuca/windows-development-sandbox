@@ -1,4 +1,5 @@
-// What a toolchain step whose module is not written yet does: says so in the log and the summary, installs nothing (the summary stays quiet).
+// What a toolchain step whose module is not written yet does: says so in the log, installs nothing and adds no
+// summary line.
 import { log } from '../runtime/log.js';
 import type { ToolEnv } from './tool-env.js';
 

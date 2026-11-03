@@ -5,16 +5,10 @@ import path from 'node:path';
 import { downloader } from '../../shared/download/index.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log } from '../runtime/log.js';
-import type { AppSigner } from '../../shared/signer.js';
+import { SIGNERS, type AppSigner } from '../../shared/signer.js';
 import { signedBy } from './signature.js';
 
-/** Who signs the installers the toolchains run (the patterns the signature's subject must match). */
-export const SIGNERS = {
-  microsoft: { subject: ['^CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US$'] },
-  valve: { subject: ['^CN="?Valve(,| Corp)'] },
-  unity: { subject: ['^CN="?Unity Technologies'] },
-} as const satisfies Record<string, AppSigner>;
-
+export { SIGNERS };
 export { signedBy };
 
 /** A downloader `verify` hook: refuses a file not signed by `signer` (it counts as integrity for requireChecksum). */

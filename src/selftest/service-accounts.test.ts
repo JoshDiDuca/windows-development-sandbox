@@ -481,7 +481,7 @@ export const serviceAccountsSuite: Suite = {
     );
     await t.throws(
       () => loginServiceFlow(fakeIO([CFX, '']).io, 'cfx', { store: flowStore, share: true }),
-      'not available yet',
+      'comes in a later version',
       'a kind whose host side is not written yet says so',
     );
     t.check(

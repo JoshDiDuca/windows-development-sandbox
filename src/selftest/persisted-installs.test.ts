@@ -20,8 +20,7 @@ import {
 } from '../guest/toolchains/native/vs-request.js';
 import { autosdkLayout, layoutNextStep, unrealUsesAutosdk, vsExitText } from '../guest/toolchains/native/vs-request.js';
 import { freeBytesAt } from '../shared/io/disk.js';
-import { signerMatches } from '../shared/signer.js';
-import { SIGNERS } from '../guest/toolchains/installers.js';
+import { SIGNERS, signerMatches } from '../shared/signer.js';
 import { decideToolchains } from '../core/detect/toolchains.js';
 import { NOT_READY } from '../shared/readiness.js';
 import { ConfigFile } from '../app/features/settings/settings-file.js';

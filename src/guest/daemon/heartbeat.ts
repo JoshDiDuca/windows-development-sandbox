@@ -32,7 +32,7 @@ export function buildHeartbeat(
     step: clamp(snapshot?.step ?? 0, 0, 4),
     hostStep: clamp(snapshot?.hostStep ?? 0, 0, 4),
     topProcesses: (snapshot?.top ?? []).slice(0, 5).map((p) => ({ name: p.name.slice(0, 64), privateMb: p.mb })),
-    ...(snapshot?.diskQueue != null ? { diskQueueReported: snapshot.diskQueue } : {}),
+    ...(typeof snapshot?.diskQueue === 'number' ? { diskQueueReported: snapshot.diskQueue } : {}),
     phase: sessionCount > 0 ? 'working' : 'ready',
   };
 }

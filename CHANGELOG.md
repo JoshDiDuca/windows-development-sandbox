@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.23.0
 
 - **Parallel boot** ([design](docs/design/parallel-boot.md)). The nine start-up steps are tasks that run as soon as what
   they need is done: the required ones first, the rest alongside. Downloads (4 at a time), unpacking and npm/uv/rustup

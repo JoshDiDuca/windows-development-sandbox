@@ -144,6 +144,7 @@ export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null):
       );
   };
   setVpnStatus('starting', 'Starting the VPN');
+  let failureCode: VpnStatus['code'];
   try {
     if (!session.networking) throw new Error('networking is off for this sandbox');
     let result: TunnelOutcome;
@@ -191,6 +192,7 @@ export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null):
     }
     if (!result.ok) {
       if (wireguardExe) await removeWireguardTunnel(wireguardExe);
+      failureCode = result.code;
       throw new Error(result.message);
     }
     if (!result.tunnelIp || !hasAdapter(result.tunnelIp))
@@ -217,7 +219,10 @@ export async function setupVpn(secrets: SecretsFile, ptyHostExe: string | null):
         ? ' The kill switch is on, so this sandbox has NO internet access.'
         : ' The kill switch could NOT close the network, so this sandbox is ONLINE through your normal connection, without the VPN.';
     warn('VPN failed: ' + reason + after);
-    setVpnStatus('failed', reason, killSwitch ? { killSwitchHeld: held } : {});
+    setVpnStatus('failed', reason, {
+      code: failureCode ?? 'other',
+      ...(killSwitch ? { killSwitchHeld: held } : {}),
+    });
     return false;
   }
 }

@@ -269,6 +269,10 @@ export const cliSuite: Suite = {
       { done: { kind: 'multi', values: ['a', 'b'] } },
       'list screen: space ticks several',
     );
+    const pasted = new TextScreen({ path: ['T'], label: 'Secret', masked: true });
+    pasted.handle(key('', '\u001b[200~abc\r\n\u001b[201~'));
+    pasted.handle(key('', '[200~d[201~'));
+    t.equal(pasted.handle(key('return')), { done: 'abcd' }, 'text field: the markers around pasted text are dropped');
     const typed = new TextScreen({ path: ['T'], label: 'Port', validate: (v) => (Number(v) > 0 ? true : 'a number') });
     typed.handle(key('x', 'x'));
     const refused = typed.handle(key('return'));

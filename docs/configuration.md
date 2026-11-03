@@ -43,7 +43,7 @@ Settings > General.
 | `sharing.otherUsers`                           | let other Windows users of this PC use a sandbox you start ([several users](security.md#several-users-on-one-pc)). Default off; your settings only                      |
 | `web.enabled`, `web.port`, `web.openOnLaunch`  | **(Beta)** the [web UI](web-ui.md) on `127.0.0.1:47800`. With `web.enabled` on, every sandbox start also starts it; `web.openOnLaunch` also opens your browser          |
 | `web.remote.*`                                 | **(Beta)** [remote access](web-ui.md#remote-access) to the web UI. All off by default                                                                                   |
-| `agentCommands.enabled`, `.agents`             | **(Beta)** [agent commands](#agent-commands-beta); `.agents` is `"auto"` (every agent on this PC) or a list such as `["claude", "codex"]`                               |
+| `agentCommands.enabled`, `.agents`             | [agent commands](#agent-commands); `.agents` is `"auto"` (every agent on this PC) or a list such as `["claude", "codex"]`                               |
 | `sandbox.engine`                               | **(Alpha)** `"windows-sandbox"` (default) or `"hcs"` (see [the HCS engine](#the-hcs-engine-alpha))                                                                      |
 | `harnesses`                                    | the agents and how they are installed ([agent settings](#agent-settings))                                                                                               |
 
@@ -396,9 +396,9 @@ Finding them on this PC comes in a later version; until then nothing is mapped. 
 `.ps1`, `.mjs` or `.cmd` files in `~/.agent-sandbox/hooks/pre-provision`, `pre-agent` or `post-agent` run inside the
 sandbox at that point, in name order. Use them for real installers (MSI, winget), which must run again every boot.
 
-## Agent commands (Beta)
+## Agent commands
 
-`sandbox agent-commands on` (or `agentCommands.enabled`) makes the agents installed on this PC start in the sandbox.
+Turn them on with the **Agent commands** switch (menu: Agents > On this PC; web: Agents), `sandbox agent-commands on` or `agentCommands.enabled`. They make the agents installed on this PC start in the sandbox.
 Type `claude` (or `codex`, `gemini` ...) in any project folder, and it starts in a hidden sandbox for that folder and
 attaches your terminal, like `sandbox claude -t --headless`. Arguments go to the agent.
 
@@ -407,6 +407,12 @@ attaches your terminal, like `sandbox claude -t --headless`. Arguments go to the
 - `$env:SANDBOX_AGENT_DIRECT=1` (cmd: `set SANDBOX_AGENT_DIRECT=1`) runs the real agent on this PC instead.
 - `sandbox agent-commands off` removes the commands and the PATH entry. `status` shows what is forwarded.
 - Agents installed later are picked up at your next launch. An agent on the machine-wide PATH is not overridden.
+- The commands call the installed program's own launcher, so they keep working after an update. If the program is
+  uninstalled or moved, `claude` simply runs the real agent again; the uninstaller also removes the commands and the PATH
+  entry.
+- Changing `agentCommands.*` anywhere (menu, web, `sandbox config set`) updates the files and your PATH at once.
+- Arguments are passed on as typed. `cmd.exe` expands an unquoted `%` or `^` before the command runs, as it does for any
+  `.cmd` file; quote such arguments.
 
 ## The HCS engine (Alpha)
 

@@ -199,11 +199,11 @@ Your own secrets stay out of someone else's sandbox: your agent environment valu
 refused. Restarting it, adding a project, showing its window and starting a new one are the owner's alone. Everything
 read from the owner's folders is checked like anything from a sandbox.
 
-## Agent commands (Beta)
+## Agent commands
 
 Off by default. When on, it adds one folder (in this tool's storage) to the start of your own PATH, holding only the
 forwarding commands it wrote. `off` removes them and the entry. A project file cannot turn it on.
-[How it works](configuration.md#agent-commands-beta).
+[How it works](configuration.md#agent-commands).
 
 ## Remote access to the web UI (Beta)
 

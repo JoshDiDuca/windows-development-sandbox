@@ -25,12 +25,26 @@ type Saved = z.output<typeof SavedSchema>;
 export type LoginState = 'none' | 'saved' | 'unreadable';
 
 /** The login must go on two lines of a file for OpenVPN, so no line breaks or other control characters. */
-export function loginProblem(c: VpnCredentials): string | null {
+export function loginProblem(c: VpnCredentials, provider?: VpnProvider): string | null {
   const clean = (v: string): boolean => !/[\u0000-\u001f\u007f]/.test(v);
   if (!c.username.trim() || !c.password) return 'Both the user name and the password are needed.';
   if (!clean(c.username) || !clean(c.password)) return 'The login may not contain line breaks or control characters.';
+  // The markers a terminal puts around pasted text ([200~ ... [201~) are not part of any login.
+  if (/\[20[01]~/.test(c.username + c.password))
+    return 'The login has hidden paste characters in it (the terminal added them when you pasted).';
   if (c.username.length > 256 || c.password.length > 1024) return 'The user name or password is too long.';
+  if (provider === 'nordvpn' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.username.trim()))
+    return 'That looks like your NordVPN account e-mail. Use the service credentials: Nord Account > NordVPN > Manual setup.';
   return null;
+}
+
+/** A hint (not a refusal) when a NordVPN login does not look like service credentials (letters and digits, ~24). */
+export function loginWarning(c: VpnCredentials, provider: VpnProvider): string | null {
+  if (provider !== 'nordvpn') return null;
+  const ok = (v: string): boolean => /^[A-Za-z0-9]{16,64}$/.test(v.trim());
+  return ok(c.username) && ok(c.password)
+    ? null
+    : 'NordVPN service credentials are letters and digits only (about 24 each). If the VPN says the login was refused, copy them again from Nord Account > NordVPN > Manual setup.';
 }
 
 export class VpnLogin {
@@ -45,12 +59,12 @@ export class VpnLogin {
 
   /** Encrypts and saves the login (replacing an earlier one). */
   save(provider: VpnProvider, login: VpnCredentials): void {
-    const problem = loginProblem(login);
+    const problem = loginProblem({ username: login.username.trim(), password: login.password.trim() }, provider);
     if (problem) fail(problem, 'Type the service credentials again.');
     this.file(provider).write({
       provider,
       savedAt: new Date().toISOString(),
-      sealed: this.secrets.sealJson({ username: login.username.trim(), password: login.password }),
+      sealed: this.secrets.sealJson({ username: login.username.trim(), password: login.password.trim() }),
     });
   }
 

@@ -515,7 +515,7 @@ const COMMAND_LIST = [
   },
   {
     name: 'agent-commands',
-    summary: '(Beta) make claude, codex ... on this PC start in a hidden sandbox and attach',
+    summary: 'make claude, codex ... on this PC start in a hidden sandbox and attach',
     group: 'Advanced',
     args: [{ name: 'action', description: 'on, off or status', required: false, choices: ['status', 'on', 'off'] }],
     options: [],

@@ -315,8 +315,10 @@ export class AgentsPage extends ListPage<string> {
     const chosen = startView(model).resolve(result);
     if (chosen?.kind === 'action') {
       const { action } = chosen;
-      if (action.kind === 'link' && action.target.kind === 'view')
-        return { notice: 'Open the Claude environment tab (left and right arrows) to change its variables.' };
+      if (action.kind === 'link' && action.target.kind === 'view') {
+        await this.selectCategory('env');
+        return {};
+      }
       // A start keeps the options of this page (attach, window, folder), which the plain link does not know.
       if (action.kind === 'link' && action.target.kind === 'start-agent')
         return { exit: { kind: 'run', argv: startArgv(model, action.target.agent, process.cwd()) } };

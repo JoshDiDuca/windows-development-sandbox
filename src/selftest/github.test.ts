@@ -311,9 +311,7 @@ export const githubSuite: Suite = {
     };
     const lines = pageLines(githubPage(sample)).join('\n');
     t.check(
-      lines.includes('saved') &&
-        lines.includes('only handed over with "full"') &&
-        lines.includes('classic'),
+      lines.includes('saved') && lines.includes('only handed over with "full"') && lines.includes('classic'),
       'the status page says saved, the git access it needs, and the kind',
       lines,
     );
@@ -440,6 +438,33 @@ export const githubSuite: Suite = {
     t.check(
       withGithub.sections.some((sec) => sec.id === 'github'),
       'the Accounts page has a GitHub section',
+    );
+
+    const expiring = new GithubToken(t.dir('github-expiring'), SecretStore.memory());
+    expiring.save(FINE, {
+      login: 'josh',
+      expiresAt: '2027-02-03T10:00:00.000Z',
+      repoCount: 1,
+      checkedAt: '2027-01-01T00:00:00.000Z',
+    });
+    const shareOn = f.makeConfig();
+    shareOn.github.shareToken = true;
+    t.check(
+      prepareGithubToken(
+        shareOn,
+        shareOn.storage.root,
+        expiring,
+        [],
+        Date.parse('2027-01-30T00:00:00.000Z'),
+      ).notes.some((n) => n.includes('expires in 5 days')) &&
+        !prepareGithubToken(
+          shareOn,
+          shareOn.storage.root,
+          expiring,
+          [],
+          Date.parse('2026-12-01T00:00:00.000Z'),
+        ).notes.some((n) => n.includes('expires')),
+      'a launch mentions a token that ends within 7 days, and only then',
     );
 
     t.section('errors with an action');

@@ -178,6 +178,7 @@ async function samplePages(dir: string): Promise<{ name: string; page: Page }[]>
     add('sessions ' + running, sessionsPage(sampleSessions(running) as Parameters<typeof sessionsPage>[0]));
     add('projects ' + running, projectsPage(sampleProjects(running) as Parameters<typeof projectsPage>[0]));
   }
+  add('projects empty', projectsPage({ all: false, roots: [], exclude: [], projects: [] }));
   const status = sampleStatus(false) as Parameters<typeof sandboxPage>[0];
   add('sandbox leftover', sandboxPage({ ...status, leftover: { text: 'Windows Sandbox programs are left over.' } }));
   add(

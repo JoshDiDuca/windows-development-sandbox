@@ -104,7 +104,7 @@ export class RemoteMenu {
       if (action.kind === 'link') {
         notice =
           action.target.kind === 'terminal'
-            ? Theme.muted('Attach to it from your own terminal: sandbox attach ' + safeText(action.target.session))
+            ? Theme.muted('Attach to it from your own terminal (session ' + safeText(action.target.session) + ').')
             : Theme.muted('That opens on ' + safeText(this.owner) + "'s side only.");
         continue;
       }

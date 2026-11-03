@@ -185,7 +185,7 @@ export function projectsPage(o: ProjectsList): Page {
       {
         id: 'roots',
         label: 'Roots',
-        value: o.roots.length ? o.roots.join(', ') : 'none (sandbox projects roots add <folder>)',
+        value: o.roots.length ? o.roots.join(', ') : 'none',
       },
     ],
     actions: [
@@ -229,7 +229,7 @@ export function projectsPage(o: ProjectsList): Page {
     items: o.projects.map(projectItem),
     notes:
       o.projects.length === 0
-        ? [{ text: 'No projects yet: start one with sandbox claude in its folder.', tone: 'muted' }]
+        ? [{ text: 'No projects yet: start an agent in a project folder.', tone: 'muted' }]
         : [{ text: '* = this folder.  Choose with: sandbox projects choose', tone: 'muted', only: 'cli' }],
   };
   return {

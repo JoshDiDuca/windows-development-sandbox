@@ -48,6 +48,7 @@ export function prepareGithubToken(
   storageRoot: string,
   store?: GithubToken,
   others: readonly BootWant[] = [],
+  now: number = Date.now(),
 ): GithubDelivery {
   if (!config.github.shareToken) return { notes: [] };
   const stricter = stricterProject(config, others);
@@ -81,7 +82,7 @@ export function prepareGithubToken(
     token,
     notes: [
       'Your GitHub token is handed to this sandbox (github.shareToken): the agent can read it and use it for whatever it allows.',
-      ...expiryNotes(tokens),
+      ...expiryNotes(tokens, now),
     ],
   };
 }

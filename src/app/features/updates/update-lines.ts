@@ -29,9 +29,9 @@ export function describeResult(result: UpdateResult | null, _unattended: boolean
         result.reason.replace(/\.?\s*$/, '.') +
         (result.rolledBack
           ? ' The change was undone: you are on the version you had.'
-          : ' Going back to your previous version did not fully work: run sandbox update --rollback or the installer.') +
+          : ' Going back to your previous version did not fully work: use Go back to the previous version, or run the installer.') +
         (result.autoUpdateOff
-          ? ' Automatic updates are off; turn them back on in Maintenance > Updates or with sandbox update --auto on.'
+          ? ' Automatic updates are off; turn them back on in Maintenance > Updates.'
           : result.blocked
             ? ' It is not tried again; the next release is.'
             : ' It is tried again later.'),

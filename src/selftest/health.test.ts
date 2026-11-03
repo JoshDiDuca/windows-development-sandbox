@@ -743,7 +743,7 @@ async function sharedCore(t: Harness): Promise<void> {
   const logged = fake.seen.logs.map((l) => l.text).join('\n');
   t.includes(logged, '  [ok] Windows: p1 is fine', 'ioEvents writes a line per result, like the printer');
   t.includes(logged, 'What it means: it hurts', 'ioEvents says what a problem means');
-  t.includes(logged, 'Fix: sandbox repair will mend the cracks', 'ioEvents says what repair would do');
+  t.includes(logged, 'Fix: repair will mend the cracks', 'ioEvents says what repair would do');
   t.includes(logged, 'Repair will change:', 'ioEvents lists the changes before they are made');
   t.includes(logged, '[fixed] Cracks: mended the cracks', 'ioEvents reports a fix on its own line');
 

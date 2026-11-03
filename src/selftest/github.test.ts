@@ -5,7 +5,11 @@ import path from 'node:path';
 import type { AppContext } from '../app/context.js';
 import {
   deleteGithubTokenFlow,
+  expiryOf,
+  githubItem,
   githubPage,
+  newTokenUrl,
+  tokenUrlFor,
   githubTokenRowOf,
   saveGithubTokenFlow,
   type GithubStatus,
@@ -16,7 +20,19 @@ import { pageLines } from '../cli/output/index.js';
 import { DEFAULTS } from '../core/config/index.js';
 import { applyOverrides, normalizeOverrides } from '../core/local-config/index.js';
 import { ConfigSchema, LocalOverridesSchema } from '../core/schema/index.js';
-import { checkGithubToken, GithubToken, githubTokenAllowed, prepareGithubToken } from '../host/github/index.js';
+import {
+  checkGithubToken,
+  GithubToken,
+  githubTokenAllowed,
+  prepareGithubToken,
+  verifyGithubToken,
+  type GithubVerdict,
+} from '../host/github/index.js';
+import type { RequestFetcher } from '../shared/download/index.js';
+import { UserError } from '../core/util/index.js';
+import { report } from '../cli/report.js';
+import { toWireError, fromWireError } from '../app/kernel/index.js';
+import { accountsPage } from '../app/features/accounts/index.js';
 import { generateSandbox } from '../host/launch/index.js';
 import { insideSandbox } from '../host/sandbox/platform.js';
 import { clearSecrets, SecretStore } from '../host/secrets/index.js';
@@ -24,6 +40,12 @@ import { RunDir } from '../shared/channel/index.js';
 import { SecretsFileSchema, type SecretsFile } from '../shared/channel/secrets.js';
 import { ghLoginCommand, ghOutputText, ghSetupGitCommand, githubTokenProblem } from '../shared/github/index.js';
 import type { Suite } from './support/suite.js';
+
+const okVerdict = (): Promise<GithubVerdict> =>
+  Promise.resolve({
+    kind: 'ok',
+    check: { login: 'josh', expiresAt: '2027-02-03T10:00:00.000Z', repos: { count: 2, sample: ['josh/a', 'josh/b'] } },
+  });
 
 const FINE = 'github_pat_' + 'PlantedFine0123456789'.repeat(3);
 const CLASSIC = 'ghp_' + 'PlantedClassic0123456789ab';
@@ -111,7 +133,7 @@ export const githubSuite: Suite = {
     config.github.shareToken = true;
     const none = prepareGithubToken(config, config.storage.root, tokens);
     t.check(
-      none.token === undefined && none.notes.some((n) => n.includes('sandbox github login')),
+      none.token === undefined && none.notes.some((n) => n.includes('Save one')),
       'on without a saved token: not sent, and it says how to save one',
     );
     tokens.save(FINE);
@@ -241,12 +263,12 @@ export const githubSuite: Suite = {
     t.section('the shared-core operations');
     const featureStore = new GithubToken(t.dir('github-feature'), SecretStore.memory());
     const { io: loginIO, seen: loginSeen } = fakeIO([FINE]);
-    const saved = await saveGithubTokenFlow(loginIO, featureStore);
+    const saved = await saveGithubTokenFlow(loginIO, featureStore, okVerdict);
     t.check(
       loginSeen.questions.length === 1 &&
         loginSeen.questions[0].kind === 'secret' &&
         featureStore.state() === 'saved' &&
-        loginSeen.logs.some((l) => l.text.includes('personal-access-tokens/new')) &&
+        loginSeen.logs.some((l) => l.text.includes('Make a new token')) &&
         loginSeen.logs.some((l) => l.text.includes('agent in the sandbox can read')),
       'login shows the steps, asks exactly one hidden question, saves, and warns the agent can read it',
       JSON.stringify(loginSeen.questions),
@@ -256,7 +278,7 @@ export const githubSuite: Suite = {
       'nothing it returns or logs holds the token',
     );
     const { io: retryIO, seen: retrySeen } = fakeIO([OAUTH, CLASSIC]);
-    await saveGithubTokenFlow(retryIO, featureStore);
+    await saveGithubTokenFlow(retryIO, featureStore, okVerdict);
     t.check(
       retrySeen.questions.length === 2 &&
         featureStore.kind() === 'classic' &&
@@ -281,12 +303,15 @@ export const githubSuite: Suite = {
       token: 'saved',
       kind: 'classic',
       savedAt: '2026-10-18T10:00:00.000Z',
+      login: null,
+      expiresAt: null,
+      repoCount: null,
+      checkedAt: null,
+      tokenUrl: 'https://github.com/settings/personal-access-tokens/new',
     };
     const lines = pageLines(githubPage(sample)).join('\n');
     t.check(
-      lines.includes('saved (encrypted)') &&
-        lines.includes('only handed over with "full"') &&
-        lines.includes('classic'),
+      lines.includes('saved') && lines.includes('only handed over with "full"') && lines.includes('classic'),
       'the status page says saved, the git access it needs, and the kind',
       lines,
     );
@@ -321,6 +346,149 @@ export const githubSuite: Suite = {
       );
       t.check(seen.questions.length === 0, 'and asks no question first');
     }
+
+    t.section('GitHub: the pre-filled link, the check after saving, the expiry');
+    const url = new URL(
+      newTokenUrl({ name: 'Windows Sandbox PC', days: 90, permissions: { contents: 'write', metadata: 'read' } }),
+    );
+    t.check(
+      url.origin + url.pathname === 'https://github.com/settings/personal-access-tokens/new' &&
+        url.searchParams.get('name') === 'Windows Sandbox PC' &&
+        url.searchParams.get('expires_in') === '90' &&
+        url.searchParams.get('contents') === 'write' &&
+        url.searchParams.get('metadata') === 'read' &&
+        !url.search.includes('+') &&
+        new URL(tokenUrlFor('BOX')).searchParams.get('workflows') === 'write',
+      'the new-token link carries the name, days and permissions GitHub documents (and nothing else)',
+    );
+    const answer =
+      (status: number, body: unknown, headers: Record<string, string> = {}): RequestFetcher =>
+      (u) =>
+        Promise.resolve({
+          status,
+          header: (n) => headers[n.toLowerCase()] ?? null,
+          text: u.includes('/user/repos')
+            ? JSON.stringify([{ full_name: 'josh/a' }, { full_name: 'josh/b' }])
+            : JSON.stringify(body),
+        });
+    const good = await verifyGithubToken(
+      FINE,
+      answer(200, { login: 'josh' }, { 'github-authentication-token-expiration': '2027-02-03 10:00:00 UTC' }),
+    );
+    t.check(
+      good.kind === 'ok' &&
+        good.check.login === 'josh' &&
+        good.check.expiresAt === '2027-02-03T10:00:00.000Z' &&
+        good.check.repos.count === 2 &&
+        !JSON.stringify(good).includes(FINE),
+      'a token GitHub accepts: who, when it ends, how many repositories (never the token)',
+    );
+    t.equal(
+      (await verifyGithubToken(FINE, answer(401, { message: 'Bad credentials' }))).kind,
+      'refused',
+      'a 401 is a refusal',
+    );
+    const big: RequestFetcher = () => Promise.reject(new Error('The answer from api.github.com is too big.'));
+    const tooBig = await verifyGithubToken(FINE, big);
+    t.check(
+      tooBig.kind === 'unreachable' && tooBig.reason.includes('too big'),
+      'an oversize answer is refused, the token is not blamed',
+    );
+    const refusedStore = new GithubToken(t.dir('github-refused'), SecretStore.memory());
+    await t.throws(
+      () =>
+        saveGithubTokenFlow(fakeIO([FINE]).io, refusedStore, () => Promise.resolve({ kind: 'refused', status: 401 })),
+      'GitHub refused this token',
+      'a refused token is not saved',
+    );
+    t.check(refusedStore.state() === 'none', 'nothing was written');
+    const checkedStore = new GithubToken(t.dir('github-checked'), SecretStore.memory());
+    await saveGithubTokenFlow(fakeIO([FINE]).io, checkedStore, okVerdict);
+    t.check(
+      checkedStore.check()?.login === 'josh' &&
+        checkedStore.check()?.repoCount === 2 &&
+        !fs.readFileSync(path.join(t.dir('github-checked'), 'github', 'token.json'), 'utf8').includes(FINE),
+      'what GitHub said is kept beside the sealed token',
+    );
+    const now = Date.parse('2027-02-01T00:00:00.000Z');
+    t.equal(
+      [
+        expiryOf('2027-02-03T10:00:00.000Z', now)?.tone,
+        expiryOf('2027-04-03T10:00:00.000Z', now)?.tone,
+        expiryOf('2027-01-01T10:00:00.000Z', now)?.tone,
+        expiryOf(null, now),
+      ],
+      ['warn', 'ok', 'danger', null],
+      'expiry tones: warn under 14 days, danger when expired',
+    );
+    const soon = githubItem(
+      { ...sample, token: 'saved', expiresAt: '2027-02-03T10:00:00.000Z', login: 'josh', repoCount: 2 },
+      now,
+    );
+    t.check(
+      soon.badges?.[0].text === 'expires soon' &&
+        (soon.details ?? []).some((d) => d.startsWith('Expires 3 Feb 2027 (in ')),
+      'the card says "expires soon" and when',
+    );
+    const withGithub = accountsPage(
+      { agent: 'claude', agents: [], services: [] },
+      { services: [] },
+      { ...sample, token: 'saved' },
+    );
+    t.check(
+      withGithub.sections.some((sec) => sec.id === 'github'),
+      'the Accounts page has a GitHub section',
+    );
+
+    const expiring = new GithubToken(t.dir('github-expiring'), SecretStore.memory());
+    expiring.save(FINE, {
+      login: 'josh',
+      expiresAt: '2027-02-03T10:00:00.000Z',
+      repoCount: 1,
+      checkedAt: '2027-01-01T00:00:00.000Z',
+    });
+    const shareOn = f.makeConfig();
+    shareOn.github.shareToken = true;
+    t.check(
+      prepareGithubToken(
+        shareOn,
+        shareOn.storage.root,
+        expiring,
+        [],
+        Date.parse('2027-01-30T00:00:00.000Z'),
+      ).notes.some((n) => n.includes('expires in 5 days')) &&
+        !prepareGithubToken(
+          shareOn,
+          shareOn.storage.root,
+          expiring,
+          [],
+          Date.parse('2026-12-01T00:00:00.000Z'),
+        ).notes.some((n) => n.includes('expires')),
+      'a launch mentions a token that ends within 7 days, and only then',
+    );
+
+    t.section('errors with an action');
+    const fixable = new UserError('Broke.', 'Do it.', { op: 'sandbox.stop', label: 'Stop it', cli: 'sandbox stop' });
+    const wire = toWireError(fixable);
+    t.check(
+      wire.action?.op === 'sandbox.stop' &&
+        wire.action.label === 'Stop it' &&
+        !JSON.stringify(wire).includes('sandbox stop') &&
+        fromWireError(wire) instanceof UserError,
+      'the wire error carries the action without the command line',
+    );
+    const printed: string[] = [];
+    const saveErr = console.error;
+    console.error = (m: string): void => void printed.push(String(m));
+    try {
+      report(fixable);
+    } finally {
+      console.error = saveErr;
+    }
+    t.check(
+      printed.some((l) => l.includes('Run:') && l.includes('sandbox stop')),
+      'the command line prints "Run: <command>"',
+    );
 
     t.section('gh in the sandbox: the token on stdin only');
     const base = {

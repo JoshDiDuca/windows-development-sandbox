@@ -10,7 +10,7 @@
     "defaultHarness": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+$",
-      "description": "Agent started by `sandbox launch` (sandbox claude always runs claude)."
+      "description": "The agent that starts when you do not name one (starting claude by name always runs claude)."
     },
     "guestWorkspace": {
       "anyOf": [
@@ -63,7 +63,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Keep an audit log on this PC of what your agents did: programs started (with their command lines, secrets hidden), files changed in the projects, git commits, sessions, and what the repo guard caught, each linked to the agent session that did it where that can be known. The sandbox cannot change it. Read it with sandbox audit or on the Activity page."
+          "description": "Keep an audit log on this PC of what your agents did: programs started (with their command lines, secrets hidden), files changed in the projects, git commits, sessions, and what the repo guard caught, each linked to the agent session that did it where that can be known. The sandbox cannot change it. Read it on the Activity page."
         },
         "days": {
           "type": "integer",
@@ -130,7 +130,7 @@
             "windows-sandbox",
             "hcs"
           ],
-          "description": "(alpha) What runs the sandbox. \"windows-sandbox\" = Windows Sandbox (the default: desktop, Windows Terminal, GPU, clipboard, audio, printers). \"hcs\" = a headless Hyper-V isolated Server Core container for agents (no desktop, GPU or clipboard); it needs Windows features and an image on this PC (sandbox engine check hcs lists what is missing), and starting it is not enabled yet in this alpha. sandbox engine shows what each engine can do. Yours only: a project file (.sandbox-config.json) cannot set it."
+          "description": "(alpha) What runs the sandbox. \"windows-sandbox\" = Windows Sandbox (the default: desktop, Windows Terminal, GPU, clipboard, audio, printers). \"hcs\" = a headless Hyper-V isolated Server Core container for agents (no desktop, GPU or clipboard); it needs Windows features and an image on this PC (Maintenance > Engine lists what is missing), and starting it is not enabled yet in this alpha. Maintenance > Engine shows what each engine can do. Yours only: a project file (.sandbox-config.json) cannot set it."
         },
         "memoryMb": {
           "anyOf": [
@@ -216,7 +216,7 @@
         },
         "clipboard": {
           "type": "boolean",
-          "description": "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in sandbox attach) reach this PC's clipboard."
+          "description": "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in an attached terminal) reach this PC's clipboard."
         },
         "audioInput": {
           "type": "boolean",
@@ -261,7 +261,7 @@
         "root": {
           "type": "string",
           "minLength": 1,
-          "description": "Where everything is kept on this PC (tools, databases, logins, launches). The default is a private folder for you under %ProgramData%\\AgentSandbox\\users, which works for installs for one user and for everyone. sandbox storage move <folder> moves it."
+          "description": "Where everything is kept on this PC (tools, databases, logins, launches). The default is a private folder for you under %ProgramData%\\AgentSandbox\\users, which works for installs for one user and for everyone. Maintenance > Storage moves it."
         },
         "persistAgentState": {
           "type": "boolean",
@@ -282,7 +282,7 @@
             "off",
             "vhdx"
           ],
-          "description": "(beta) Keep the sandbox tools, state and logs inside one disk image file (vhdx) instead of loose folders, so scanning programs on this PC see one file. Not yet tried on a real PC. Turn it on with sandbox storage contained on (it moves your files and asks first); Windows asks for permission to mount the image when a sandbox starts. \"off\" = loose folders, as always. Yours only: a project file (.sandbox-config.json) cannot set it."
+          "description": "(beta) Keep the sandbox tools, state and logs inside one disk image file (vhdx) instead of loose folders, so scanning programs on this PC see one file. Not yet tried on a real PC. Turn it on in Maintenance > Storage (it moves your files and asks first); Windows asks for permission to mount the image when a sandbox starts. \"off\" = loose folders, as always. Yours only: a project file (.sandbox-config.json) cannot set it."
         },
         "containedMaxGb": {
           "type": "integer",
@@ -293,7 +293,7 @@
         "warnDataGb": {
           "type": "number",
           "minimum": 0,
-          "description": "Say at launch when the persisted data (tools, databases, logins) is bigger than this many GB; 0 = never. sandbox data shows what takes the space."
+          "description": "Say at launch when the persisted data (tools, databases, logins) is bigger than this many GB; 0 = never. Maintenance > Data shows what takes the space."
         }
       },
       "additionalProperties": false
@@ -366,7 +366,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "(Alpha: not yet tried on a real PC) Send the sandbox's traffic through a VPN. Only the sandbox: your PC's own connection is untouched. Needs a saved login first (sandbox vpn login). The agent in the sandbox can read that login and can turn the tunnel off (it is the administrator there)."
+          "description": "(Alpha: not yet tried on a real PC) Send the sandbox's traffic through a VPN. Only the sandbox: your PC's own connection is untouched. Needs a saved login first (Settings > Network > VPN). The agent in the sandbox can read that login and can turn the tunnel off (it is the administrator there)."
         },
         "provider": {
           "type": "string",
@@ -406,7 +406,7 @@
       "properties": {
         "shareToken": {
           "type": "boolean",
-          "description": "Give each sandbox the GitHub token you saved with `sandbox github login` (best a fine-grained token limited to some repositories and permissions), so gh and https git work there without logging in. Only with provisioning.git.access \"full\". The agent in the sandbox can read the token and use it for whatever it allows. A project file (.sandbox-config.json) cannot turn this on."
+          "description": "Give each sandbox the GitHub token you saved in Accounts (best a fine-grained token limited to some repositories and permissions), so gh and https git work there without logging in. Only with provisioning.git.access \"full\". The agent in the sandbox can read the token and use it for whatever it allows. A project file (.sandbox-config.json) cannot turn this on."
         }
       },
       "additionalProperties": false
@@ -419,7 +419,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Epic Games sign-in to sandboxes that use unreal (sign in to the launcher once in a sandbox, or take this PC's: sandbox account import epic). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. A sign-in works in one place at a time: taking this PC's signs the launcher on this PC out the first time a sandbox uses it. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Epic Games sign-in to sandboxes that use unreal (sign in to the launcher once in a sandbox, or take this PC's from Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. A sign-in works in one place at a time: taking this PC's signs the launcher on this PC out the first time a sandbox uses it. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -429,7 +429,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Steam (SteamCMD) sign-in to sandboxes that use steam (sign in once with sbx-steam login, or: sandbox account import steam --from <steamcmd folder>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload builds and workshop items to your Steam apps. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. No password is kept: sign in once with sbx-steam login in a sandbox (Steam Guard asks there). Yours only: a project file can only turn it off."
+              "description": "Hand your saved Steam (SteamCMD) sign-in to sandboxes that use steam (sign in once with sbx-steam login, or take it from a SteamCMD folder in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload builds and workshop items to your Steam apps. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. No password is kept: sign in once with sbx-steam login in a sandbox (Steam Guard asks there). Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -439,7 +439,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Unity sign-in to sandboxes that use unity (sign in once in a sandbox, or take this PC's licence: sandbox account import unity). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. A Pro seat is handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep it until you return it. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Unity sign-in to sandboxes that use unity (sign in once in a sandbox, or take this PC's licence from Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. A Pro seat is handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep it until you return it. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -449,7 +449,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Cfx.re (FiveM / RedM server key) sign-in to sandboxes that use fivem (sandbox account login cfx). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. Anyone with the key can run a server under your Cfx.re account. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Cfx.re (FiveM / RedM server key) sign-in to sandboxes that use fivem (type the key in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. Anyone with the key can run a server under your Cfx.re account. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -459,7 +459,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Android upload keystore sign-in to sandboxes that use android (sandbox account import keystore --from <upload.jks>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can sign app updates as you; keep a backup of the keystore elsewhere. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Android upload keystore sign-in to sandboxes that use android (import the upload.jks file in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can sign app updates as you; keep a backup of the keystore elsewhere. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -469,7 +469,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Google Play (service account) sign-in to sandboxes that use android (sandbox account import play --from <service-account.json>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can publish to Google Play with what the service account is allowed. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Google Play (service account) sign-in to sandboxes that use android (import the service-account.json file in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can publish to Google Play with what the service account is allowed. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -479,7 +479,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Expo (EAS) sign-in to sandboxes that use reactNative (sandbox account login expo). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can start EAS builds and submissions on your Expo account. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Expo (EAS) sign-in to sandboxes that use reactNative (type the token in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can start EAS builds and submissions on your Expo account. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -489,7 +489,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved App Store Connect API key sign-in to sandboxes that use reactNative or flutter (sandbox account import appstore --from <AuthKey.p8>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload and submit apps with what the key is allowed. Yours only: a project file can only turn it off."
+              "description": "Hand your saved App Store Connect API key sign-in to sandboxes that use reactNative or flutter (import the AuthKey.p8 file in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload and submit apps with what the key is allowed. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -499,7 +499,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Perplexity API key sign-in to sandboxes that use the Perplexity MCP app (sandbox account login perplexity, or: sandbox account import perplexity --from <.env>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can read the key and spend your API credit: use a separate API key with a spending limit. Perplexity Pro does not include API use; the API key is billed separately. Only the variable PERPLEXITY_API_KEY of the agent gets it: nothing in the sandbox writes it to a file. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Perplexity API key sign-in to sandboxes that use the Perplexity MCP app (type the API key in Accounts, or import it from a .env file). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can read the key and spend your API credit: use a separate API key with a spending limit. Perplexity Pro does not include API use; the API key is billed separately. Only the variable PERPLEXITY_API_KEY of the agent gets it: nothing in the sandbox writes it to a file. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -516,7 +516,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Service sign-ins for sandboxes (game stores, engines, app signing, Perplexity). Manage them in Accounts: sandbox account status."
+      "description": "Service sign-ins for sandboxes (game stores, engines, app signing, Perplexity). Manage them in Accounts."
     },
     "pcInstalls": {
       "type": "object",
@@ -1774,11 +1774,11 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Allow sandbox claude --terminal / sandbox attach from this PC."
+          "description": "Allow attaching this PC's terminal to a session (the terminal option when starting an agent, and attach)."
         },
         "reuseSession": {
           "type": "boolean",
-          "description": "sandbox claude -t in a running sandbox reattaches to this folder's session when no terminal on this PC is attached to it (--new always starts another)."
+          "description": "Starting an agent with a terminal in a running sandbox reattaches to this folder's session when no terminal on this PC is attached to it (starting a new session on purpose always starts another)."
         },
         "auto": {
           "type": "boolean",
@@ -1786,7 +1786,7 @@
         },
         "autoHide": {
           "type": "boolean",
-          "description": "Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (sandbox show brings it back)."
+          "description": "Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (Sandbox > Status shows it again)."
         },
         "confirmCtrlC": {
           "type": "boolean",
@@ -1800,7 +1800,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "(Beta) The web UI: your sandbox sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every sandbox start also starts it in the background (it keeps running until sandbox web stop or a restart of the PC). Off: only sandbox web start runs it. Open it signed in with sandbox web open."
+          "description": "(Beta) The web UI: your sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every start of a sandbox also starts it in the background (it keeps running until you stop it in Maintenance > Web UI or restart the PC). Off: it runs only when you start it there. Open it signed in from the same page."
         },
         "port": {
           "type": "integer",
@@ -1817,7 +1817,7 @@
           "properties": {
             "windowsSignIn": {
               "type": "boolean",
-              "description": "(Beta) Other Windows users of this PC named in web.remote.users sign in to your web UI (and sandbox remote) with their own Windows account: no password, no link."
+              "description": "(Beta) Other Windows users of this PC named in web.remote.users sign in to your web UI (and the remote menu) with their own Windows account: no password, no link."
             },
             "users": {
               "maxItems": 32,
@@ -1856,7 +1856,7 @@
               "properties": {
                 "enabled": {
                   "type": "boolean",
-                  "description": "(Beta) Devices on your network (a phone): an HTTPS address on this PC for devices you pair with a one-time code (sandbox web pair). Needs a firewall rule (sandbox web lan on asks Windows once). Off: every paired device is signed out."
+                  "description": "(Beta) Devices on your network (a phone): an HTTPS address on this PC for devices you pair with a one-time code (Remote access). Needs a firewall rule (turning it on asks Windows once). Off: every paired device is signed out."
                 },
                 "port": {
                   "type": "integer",
@@ -2132,7 +2132,7 @@
         },
         "copyCredentials": {
           "type": "boolean",
-          "description": "Copy your Claude LOGIN into the sandbox. Prefer sandbox account instead."
+          "description": "Copy your Claude LOGIN into the sandbox. Prefer saving the login in Accounts instead."
         },
         "overwrite": {
           "type": "boolean",
@@ -2436,7 +2436,7 @@
             "afterCrash",
             "never"
           ],
-          "description": "When a sandbox starts after one that had agent sessions: \"ask\" lists them and asks whether to reopen them (without a terminal it prints the command sandbox resume), \"always\" reopens them, \"afterCrash\" reopens them only when the last sandbox ended unexpectedly, \"never\" leaves it to sandbox resume. Terminal tabs you opened yourself in the sandbox are never reopened."
+          "description": "When a sandbox starts after one that had agent sessions: \"ask\" lists them and asks whether to reopen them (without a terminal it only says they can be reopened), \"always\" reopens them, \"afterCrash\" reopens them only when the last sandbox ended unexpectedly, \"never\" leaves it to you (Sessions reopens them). Terminal tabs you opened yourself in the sandbox are never reopened."
         },
         "restartAfterCrash": {
           "type": "boolean",

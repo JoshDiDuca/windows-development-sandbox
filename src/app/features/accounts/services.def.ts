@@ -151,14 +151,11 @@ function serviceActions(s: ServiceRow): Action[] {
   ];
 }
 
-/** How to get a first sign-in, in words. */
+/** How to get a first sign-in, in words (the actions below do it). */
 function howTo(s: ServiceRow): string {
-  const ways = [
-    ...(s.canImport ? ['sandbox account import ' + s.kind + (s.needsFile ? ' --from <file>' : '')] : []),
-    ...(s.canLogin ? ['sandbox account login ' + s.kind] : []),
-  ];
+  const ways = [...(s.canImport ? ['import it'] : []), ...(s.canLogin ? ['type it in'] : [])];
   return ways.length
-    ? ways.join(', or ')
+    ? ways.join(' or ')
     : "sign in once inside a sandbox (it can't be copied from this PC: Windows locks it to your PC account)";
 }
 
@@ -168,7 +165,7 @@ export function serviceSection(s: ServiceRow): Section {
     {
       id: s.kind + ':share',
       label: 'Shared with sandboxes',
-      value: s.share ? 'on' : 'off  (sandbox config set accounts.' + s.kind + '.share true)',
+      value: s.share ? 'on' : 'off',
       tone: s.share ? 'ok' : 'muted',
       description: 'For sandboxes that use ' + s.usedFor + '. ' + s.warnings.join(' '),
     },

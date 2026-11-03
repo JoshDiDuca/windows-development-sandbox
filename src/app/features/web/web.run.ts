@@ -3,7 +3,7 @@
 // it. The server itself (`sandbox _web`) stays in cli/commands/web.ts.
 import path from 'node:path';
 import { packageVersion } from '../../../core/package-info.js';
-import { fail, sleep } from '../../../core/util/index.js';
+import { fail, failWith, sleep } from '../../../core/util/index.js';
 import { requireOnPc } from '../../../cli/commands/context.js';
 import { spawnDetached } from '../../../host/sandbox/index.js';
 import { openBrowser, WebControl, WebStore, type WebState } from '../../../host/web/index.js';
@@ -59,12 +59,16 @@ async function startServer(ctx: AppContext, io: OperationIO, control: WebControl
     const now = await control.status();
     if (now.running && now.state) {
       io.log('The web UI is running at http://127.0.0.1:' + now.state.port + '/ (this PC only).');
-      return { port: now.state.port, message: 'Open it already signed in with: sandbox web open', wasRunning: false };
+      return {
+        port: now.state.port,
+        message: 'Open it already signed in from Maintenance > Web UI.',
+        wasRunning: false,
+      };
     }
   }
   return fail(
     'The web UI did not start.',
-    'Run sandbox _web to see why (the port ' + config.web.port + ' may be taken: change web.port).',
+    'The port ' + config.web.port + ' may be taken: change web.port in Settings. The Logs page may say more.',
   );
 }
 
@@ -96,7 +100,12 @@ export const openWebRun = implement(openWeb, async (ctx, _input, io) => {
   const started = await startServer(ctx, io, control);
   if (started.wasRunning) io.log(started.message);
   const { running, state } = await control.status();
-  if (!running || !state) return fail('The web UI stopped right away.', 'Run sandbox web start again.');
+  if (!running || !state)
+    return failWith('The web UI stopped right away.', 'Start it again.', {
+      op: 'web.start',
+      label: 'Start the web UI',
+      cli: 'sandbox web start',
+    });
   openBrowser(control.url(state));
   return { message: 'Opened in your browser.' };
 });

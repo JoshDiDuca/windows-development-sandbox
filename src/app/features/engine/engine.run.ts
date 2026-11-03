@@ -88,7 +88,7 @@ export const cleanEngineRun = implement(cleanEngine, async (ctx, _input, io) => 
   if (failed)
     fail(
       plural(failed, 'HCS system') + ' could not be stopped.',
-      'Run it again from an administrator terminal: sandbox engine clean',
+      'Stopping them needs administrator rights: start the menu from an administrator terminal and try again.',
     );
   return { available: true, stopped, failed, message: 'Stopped ' + plural(stopped, 'HCS system') + '.' };
 });

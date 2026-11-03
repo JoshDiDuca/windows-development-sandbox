@@ -30,7 +30,7 @@ export const WebLanSchema = z.strictObject({
   enabled: z
     .boolean()
     .describe(
-      '(Beta) Devices on your network (a phone): an HTTPS address on this PC for devices you pair with a one-time code (sandbox web pair). Needs a firewall rule (sandbox web lan on asks Windows once). Off: every paired device is signed out.',
+      '(Beta) Devices on your network (a phone): an HTTPS address on this PC for devices you pair with a one-time code (Remote access). Needs a firewall rule (turning it on asks Windows once). Off: every paired device is signed out.',
     ),
   port: z.number().int().min(1024).max(65535).describe('HTTPS port for paired devices on your network.'),
   address: z
@@ -45,7 +45,7 @@ export const WebRemoteSchema = z.strictObject({
   windowsSignIn: z
     .boolean()
     .describe(
-      '(Beta) Other Windows users of this PC named in web.remote.users sign in to your web UI (and sandbox remote) with their own Windows account: no password, no link.',
+      '(Beta) Other Windows users of this PC named in web.remote.users sign in to your web UI (and the remote menu) with their own Windows account: no password, no link.',
     ),
   users: z
     .array(RemoteUserSchema)
@@ -67,7 +67,7 @@ export const WebSchema = z.strictObject({
   enabled: z
     .boolean()
     .describe(
-      '(Beta) The web UI: your sandbox sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every sandbox start also starts it in the background (it keeps running until sandbox web stop or a restart of the PC). Off: only sandbox web start runs it. Open it signed in with sandbox web open.',
+      '(Beta) The web UI: your sessions in a browser on this PC (http://127.0.0.1:<port>, this PC only). On: every start of a sandbox also starts it in the background (it keeps running until you stop it in Maintenance > Web UI or restart the PC). Off: it runs only when you start it there. Open it signed in from the same page.',
     ),
   port: z
     .number()

@@ -3,7 +3,7 @@
 // is checked here (bounded size, strict shapes, shared/vpn/ovpn.ts) before the sandbox gets it. Nothing here needs
 // the login: the profiles are public.
 import { z } from 'zod';
-import { fetchRetry } from '../../shared/download/index.js';
+import { fetchBounded, type Fetcher } from '../../shared/download/index.js';
 import { fail } from '../../core/util/index.js';
 import { MAX_OVPN_BYTES } from '../../shared/vpn/ovpn.js';
 
@@ -11,29 +11,7 @@ const API = 'https://api.nordvpn.com/v1';
 const CONFIGS = 'https://downloads.nordcdn.com/configs/files';
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 
-/** Reads a URL as text, refusing more than `max` bytes (a server cannot make this PC download without end). */
-export type Fetcher = (url: string, max: number) => Promise<string>;
-
-export async function fetchBounded(url: string, max: number): Promise<string> {
-  const response = await fetchRetry(url, {}, 2, 30000);
-  const length = Number(response.headers.get('content-length')) || 0;
-  if (length > max) throw new Error('The answer from ' + new URL(url).host + ' is too big.');
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('Empty answer from ' + new URL(url).host + '.');
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.length;
-    if (size > max) {
-      await reader.cancel();
-      throw new Error('The answer from ' + new URL(url).host + ' is too big.');
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
+export { fetchBounded, type Fetcher };
 
 const CountriesSchema = z
   .array(z.object({ id: z.number().int(), name: z.string().max(100), code: z.string().max(4) }))

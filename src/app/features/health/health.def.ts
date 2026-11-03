@@ -122,7 +122,7 @@ export function resultLines(r: CheckRow): ResultLine[] {
   if (r.status === 'ok') return [first];
   const out: ResultLine[] = [first];
   if (r.means) out.push({ text: '      What it means: ' + r.means });
-  if (r.fixable && r.plan) out.push({ text: '      Fix: sandbox repair will ' + r.plan });
+  if (r.fixable && r.plan) out.push({ text: '      Fix: repair will ' + r.plan });
   else if (r.fix) out.push({ text: '      Fix: ' + r.fix });
   const lines = r.lines ?? [];
   for (const line of lines.slice(0, MAX_LINES)) out.push({ text: '        ' + line });
@@ -313,7 +313,13 @@ export function healthPage(o: { last: HealthLast | null }): Page {
             ],
           })),
       notes: canEnable
-        ? [{ text: 'Turn Windows Sandbox on from the menu or with sandbox setup.', tone: 'muted', only: 'web' }]
+        ? [
+            {
+              text: 'Windows asks for administrator permission to turn this on, so do it at this PC from Maintenance > Health in the menu.',
+              tone: 'muted',
+              only: 'web',
+            },
+          ]
         : [],
     });
   }

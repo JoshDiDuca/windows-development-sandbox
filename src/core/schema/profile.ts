@@ -21,11 +21,15 @@ export const SecretsSchema = z.strictObject({
     ),
 });
 export const AttachSchema = z.strictObject({
-  enabled: z.boolean().describe('Allow sandbox claude --terminal / sandbox attach from this PC.'),
+  enabled: z
+    .boolean()
+    .describe(
+      "Allow attaching this PC's terminal to a session (the terminal option when starting an agent, and attach).",
+    ),
   reuseSession: z
     .boolean()
     .describe(
-      "sandbox claude -t in a running sandbox reattaches to this folder's session when no terminal on this PC is attached to it (--new always starts another).",
+      "Starting an agent with a terminal in a running sandbox reattaches to this folder's session when no terminal on this PC is attached to it (starting a new session on purpose always starts another).",
     ),
   auto: z
     .boolean()
@@ -35,7 +39,7 @@ export const AttachSchema = z.strictObject({
   autoHide: z
     .boolean()
     .describe(
-      'Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (sandbox show brings it back).',
+      'Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (Sandbox > Status shows it again).',
     ),
   confirmCtrlC: z
     .boolean()
@@ -58,7 +62,9 @@ export const ClaudeProfileSchema = z.strictObject({
   hostDir: z.string().describe('Your Claude folder, or "auto" (~/.claude or CLAUDE_CONFIG_DIR).'),
   include: z.array(z.string().regex(/^[A-Za-z0-9._-]+$/)).describe('Files and folders copied from it.'),
   globalStateFile: z.string().describe('Your .claude.json, or "auto". Empty string = do not copy.'),
-  copyCredentials: z.boolean().describe('Copy your Claude LOGIN into the sandbox. Prefer sandbox account instead.'),
+  copyCredentials: z
+    .boolean()
+    .describe('Copy your Claude LOGIN into the sandbox. Prefer saving the login in Accounts instead.'),
   overwrite: z.boolean().describe('Refresh these settings from this PC on every launch.'),
   sharePluginsAcrossAccounts: z
     .boolean()

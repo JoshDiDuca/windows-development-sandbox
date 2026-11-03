@@ -12,6 +12,7 @@ import {
   type Page,
   type Section,
 } from '../../kernel/index.js';
+import { githubLogin, githubLogout, githubStatus, githubSection, type GithubStatus } from '../github/github.def.js';
 import { setSetting } from '../settings/settings.def.js';
 import {
   listServices,
@@ -333,8 +334,15 @@ export function agentSection(a: AgentAccounts): Section {
 }
 
 /** The web's page: one card per agent (its logins and the save rows), then one section per service sign-in. */
-export function accountsPage(o: AccountsList, services: ServicesList = { services: o.services }): Page {
-  return { title: 'Accounts', sections: [...o.agents.map(agentSection), ...serviceSections(services)] };
+export function accountsPage(
+  o: AccountsList,
+  services: ServicesList = { services: o.services },
+  github?: GithubStatus,
+): Page {
+  return {
+    title: 'Accounts',
+    sections: [...o.agents.map(agentSection), ...serviceSections(services), ...(github ? [githubSection(github)] : [])],
+  };
 }
 
 /**
@@ -371,7 +379,7 @@ export const accountsView = defineView({
   title: 'Accounts',
   summary:
     'Logins saved on this PC for each agent (every launch starts with the default; "Use this login" switches now), and the service sign-ins sandboxes may get (Epic, Steam, Unity, signing keys ...).',
-  queries: { accounts: listAccounts, services: listServices },
+  queries: { accounts: listAccounts, services: listServices, github: githubStatus },
   operations: [
     saveAccount,
     useAccount,
@@ -379,7 +387,9 @@ export const accountsView = defineView({
     renameAccount,
     removeAccount,
     ...SERVICE_OPERATIONS,
+    githubLogin,
+    githubLogout,
     setSetting,
   ],
-  build: ({ accounts, services }) => accountsPage(accounts, services),
+  build: ({ accounts, services, github }) => accountsPage(accounts, services, github),
 });

@@ -55,7 +55,15 @@ export function EmptyState({ title, text, icon: Picture = IconInbox, action, ton
   );
 }
 
-export function ErrorState({ message, fix, retry }: { message: string; fix?: string; retry?: () => void }) {
+export interface ErrorStateProps {
+  readonly message: string;
+  readonly fix?: string;
+  readonly retry?: () => void;
+  /** The step that fixes it, as a button. */
+  readonly fixAction?: { readonly label: string; readonly run: () => void };
+}
+
+export function ErrorState({ message, fix, retry, fixAction }: ErrorStateProps) {
   return (
     <EmptyState
       tone="danger"
@@ -63,10 +71,15 @@ export function ErrorState({ message, fix, retry }: { message: string; fix?: str
       title={message}
       text={fix ?? 'Try again in a moment.'}
       action={
-        retry && (
-          <Button variant="default" onClick={retry}>
-            Try again
-          </Button>
+        (retry || fixAction) && (
+          <Group gap="sm" justify="center">
+            {fixAction && <Button onClick={fixAction.run}>{fixAction.label}</Button>}
+            {retry && (
+              <Button variant="default" onClick={retry}>
+                Try again
+              </Button>
+            )}
+          </Group>
         )
       }
     />

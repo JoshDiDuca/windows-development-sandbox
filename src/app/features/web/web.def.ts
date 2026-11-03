@@ -33,10 +33,10 @@ export const webStatus = defineQuery({
     o.running && o.port
       ? 'The web UI is running at http://127.0.0.1:' +
         o.port +
-        '/ (sandbox web open signs you in).' +
+        '/ (the Open action signs you in).' +
         (o.lanAddress ? '\nOn your network: ' + o.lanAddress + ' (certificate ' + o.lanFingerprint + ')' : '') +
         (o.lanProblem ? '\nLAN mode is on but not listening: ' + o.lanProblem : '')
-      : 'The web UI is not running (sandbox web start).',
+      : 'The web UI is not running.',
   cli: { name: 'web', action: 'status', json: true },
 });
 

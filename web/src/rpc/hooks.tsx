@@ -3,9 +3,10 @@
 // as notifications and modals.
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Button, Stack, Text } from '@mantine/core';
 import { operationById } from '../../../src/app/features/defs';
-import { Cancelled, type OperationAction, type QueryDef } from '../../../src/app/kernel/index';
+import { Cancelled, type ErrorAction, type OperationAction, type QueryDef } from '../../../src/app/kernel/index';
 import { askInModal } from '../render/QuestionModal';
 import type { RpcClient } from './client';
 
@@ -65,13 +66,19 @@ export type Outcome =
       readonly text: string;
       /** What the operation returned (checked by its output schema). */ readonly output: unknown;
     }
-  | { readonly ok: false; readonly message: string; readonly fix?: string }
+  | { readonly ok: false; readonly message: string; readonly fix?: string; readonly action?: ErrorAction }
   | { readonly ok: false; readonly cancelled: true; readonly message: string };
 
 export interface RunOptions {
   /** A change made in place (a setting): a short note when it worked, the failure shown by the caller. */
   readonly inline?: boolean;
 }
+
+type RunFn = (
+  action: OperationAction,
+  values?: Readonly<Record<string, unknown>>,
+  options?: RunOptions,
+) => Promise<Outcome>;
 
 /** Runs a page's operation action: questions in modals, progress and the result as notifications. */
 export function useRunAction(): (
@@ -81,7 +88,9 @@ export function useRunAction(): (
 ) => Promise<Outcome> {
   const client = useRpc();
   const queryClient = useQueryClient();
-  return useCallback(
+  // A failure's fix button runs the fix through this same function.
+  const self = useRef<(a: OperationAction) => unknown>(() => undefined);
+  const runner: RunFn = useCallback(
     async (action, values = {}, options = {}) => {
       const def = operationById(action.op);
       const id = 'op-' + Date.now();
@@ -119,12 +128,34 @@ export function useRunAction(): (
         if (e instanceof Cancelled) return { ok: false, cancelled: true, message: 'Cancelled.' };
         const message = e instanceof Error ? e.message : 'It did not work.';
         const fix = (e as { fix?: string }).fix ?? (said.length ? said.join(' ') : undefined);
-        if (!options.inline) notifications.show({ title: message, message: fix, color: 'red', autoClose: 10000 });
-        return { ok: false, message, fix };
+        const step = (e as { action?: ErrorAction }).action;
+        if (!options.inline) {
+          const fixButton = step
+            ? () => self.current({ kind: 'operation', op: step.op, input: step.input ?? {}, label: step.label })
+            : undefined;
+          notifications.show({
+            title: message,
+            message: fixButton ? (
+              <Stack gap={6} align="flex-start">
+                {fix && <Text size="sm">{fix}</Text>}
+                <Button size="compact-sm" onClick={() => void fixButton()}>
+                  {step!.label}
+                </Button>
+              </Stack>
+            ) : (
+              fix
+            ),
+            color: 'red',
+            autoClose: step ? false : 10000,
+          });
+        }
+        return { ok: false, message, fix, ...(step ? { action: step } : {}) };
       } finally {
         await queryClient.invalidateQueries();
       }
     },
     [client, queryClient],
   );
+  self.current = (a) => runner(a);
+  return runner;
 }

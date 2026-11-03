@@ -306,7 +306,7 @@ export const agentsWebSuite: Suite = {
         flowStore.info('perplexity')?.summary === 'pplx-...WXYZ' &&
         !sealedFiles.includes(KEY) &&
         !sealedFiles.includes(OTHER_SECRET) &&
-        imported.message.includes('accounts.perplexity.share true'),
+        imported.message.includes('Share with sandboxes'),
       'import --from .env saves only the key, sealed; the status shows pplx-... and its last 4 characters',
     );
     await t.throws(

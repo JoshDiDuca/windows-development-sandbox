@@ -120,14 +120,6 @@ export function logsPage(files: LogFiles, tail?: LogTail): Page {
   return {
     title: 'Logs',
     sections: [{ id: 'files', items }, ...tailSection],
-    actions: [
-      // The web hides command links (it follows live instead); this one stays because `logs` is a hand-written command.
-      link({ kind: 'command', argv: ['logs', '--follow'] }, 'Follow the newest log', {
-        key: 'f',
-        verb: 'follow in the terminal',
-        importance: 2,
-      }),
-    ],
     empty: { title: 'No logs yet', text: 'Logs appear after the first start.', cliText: 'No sandbox logs yet.' },
   };
 }

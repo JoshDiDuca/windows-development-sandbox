@@ -1,5 +1,5 @@
 export { isWin, sleep, captureOutput } from './process.js';
-export { UserError, fail, errMsg } from './errors.js';
+export { UserError, fail, failWith, errMsg, type ErrorAction } from './errors.js';
 export { parseJsonc, readJsonc } from './jsonc.js';
 export {
   ensureDir,

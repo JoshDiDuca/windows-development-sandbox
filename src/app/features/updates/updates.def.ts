@@ -117,7 +117,7 @@ export function updatesPage(s: UpdatesStatus, latest: string | null): Page {
     title: 'This program',
     notes: [
       {
-        text: 'After an update this page still runs the version it started with; sandbox web open (or the next sandbox start) starts the new one.',
+        text: 'After an update this page still runs the version it started with. Stop and start the web UI (Maintenance > Web UI) to use the new one.',
         tone: 'muted',
         only: 'web',
       },

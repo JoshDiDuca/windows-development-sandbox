@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { userConfigPath, userDir } from '../../../core/config/index.js';
 import { humanBytes } from '../../../core/disk.js';
-import { expandPath, fail } from '../../../core/util/index.js';
+import { expandPath, fail, failWith } from '../../../core/util/index.js';
 import { requireOnPc, type Context } from '../../../cli/commands/context.js';
 import { StorageService } from '../../../cli/services/index.js';
 import { isSandboxRunning, realContainedDeps } from '../../../host/sandbox/index.js';
@@ -59,7 +59,11 @@ function requireAvailable(): void {
 
 function requireNoSandbox(): void {
   if (isSandboxRunning())
-    fail('A sandbox is running.', 'Close it (sandbox stop) first: the folders in the image are in use.');
+    failWith('A sandbox is running.', 'Stop it first: the folders in the image are in use.', {
+      op: 'sandbox.stop',
+      label: 'Stop the sandbox',
+      cli: 'sandbox stop',
+    });
 }
 
 function storageFor(ctx: Context): ContainedStorage {
@@ -175,7 +179,7 @@ async function useData(
     if (!yes) cancelled('Nothing was changed.');
   }
   service.use(to);
-  return 'Your data is now looked for in ' + to + '. Move it later with: sandbox storage move <folder>';
+  return 'Your data is now looked for in ' + to + '. Move it later from Maintenance > Storage.';
 }
 
 export const showStorageRun = implement(showStorage, async (ctx, input, io) => {
@@ -207,7 +211,12 @@ export const moveStorageRun = implement(moveStorage, async (ctx, input, io) => {
     ? expandPath(input.folder, process.cwd())
     : await chooseFolder(io, service, 'move', 'Nothing was moved.');
   if (!fs.existsSync(from))
-    fail('There is nothing to move: ' + from + ' does not exist.', 'Use sandbox storage use ' + to + ' to switch.');
+    failWith('There is nothing to move: ' + from + ' does not exist.', 'Switch to ' + to + ' without moving instead.', {
+      op: 'storage.use',
+      input: { folder: to },
+      label: 'Use ' + to,
+      cli: 'sandbox storage use ' + to,
+    });
   return moveData(io, service, from, to, input.keepOld, true);
 });
 
@@ -325,7 +334,7 @@ export const containedOnRun = implement(containedOn, async (ctx, _input, io) => 
     yes: 'Turn on',
     noTerminal: { message: NO_TERMINAL, fix: 'Add --yes to turn it on without asking.' },
   });
-  if (!turnOn) fail('Nothing was changed.', 'Run sandbox storage contained on when you want it.');
+  if (!turnOn) fail('Nothing was changed.', 'Turn contained storage on when you want it.');
   io.progress('Making and mounting the image (Windows asks for permission)');
   const mount = await storage.acquire({ id: 'cli', pid: process.pid }, { create: true });
   try {
@@ -348,7 +357,7 @@ export const containedOnRun = implement(containedOn, async (ctx, _input, io) => 
         for (const note of result.notes) io.log(note, 'warn');
       } else
         io.log(
-          'They stay where they are and are not used: tools are downloaded again into the image. Delete them later with sandbox data clean.',
+          'They stay where they are and are not used: tools are downloaded again into the image. Delete them later in Maintenance > Data.',
         );
     }
     writeContainedSetting(configFile, 'vhdx');
@@ -356,9 +365,9 @@ export const containedOnRun = implement(containedOn, async (ctx, _input, io) => 
     io.progress('Dismounting the image (Windows asks for permission)');
     const done = await storage.release('cli');
     if (!done.dismounted)
-      io.log('The image stays mounted (' + (done.note ?? '') + '). sandbox repair dismounts it.', 'warn');
+      io.log('The image stays mounted (' + (done.note ?? '') + '). Repairing from Health dismounts it.', 'warn');
   }
-  return { message: 'Contained storage is on. sandbox launch mounts the image first.' };
+  return { message: 'Contained storage is on. The next sandbox mounts the image first.' };
 });
 
 export const containedOffRun = implement(containedOff, async (ctx, _input, io) => {
@@ -400,7 +409,7 @@ export const containedOffRun = implement(containedOff, async (ctx, _input, io) =
     io.progress('Dismounting the image (Windows asks for permission)');
     const done = await storage.release('cli');
     if (!done.dismounted)
-      io.log('The image stays mounted (' + (done.note ?? '') + '). sandbox repair dismounts it.', 'warn');
+      io.log('The image stays mounted (' + (done.note ?? '') + '). Repairing from Health dismounts it.', 'warn');
     else if (!moved) io.log('The image was dismounted; contained storage is still on.');
   }
   // The image is removed only when the person says so; a command line with --yes keeps it (skipWithYes).

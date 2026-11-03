@@ -19,8 +19,12 @@ export type Target =
   | { readonly kind: 'terminal'; readonly session: string }
   /** Start an agent: the menu runs `launch`, the web runs agents.start and opens the session's terminal. */
   | { readonly kind: 'start-agent'; readonly agent: string }
-  /** A command line of an area that is not a feature yet: the menu runs it, the web does not offer it. */
+  /** A command line of an area that is not a feature yet: the menu runs it. No Page uses it. */
   | { readonly kind: 'command'; readonly argv: readonly string[] }
+  /** One setting: Settings opens at its row (the web: /v/settings?focus=<key>; the menu: Settings, searched for it). */
+  | { readonly kind: 'setting'; readonly key: string }
+  /** A page on the internet (only https://github.com/ so far): the menu opens it in the browser, the web in a tab. */
+  | { readonly kind: 'url'; readonly href: string }
   /** Another view. */
   | { readonly kind: 'view'; readonly view: string; readonly params?: Readonly<Record<string, string>> };
 

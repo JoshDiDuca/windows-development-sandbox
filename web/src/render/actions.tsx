@@ -135,6 +135,10 @@ export function useAct(): (action: Action) => Promise<Outcome | undefined> {
         if (session) navigate('/s/' + session);
         return started;
       } else if (target.kind === 'view') navigate(viewPath(target.view, target.params));
+      else if (target.kind === 'setting') navigate(viewPath('settings', { focus: target.key }));
+      else if (target.kind === 'url') {
+        if (target.href.startsWith('https://github.com/')) window.open(target.href, '_blank', 'noopener,noreferrer');
+      }
       return undefined;
     },
     [run],

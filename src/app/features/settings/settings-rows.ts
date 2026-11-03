@@ -140,6 +140,6 @@ export function findSetting(file: ConfigFile, key: string): { key: string[]; nod
       (file.isProject ? ' a project can set' : '') +
       '.' +
       (hint ? ' Did you mean ' + hint + '?' : ''),
-    'Settings are named like sandbox.memoryMb. See them all with: sandbox config show',
+    'Settings are named like sandbox.memoryMb. Search the Settings page by name to find one.',
   );
 }

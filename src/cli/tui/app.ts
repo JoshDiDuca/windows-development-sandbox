@@ -29,6 +29,8 @@ export class App {
   onKey: () => void = () => undefined;
   /** The navigation on the left of every screen (none: no navigation column). */
   nav: () => NavState | undefined = () => undefined;
+  /** Opens another section of the menu (the shell sets it): what a link to a setting or a view does. */
+  goTo: (section: string, where?: { category?: string; search?: string }) => Promise<void> = () => Promise.resolve();
   /** The screens being shown, innermost last: a dialog is drawn over the one below it. */
   private readonly shown: Screen<unknown>[] = [];
   private redrawNow: (() => void) | null = null;

@@ -252,11 +252,6 @@ export function sessionsPage(o: SessionsList): Page {
       ...(sessions.length
         ? [action(restartSessions, { all: false }, { key: 'r', verb: 'restart agents', importance: 1 })]
         : []),
-      link({ kind: 'command', argv: ['resume'] }, 'Reopen last sessions', {
-        key: 'o',
-        verb: 'reopen last sessions',
-        importance: 2,
-      }),
     ],
     empty: {
       title: o.sandboxRunning ? 'No sessions' : 'No sandbox is running',

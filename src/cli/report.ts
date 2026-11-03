@@ -45,6 +45,7 @@ export function report(e: unknown): number {
     // Messages can quote what the sandbox wrote (a session's status, an address): never with its control codes.
     console.error(c.red('Error: ') + plainText(e.message));
     if (e.fix) console.error('  Fix:  ' + plainText(e.fix));
+    if (e.action?.cli) console.error('  Run:  ' + plainText(e.action.cli));
     return 1;
   }
   console.error(c.red('Unexpected error: ') + errMsg(e));

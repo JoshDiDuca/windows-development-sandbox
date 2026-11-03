@@ -2,7 +2,7 @@
 // what is stored, clean-up), Health (doctor, repair and this PC's setup together), Activity (the audit log), the logs,
 // and the less common commands. Each is a category on the left and loads when you open it.
 import { dataPage, showData, type DataShow } from '../../../app/features/data/index.js';
-import type { Action } from '../../../app/kernel/index.js';
+import { link, type Action } from '../../../app/kernel/index.js';
 import { readQuery } from '../../../app/registry.js';
 import { errMsg } from '../../../core/util/index.js';
 import {
@@ -165,8 +165,14 @@ const NO_UPDATES: UpdatesStatus = {
  * The logs view's rows and keys for the Logs category (its own empty row is left out: the category shows the page's
  * "Nothing here yet.").
  */
-function logsMenu(files: LogFiles): MenuView {
-  return menuView({ ...logsPage(files), empty: undefined }, { category: 'logs', refresh: false });
+export function logsMenu(files: LogFiles): MenuView {
+  // Following a log runs the hand-written `logs --follow` on the normal screen: a menu key, not a page link.
+  const follow = link({ kind: 'command', argv: ['logs', '--follow'] }, 'Follow the newest log', {
+    key: 'f',
+    verb: 'follow in the terminal',
+    importance: 2,
+  });
+  return menuView({ ...logsPage(files), empty: undefined, actions: [follow] }, { category: 'logs', refresh: false });
 }
 
 /** The audit view (src/app/features/audit) as the Activity category's rows and keys (none until it was read). */

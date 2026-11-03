@@ -29,7 +29,7 @@ export const AGENTS_WEB_APPS: readonly AppEntry[] = [
     name: 'Perplexity MCP (API)',
     category: 'agents',
     about:
-      "Web search, answers and deep research from Perplexity's API in Claude Code and Codex (perplexity_search, perplexity_ask, perplexity_research, perplexity_reason): Perplexity's own @perplexity-ai/mcp-server. Needs your Perplexity API key in Accounts (sandbox account login perplexity); API use is billed separately from Perplexity Pro.",
+      "Web search, answers and deep research from Perplexity's API in Claude Code and Codex (perplexity_search, perplexity_ask, perplexity_research, perplexity_reason): Perplexity's own @perplexity-ai/mcp-server. Needs your Perplexity API key in Accounts; API use is billed separately from Perplexity Pro.",
     size: '30 MB',
     source: { locked: 'npm', package: '@perplexity-ai/mcp-server', version: PERPLEXITY_MCP_VERSION },
     exe: 'perplexity-mcp.cmd',

@@ -17,13 +17,17 @@ import {
   type OperationIO,
   type Question,
   type Target,
+  type WireError,
 } from '../../app/kernel/index.js';
+import { spawn } from 'node:child_process';
 import { errMsg } from '../../core/util/index.js';
+import { SYSTEM } from '../../shared/system.js';
 import type { Context } from '../commands/context.js';
 import { Theme, type App } from '../tui/index.js';
 import { askPath } from './settings/ask-path.js';
 import { ValueEditor } from './settings/value-editor.js';
 import type { ShellExit } from './shell.js';
+import { MENU_VIEWS } from './views.js';
 
 /** Where the dialogs say they are (the menu's path line). */
 type Where = readonly string[];
@@ -80,8 +84,27 @@ export interface Performed {
   readonly reload?: boolean;
 }
 
+/** The menu section (and category) that shows a view, for a link to it. */
+function placeOf(view: string): { section: string; category?: string } | undefined {
+  const place = MENU_VIEWS.find((m) => m.view.id === view);
+  if (!place) return undefined;
+  return { section: place.section, ...(view === 'agentEnv' ? { category: 'env' } : {}) };
+}
+
+/** Opens a page in the browser (https://github.com/ only). */
+function openUrl(href: string): void {
+  if (!/^https:\/\/github\.com\//.test(href)) return;
+  const child = spawn(SYSTEM.cmd(), ['/c', 'start', '""', href.replace(/&/g, '^&')], {
+    stdio: 'ignore',
+    detached: true,
+    windowsHide: true,
+  });
+  child.on('error', () => undefined);
+  child.unref();
+}
+
 /** Where a link goes in the menu: what needs the terminal is run on the normal screen. */
-function follow(target: Target): Performed {
+function follow(target: Target, app?: App): Performed | Promise<Performed> {
   switch (target.kind) {
     case 'terminal':
       return { exit: { kind: 'run', argv: ['attach', target.session] } };
@@ -89,8 +112,17 @@ function follow(target: Target): Performed {
       return { exit: { kind: 'run', argv: ['launch', '--harness', target.agent] } };
     case 'command':
       return { exit: { kind: 'run', argv: [...target.argv] } };
-    case 'view':
-      return {};
+    case 'view': {
+      const place = placeOf(target.view);
+      if (!place || !app) return {};
+      return app.goTo(place.section, { category: place.category }).then(() => ({}));
+    }
+    case 'setting':
+      if (!app) return {};
+      return app.goTo('Settings', { search: target.key }).then(() => ({}));
+    case 'url':
+      openUrl(target.href);
+      return { notice: Theme.muted('Opened ' + target.href + ' in your browser.') };
   }
 }
 
@@ -111,7 +143,7 @@ export class MenuOperations {
     busy?: ShowBusy,
     onOutput?: (output: unknown) => void,
   ): Promise<Performed> {
-    if (action.kind === 'link') return follow(action.target);
+    if (action.kind === 'link') return follow(action.target, this.app);
     const def = operationById(action.op);
     if (!def) return { notice: Theme.error(Theme.glyph.cross + ' Unknown operation ' + action.op + '.') };
     const answers = await this.fields(action, def, where);
@@ -122,7 +154,7 @@ export class MenuOperations {
       onOutput?.(output);
       opened = def.kind === 'operation' ? def.opens?.(output) : undefined;
     });
-    const exit = opened ? follow(opened).exit : undefined;
+    const exit = opened ? (follow(opened) as Performed).exit : undefined;
     return { reload: true, notice, ...(exit ? { exit } : {}) };
   }
 
@@ -142,6 +174,16 @@ export class MenuOperations {
       answers[field.name] = edited.value;
     }
     return answers;
+  }
+
+  /** A failure that names a fix: a dialog with the fix as a button; its result replaces the failure notice. */
+  private async offerFix(problem: WireError, where: Where, busy: ShowBusy): Promise<string | undefined> {
+    const fix = problem.action;
+    const def = fix ? operationById(fix.op) : undefined;
+    if (!fix || !def) return undefined;
+    const yes = await this.app.ask(problem.message, problem.fix ? [problem.fix] : [], fix.label);
+    if (!yes) return undefined;
+    return (await this.run(def, fix.input ?? {}, where, busy)) ?? Theme.ok(Theme.glyph.ok + ' Done.');
   }
 
   /**
@@ -171,9 +213,9 @@ export class MenuOperations {
       if (e instanceof Cancelled) return undefined;
       const problem = toWireError(e);
       if (problem.kind === 'bug') return Theme.error(Theme.glyph.cross + ' ' + errMsg(e));
-      return (
-        Theme.error(Theme.glyph.cross + ' ' + problem.message) + (problem.fix ? Theme.muted('  ' + problem.fix) : '')
-      );
+      const notice =
+        Theme.error(Theme.glyph.cross + ' ' + problem.message) + (problem.fix ? Theme.muted('  ' + problem.fix) : '');
+      return (await this.offerFix(problem, where, busy)) ?? notice;
     }
   }
 }

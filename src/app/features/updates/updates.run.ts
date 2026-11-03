@@ -47,7 +47,7 @@ export async function updateWith(
     const found = await service.check();
     if (found.available && found.latest)
       return {
-        line: 'Version ' + found.latest.version + ' is available (you have ' + found.current + '). Run: sandbox update',
+        line: 'Version ' + found.latest.version + ' is available (you have ' + found.current + ').',
         latest: found.latest.version,
       };
     if (found.blocked)

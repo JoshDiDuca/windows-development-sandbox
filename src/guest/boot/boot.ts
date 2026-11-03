@@ -229,14 +229,7 @@ export class Boot {
     });
     await runner.run('foreground');
     const background = this.backgroundNames();
-    log(
-      bootSummary(
-        Date.now() - this.startedAt,
-        runner.results(),
-        background.map((b) => b),
-        logPath,
-      ),
-    );
+    log(bootSummary(Date.now() - this.startedAt, runner.results(), background, logPath));
     if (dryRun) {
       // Same graph, one task at a time: the background tasks run in place, right after the session.
       this.openGate();
@@ -246,8 +239,7 @@ export class Boot {
     this.openGate();
     const later = runner.run('background');
     // The viewer owns the console now: the background tasks write to the log file only.
-    const wasTty = process.stdin.isTTY;
-    if (session.harness && session.autoSession !== false && wasTty) {
+    if (session.harness && session.autoSession !== false && process.stdin.isTTY) {
       await viewSession(session.launchId);
       log('\nThis window stays open in ' + workspace + '. Other sessions keep running in their own tabs.');
     }

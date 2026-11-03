@@ -166,7 +166,7 @@ export const agentSettingsSuite: Suite = {
     t.check((await read()).rows.find((r) => r.name === 'ANTHROPIC_API_KEY')?.set === true, 'but it says it is set');
     const env = await read();
     const menu = agentsOptions({
-      folder: 'C:\code',
+      folder: 'C:/code',
       defaultAgent: 'claude',
       agents: [{ name: 'claude', ready: true }],
       last: undefined,

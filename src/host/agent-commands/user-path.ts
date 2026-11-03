@@ -30,3 +30,17 @@ export function editUserPath(dir: string, add: boolean, storageRoot: string): vo
         (result.stderr || result.error?.message || 'exit ' + result.status).trim(),
     );
 }
+
+/**
+ * Whether dir is on YOUR PATH as stored in the registry (not this process's copy, which an older terminal keeps stale).
+ * False when it cannot be told: the caller then edits the PATH again, which is harmless.
+ */
+export function userPathHas(dir: string, storageRoot: string): boolean {
+  refuseInSelfTest('read your PATH');
+  const tools = hostToolsExe(storageRoot);
+  const options = { encoding: 'utf8' as const, windowsHide: true };
+  const result = tools
+    ? spawnSync(tools, ['user-path', '--has', dir], options)
+    : spawnSync(SYSTEM.powershell(), nativeScript('edit-user-path.ps1', ['-Dir', dir, '-Query']), options);
+  return result.status === 0;
+}

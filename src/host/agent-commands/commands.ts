@@ -1,4 +1,4 @@
-// (Beta) Agent commands: with agentCommands.enabled, typing an agent's own command on this PC (claude, codex, ...)
+// Agent commands: with agentCommands.enabled, typing an agent's own command on this PC (claude, codex, ...)
 // starts it in a hidden sandbox for the folder you are in and attaches that terminal. Small forwarding files in
 // <storage>\agent-commands go first on YOUR PATH (so they win over npm's and the installers' copies); turning it off
 // removes the files and that one PATH entry. SANDBOX_AGENT_DIRECT=1 runs the real agent on this PC instead.

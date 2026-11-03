@@ -3,6 +3,13 @@
 import { z } from 'zod';
 import { agentsEnvSet, subagentsText, SUBAGENTS_VAR } from './env.def.js';
 import {
+  agentCommandsOff,
+  agentCommandsOn,
+  agentCommandsSection,
+  agentCommandsStatus,
+  type AgentCommandsStatus,
+} from '../agent-commands/agent-commands.def.js';
+import {
   action,
   defineOperation,
   defineQuery,
@@ -191,7 +198,7 @@ function subagentsSection(n: number | null): Section {
 }
 
 /** The agents page: the default agent first, then the others, then "Add an agent…" (ids `agent:<name>` and `add`). */
-export function agentsPage(o: AgentsList): Page {
+export function agentsPage(o: AgentsList, commands: AgentCommandsStatus): Page {
   const where = folderName(o.folder);
   const sorted = [...o.agents].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
   return {
@@ -213,6 +220,7 @@ export function agentsPage(o: AgentsList): Page {
           },
         ],
       },
+      agentCommandsSection(commands),
     ],
   };
 }
@@ -221,7 +229,7 @@ export const agentsView = defineView({
   id: 'agents',
   title: 'Agents',
   summary: 'The agents you can start: start one, add one, choose the default.',
-  queries: { agents: listAgents },
-  operations: [startAgent, addAgent, makeDefaultAgent, removeAgent, agentsEnvSet],
-  build: ({ agents }) => agentsPage(agents),
+  queries: { agents: listAgents, agentCommands: agentCommandsStatus },
+  operations: [startAgent, addAgent, makeDefaultAgent, removeAgent, agentsEnvSet, agentCommandsOn, agentCommandsOff],
+  build: ({ agents, agentCommands }) => agentsPage(agents, agentCommands),
 });

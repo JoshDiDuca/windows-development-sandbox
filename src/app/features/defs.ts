@@ -51,6 +51,7 @@ import {
 import { listLogs, logsView, tailLog } from './logs/logs.def.js';
 import { auditView, listAudit } from './audit/audit.def.js';
 import { closeSession, listSessions, restartSessions, sessionsView, startShell } from './sessions/sessions.def.js';
+import { agentCommandsOff, agentCommandsOn, agentCommandsStatus } from './agent-commands/agent-commands.def.js';
 import { vpnLogin, vpnLogout, vpnStatus, vpnView } from './vpn/vpn.def.js';
 import { githubLogin, githubLogout, githubStatus, githubView } from './github/github.def.js';
 import {
@@ -139,6 +140,8 @@ export const OPERATIONS = [
   stopWeb,
   vpnLogin,
   vpnLogout,
+  agentCommandsOn,
+  agentCommandsOff,
   githubLogin,
   githubLogout,
   serviceImport,
@@ -174,6 +177,7 @@ export const QUERIES = [
   engineLeftovers,
   webStatus,
   vpnStatus,
+  agentCommandsStatus,
   githubStatus,
   listServices,
   accessStatus,

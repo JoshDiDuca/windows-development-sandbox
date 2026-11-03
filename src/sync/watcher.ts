@@ -33,6 +33,7 @@ import {
   SessionLedger,
   type StopCause,
 } from '../host/life/index.js';
+import { recordLastVpn } from '../host/vpn/index.js';
 import { SandboxChannel } from '../host/channel/index.js';
 import { ProjectRegistry } from '../host/projects/registry.js';
 import { ContainedStorage, setNameOf, storageOf } from '../host/storage/index.js';
@@ -322,6 +323,7 @@ export class Watcher {
     } catch (e) {
       this.note('repo guard failed: ' + errMsg(e));
     }
+    recordLastVpn(this.storageRoot, this.dataPath);
     try {
       const s = syncBack(this.dataPath, final);
       if (s.history || final)

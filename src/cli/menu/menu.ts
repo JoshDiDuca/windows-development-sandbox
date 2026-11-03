@@ -189,7 +189,7 @@ export class Menu {
     });
   }
 
-  /** After a save: agent commands (Beta) may have been switched, which changes this PC. */
+  /** After a save: agent commands may have been switched, which changes this PC. */
   private applyAgentCommands(saved: DraftResult): string | undefined {
     if (!saved.files.some((f) => !f.isProject)) return undefined;
     try {
@@ -198,10 +198,10 @@ export class Menu {
       );
       if (!result?.changed) return undefined;
       return result.on
-        ? 'Agent commands (Beta) are on: open a new terminal.'
+        ? 'Agent commands are on: open a new terminal.'
         : 'Agent commands are off: claude, codex ... run on this PC again (open a new terminal).';
     } catch (e) {
-      return 'Agent commands (Beta): ' + errMsg(e);
+      return 'Agent commands: ' + errMsg(e);
     }
   }
 }

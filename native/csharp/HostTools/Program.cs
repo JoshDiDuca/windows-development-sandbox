@@ -6,6 +6,7 @@
 //   hide-window --wait S        hides the sandbox window once it appears; prints the hidden handles as JSON
 //   show-window --handles a,b   shows those windows (else any sandbox window); prints how many
 //   user-path --add|--remove D  D first on, or off, your PATH; exit 3 when PATH would be too long
+//   user-path --has D  exit 0 when D is on your stored PATH, 1 when not
 //   web-helper --pipe P --server-pid N   Windows sign-in for the web UI (WebHelper.cs), until stdin closes
 //   door-client --owner USER   another user's side of that sign-in: prints the answer
 //   protect | unprotect        DPAPI for the current user (Protect.cs): base64 on stdin, base64 on stdout
@@ -85,6 +86,18 @@ static class Program
                 Console.Out.Write(AgentSandbox.Win.Show(handles).ToString(CultureInfo.InvariantCulture));
                 return 0;
             case "user-path":
+                if (options.TryGetValue("has", out value))
+                {
+                    try
+                    {
+                        return AgentSandbox.UserPath.Has(value);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Error.WriteLine(e.Message);
+                        return 2;
+                    }
+                }
                 bool add = options.TryGetValue("add", out value);
                 if (!add && !options.TryGetValue("remove", out value))
                 {
@@ -124,7 +137,7 @@ static class Program
 
     static int Usage()
     {
-        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | protect | unprotect");
+        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove|--has <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | protect | unprotect");
         return 2;
     }
 

@@ -207,7 +207,7 @@ same on its Activity page.
 | `sandbox config check [--workspace <dir>]`                           | check a project's `.sandbox-config.json` and list what it changes, without starting anything                                        |
 | `sandbox github [status\|login\|logout]`                             | a GitHub token for sandboxes ([GitHub token](configuration.md#github-token))                                                        |
 | `sandbox vpn [status\|login\|logout]`                                | **(Alpha)** the VPN login and status ([vpn](vpn.md))                                                                                |
-| `sandbox agent-commands [status\|on\|off]`                           | **(Beta)** make `claude`, `codex` ... on this PC start in a hidden sandbox ([agent commands](configuration.md#agent-commands-beta)) |
+| `sandbox agent-commands [status\|on\|off]`                           | make `claude`, `codex` ... on this PC start in a hidden sandbox ([agent commands](configuration.md#agent-commands)) |
 | `sandbox host <agent> [-- arguments]`                                | run an agent installed on this PC, **not** sandboxed (`SANDBOX_AGENT_DIRECT=1` is set for it)                                       |
 | `sandbox host claude [--personal]` (or `claude-host`)                | Claude on this PC, **not** sandboxed, with its own profile (`--personal` uses your normal one)                                      |
 

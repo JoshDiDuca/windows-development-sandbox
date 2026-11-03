@@ -4,9 +4,9 @@ import type { Config } from '../../core/types.js';
 import { ensureDir, fileExists } from '../../core/util/index.js';
 import { writeFileAtomic } from '../../shared/io/index.js';
 import { safeRemove } from '../../shared/io/index.js';
-import { MARKER, forwardingCmd, forwardingSh } from './forwarders.js';
+import { MARKER, forwardingCmd, forwardingSh, type ForwardTarget } from './forwarders.js';
 import { type AgentCommand, commandsDir, cmdSafe, agentCommands } from './commands.js';
-import { editUserPath } from './user-path.js';
+import { editUserPath, userPathHas } from './user-path.js';
 
 const ownFiles = (dir: string): string[] =>
   fs.existsSync(dir)
@@ -32,7 +32,7 @@ export interface Reconciled {
  * Makes this PC match agentCommands: on = a forwarding file per installed agent and the folder first on your PATH;
  * off = no files, no PATH entry. Only touches files it wrote and its own PATH entry; does nothing when already right.
  */
-export function reconcileAgentCommands(config: Config, storageRoot: string, node: string, entry: string): Reconciled {
+export function reconcileAgentCommands(config: Config, storageRoot: string, target: ForwardTarget): Reconciled {
   const dir = commandsDir(storageRoot);
   if (!config.agentCommands.enabled) {
     if (!fs.existsSync(dir)) return { on: false, commands: [], changed: false };
@@ -41,7 +41,7 @@ export function reconcileAgentCommands(config: Config, storageRoot: string, node
     if (fs.readdirSync(dir).length === 0) safeRemove(dir, storageRoot);
     return { on: false, commands: [], changed: true };
   }
-  if (!cmdSafe(node) || !cmdSafe(entry))
+  if (![target.node, target.entry, target.launcher ?? ''].every(cmdSafe))
     throw new Error(
       'This tool is installed in a folder whose path has % " or ^, which cannot go into a command file safely.',
     );
@@ -49,8 +49,8 @@ export function reconcileAgentCommands(config: Config, storageRoot: string, node
   ensureDir(dir);
   const wanted = new Map<string, string>();
   for (const a of commands) {
-    wanted.set(path.join(dir, a.command + '.cmd'), forwardingCmd(a, node, entry));
-    wanted.set(path.join(dir, a.command), forwardingSh(a, node, entry));
+    wanted.set(path.join(dir, a.command + '.cmd'), forwardingCmd(a, target));
+    wanted.set(path.join(dir, a.command), forwardingSh(a, target));
   }
   let changed = false;
   for (const f of ownFiles(dir))
@@ -67,9 +67,8 @@ export function reconcileAgentCommands(config: Config, storageRoot: string, node
       changed = true;
     }
   }
-  const onPath = (process.env.PATH ?? '')
-    .split(path.delimiter)
-    .some((d) => path.resolve(d).toLowerCase() === path.resolve(dir).toLowerCase());
+  // Your PATH as stored (not this process's copy of it, which an older terminal keeps): the registry says if it is on.
+  const onPath = !changed && userPathHas(dir, storageRoot);
   if (changed || !onPath) editUserPath(dir, true, storageRoot);
   return { on: true, commands, changed: changed || !onPath };
 }

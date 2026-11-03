@@ -8,6 +8,7 @@ import { REDACTED, redactSecrets } from '../../../core/schema/index.js';
 import type { Config } from '../../../core/types.js';
 import { fail, safeText, writeJson } from '../../../core/util/index.js';
 import { hereDir } from '../../../cli/commands/projects/here.js';
+import { AgentCommandsService } from '../../../cli/services/agent-commands-service.js';
 import { implement, type AppContext } from '../../context.js';
 import { allowedText, cancelled, valueFromText } from '../../kernel/index.js';
 import { CATEGORIES } from './categories.def.js';
@@ -85,6 +86,22 @@ function target(ctx: AppContext, scope: Scope, name: string): ReturnType<typeof 
   return { ...findSetting(file, name), file };
 }
 
+/** What brings this PC in line with a changed agentCommands setting (the real service, or a fake in a test). */
+export interface AgentCommandsReconciler {
+  reconcile(config: Config): unknown;
+}
+
+/** After your own settings change: a key under agentCommands also changes this PC (files, PATH), on every surface. */
+export function applyAgentCommandsChange(
+  ctx: AppContext,
+  scope: Scope,
+  key: string,
+  service: AgentCommandsReconciler = new AgentCommandsService(ctx),
+): void {
+  if (scope !== 'user' || !/^agentCommands(\.|$)/.test(key)) return;
+  service.reconcile(freshConfig(ctx));
+}
+
 export const setSettingRun = implement(setSetting, (ctx, input) => {
   const { key, node, file } = target(ctx, input.scope, input.key);
   if (node.isSection)
@@ -100,6 +117,7 @@ export const setSettingRun = implement(setSetting, (ctx, input) => {
   const outcome = file.set(key, value);
   if (typeof outcome === 'object')
     fail('Could not change ' + input.key + ': ' + outcome.problems.join('; '), 'Nothing was written.');
+  applyAgentCommandsChange(ctx, input.scope, input.key);
   return {
     key: input.key,
     changed: outcome === 'saved',
@@ -117,6 +135,7 @@ export const resetSettingRun = implement(resetSetting, (ctx, input) => {
   const outcome = file.set(key, undefined);
   if (typeof outcome === 'object')
     fail('Could not reset ' + input.key + ': ' + outcome.problems.join('; '), 'Nothing was written.');
+  applyAgentCommandsChange(ctx, input.scope, input.key);
   return {
     key: input.key,
     changed: outcome === 'saved',

@@ -99,7 +99,7 @@ const CATEGORIES = [
   { id: 'more', label: 'More commands', description: 'Less common commands.' },
 ];
 
-const MORE_COMMANDS = ['sync', 'config', 'generate', 'exec', 'agent-commands'];
+const MORE_COMMANDS = ['sync', 'config', 'generate', 'exec'];
 
 const NO_LOGS: LogFiles = { folder: '', files: [], crash: false };
 
@@ -112,7 +112,6 @@ const MORE_LABELS: Readonly<Record<string, string>> = {
   config: 'Your settings file',
   generate: 'Preview a start',
   exec: 'Run a command in the sandbox',
-  'agent-commands': 'Agent commands (Beta)',
 };
 
 /** The Data & storage category's rows and keys once measured: the data view (src/app/features/data) as menu rows. */

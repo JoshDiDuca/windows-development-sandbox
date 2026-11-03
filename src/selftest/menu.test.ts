@@ -331,9 +331,9 @@ export const menuSuite: Suite = {
       ],
       [
         ['repeat', 'agent:codex', 'agent:claude', 'add'],
-        ['start', 'options'],
+        ['start', 'options', 'host'],
       ],
-      'Agents: Repeat last, the default agent first, the others, then Add an agent; no "On this PC" while it is empty',
+      'Agents: Repeat last, the default agent first, the others, then Add an agent; "On this PC" always holds the agent commands switch',
     );
     t.check(
       agentList.items

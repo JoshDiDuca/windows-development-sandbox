@@ -35,8 +35,10 @@ export const vpnLoginRun = implement(vpnLogin, async (ctx, _input, io) => {
   });
   if (password === undefined) cancelled();
   service.save({ username, password });
+  const warning = service.warning({ username, password });
+  if (warning) io.log(warning, 'warn');
   VPN_WARNINGS.forEach((w) => io.log(w, 'muted'));
-  return { message: 'Saved. Turn the VPN on in Settings (vpn.enabled) to use it.' };
+  return { message: 'Saved. Use "Turn the VPN on" on the VPN page to use it from the next start.' };
 });
 
 export const vpnLogoutRun = implement(vpnLogout, async (ctx, _input, io) => {

@@ -5,9 +5,8 @@ import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Stack, Text } from '@mantine/core';
-import type { ErrorAction } from '../../../src/core/util/errors';
 import { operationById } from '../../../src/app/features/defs';
-import { Cancelled, type OperationAction, type QueryDef } from '../../../src/app/kernel/index';
+import { Cancelled, type ErrorAction, type OperationAction, type QueryDef } from '../../../src/app/kernel/index';
 import { askInModal } from '../render/QuestionModal';
 import type { RpcClient } from './client';
 
@@ -75,6 +74,12 @@ export interface RunOptions {
   readonly inline?: boolean;
 }
 
+type RunFn = (
+  action: OperationAction,
+  values?: Readonly<Record<string, unknown>>,
+  options?: RunOptions,
+) => Promise<Outcome>;
+
 /** Runs a page's operation action: questions in modals, progress and the result as notifications. */
 export function useRunAction(): (
   action: OperationAction,
@@ -85,7 +90,7 @@ export function useRunAction(): (
   const queryClient = useQueryClient();
   // A failure's fix button runs the fix through this same function.
   const self = useRef<(a: OperationAction) => unknown>(() => undefined);
-  const runner = useCallback(
+  const runner: RunFn = useCallback(
     async (action, values = {}, options = {}) => {
       const def = operationById(action.op);
       const id = 'op-' + Date.now();
@@ -126,8 +131,7 @@ export function useRunAction(): (
         const step = (e as { action?: ErrorAction }).action;
         if (!options.inline) {
           const fixButton = step
-            ? () =>
-                self.current({ kind: 'operation', op: step.op, input: step.input ?? {}, label: step.label })
+            ? () => self.current({ kind: 'operation', op: step.op, input: step.input ?? {}, label: step.label })
             : undefined;
           notifications.show({
             title: message,

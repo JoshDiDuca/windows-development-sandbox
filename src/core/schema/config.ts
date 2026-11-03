@@ -70,7 +70,9 @@ export function reservedEnvName(name: string): boolean {
 export const ConfigSchema = z
   .strictObject({
     $schema: SchemaRefSchema.optional(),
-    defaultHarness: NameSchema.describe('The agent that starts when you do not name one (starting claude by name always runs claude).'),
+    defaultHarness: NameSchema.describe(
+      'The agent that starts when you do not name one (starting claude by name always runs claude).',
+    ),
     guestWorkspace: GuestWorkspaceSchema,
     readOnly: z.boolean().describe('Map the workspace read-only.'),
     workspaceFilter: WorkspaceFilterSchema,

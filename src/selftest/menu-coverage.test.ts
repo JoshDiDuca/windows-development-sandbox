@@ -1,5 +1,5 @@
 // "All features and config need to be in the cli menu": every command has a place in the menu (or a reason it cannot),
-// every operation and query that skips the menu says why in cli/menu/coverage-exempt.ts, and every setting of the config
+// every operation and query that skips the menu says why in cli/menu/coverage-exempt.ts, and every setting of the
 // schema is a row of the menu's Settings page.
 import path from 'node:path';
 import { DEFINITIONS } from '../app/features/defs.js';

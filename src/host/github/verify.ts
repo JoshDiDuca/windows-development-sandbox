@@ -1,6 +1,6 @@
 // Asks GitHub who a token belongs to, when it expires and how many repositories it reaches, right after it was typed,
 // so a wrong or expired token is caught at once. The token goes only in the Authorization header of two requests to
-// api.github.com; the answers are size-limited and read through strict shapes. Nothing here prints or returns the token.
+// api.github.com; the answers are size-limited and read through strict shapes. Nothing here prints the token.
 import { z } from 'zod';
 import { fetchBoundedResponse, type RequestFetcher } from '../../shared/download/index.js';
 

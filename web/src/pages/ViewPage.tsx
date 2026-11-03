@@ -6,8 +6,7 @@
 import { SegmentedControl, Select } from '@mantine/core';
 import { useEffect, type ReactNode } from 'react';
 import { embeddingOf, NAV, navGroupOf, navSections, viewById } from '../../../src/app/features/defs';
-import { viewInputs, type AnyView } from '../../../src/app/kernel/index';
-import type { ErrorAction } from '../../../src/core/util/errors';
+import { viewInputs, type AnyView, type ErrorAction } from '../../../src/app/kernel/index';
 import { useAct } from '../render/actions';
 import { PageView } from '../render/PageView';
 import { ErrorState, PageSkeleton } from '../render/states';

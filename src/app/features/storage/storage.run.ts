@@ -211,11 +211,12 @@ export const moveStorageRun = implement(moveStorage, async (ctx, input, io) => {
     ? expandPath(input.folder, process.cwd())
     : await chooseFolder(io, service, 'move', 'Nothing was moved.');
   if (!fs.existsSync(from))
-    failWith(
-      'There is nothing to move: ' + from + ' does not exist.',
-      'Switch to ' + to + ' without moving instead.',
-      { op: 'storage.use', input: { folder: to }, label: 'Use ' + to, cli: 'sandbox storage use ' + to },
-    );
+    failWith('There is nothing to move: ' + from + ' does not exist.', 'Switch to ' + to + ' without moving instead.', {
+      op: 'storage.use',
+      input: { folder: to },
+      label: 'Use ' + to,
+      cli: 'sandbox storage use ' + to,
+    });
   return moveData(io, service, from, to, input.keepOld, true);
 });
 

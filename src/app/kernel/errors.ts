@@ -2,7 +2,9 @@
 // question is "cancelled" (nothing changed), a value that does not fit a schema is "invalid", and anything else is a
 // bug whose details stay on this PC.
 import { z } from 'zod';
-import { UserError } from '../../core/util/errors.js';
+import { UserError, type ErrorAction } from '../../core/util/errors.js';
+
+export type { ErrorAction };
 
 export const ErrorKindSchema = z.enum(['user', 'cancelled', 'invalid', 'bug']);
 export type ErrorKind = z.output<typeof ErrorKindSchema>;

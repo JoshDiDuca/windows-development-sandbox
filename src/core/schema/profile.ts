@@ -21,7 +21,11 @@ export const SecretsSchema = z.strictObject({
     ),
 });
 export const AttachSchema = z.strictObject({
-  enabled: z.boolean().describe("Allow attaching this PC's terminal to a session (the terminal option when starting an agent, and attach)."),
+  enabled: z
+    .boolean()
+    .describe(
+      "Allow attaching this PC's terminal to a session (the terminal option when starting an agent, and attach).",
+    ),
   reuseSession: z
     .boolean()
     .describe(
@@ -58,7 +62,9 @@ export const ClaudeProfileSchema = z.strictObject({
   hostDir: z.string().describe('Your Claude folder, or "auto" (~/.claude or CLAUDE_CONFIG_DIR).'),
   include: z.array(z.string().regex(/^[A-Za-z0-9._-]+$/)).describe('Files and folders copied from it.'),
   globalStateFile: z.string().describe('Your .claude.json, or "auto". Empty string = do not copy.'),
-  copyCredentials: z.boolean().describe('Copy your Claude LOGIN into the sandbox. Prefer saving the login in Accounts instead.'),
+  copyCredentials: z
+    .boolean()
+    .describe('Copy your Claude LOGIN into the sandbox. Prefer saving the login in Accounts instead.'),
   overwrite: z.boolean().describe('Refresh these settings from this PC on every launch.'),
   sharePluginsAcrossAccounts: z
     .boolean()

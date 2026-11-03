@@ -64,7 +64,7 @@ export const MENU_EXEMPT: Readonly<Record<string, string>> = {
   'settings.get': 'Settings shows every value',
 };
 
-/** Setting keys (or key prefixes ending in a dot) the menu's Settings page does not list as a row, and where they are. */
+/** Setting keys (or key prefixes ending in a dot) the menu's Settings page does not list as a row. */
 export const SETTING_PLACES: Readonly<Record<string, string>> = {
   'apps.install': 'the Apps section (a tick per app)',
   'apps.custom': 'the Apps section (your own apps)',

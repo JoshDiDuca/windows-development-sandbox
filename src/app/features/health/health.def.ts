@@ -313,7 +313,13 @@ export function healthPage(o: { last: HealthLast | null }): Page {
             ],
           })),
       notes: canEnable
-        ? [{ text: 'Windows asks for administrator permission to turn this on, so do it at this PC from Maintenance > Health in the menu.', tone: 'muted', only: 'web' }]
+        ? [
+            {
+              text: 'Windows asks for administrator permission to turn this on, so do it at this PC from Maintenance > Health in the menu.',
+              tone: 'muted',
+              only: 'web',
+            },
+          ]
         : [],
     });
   }

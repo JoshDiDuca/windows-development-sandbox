@@ -59,7 +59,11 @@ async function startServer(ctx: AppContext, io: OperationIO, control: WebControl
     const now = await control.status();
     if (now.running && now.state) {
       io.log('The web UI is running at http://127.0.0.1:' + now.state.port + '/ (this PC only).');
-      return { port: now.state.port, message: 'Open it already signed in from Maintenance > Web UI.', wasRunning: false };
+      return {
+        port: now.state.port,
+        message: 'Open it already signed in from Maintenance > Web UI.',
+        wasRunning: false,
+      };
     }
   }
   return fail(
@@ -96,7 +100,8 @@ export const openWebRun = implement(openWeb, async (ctx, _input, io) => {
   const started = await startServer(ctx, io, control);
   if (started.wasRunning) io.log(started.message);
   const { running, state } = await control.status();
-  if (!running || !state) return failWith('The web UI stopped right away.', 'Start it again.', {
+  if (!running || !state)
+    return failWith('The web UI stopped right away.', 'Start it again.', {
       op: 'web.start',
       label: 'Start the web UI',
       cli: 'sandbox web start',

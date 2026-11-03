@@ -117,7 +117,7 @@
         },
         "clipboard": {
           "type": "boolean",
-          "description": "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in sandbox attach) reach this PC's clipboard."
+          "description": "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in an attached terminal) reach this PC's clipboard."
         },
         "audioInput": {
           "type": "boolean",
@@ -183,7 +183,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Epic Games sign-in to sandboxes that use unreal (sign in to the launcher once in a sandbox, or take this PC's: sandbox account import epic). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. A sign-in works in one place at a time: taking this PC's signs the launcher on this PC out the first time a sandbox uses it. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Epic Games sign-in to sandboxes that use unreal (sign in to the launcher once in a sandbox, or take this PC's from Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. A sign-in works in one place at a time: taking this PC's signs the launcher on this PC out the first time a sandbox uses it. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -193,7 +193,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Steam (SteamCMD) sign-in to sandboxes that use steam (sign in once with sbx-steam login, or: sandbox account import steam --from <steamcmd folder>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload builds and workshop items to your Steam apps. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. No password is kept: sign in once with sbx-steam login in a sandbox (Steam Guard asks there). Yours only: a project file can only turn it off."
+              "description": "Hand your saved Steam (SteamCMD) sign-in to sandboxes that use steam (sign in once with sbx-steam login, or take it from a SteamCMD folder in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload builds and workshop items to your Steam apps. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. No password is kept: sign in once with sbx-steam login in a sandbox (Steam Guard asks there). Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -203,7 +203,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Unity sign-in to sandboxes that use unity (sign in once in a sandbox, or take this PC's licence: sandbox account import unity). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. A Pro seat is handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep it until you return it. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Unity sign-in to sandboxes that use unity (sign in once in a sandbox, or take this PC's licence from Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. A Pro seat is handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep it until you return it. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -213,7 +213,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Cfx.re (FiveM / RedM server key) sign-in to sandboxes that use fivem (sandbox account login cfx). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. Anyone with the key can run a server under your Cfx.re account. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Cfx.re (FiveM / RedM server key) sign-in to sandboxes that use fivem (type the key in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. Anyone with the key can run a server under your Cfx.re account. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -223,7 +223,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Android upload keystore sign-in to sandboxes that use android (sandbox account import keystore --from <upload.jks>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can sign app updates as you; keep a backup of the keystore elsewhere. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Android upload keystore sign-in to sandboxes that use android (import the upload.jks file in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can sign app updates as you; keep a backup of the keystore elsewhere. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -233,7 +233,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Google Play (service account) sign-in to sandboxes that use android (sandbox account import play --from <service-account.json>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can publish to Google Play with what the service account is allowed. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Google Play (service account) sign-in to sandboxes that use android (import the service-account.json file in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can publish to Google Play with what the service account is allowed. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -243,7 +243,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Expo (EAS) sign-in to sandboxes that use reactNative (sandbox account login expo). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can start EAS builds and submissions on your Expo account. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Expo (EAS) sign-in to sandboxes that use reactNative (type the token in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can start EAS builds and submissions on your Expo account. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -253,7 +253,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved App Store Connect API key sign-in to sandboxes that use reactNative or flutter (sandbox account import appstore --from <AuthKey.p8>). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload and submit apps with what the key is allowed. Yours only: a project file can only turn it off."
+              "description": "Hand your saved App Store Connect API key sign-in to sandboxes that use reactNative or flutter (import the AuthKey.p8 file in Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can upload and submit apps with what the key is allowed. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -1437,11 +1437,11 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Allow sandbox claude --terminal / sandbox attach from this PC."
+          "description": "Allow attaching this PC's terminal to a session (the terminal option when starting an agent, and attach)."
         },
         "reuseSession": {
           "type": "boolean",
-          "description": "sandbox claude -t in a running sandbox reattaches to this folder's session when no terminal on this PC is attached to it (--new always starts another)."
+          "description": "Starting an agent with a terminal in a running sandbox reattaches to this folder's session when no terminal on this PC is attached to it (starting a new session on purpose always starts another)."
         },
         "auto": {
           "type": "boolean",
@@ -1449,7 +1449,7 @@
         },
         "autoHide": {
           "type": "boolean",
-          "description": "Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (sandbox show brings it back)."
+          "description": "Hide the Windows Sandbox window whenever this terminal attaches; it keeps running (Sandbox > Status shows it again)."
         },
         "confirmCtrlC": {
           "type": "boolean",
@@ -1569,7 +1569,7 @@
         },
         "copyCredentials": {
           "type": "boolean",
-          "description": "Copy your Claude LOGIN into the sandbox. Prefer sandbox account instead."
+          "description": "Copy your Claude LOGIN into the sandbox. Prefer saving the login in Accounts instead."
         },
         "syncHistory": {
           "type": "boolean",

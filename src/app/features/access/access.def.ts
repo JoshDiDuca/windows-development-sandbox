@@ -3,7 +3,16 @@
 // page; access.run.ts does the work. Everything here is the owner's: a device or another Windows user never manages
 // access, whatever their role.
 import { z } from 'zod';
-import { action, defineOperation, defineQuery, defineView, fieldOf, link, type Item, type Page } from '../../kernel/index.js';
+import {
+  action,
+  defineOperation,
+  defineQuery,
+  defineView,
+  fieldOf,
+  link,
+  type Item,
+  type Page,
+} from '../../kernel/index.js';
 
 const RoleSchema = z.enum(['view', 'control']);
 

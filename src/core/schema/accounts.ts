@@ -25,10 +25,7 @@ function share(kind: ServiceKind, how: string): z.ZodObject<{ share: z.ZodBoolea
 export const AccountsSchema = z
   .strictObject({
     epic: share('epic', "sign in to the launcher once in a sandbox, or take this PC's from Accounts"),
-    steam: share(
-      'steam',
-      'sign in once with sbx-steam login, or take it from a SteamCMD folder in Accounts',
-    ),
+    steam: share('steam', 'sign in once with sbx-steam login, or take it from a SteamCMD folder in Accounts'),
     unity: share('unity', "sign in once in a sandbox, or take this PC's licence from Accounts"),
     cfx: share('cfx', 'type the key in Accounts'),
     keystore: share('keystore', 'import the upload.jks file in Accounts'),
@@ -36,6 +33,4 @@ export const AccountsSchema = z
     expo: share('expo', 'type the token in Accounts'),
     appstore: share('appstore', 'import the AuthKey.p8 file in Accounts'),
   })
-  .describe(
-    'Service sign-ins for sandboxes (game stores, engines, app signing). Manage them in Accounts.',
-  );
+  .describe('Service sign-ins for sandboxes (game stores, engines, app signing). Manage them in Accounts.');

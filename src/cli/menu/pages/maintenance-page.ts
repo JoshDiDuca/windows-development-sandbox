@@ -166,7 +166,7 @@ const NO_UPDATES: UpdatesStatus = {
  * "Nothing here yet.").
  */
 function logsMenu(files: LogFiles): MenuView {
-  // Following a log runs the hand-written `logs --follow` on the normal screen: a key of the menu, not a link of the page.
+  // Following a log runs the hand-written `logs --follow` on the normal screen: a menu key, not a page link.
   const follow = link({ kind: 'command', argv: ['logs', '--follow'] }, 'Follow the newest log', {
     key: 'f',
     verb: 'follow in the terminal',

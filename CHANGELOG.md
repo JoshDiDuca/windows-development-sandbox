@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.22.0
 
 - **The menu and the web no longer tell you to type commands.** A failure can carry a fix as a button (the menu asks, the
   web shows it next to the message; the command line prints `Run: ...`). Pages, setting descriptions and messages that

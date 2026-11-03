@@ -7,6 +7,7 @@ import { redactSecrets } from '../../../core/schema/index.js';
 import type { Config } from '../../../core/types.js';
 import { fail } from '../../../core/util/index.js';
 import { closest } from '../../../cli/validate.js';
+import { isToolchainReady } from '../../../shared/readiness.js';
 import { fieldOf, type SchemaNode } from '../../kernel/index.js';
 import { categoryOf, labelOf, nameOf } from './categories.def.js';
 import type { Scope, SettingRow } from './settings.def.js';
@@ -35,15 +36,18 @@ export function settingsOf(file: ConfigFile): Setting[] {
           section: several && category.id !== 'general' ? nameOf(top) : undefined,
         },
       ];
-    return node.leaves([top]).map(({ key, node: leaf }) => {
-      const heading = [
-        several ? nameOf(top) : undefined,
-        key.length > 2 ? key.slice(1, -1).map(nameOf).join(' › ') : undefined,
-      ]
-        .filter(Boolean)
-        .join(' › ');
-      return { key, node: leaf, category: category.id, section: heading || undefined };
-    });
+    return node
+      .leaves([top])
+      .filter(({ key }) => top !== 'toolchains' || isToolchainReady(key[1]))
+      .map(({ key, node: leaf }) => {
+        const heading = [
+          several ? nameOf(top) : undefined,
+          key.length > 2 ? key.slice(1, -1).map(nameOf).join(' › ') : undefined,
+        ]
+          .filter(Boolean)
+          .join(' › ');
+        return { key, node: leaf, category: category.id, section: heading || undefined };
+      });
   });
 }
 

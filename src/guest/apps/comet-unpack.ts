@@ -5,11 +5,11 @@
 // checked again (the data folder is shared with the sandbox, so the file is never trusted from last time).
 import fs from 'node:fs';
 import path from 'node:path';
-import { signerMatches, type AppSigner } from '../../shared/apps/index.js';
+import type { AppSigner } from '../../shared/signer.js';
 import { installedCometExe } from '../browser/comet.js';
 import { execAsync } from '../runtime/process.js';
 import { mkdirp } from '../runtime/fs.js';
-import { signatureOf } from './signature.js';
+import { signedBy } from '../toolchains/signature.js';
 
 /** The archives inside, last stage first: the first one found is opened next. */
 const INNER: readonly RegExp[] = [
@@ -123,7 +123,7 @@ export async function installFromKept(dest: string, signer: AppSigner, what: str
   if (!installer) return null;
   const installed = installedCometExe();
   if (fs.existsSync(installed)) return installed;
-  if (!signerMatches(signatureOf(installer), signer)) {
+  if (!signedBy(installer, signer)) {
     fs.rmSync(path.join(dest, '.agent-sandbox-app'), { force: true });
     fs.rmSync(installer, { force: true });
     throw new Error(what + "'s installer is not signed by its vendor; deleted it (it is downloaded again next boot)");

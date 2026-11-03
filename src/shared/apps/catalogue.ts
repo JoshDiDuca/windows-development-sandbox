@@ -7,7 +7,7 @@ import { AGENTS_WEB_APPS } from './catalogue-agents-web.js';
 import { GAMEDEV_APPS } from './catalogue-gamedev.js';
 import { MOBILE_APPS } from './catalogue-mobile.js';
 import { MODDING_APPS } from './catalogue-modding.js';
-import type { AppSigner } from './signer.js';
+import type { AppSigner } from '../signer.js';
 
 export type AppCategory =
   | 'agents'

@@ -86,7 +86,6 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'sandbox/scripts/expand-archive.ps1',
   'sandbox/scripts/get-gpu-names.ps1',
   'sandbox/scripts/get-signature.ps1',
-  'sandbox/scripts/get-signer.ps1',
   'sandbox/scripts/install-shell-path.ps1',
   'sandbox/scripts/link-profile-dirs.ps1',
   'sandbox/scripts/new-shortcuts.ps1',

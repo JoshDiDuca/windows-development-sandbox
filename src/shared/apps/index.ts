@@ -13,7 +13,7 @@ export {
   RTK_VERSION,
 } from './catalogue.js';
 export { exeMatcher, appsToInstall, appsNeedMesa, appsNeedUv } from './selection.js';
-export { signerMatches, type AppSigner, type Signature } from './signer.js';
+export { signerMatches, type AppSigner, type Signature } from '../signer.js';
 export {
   AGENTS_WEB_APPS,
   BROWSER_USE_VERSION,

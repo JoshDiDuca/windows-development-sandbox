@@ -26,6 +26,7 @@ import {
 import { readBoundedFile } from '../../../shared/io/index.js';
 import { implement } from '../../context.js';
 import { cancelled, type OperationIO } from '../../kernel/index.js';
+import { isKindReady } from '../../../shared/readiness.js';
 import { listServices, serviceImport, serviceLogin, serviceLogout, type ServiceRow } from './services.def.js';
 
 /** One service's row: never the sign-in, and the store's summary through safeText. */
@@ -55,6 +56,7 @@ export function serviceRow(
     canImport: Boolean(source.fromPc || source.fromFile),
     canLogin: Boolean(source.fromAnswers),
     needsFile: Boolean(source.fromFile && !source.fromPc),
+    ready: isKindReady(kind),
   };
 }
 
@@ -71,7 +73,7 @@ async function kindOf(
       fail('There is no service called "' + safeText(given) + '".', 'Use one of: ' + SERVICE_KINDS.join(', '));
     return name;
   }
-  const choices = SERVICE_KINDS.filter((k) => offered(SERVICE_SPECS[k])).map((k) => ({
+  const choices = SERVICE_KINDS.filter((k) => isKindReady(k) && offered(SERVICE_SPECS[k])).map((k) => ({
     value: k,
     label: SERVICE_SPECS[k].label,
   }));

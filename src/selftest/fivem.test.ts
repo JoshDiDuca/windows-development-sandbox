@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fakeIO } from '../app/kernel/index.js';
 import { importServiceFlow, loginServiceFlow } from '../app/features/accounts/index.js';
 import { DEFAULTS } from '../core/config/index.js';
+import { isKindReady, isToolchainReady } from '../shared/readiness.js';
 import { HOST_SOURCES, ServiceAccountStore } from '../host/accounts/index.js';
 import { fivemHints } from '../host/launch/hints/fivem.js';
 import { SecretStore } from '../host/secrets/index.js';
@@ -55,6 +56,11 @@ export const fivemSuite: Suite = {
     const fixtures = path.join(t.packageRoot, 'src', 'selftest', 'fixtures', 'fivem');
     const versionsJson: unknown = JSON.parse(fs.readFileSync(path.join(fixtures, 'versions.json'), 'utf8'));
     const pageHtml = fs.readFileSync(path.join(fixtures, 'artifacts-page.txt'), 'utf8');
+
+    t.check(
+      isToolchainReady('fivem') && isKindReady('cfx') && isKindReady('perplexity') && isKindReady('comet'),
+      'FiveM, the Cfx.re key and the Perplexity sign-ins are written: settings and accounts list them',
+    );
 
     t.section('server builds (versions API)');
     const channels = parseVersions(versionsJson);

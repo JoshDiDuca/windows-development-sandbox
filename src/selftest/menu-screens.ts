@@ -56,6 +56,7 @@ const ACCOUNTS: AccountsModel = {
       canImport: true,
       canLogin: true,
       needsFile: false,
+      ready: true,
     },
     {
       kind: 'comet',
@@ -72,6 +73,7 @@ const ACCOUNTS: AccountsModel = {
       canImport: false,
       canLogin: false,
       needsFile: false,
+      ready: true,
     },
   ],
   agents: [

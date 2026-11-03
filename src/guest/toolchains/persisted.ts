@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { freeBytesAt } from '../../shared/io/disk.js';
 import { readValid, writeJsonAtomic } from '../../shared/io/json.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
 import { dataDir } from '../runtime/paths.js';
@@ -62,12 +63,7 @@ function checkSpec(spec: InstallSpec): void {
 
 /** Free bytes for this user on the disk holding `dir` (0 when it cannot be told). */
 export function freeBytes(dir: string, deps: PersistedDeps = {}): number {
-  try {
-    const s = (deps.statfs ?? fs.statfsSync)(dir);
-    return s.bavail * s.bsize;
-  } catch {
-    return 0;
-  }
+  return freeBytesAt(dir, deps.statfs) ?? 0;
 }
 
 const gb = (bytes: number): string => (bytes / GB).toFixed(1) + ' GB';

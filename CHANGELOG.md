@@ -22,6 +22,14 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   saved logins include that file (`.credentials.json` in `harnesses.codex.home.loginFiles`), so they last between
   sandboxes.
 
+## 1.19.1
+
+- **C++ and Visual Studio persist.** The Visual Studio install files are now saved reliably on the data disk (scratch
+  folder on the same disk; if the installer still crashes with 0xE0434352, a build on the sandbox disk and a copy), and a
+  failure is explained in the log. New `toolchains.unreal.visualStudio: "autosdk"` (experimental) builds Unreal from the
+  portable MSVC without Visual Studio. Toolchains and sign-ins that are not written yet (Unity and others) are no longer
+  listed in settings or accounts.
+
 ## 1.19.0
 
 - **Codex runs commands inside the sandbox, with settings.** Codex now starts with flags that skip its own Windows

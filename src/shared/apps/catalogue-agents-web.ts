@@ -3,7 +3,7 @@
 // catalogue, pure data like catalogue.ts (which lists them). All yours only: they change what the agents can reach.
 // Not offered, and why: docs/agents-web.md.
 import type { AppEntry } from './catalogue.js';
-import type { AppSigner } from './signer.js';
+import type { AppSigner } from '../signer.js';
 
 /** Pinned packages, installed from the lock files in sandbox\addons\<id> (renewing them: docs/toolchains.md). */
 export const PERPLEXITY_MCP_VERSION = '1.3.0';

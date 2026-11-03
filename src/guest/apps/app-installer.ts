@@ -18,7 +18,7 @@ import { afterInstall } from './after-install.js';
 import { installFromKept } from './comet-unpack.js';
 import { findExe } from './find-exe.js';
 import { shortcuts, type Shortcut } from './shortcuts.js';
-import { signerCheck } from './signature.js';
+import { signatureCheck } from '../toolchains/installers.js';
 import { resolve } from './sources.js';
 import { unpack } from './unpack.js';
 
@@ -129,7 +129,7 @@ export class AppInstaller {
         const file = path.join(mkdirp(work), d.fileName.replace(/[\\/:*?"<>|]/g, '_'));
         await downloader.file(d.url, file, {
           sha256: d.sha256 ?? null,
-          ...(entry.signer ? { verify: signerCheck(entry.signer, d.fileName) } : {}),
+          ...(entry.signer ? { verify: signatureCheck(entry.signer, d.fileName) } : {}),
         });
         await unpack(entry, file, out, d);
       }

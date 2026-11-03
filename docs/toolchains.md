@@ -77,6 +77,24 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
 - Visual Studio is shared with the other toolchains that need it (Flutter's Windows desktop builds and Unity's
   `windows-il2cpp` module get its Build Tools, under `toolchains.msvc.acceptLicense`): one install serves them all.
 
+#### C/C++ and Visual Studio: what persists
+
+| What          | Kept between sandboxes                                             |
+| ------------- | ------------------------------------------------------------------ |
+| MinGW         | kept                                                               |
+| MSVC portable | kept                                                               |
+| VS layout     | kept (the offline copy of the install files, `tools\visualstudio`) |
+| VS install    | redone from the layout at boot, no download (about 10-20 minutes)  |
+| autosdk       | kept                                                               |
+
+- The layout is made with the installer's scratch folder on the same disk. If the installer still crashes (exit
+  `0xE0434352`), the layout is built on the sandbox's own disk (12 GB free needed), copied over, and the scratch copy is
+  deleted. A failure is explained in the log, and the installer's log is copied to
+  `C:\AgentData\logs\vs-layout-<date>.log`.
+- `toolchains.unreal.visualStudio: "autosdk"` (experimental, default `"full"`) skips Visual Studio: UnrealBuildTool finds
+  the portable MSVC through an AutoSDK tree (`tools\unreal\autosdk`, copies, made once and kept). The editor's Visual
+  Studio integration is not available. It needs `toolchains.msvc`, turned on for you under Unreal's licence acceptance.
+
 ### Game, modding and mobile toolchains
 
 These settings are in place; the installs come in a later version. Each is `"auto"` by default, and the licensed ones

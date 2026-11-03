@@ -11,6 +11,7 @@ import { LocalOverridesSchema } from '../core/schema/index.js';
 import { discoverPcInstalls, type PcInstallSource } from '../host/pc-installs/index.js';
 import { generateSandbox } from '../host/launch/index.js';
 import { isValidGuestPath, PC_INSTALLS_GUEST, type PcInstall } from '../shared/paths/index.js';
+import { NOT_READY } from '../shared/readiness.js';
 import type { Suite } from './support/suite.js';
 
 const PC = { localAppData: '', appData: '', programData: '' };
@@ -112,6 +113,9 @@ export const pcInstallsSuite: Suite = {
     );
 
     t.section('detection of the new toolchains');
+    // These toolchains are hidden until written (NOT_READY); their detection rules are tested as if they were ready.
+    const hidden = [...NOT_READY.toolchains];
+    (NOT_READY.toolchains as unknown as string[]).length = 0;
     const tc = structuredClone(DEFAULTS.toolchains);
     const decide = (entries: string[], hints = {}, settingsOf = tc) => decideToolchains(settingsOf, entries, [], hints);
     const godot = decide(['project.godot']);
@@ -146,6 +150,7 @@ export const pcInstallsSuite: Suite = {
     t.check(decide(['project.godot'], {}, godotNet).dotnet.on, "Godot's .NET build brings .NET");
     const fivem = decide(['fxmanifest.lua']);
     t.check(!fivem.fivem.on && fivem.fivem.reason.includes('fivem.acceptLicense'), 'the FiveM server is licensed too');
+    (NOT_READY.toolchains as unknown as string[]).push(...hidden);
 
     t.section('a project never accepts a licence or shares a sign-in');
     t.check(

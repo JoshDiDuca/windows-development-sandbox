@@ -10,17 +10,27 @@ import path from 'node:path';
 import { z } from 'zod';
 import { spawnAsync } from '../../../shared/download/index.js';
 import { writeJsonAtomic } from '../../../shared/io/json.js';
+import { robocopyFailed } from '../../../shared/io/robocopy-result.js';
+import { safeRemove } from '../../../shared/io/safe-remove.js';
+import { SYSTEM } from '../../../shared/system.js';
 import { execOutput } from '../../runtime/process.js';
 import { exists, mkdirp } from '../../runtime/fs.js';
 import { log, warn } from '../../runtime/log.js';
+import { logsDir } from '../../runtime/paths.js';
 import { duringSession } from '../../runtime/project-context.js';
 import { errMsg } from '../../../core/util/errors.js';
 import { SIGNERS, signedInstaller } from '../installers.js';
-import { assertLocalRoom, freeBytes } from '../persisted.js';
+import { assertLocalRoom, freeBytes, LOCAL_RESERVE_BYTES } from '../persisted.js';
 import { tool, type ToolEnv } from '../tool-env.js';
-import type { VsRequest } from './vs-request.js';
+import { layoutNextStep, vsExitText, type VsRequest } from './vs-request.js';
 
-export { BUILD_TOOLS_COMPONENTS, UNREAL_COMPONENTS, visualStudioWanted, type VsRequest } from './vs-request.js';
+export {
+  BUILD_TOOLS_COMPONENTS,
+  UNREAL_COMPONENTS,
+  unrealUsesAutosdk,
+  visualStudioWanted,
+  type VsRequest,
+} from './vs-request.js';
 
 const BOOTSTRAPPERS: Readonly<Record<VsRequest['product'], { url: string; file: string; name: string }>> = {
   community: {
@@ -76,6 +86,61 @@ function layoutDir(product: VsRequest['product']): string {
   return path.join(VS_DIR, product === 'community' ? 'layout' : 'layout-buildtools');
 }
 
+/** The layout arguments of the bootstrapper (the same for the data disk and the staging folder). */
+const layoutArgs = (req: VsRequest, folder: string): string[] => [
+  '--layout',
+  folder,
+  '--lang',
+  'en-US',
+  '--quiet',
+  '--wait',
+  ...req.components.flatMap((id) => ['--add', id]),
+];
+
+/** The bootstrapper's newest log (dd_bootstrapper_*.log) in these folders, or null. */
+function newestBootstrapperLog(folders: readonly string[]): string | null {
+  const logs = folders.flatMap((dir) => {
+    try {
+      return fs
+        .readdirSync(dir)
+        .filter((n) => /^dd_bootstrapper_.*\.log$/i.test(n))
+        .map((n) => path.join(dir, n));
+    } catch {
+      return []; // The folder is not there: no log in it.
+    }
+  });
+  const stamp = (f: string): number => {
+    try {
+      return fs.statSync(f).mtimeMs;
+    } catch {
+      return 0; // Gone since the listing.
+    }
+  };
+  return logs.sort((x, y) => stamp(y) - stamp(x))[0] ?? null;
+}
+
+/** Says why the layout failed and keeps the installer's log where the sandbox's logs are. */
+function reportLayoutFailure(code: number, temps: readonly string[]): void {
+  warn('Visual Studio: saving the install files failed (exit ' + code + '): ' + vsExitText(code));
+  const found = newestBootstrapperLog(temps);
+  if (!found) return;
+  const kept = path.join(logsDir, 'vs-layout-' + new Date().toISOString().slice(0, 10) + '.log');
+  try {
+    fs.mkdirSync(logsDir, { recursive: true });
+    fs.copyFileSync(found, kept);
+    warn('Visual Studio: the installer log is ' + found + ' (a copy is in ' + kept + ')');
+  } catch (e) {
+    warn('Visual Studio: the installer log is ' + found + ' (could not copy it: ' + errMsg(e) + ')');
+  }
+}
+
+/** Copies a finished layout onto the data disk (never /MOV: mapped folders refuse rename-over). */
+async function copyLayout(from: string, to: string): Promise<boolean> {
+  mkdirp(to);
+  const code = await spawnAsync(SYSTEM.robocopy(), [from, to, '/E', '/COPY:DAT', '/R:1', '/W:1', '/MT:8', '/NP']);
+  return !robocopyFailed(code);
+}
+
 /** The offline copy's installer when it holds every component; made or completed when there is room. */
 async function layoutInstaller(req: VsRequest, bootstrapper: string): Promise<string | null> {
   const layout = layoutDir(req.product);
@@ -90,6 +155,10 @@ async function layoutInstaller(req: VsRequest, bootstrapper: string): Promise<st
       return false;
     }
   };
+  const finish = (): string => {
+    writeJsonAtomic(marker, { components: [...req.components] });
+    return installer;
+  };
   if (has()) return installer;
   if (freeBytes(mkdirp(VS_DIR)) < LAYOUT_ROOM_BYTES) {
     warn(
@@ -99,21 +168,33 @@ async function layoutInstaller(req: VsRequest, bootstrapper: string): Promise<st
   }
   log('Saving the Visual Studio install files for later boots (~10 GB, once) ...');
   fs.rmSync(marker, { force: true });
-  const code = await spawnAsync(bootstrapper, [
-    '--layout',
-    layout,
-    '--lang',
-    'en-US',
-    '--quiet',
-    '--wait',
-    ...req.components.flatMap((id) => ['--add', id]),
-  ]);
-  if (!OK_EXIT_CODES.includes(code) || !exists(installer)) {
-    warn('Visual Studio: saving the install files failed (exit ' + code + '); downloading this boot');
+  // (a) The installer writes its scratch files to TEMP and moves them into the layout: a TEMP on the same (mapped)
+  // volume, inside the layout's folder tree, keeps those moves on one volume.
+  const scratch = mkdirp(path.join(VS_DIR, 'tmp'));
+  const code = await spawnAsync(bootstrapper, layoutArgs(req, layout), {
+    env: { ...process.env, TEMP: scratch, TMP: scratch },
+  });
+  if (OK_EXIT_CODES.includes(code) && exists(installer)) return finish();
+  reportLayoutFailure(code, [scratch, os.tmpdir()]);
+  // (b) Build it on the sandbox's own disk instead, then copy it over.
+  const drive = (process.env.SystemDrive ?? 'C:') + '\\';
+  if (layoutNextStep(code, freeBytes(drive), LOCAL_RESERVE_BYTES) !== 'stage') {
+    warn('Visual Studio: not enough room on ' + drive + ' to build the install files there; downloading this boot');
     return null;
   }
-  writeJsonAtomic(marker, { components: [...req.components] });
-  return installer;
+  const staging = path.join(drive, 'vs-layout-staging');
+  log('Building the install files on ' + drive + ' and copying them to ' + layout + ' ...');
+  const stagedCode = await spawnAsync(bootstrapper, layoutArgs(req, staging));
+  const staged = path.join(staging, BOOTSTRAPPERS[req.product].file);
+  let kept = false;
+  if (OK_EXIT_CODES.includes(stagedCode) && exists(staged)) {
+    kept = await copyLayout(staging, layout);
+    if (!kept) warn('Visual Studio: copying the install files to ' + layout + ' failed');
+  } else {
+    reportLayoutFailure(stagedCode, [os.tmpdir()]);
+  }
+  safeRemove(staging, drive);
+  return kept && exists(installer) ? finish() : null;
 }
 
 async function install(req: VsRequest, keepInstallFiles: boolean): Promise<void> {
@@ -143,7 +224,12 @@ async function install(req: VsRequest, keepInstallFiles: boolean): Promise<void>
   ]);
   if (!OK_EXIT_CODES.includes(code) || !installedVs())
     throw new Error(
-      'the Visual Studio installer failed (exit ' + code + '); its logs are the dd_*.log files in ' + os.tmpdir(),
+      'the Visual Studio installer failed (exit ' +
+        code +
+        ': ' +
+        vsExitText(code) +
+        '); its logs are the dd_*.log files in ' +
+        os.tmpdir(),
     );
 }
 

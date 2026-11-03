@@ -13,7 +13,7 @@ import { dryRun, toolsDir } from '../../runtime/paths.js';
 import { errMsg } from '../../../core/util/errors.js';
 import { log, warn } from '../../runtime/log.js';
 import { stateDir } from '../../runtime/session.js';
-import { signerOf } from '../native/vcruntime.js';
+import { signatureOf } from '../signature.js';
 import { ensurePersisted, installRecords, type Installed } from '../persisted.js';
 import type { ToolCtx } from '../step.js';
 import type { ToolEnv } from '../tool-env.js';
@@ -128,7 +128,7 @@ async function installBuild(a: FivemArtifact, staging: string, temp: string): Pr
   const verify = async (file: string): Promise<void> => {
     await extractArchive(file, check, ['FXServer.exe']);
     const exe = path.join(check, 'FXServer.exe');
-    if (artifactTrust(true, fs.existsSync(exe) ? signerOf(exe) : '') !== 'signed')
+    if (artifactTrust(true, fs.existsSync(exe) ? (signatureOf(exe)?.subject ?? '') : '') !== 'signed')
       throw new Error(
         'FXServer build ' +
           a.build +
@@ -141,7 +141,7 @@ async function installBuild(a: FivemArtifact, staging: string, temp: string): Pr
   await extractArchive(zip, staging);
   fs.rmSync(zip, { force: true });
   const exe = path.join(staging, 'FXServer.exe');
-  const trust = artifactTrust(downloader.requireChecksum, fs.existsSync(exe) ? signerOf(exe) : '');
+  const trust = artifactTrust(downloader.requireChecksum, fs.existsSync(exe) ? (signatureOf(exe)?.subject ?? '') : '');
   if (trust === 'refused') throw new Error('FXServer build ' + a.build + ' is not validly signed; not using it');
   if (trust === 'unsigned-allowed')
     warn(

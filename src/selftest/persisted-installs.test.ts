@@ -18,6 +18,13 @@ import {
   UNREAL_COMPONENTS,
   visualStudioWanted,
 } from '../guest/toolchains/native/vs-request.js';
+import { autosdkLayout, layoutNextStep, unrealUsesAutosdk, vsExitText } from '../guest/toolchains/native/vs-request.js';
+import { freeBytesAt } from '../shared/io/disk.js';
+import { SIGNERS, signerMatches } from '../shared/signer.js';
+import { decideToolchains } from '../core/detect/toolchains.js';
+import { NOT_READY } from '../shared/readiness.js';
+import { ConfigFile } from '../app/features/settings/settings-file.js';
+import { settingsOf } from '../app/features/settings/settings-rows.js';
 import { collectDataEntries } from '../cli/services/data-collect.js';
 import type { Suite } from './support/suite.js';
 
@@ -176,6 +183,107 @@ export const persistedInstallsSuite: Suite = {
         UNREAL_COMPONENTS.every((c) => all.components.includes(c)) &&
         all.components.includes('Microsoft.VisualStudio.Component.VC.Llvm.Clang'),
       'with Unreal: one Community install serves all of them',
+    );
+
+    t.section('Unreal on the portable MSVC (autosdk)');
+    tc.unreal.visualStudio = 'autosdk';
+    const noUnreal = visualStudioWanted(tc);
+    t.check(
+      noUnreal?.product === 'buildtools' && noUnreal.for.join() === 'flutter,unity',
+      'autosdk: Unreal asks for no Visual Studio (the others still get the Build Tools)',
+    );
+    tc.flutter.enabled = false;
+    tc.unity.enabled = false;
+    t.equal(visualStudioWanted(tc), null, 'autosdk alone: no Visual Studio at all');
+    t.check(
+      unrealUsesAutosdk(tc, (s) => s === true) && !unrealUsesAutosdk(DEFAULTS.toolchains),
+      'autosdk is only when asked',
+    );
+    const pairs = autosdkLayout('T:\\msvc', '14.44.35207', '10.0.26100.0', 'T:\\autosdk');
+    t.check(
+      pairs.length === 4 &&
+        pairs[0].to === 'T:\\autosdk\\HostWin64\\Win64\\VS2022\\14.44.35207' &&
+        pairs[0].from === 'T:\\msvc\\VC\\Tools\\MSVC\\14.44.35207' &&
+        pairs[1].from === 'T:\\msvc\\Windows Kits\\10\\Include\\10.0.26100.0' &&
+        pairs[1].to === 'T:\\autosdk\\HostWin64\\Win64\\Windows Kits\\10\\Include\\10.0.26100.0',
+      'the AutoSDK tree is MSVC under VS2022\\<version> and the SDK under Windows Kits\\10 (copies)',
+    );
+    const on = DEFAULTS.toolchains;
+    const auto = {
+      ...structuredClone(on),
+      unreal: { ...on.unreal, visualStudio: 'autosdk' as const, acceptLicense: true },
+    };
+    const decided = decideToolchains(auto, ['Game.uproject'], []);
+    t.check(
+      decided.unreal.on && decided.msvc.on,
+      'an Unreal project with autosdk turns the portable MSVC on, under its licence',
+    );
+
+    t.section('the Visual Studio layout');
+    t.check(
+      vsExitText(3762504530).includes('crashed') &&
+        vsExitText(-1).includes('exit 4294967295') &&
+        vsExitText(0) === 'installed' &&
+        vsExitText(1602) === 'cancelled' &&
+        vsExitText(8006).includes('running') &&
+        vsExitText(3010).includes('restart') &&
+        vsExitText(5007).includes('refused'),
+      'installer exit codes are told in words (0xE0434352 is a crash)',
+    );
+    const reserve = LOCAL_RESERVE_BYTES;
+    const room = (free: number): number => freeBytesAt(t.dir('layout-room'), () => ({ bavail: free, bsize: 1 })) ?? 0;
+    t.check(
+      layoutNextStep(0, 0, reserve) === 'done' &&
+        layoutNextStep(3762504530, room(40 * GB), reserve) === 'stage' &&
+        layoutNextStep(3762504530, room(20 * GB), reserve) === 'skip' &&
+        layoutNextStep(null, room(40 * GB), reserve) === 'stage',
+      'a failed layout is built on the sandbox disk only with room for it (12 GB plus the reserve)',
+    );
+    t.equal(
+      freeBytesAt(path.join(t.dir('layout-room'), 'not', 'there'), () => ({ bavail: 3, bsize: 2 })),
+      6,
+      'free room of a folder that does not exist asks its parent',
+    );
+    t.equal(
+      freeBytesAt(t.dir('layout-room'), () => {
+        throw new Error('no');
+      }),
+      null,
+      'unknown free room is null',
+    );
+
+    t.section('signers');
+    const ms = { subject: SIGNERS.microsoft.subject, issuer: undefined };
+    const msSig = {
+      subject: 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US',
+      issuer: 'CN=Microsoft Code Signing PCA',
+    };
+    t.check(
+      signerMatches(msSig, ms) &&
+        !signerMatches({ ...msSig, subject: 'CN=Microsoft Corporation Fake, O=Evil' }, ms) &&
+        !signerMatches(null, ms) &&
+        signerMatches({ subject: 'CN="Valve Corp.", O=Valve', issuer: 'x' }, SIGNERS.valve) &&
+        signerMatches({ subject: 'CN=Unity Technologies ApS', issuer: 'x' }, SIGNERS.unity) &&
+        !signerMatches({ subject: 'CN=Microsoft Corporation', issuer: 'x' }, SIGNERS.valve) &&
+        signerMatches(msSig, { subject: ['^CN=Microsoft'], issuer: ['code signing'] }) &&
+        !signerMatches(msSig, { subject: ['^CN=Microsoft'], issuer: ['nobody'] }),
+      'a signer matches by subject (and issuer when named), never an empty or unsigned file',
+    );
+
+    t.section('not ready yet');
+    const everything = structuredClone(on);
+    for (const name of NOT_READY.toolchains) (everything[name] as { enabled: boolean | 'auto' }).enabled = 'auto';
+    const found = decideToolchains(everything, ['ProjectVersion.txt', 'project.godot', 'fxmanifest.lua'], ['unity']);
+    t.check(
+      NOT_READY.toolchains.every((n) => !found[n].on),
+      '"auto" never turns on a toolchain that is not written yet, whatever the project holds',
+    );
+    const shown = settingsOf(ConfigFile.user(t.at('settings', 'config.json'))).map((r) => r.key.join('.'));
+    t.check(
+      !shown.some((k) => /^toolchains\.(unity|godot|android|flutter|dart|reactNative)\./.test(k)) &&
+        shown.includes('toolchains.unreal.visualStudio') &&
+        shown.some((k) => k.startsWith('toolchains.fivem.')),
+      'settings do not list the toolchains that are not written yet',
     );
   },
 };

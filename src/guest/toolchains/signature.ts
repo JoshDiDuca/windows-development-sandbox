@@ -1,7 +1,6 @@
-// An app download's Authenticode signature (sandbox\scripts\get-signature.ps1), checked against the signer its
-// catalogue entry names (AppEntry.signer): for vendors that publish no checksum, the signature is the integrity.
+// A file's Authenticode signature (sandbox\scripts\get-signature.ps1) checked against the signer a download names.
 import { z } from 'zod';
-import { signerMatches, type AppSigner, type Signature } from '../../shared/apps/index.js';
+import { signerMatches, type AppSigner, type Signature } from '../../shared/signer.js';
 import { scriptOutput } from '../runtime/process.js';
 
 const SignatureSchema = z.object({ subject: z.string().max(4096), issuer: z.string().max(4096) });
@@ -18,9 +17,7 @@ export function signatureOf(file: string): Signature | null {
   }
 }
 
-/** A downloader `verify` hook: refuses a file `signer` did not sign (it counts as integrity for requireChecksum). */
-export function signerCheck(signer: AppSigner, what: string): (file: string) => void {
-  return (file) => {
-    if (!signerMatches(signatureOf(file), signer)) throw new Error(what + ' is not signed by its vendor');
-  };
+/** Whether a file's valid signature is the expected signer's. */
+export function signedBy(file: string, signer: AppSigner): boolean {
+  return signerMatches(signatureOf(file), signer);
 }

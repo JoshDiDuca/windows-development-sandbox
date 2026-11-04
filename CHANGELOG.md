@@ -7,6 +7,16 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.25.0
+
+- **Visual Studio is installed once and kept.** The first boot that needs it (Unreal, Flutter desktop, Unity IL2CPP)
+  installs it and saves it on the data disk (`tools\visualstudio\persist`, about 6.5 GB for Community with the Windows
+  SDK); every later boot puts it back in a few seconds, with no download, no install and nothing big on the sandbox's
+  disk. `vswhere`, `vcvars64`, MSBuild and UnrealBuildTool find it there. The offline install files are gone (the
+  installer always crashed making them in a sandbox), and so are `toolchains.unreal.keepInstallFiles` and
+  `visualStudio: "autosdk"` (a saved Visual Studio does what it was for); `sandbox migrate` removes them from your
+  settings. New: `visualStudio: "buildtools"` builds Unreal with the Visual Studio Build Tools only (no IDE).
+
 ## 1.24.1
 
 - **Codex no longer blocks reading the workspace when started by hand.** A `codex` installed with `npm i -g` (in Node's
@@ -14,7 +24,6 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   its own Windows sandbox. The sandbox's agent commands now come first on PATH, and `config.toml` carries
   `sandbox_mode` and `approval_policy` from the codex settings (marked lines; your own lines win), so any Codex start
   obeys them.
-
 
 ## 1.24.0
 

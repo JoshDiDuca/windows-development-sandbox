@@ -1,7 +1,8 @@
 // Unreal Engine development (toolchains.unreal): the DirectX End-User Runtime the engine lists (a real installer: it
 // runs every boot), then the engines (engines/unreal-engines.ts: the launcher's install folder on the data disk, PC
-// engines from pcInstalls, the derived data cache). Visual Studio Community with the C++ game workload is its own step
-// (visual-studio.ts), which the plan runs first. The engine itself comes from the Epic Games Launcher or its source.
+// engines from pcInstalls, the derived data cache). Visual Studio (Community with the C++ game workload, or the Build
+// Tools) is its own step (visual-studio.ts), which the plan runs first. The engine itself comes from the Epic Games
+// Launcher or its source.
 import os from 'node:os';
 import path from 'node:path';
 import type { Toolchains } from '../../../core/types.js';
@@ -14,7 +15,6 @@ import { setupUnrealEngines } from '../engines/unreal-engines.js';
 import { SIGNERS, signedInstaller } from '../installers.js';
 import type { ToolCtx } from '../step.js';
 import { tool, type ToolEnv } from '../tool-env.js';
-import { setupAutosdk } from './autosdk.js';
 import { installedVs } from './visual-studio.js';
 
 export { UNREAL_COMPONENTS } from './vs-request.js';
@@ -65,12 +65,11 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], ct
     return;
   }
   await installDirectX();
-  if (config.visualStudio === 'autosdk') await setupAutosdk(env);
   await setupUnrealEngines(env, config, ctx);
   const vs = installedVs();
   env.summary.push(
     'unreal: ' +
-      (vs ? 'Visual Studio ' + vs.version + ' (C++ game workload, Windows 11 SDK, Unreal support); ' : '') +
+      (vs ? 'Visual Studio ' + vs.version + ' at ' + vs.path + '; ' : '') +
       'DirectX End-User Runtime; get the engine from the Epic Games Launcher (Start menu)',
   );
 }

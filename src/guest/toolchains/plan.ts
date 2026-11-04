@@ -28,7 +28,7 @@ import type { ToolchainOptions, ToolchainStep, ToolCtx } from './step.js';
 import {
   ensureVisualStudio,
   prefetchVisualStudio,
-  unrealUsesAutosdk,
+  visualStudioSaved,
   visualStudioWanted,
 } from './native/visual-studio.js';
 import { duringSession } from '../runtime/project-context.js';
@@ -60,8 +60,6 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
   const android = wanted(config.android.enabled, 'android');
   // One Visual Studio for every toolchain that needs the real one (Unreal, Flutter desktop, Unity IL2CPP).
   const vs = visualStudioWanted(config, (setting, name) => wanted(setting, name));
-  // Unreal on the portable MSVC (AutoSDK) needs that MSVC even when nothing else asked for it.
-  const autosdk = unrealUsesAutosdk(config, (setting, name) => wanted(setting, name));
   const ctx: ToolCtx = {
     refresh: o.refresh,
     pcInstalls: o.pcInstalls ?? { items: [] },
@@ -87,36 +85,30 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       enabled: wanted(config.cpp.enabled, 'cpp') || wanted(config.rust.enabled, 'rust'),
       install: (env) => setupCpp(env, config.cpp),
     },
-    // Visual Studio brings MSVC and the real vswhere: the portable MSVC (and its stand-in vswhere) stays out.
+    // Visual Studio brings MSVC and the real vswhere: the portable MSVC (and its stand-in vswhere) stays out. Only the
+    // first install goes to the background: a saved copy is back in seconds, before the agent starts.
     {
       name: 'Visual Studio',
       enabled: vs !== null,
       shared: true,
-      background: deferred,
+      background: deferred && !visualStudioSaved(vs!),
       ...ahead(() => prefetchVisualStudio(vs!)),
       install: async (env) => {
-        await ensureVisualStudio(env, vs!, { keepInstallFiles: config.unreal.keepInstallFiles, lowPriority: deferred });
+        await ensureVisualStudio(env, vs!, { lowPriority: deferred });
       },
     },
     {
       name: 'Unreal',
       enabled: unreal,
       shared: true,
-      after: ['Visual Studio', 'MSVC'],
+      after: ['Visual Studio'],
       ...ahead(() => fetchDirectX(config.unreal)),
       install: (env) => setupUnreal(env, config.unreal, ctx),
     },
     {
       name: 'MSVC',
-      enabled: (wanted(config.msvc.enabled, 'msvc') || (autosdk && config.msvc.enabled !== false)) && vs === null,
-      // The same Visual Studio licence terms, which Unreal's acceptLicense already names.
-      install: (env) =>
-        setupMsvc(
-          env,
-          autosdk
-            ? { ...config.msvc, acceptLicense: config.msvc.acceptLicense || config.unreal.acceptLicense }
-            : config.msvc,
-        ),
+      enabled: wanted(config.msvc.enabled, 'msvc') && vs === null,
+      install: (env) => setupMsvc(env, config.msvc),
     },
     // Rust links with MSVC (msvc host) or MinGW's gcc (GNU host): whichever it uses goes first.
     {
@@ -189,10 +181,11 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
     },
     { name: 'Ruby', enabled: wanted(config.ruby.enabled, 'ruby'), install: (env) => setupRuby(env, config.ruby) },
     // PHP installs the Visual C++ runtime itself: one installer at a time.
-    // Many apps (bat, delta, Neovim, most GUIs, your own programs) are built against it too.
+    // Many apps (bat, delta, Neovim, most GUIs, your own programs) are built against it too, and so is what Visual
+    // Studio builds: a Visual Studio put back from the data disk does not bring it, as its installer did.
     {
       name: 'Visual C++ runtime',
-      enabled: config.vcRuntime.enabled || apps,
+      enabled: config.vcRuntime.enabled || apps || vs !== null,
       shared: true,
       ...ahead(fetchVcRuntime),
       install: async (env) => {

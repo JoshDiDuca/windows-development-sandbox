@@ -89,7 +89,6 @@ export const DEFAULTS: Config = {
       enabled: 'auto',
       acceptLicense: false,
       components: [],
-      keepInstallFiles: true,
       visualStudio: 'full',
       persistEngines: true,
       derivedDataCache: 'persisted',

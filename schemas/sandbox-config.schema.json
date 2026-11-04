@@ -549,7 +549,7 @@
                   "const": "auto"
                 }
               ],
-              "description": "Unreal Engine development: Visual Studio Community 2022 with the C++ game workload (MSVC, a Windows 11 SDK, .NET Framework targeting packs, Unreal integration and the Epic Games Launcher) and the DirectX End-User Runtime. A real installer: it runs every boot (~10 GB on the sandbox disk). The engine itself comes from the Epic Games Launcher or its source. true, false, or \"auto\" = only when the project has a .uproject or .uplugin."
+              "description": "Unreal Engine development: Visual Studio Community 2022 with the C++ game workload (MSVC, a Windows 11 SDK, .NET Framework targeting packs, Unreal integration and the Epic Games Launcher) and the DirectX End-User Runtime. Visual Studio is installed once and kept on the data disk (~6.5 GB); later boots put it back in seconds. The engine itself comes from the Epic Games Launcher or its source. true, false, or \"auto\" = only when the project has a .uproject or .uplugin."
             },
             "acceptLicense": {
               "type": "boolean",
@@ -562,17 +562,13 @@
               },
               "description": "More Visual Studio workload or component IDs to add, e.g. [\"Microsoft.VisualStudio.Component.VC.Llvm.Clang\"]."
             },
-            "keepInstallFiles": {
-              "type": "boolean",
-              "description": "Keep an offline copy of the Visual Studio install files in tools\\visualstudio (~10 GB, made once), so later boots install without downloading them again. Skipped while that disk has too little room."
-            },
             "visualStudio": {
               "type": "string",
               "enum": [
                 "full",
-                "autosdk"
+                "buildtools"
               ],
-              "description": "\"full\": install Visual Studio Community (the engine finds it through the Setup API; ~10 GB, redone every boot). \"autosdk\" (experimental): skip Visual Studio and build an Unreal AutoSDK tree from the portable MSVC in tools\\unreal\\autosdk (kept between sandboxes); UnrealBuildTool finds MSVC through AutoSDK, but the editor's Visual Studio integration is not available. Needs toolchains.msvc (turned on for you)."
+              "description": "\"full\": Visual Studio Community with the C++ game workload (the IDE, its debugger and Unreal integration). \"buildtools\": only the Visual Studio Build Tools (MSVC, the Windows SDK and the .NET Framework parts UnrealBuildTool needs; no IDE). Either is installed once and kept on the data disk (tools\\visualstudio\\persist, ~6.5 GB for Community); later boots put it back in seconds."
             },
             "persistEngines": {
               "type": "boolean",

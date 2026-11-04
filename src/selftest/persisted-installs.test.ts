@@ -1,6 +1,7 @@
 // Large installs kept between sandboxes (guest/toolchains/persisted.ts): the staging folder and its TEMP, the marker,
 // the refusal when the disk is short (an injected statfs), keeping only keepVersions, the records `sandbox data`
-// reads, and which Visual Studio the toolchains ask for (vs-request.ts). Temp folders only.
+// reads, which Visual Studio the toolchains ask for (vs-request.ts), and how it is saved on the data disk and put
+// back (vs-persist.ts: folders, marker, instance state, registry). Temp folders only.
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULTS } from '../core/config/index.js';
@@ -15,16 +16,27 @@ import {
 } from '../guest/toolchains/persisted.js';
 import {
   BUILD_TOOLS_COMPONENTS,
+  UNREAL_BUILD_TOOLS_COMPONENTS,
   UNREAL_COMPONENTS,
   visualStudioWanted,
-} from '../guest/toolchains/native/vs-request.js';
-import {
-  autosdkLayout,
-  layoutNextStep,
-  STAGING_RESERVE_BYTES,
-  unrealUsesAutosdk,
   vsExitText,
 } from '../guest/toolchains/native/vs-request.js';
+import {
+  markerFrom,
+  newestInstance,
+  persistCovers,
+  rebase,
+  registryPlan,
+  restoreInput,
+  rewriteInstanceState,
+  SaveResultSchema,
+  saveInput,
+  SETUP_CLSID,
+  VsPersistMarkerSchema,
+  type RegEntry,
+  type VsPersistMarker,
+  type WinPlaces,
+} from '../guest/toolchains/native/vs-persist.js';
 import { freeBytesAt } from '../shared/io/disk.js';
 import { SIGNERS, signerMatches } from '../shared/signer.js';
 import { decideToolchains } from '../core/detect/toolchains.js';
@@ -38,7 +50,8 @@ const GB = 1024 ** 3;
 
 export const persistedInstallsSuite: Suite = {
   name: 'persisted-installs',
-  title: 'large persisted installs: staging, marker, room checks, pruning, records; the Visual Studio request',
+  title:
+    'large persisted installs: staging, marker, room checks, pruning, records; Visual Studio: request, save, restore',
   run: async (t) => {
     t.section('installing a version');
     const tools = t.dir('persisted-tools');
@@ -191,41 +204,251 @@ export const persistedInstallsSuite: Suite = {
       'with Unreal: one Community install serves all of them',
     );
 
-    t.section('Unreal on the portable MSVC (autosdk)');
-    tc.unreal.visualStudio = 'autosdk';
-    const noUnreal = visualStudioWanted(tc);
+    t.section('Unreal on the Build Tools');
+    tc.unreal.visualStudio = 'buildtools';
+    const bt = visualStudioWanted(tc);
     t.check(
-      noUnreal?.product === 'buildtools' && noUnreal.for.join() === 'flutter,unity',
-      'autosdk: Unreal asks for no Visual Studio (the others still get the Build Tools)',
+      bt?.product === 'buildtools' &&
+        bt.for.join() === 'unreal,flutter,unity' &&
+        bt.licence === 'toolchains.unreal.acceptLicense' &&
+        UNREAL_BUILD_TOOLS_COMPONENTS.every((c) => bt.components.includes(c)) &&
+        BUILD_TOOLS_COMPONENTS.every((c) => bt.components.includes(c)) &&
+        bt.components.includes('Microsoft.VisualStudio.Component.VC.Llvm.Clang'),
+      '"buildtools": the Build Tools with what UnrealBuildTool needs, shared with Flutter and Unity',
     );
-    tc.flutter.enabled = false;
-    tc.unity.enabled = false;
-    t.equal(visualStudioWanted(tc), null, 'autosdk alone: no Visual Studio at all');
-    t.check(
-      unrealUsesAutosdk(tc, (s) => s === true) && !unrealUsesAutosdk(DEFAULTS.toolchains),
-      'autosdk is only when asked',
-    );
-    const pairs = autosdkLayout('T:\\msvc', '14.44.35207', '10.0.26100.0', 'T:\\autosdk');
-    t.check(
-      pairs.length === 4 &&
-        pairs[0].to === 'T:\\autosdk\\HostWin64\\Win64\\VS2022\\14.44.35207' &&
-        pairs[0].from === 'T:\\msvc\\VC\\Tools\\MSVC\\14.44.35207' &&
-        pairs[1].from === 'T:\\msvc\\Windows Kits\\10\\Include\\10.0.26100.0' &&
-        pairs[1].to === 'T:\\autosdk\\HostWin64\\Win64\\Windows Kits\\10\\Include\\10.0.26100.0',
-      'the AutoSDK tree is MSVC under VS2022\\<version> and the SDK under Windows Kits\\10 (copies)',
+    t.equal(
+      DEFAULTS.toolchains.unreal.visualStudio,
+      'full',
+      'Community is the default (the IDE, its debugger and Unreal integration)',
     );
     const on = DEFAULTS.toolchains;
-    const auto = {
-      ...structuredClone(on),
-      unreal: { ...on.unreal, visualStudio: 'autosdk' as const, acceptLicense: true },
-    };
-    const decided = decideToolchains(auto, ['Game.uproject'], []);
+    const decided = decideToolchains(
+      { ...structuredClone(on), unreal: { ...on.unreal, acceptLicense: true } },
+      ['Game.uproject'],
+      [],
+    );
     t.check(
-      decided.unreal.on && decided.msvc.on,
-      'an Unreal project with autosdk turns the portable MSVC on, under its licence',
+      decided.unreal.on && !decided.msvc.on,
+      'an Unreal project does not turn the portable MSVC on (Visual Studio brings MSVC)',
     );
 
-    t.section('the Visual Studio layout');
+    t.section('Visual Studio kept on the data disk');
+    const places: WinPlaces = {
+      programFiles: 'C:\\Program Files',
+      programFilesX86: 'C:\\Program Files (x86)',
+      programData: 'C:\\ProgramData',
+    };
+    const root = 'C:\\AgentData\\tools\\visualstudio\\persist';
+    const community = 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community';
+    const instances = 'C:\\ProgramData\\Microsoft\\VisualStudio\\Packages\\_Instances';
+    const vsAt = { product: 'community' as const, installationPath: community, instanceId: 'a190d188' };
+    const save = saveInput(vsAt, root, places, 'T:\\result.json');
+    const saved = (name: string) => save.copies.find((c) => c.name === name);
+    t.check(
+      saved('Community')?.from === community &&
+        saved('Community')?.to === root + '\\Community' &&
+        saved('WindowsKits10')?.from === 'C:\\Program Files (x86)\\Windows Kits\\10' &&
+        saved('instance')?.from === instances + '\\a190d188' &&
+        saved('instance')?.to === root + '\\instance' &&
+        saved('Setup')?.from === 'C:\\ProgramData\\Microsoft\\VisualStudio\\Setup' &&
+        saved('Installer')?.optional === false &&
+        saved('ReferenceAssemblies')?.optional === true &&
+        save.resultFile === 'T:\\result.json',
+      'the capture mirrors the install, the Windows SDK, the installer, the Setup API and the instance onto the data disk',
+    );
+    t.check(
+      save.registry.length === 8 &&
+        save.registry.filter((r) => r.view === '32').length === 4 &&
+        save.registry.some((r) => r.key.endsWith('NETFXSDK') && r.recurse) &&
+        save.registry.some((r) => r.key.endsWith('Installed Roots') && r.names?.join() === 'KitsRoot10'),
+      'it reads the SDK registry values in both views (NETFXSDK with its subkeys, only KitsRoot10 of the kits roots)',
+    );
+    await t.throws(
+      () => Promise.resolve(saveInput({ ...vsAt, instanceId: '..\\x' }, root, places, 'r')),
+      'not a Visual Studio instance ID',
+      'an instance ID is never a path',
+    );
+
+    const captured: RegEntry[] = [
+      {
+        view: '64',
+        key: 'SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots',
+        name: 'KitsRoot10',
+        kind: 'string',
+        value: 'C:\\Program Files (x86)\\Windows Kits\\10\\',
+      },
+      {
+        view: '32',
+        key: 'SOFTWARE\\Microsoft\\Microsoft SDKs\\Windows\\v10.0',
+        name: 'ProductVersion',
+        kind: 'string',
+        value: '10.0.22621',
+      },
+      {
+        view: '32',
+        key: 'SOFTWARE\\Microsoft\\Microsoft SDKs\\NETFXSDK\\4.8',
+        name: 'KitsInstallationFolder',
+        kind: 'string',
+        value: 'C:\\Program Files (x86)\\Windows Kits\\NETFXSDK\\4.8\\',
+      },
+      {
+        view: '32',
+        key: 'SOFTWARE\\Microsoft\\Microsoft SDKs\\NETFXSDK\\4.8\\WinSDK-NetFx40Tools-x64',
+        name: 'InstallationFolder',
+        kind: 'string',
+        value: 'c:\\program files (x86)\\Microsoft SDKs\\Windows\\v10.0A\\bin\\NETFX 4.8 Tools\\x64\\',
+      },
+      {
+        view: '64',
+        key: 'SOFTWARE\\Microsoft\\VisualStudio\\Setup',
+        name: 'KeepDownloadedPayloads',
+        kind: 'dword',
+        value: 0,
+      },
+      {
+        view: '64',
+        key: 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run',
+        name: 'planted',
+        kind: 'string',
+        value: 'C:\\planted.exe',
+      },
+    ];
+    const result = SaveResultSchema.parse({
+      copied: [
+        'Community',
+        'WindowsKits10',
+        'NETFXSDK',
+        'MicrosoftSDKs-v10.0A',
+        'ReferenceAssemblies',
+        'Installer',
+      ].concat(['Setup', 'instance']),
+      registry: captured,
+    });
+    const marker: VsPersistMarker = VsPersistMarkerSchema.parse(
+      markerFrom(
+        { product: 'community', components: [...UNREAL_COMPONENTS] },
+        { installationPath: community, instanceId: 'a190d188', version: '17.14.37827.9' },
+        result,
+        '2026-11-04T00:00:00.000Z',
+      ),
+    );
+    t.check(
+      marker.sdkVersion === '10.0.22621' && marker.instanceId === 'a190d188' && marker.folders.length === 8,
+      'the marker keeps the instance ID, what was saved and the Windows SDK version from the registry',
+    );
+    t.check(
+      !VsPersistMarkerSchema.safeParse({ ...marker, instanceId: '..\\..\\Windows' }).success &&
+        !VsPersistMarkerSchema.safeParse({ ...marker, folders: ['..'] }).success,
+      'a marker with a path for its instance ID, or a folder it does not know, is refused',
+    );
+
+    const plan = registryPlan(marker, root, places);
+    const value = (view: string, key: string, name: string) =>
+      plan.find((e) => e.view === view && e.key.toLowerCase() === key.toLowerCase() && e.name === name)?.value;
+    const kits = root + '\\WindowsKits10\\';
+    const sdk = 'SOFTWARE\\Microsoft\\Microsoft SDKs\\Windows\\v10.0';
+    const netfx = 'SOFTWARE\\Microsoft\\Microsoft SDKs\\NETFXSDK\\4.8';
+    t.check(
+      ['64', '32'].every(
+        (v) =>
+          value(v, 'SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots', 'KitsRoot10') === kits &&
+          value(v, sdk, 'InstallationFolder') === kits &&
+          value(v, sdk, 'ProductVersion') === '10.0.22621' &&
+          value(v, netfx, 'KitsInstallationFolder') === root + '\\NETFXSDK\\4.8\\' &&
+          value(v, netfx + '\\WinSDK-NetFx40Tools-x64', 'InstallationFolder') ===
+            root + '\\MicrosoftSDKs-v10.0A\\bin\\NETFX 4.8 Tools\\x64\\' &&
+          value(v, 'SOFTWARE\\Microsoft\\VisualStudio\\Setup', 'KeepDownloadedPayloads') === 0,
+      ),
+      'both registry views point the Windows SDK and the .NET Framework SDK at the data disk (any case); the rest stays',
+    );
+    const clsid = 'SOFTWARE\\Classes\\CLSID\\' + SETUP_CLSID + '\\InprocServer32';
+    const setupDll = 'Microsoft.VisualStudio.Setup.Configuration.Native.dll';
+    t.check(
+      value('64', clsid, '') === 'C:\\ProgramData\\Microsoft\\VisualStudio\\Setup\\x64\\' + setupDll &&
+        value('32', clsid, '') === 'C:\\ProgramData\\Microsoft\\VisualStudio\\Setup\\x86\\' + setupDll &&
+        value('64', clsid, 'ThreadingModel') === 'Both' &&
+        value('32', clsid, 'ThreadingModel') === 'Both',
+      'the Setup Configuration COM class is registered (x64 and x86), so vswhere and UnrealBuildTool find the instance',
+    );
+    t.check(
+      !plan.some((e) => /CurrentVersion\\Run/i.test(e.key)),
+      'a value the capture never reads is never written back (a tampered marker)',
+    );
+
+    const back = restoreInput(marker, root, places);
+    const copied = (name: string) => back.copies.find((c) => c.name === name);
+    t.check(
+      !copied('Community') &&
+        !copied('WindowsKits10') &&
+        !copied('NETFXSDK') &&
+        !copied('Shared') &&
+        copied('Installer')?.to === 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer' &&
+        copied('Installer')?.mode === 'all' &&
+        copied('ReferenceAssemblies')?.mode === 'missing' &&
+        copied('instance')?.from === root + '\\instance' &&
+        copied('instance')?.to === instances + '\\a190d188' &&
+        back.registry.length === plan.length,
+      'a boot copies back only the small fixed-path folders that were saved (the instance under its ID); the big ones stay',
+    );
+
+    t.check(
+      persistCovers(marker, { product: 'community', components: [...UNREAL_COMPONENTS] }) &&
+        persistCovers(marker, { product: 'community', components: ['component.unreal'] }) &&
+        !persistCovers(marker, {
+          product: 'community',
+          components: [...UNREAL_COMPONENTS, 'Microsoft.VisualStudio.Component.VC.Llvm.Clang'],
+        }) &&
+        persistCovers(marker, { product: 'buildtools', components: [...BUILD_TOOLS_COMPONENTS] }) &&
+        !persistCovers({ ...marker, product: 'buildtools' }, { product: 'community', components: [] }) &&
+        !persistCovers(
+          { ...marker, folders: marker.folders.filter((f) => f !== 'Setup') },
+          {
+            product: 'community',
+            components: [],
+          },
+        ),
+      'a saved copy serves requests with no more components (Community serves the Build Tools too); one without the Setup API none',
+    );
+
+    const state = JSON.stringify({
+      installationPath: community,
+      resolvedInstallationPath: community.toLowerCase(),
+      nested: community + '\\Common7\\IDE',
+      longer: community + '2',
+      launchParams: { fileName: 'Common7\\IDE\\devenv.exe' },
+      enginePath: 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\resources\\app',
+    });
+    const moved = JSON.parse(rewriteInstanceState(state, community, root + '\\Community')) as Record<string, unknown>;
+    t.check(
+      moved.installationPath === root + '\\Community' &&
+        moved.resolvedInstallationPath === root + '\\Community' &&
+        moved.nested === root + '\\Community\\Common7\\IDE' &&
+        moved.longer === community + '2' &&
+        moved.enginePath === 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\resources\\app',
+      "the instance's state names the saved folder (JSON-escaped, any case); a longer name that only starts the same stays",
+    );
+    const buildTools = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools';
+    const movedBt = JSON.parse(
+      rewriteInstanceState(JSON.stringify({ installationPath: buildTools }), buildTools + '\\', root + '\\BuildTools'),
+    ) as Record<string, unknown>;
+    t.check(
+      movedBt.installationPath === root + '\\BuildTools' &&
+        rebase('D:\\Other\\x', [{ from: 'C:\\Program Files', to: 'D:\\y' }]) === 'D:\\Other\\x',
+      'the Build Tools too (a trailing backslash does not matter); a value outside the saved folders is kept',
+    );
+
+    t.equal(
+      newestInstance([
+        { installationVersion: '17.9.1', id: 'a' },
+        { installationVersion: '17.14.37827.9', id: 'b' },
+        { installationVersion: '17.14.3', id: 'c' },
+      ])?.id,
+      'b',
+      'the newest instance is chosen by version (vswhere -latest fails on two instances installed at the same time)',
+    );
+    t.equal(newestInstance([]), null, 'no instance: none');
+
+    t.section('the Visual Studio installer');
     t.check(
       vsExitText(3762504530).includes('crashed') &&
         vsExitText(-1).includes('exit 4294967295') &&
@@ -235,21 +458,6 @@ export const persistedInstallsSuite: Suite = {
         vsExitText(3010).includes('restart') &&
         vsExitText(5007).includes('refused'),
       'installer exit codes are told in words (0xE0434352 is a crash)',
-    );
-    const reserve = LOCAL_RESERVE_BYTES;
-    const room = (free: number): number => freeBytesAt(t.dir('layout-room'), () => ({ bavail: free, bsize: 1 })) ?? 0;
-    t.check(
-      layoutNextStep(0, 0, reserve) === 'done' &&
-        layoutNextStep(3762504530, room(40 * GB), reserve) === 'stage' &&
-        layoutNextStep(3762504530, room(20 * GB), reserve) === 'skip' &&
-        layoutNextStep(null, room(40 * GB), reserve) === 'stage',
-      'a failed layout is built on the sandbox disk only with room for it (8 GB plus the reserve)',
-    );
-    t.check(
-      layoutNextStep(null, room(14 * GB), STAGING_RESERVE_BYTES) === 'stage' &&
-        layoutNextStep(null, room(9.5 * GB), STAGING_RESERVE_BYTES) === 'stage' &&
-        layoutNextStep(null, room(9 * GB), STAGING_RESERVE_BYTES) === 'skip',
-      'before Visual Studio is installed, the ~14 GB free at boot is enough to build the install files (9.5 GB needed)',
     );
     t.equal(
       freeBytesAt(path.join(t.dir('layout-room'), 'not', 'there'), () => ({ bavail: 3, bsize: 2 })),

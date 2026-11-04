@@ -2,7 +2,7 @@
 import path from 'node:path';
 import type { ToolEnv } from '../toolchains/index.js';
 import { claudeDir, session, stateDir, workspace } from '../runtime/session.js';
-import { dataDir, dryRun, isWin, testMode, toolsDir } from '../runtime/paths.js';
+import { dataDir, dryRun, isWin, localDir, testMode, toolsDir } from '../runtime/paths.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { execOutput, runScriptWithJson, runScriptWithJsonAsync } from '../runtime/process.js';
 import { SYSTEM } from '../../shared/system.js';
@@ -14,10 +14,10 @@ import {
   appendMissing,
   expandVars,
   isPinnedNodeDir,
-  msvcBeforeGitUsr,
   parseRegPath,
   pathKey,
   planPath,
+  sessionPath,
 } from './path-plan.js';
 
 /** Older launch folders have no agentHomes: these two were always set. */
@@ -83,8 +83,13 @@ export function agentEnv(
   // The runner's own Node (bootstrap.ps1 puts it first on PATH) is not exposed: `node` is whatever nvm selected.
   const runners = [path.join(toolsDir, 'node'), path.dirname(process.execPath)].map((d) => d.toLowerCase());
   const base = (target.base.PATH ?? '').split(path.delimiter).filter((d) => d && !runners.includes(d.toLowerCase()));
-  // MSVC's link.exe before Git's coreutils link.exe, wherever each came from.
-  env.PATH = msvcBeforeGitUsr([...new Set([...tools.prepend, ...base, ...tools.append])]).join(path.delimiter);
+  // The sandbox's commands (agent shims, sbx-db) first; MSVC's link.exe before Git's coreutils link.exe.
+  env.PATH = sessionPath({
+    commands: path.join(localDir, 'bin'),
+    prepend: tools.prepend,
+    base,
+    append: tools.append,
+  }).join(path.delimiter);
   return env;
 }
 

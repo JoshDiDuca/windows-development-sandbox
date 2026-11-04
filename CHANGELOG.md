@@ -13,6 +13,11 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   was open counted as a crash (it looks the same: busy, then gone, nothing in Windows' log) and was started again. Only
   ends Windows logged (a sandbox crash, low memory, a graphics driver reset, a Hyper-V error) restart it now; the
   others still get a crash report.
+- **Codex no longer blocks reading the workspace when started by hand.** A `codex` installed with `npm i -g` (in Node's
+  folder) came before the sandbox's own `codex` command on PATH, so it started without the sandbox's flags and set up
+  its own Windows sandbox. The sandbox's agent commands now come first on PATH, and `config.toml` carries
+  `sandbox_mode` and `approval_policy` from the codex settings (marked lines; your own lines win), so any Codex start
+  obeys them.
 
 ## 1.23.2
 

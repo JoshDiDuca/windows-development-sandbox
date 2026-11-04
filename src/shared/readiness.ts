@@ -6,7 +6,6 @@ export const NOT_READY = {
   toolchains: ['unity', 'godot', 'android', 'flutter', 'dart', 'reactNative'],
   /** Service sign-ins whose host or guest side is a stub: the menu and the web do not list them. */
   kinds: ['unity', 'keystore', 'play', 'expo', 'appstore'],
-  unreal: ['engines'],
 } as const satisfies Record<string, readonly string[]>;
 
 export const isToolchainReady = (name: string): boolean => !(NOT_READY.toolchains as readonly string[]).includes(name);

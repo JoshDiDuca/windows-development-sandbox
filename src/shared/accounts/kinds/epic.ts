@@ -11,9 +11,17 @@ const SECTION = '[rememberme]';
 
 export type EpicPayload = Payload<'epic'>;
 
-/** GameUserSettings.ini under a LocalAppData folder (the PC's or the sandbox's). */
+/** GameUserSettings.ini under a LocalAppData folder (the PC's or the sandbox's), where launchers before 17 keep it. */
 export function epicSettingsFile(localAppData: string): string {
   return localAppData + '\\EpicGamesLauncher\\Saved\\Config\\Windows\\GameUserSettings.ini';
+}
+
+/**
+ * Every GameUserSettings.ini the launcher may read, newest place first: launcher 17 and later (20.3 checked) keep it in
+ * Config\WindowsEditor, older ones in Config\Windows.
+ */
+export function epicSettingsFiles(localAppData: string): string[] {
+  return [localAppData + '\\EpicGamesLauncher\\Saved\\Config\\WindowsEditor\\GameUserSettings.ini', epicSettingsFile(localAppData)];
 }
 
 const isHeader = (line: string): boolean => line.trimStart().startsWith('[');

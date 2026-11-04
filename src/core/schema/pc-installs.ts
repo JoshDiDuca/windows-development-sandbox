@@ -24,11 +24,17 @@ export const PcInstallsSchema = z
       'Epic Games Launcher games (by their app name)',
       '["Fortnite"]',
     ),
-    unrealEngines: pick(
-      z.string().regex(/^(UE_)?\d+\.\d+$/),
-      'Unreal Engine versions installed with the Epic Games Launcher',
-      '["5.4"]',
-    ),
+    unrealEngines: z
+      .union([z.literal('auto'), z.boolean(), z.array(z.string().regex(/^(UE_)?\d+\.\d+$/))])
+      .describe(
+        'Unreal Engine versions installed on this PC (with the Epic Games Launcher, or source builds it lists), read-only in the sandbox under C:\\PcInstalls\\unreal and registered there, so projects build with them without a download. "auto" = all of them whenever the sandbox is set up for Unreal, true = always, false = never, or a list (e.g. ["5.4"]).',
+      ),
+    unrealEngineFolders: z
+      .array(z.string().min(3).max(260))
+      .max(8)
+      .describe(
+        'Unreal Engine folders of this PC to use in the sandbox, writable (a source build, or a copy you build plugins into): each must hold Engine\\Build\\Build.version. Mapped under C:\\PcInstalls\\unreal and registered there.',
+      ),
     unityEditors: pick(
       z.string().regex(/^\d+\.\d+\.\d+[abfp]\d+$/),
       'Unity editors installed with Unity Hub',

@@ -15,8 +15,19 @@ export interface PcInstall {
   readonly version?: string;
   /** The folder on this PC (never sent to the sandbox). */
   readonly host: string;
-  /** Where it appears in the sandbox, read-only. */
+  /** Where it appears in the sandbox, read-only unless `writable`. */
   readonly guest: string;
+  /** Mapped writable: an engine folder you registered (pcInstalls.unrealEngineFolders). */
+  readonly writable?: boolean;
+  /** An Unreal source build's registered name on this PC (HKCU\Software\Epic Games\Unreal Engine\Builds). */
+  readonly buildId?: string;
+  /** The Epic Games Launcher's own ids of the app (from this PC's LauncherInstalled.dat). */
+  readonly launcher?: {
+    readonly namespaceId: string;
+    readonly itemId: string;
+    readonly artifactId: string;
+    readonly appVersion: string;
+  };
 }
 
 /** What session.json says about them: no host paths. */

@@ -60,7 +60,13 @@ export const DEFAULTS: Config = {
     perplexity: { share: false },
     comet: { share: false },
   },
-  pcInstalls: { steamGames: false, epicGames: false, unrealEngines: false, unityEditors: false },
+  pcInstalls: {
+    steamGames: false,
+    epicGames: false,
+    unrealEngines: 'auto',
+    unrealEngineFolders: [],
+    unityEditors: false,
+  },
   provisioning: {
     copyFromHost: true,
     fallbackToInstall: true,

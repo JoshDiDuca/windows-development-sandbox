@@ -26,4 +26,6 @@ export const SIGNERS = {
   microsoft: { subject: ['^CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US$'] },
   valve: { subject: ['^CN="?Valve(,| Corp)'] },
   unity: { subject: ['^CN="?Unity Technologies'] },
+  /** The Epic Games Launcher's MSI (checked on EpicInstaller-20.3.3.msi). */
+  epic: { subject: ['^CN=Epic Games Inc\\., O=Epic Games Inc\\., L=Cary, S=North Carolina, C=US'] },
 } as const satisfies Record<string, AppSigner>;

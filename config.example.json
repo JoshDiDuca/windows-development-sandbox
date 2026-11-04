@@ -111,7 +111,8 @@
   "pcInstalls": {
     "steamGames": false,
     "epicGames": false,
-    "unrealEngines": false,
+    "unrealEngines": "auto",
+    "unrealEngineFolders": [],
     "unityEditors": false
   },
   "provisioning": {

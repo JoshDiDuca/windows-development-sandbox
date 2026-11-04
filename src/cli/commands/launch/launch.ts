@@ -241,22 +241,25 @@ class Launcher {
       : prepareGithubToken(config, ctx.storageRoot, undefined, bootWants.wants.projects);
     // accounts.<kind>.share: the saved service sign-ins this boot's toolchains use, for the one-shot file only.
     const launchId = newLaunchId();
+    const toolchainsOn = toolchainsOnForBoot({ run }, bootWants.wants.projects);
     const accounts = generateOnly
       ? null
       : prepareServiceAccounts({
           config,
           others: bootWants.wants.projects,
-          on: toolchainsOnForBoot({ run }, bootWants.wants.projects),
+          on: toolchainsOn,
           storageRoot: ctx.storageRoot,
           dataPath: run.dataPath,
           launchId,
           // A new launch needs no sandbox running, so a lease held elsewhere is from one that stopped.
           isRunning: () => isSandboxRunning(),
         });
-    // pcInstalls: this PC's games, engines and editors, read-only (yours only: never from a project file).
+    // pcInstalls: this PC's games, engines and editors, read-only (yours only: never from a project file). The
+    // engines ("auto") come along whenever this launch sets the sandbox up for Unreal.
     const pcInstalls = discoverPcInstalls(ctx.loaded.config.pcInstalls, {
       packageRoot: ctx.packageRoot,
       storageRoot: ctx.storageRoot,
+      unrealOn: toolchainsOn.has('unreal'),
     });
     // This PC's commit (RAM plus paging file) bounds the sandbox's memory as much as free RAM does.
     const hostMemory = generateOnly ? null : readHostMemory(ctx.storageRoot);

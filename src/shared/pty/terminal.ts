@@ -195,7 +195,8 @@ export function runTerminalClient(
     socket.on('error', () => finish({ reason: 'closed' }));
 
     const [c, r] = size();
-    stdout.write('\x1b[2J\x1b[3J\x1b[H');
+    // A clean screen, but the scrollback stays: the boot's summary (warnings, tools, Ready) is just above the session.
+    stdout.write('\x1b[2J\x1b[H');
     socket.write(helloFrame(token, c, r));
     if (stdin.isTTY) stdin.setRawMode(true);
     // After setRawMode (which sets the console mode): mouse reports, focus and keys then arrive as the terminal sent

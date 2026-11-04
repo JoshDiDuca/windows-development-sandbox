@@ -17,7 +17,7 @@ import {
   findUproject,
   hasMcpPlugin,
   itemSizes,
-  launcherEntry,
+  launcherEntriesFor,
   registryPlan,
   UNREAL_MCP_URL,
   unrealSummaryLine,
@@ -96,15 +96,7 @@ export function sandboxEngines(ctx: Pick<ToolCtx, 'pcInstalls'>, disk: EngineFs 
 
 /** The LauncherInstalled.dat entries for the installed builds: the launcher's own saved ones, else made from them. */
 export function launcherEntries(engines: readonly UnrealEngine[], ctx: Pick<ToolCtx, 'pcInstalls'>): LauncherEntry[] {
-  const saved = savedEntries();
-  return engines
-    .filter((e) => e.build === 'installed')
-    .map((e) => {
-      const own = saved.find((s) => s.InstallLocation.toLowerCase() === e.dir.toLowerCase());
-      if (own) return own;
-      const pc = ctx.pcInstalls.items.find((i) => i.kind === 'unreal' && i.guest.toLowerCase() === e.dir.toLowerCase());
-      return launcherEntry(e, pc?.launcher ?? null);
-    });
+  return launcherEntriesFor(engines, savedEntries(), ctx.pcInstalls.items);
 }
 
 /** Registers the engines machine-wide: the registry, LauncherInstalled.dat, the .uproject file association. */

@@ -299,24 +299,38 @@ export const INSTALLED_KEY = 'SOFTWARE\\EpicGames\\Unreal Engine';
 export const BUILDS_KEY = 'Software\\Epic Games\\Unreal Engine\\Builds';
 
 /**
+ * The installed build of each version that the editor and UnrealVersionSelector use: one per major.minor, chosen the
+ * way chooseEngine chooses (writable before read-only, then the newest).
+ */
+export function preferredInstalled(engines: readonly UnrealEngine[]): UnrealEngine[] {
+  const sorted = engines
+    .filter((e) => e.build === 'installed')
+    .sort((a, b) => preference(a) - preference(b) || compareVersions(b.version, a.version));
+  const seen = new Set<string>();
+  return sorted.filter((e) => {
+    const v = majorMinor(e.version);
+    if (seen.has(v)) return false;
+    seen.add(v);
+    return true;
+  });
+}
+
+/**
  * The registry values that make Unreal find the engines: an installed build as HKLM\SOFTWARE\EpicGames\Unreal
  * Engine\<5.4> InstalledDirectory (one per version: the one a project would pick), a source build as a value under
  * HKCU\Software\Epic Games\Unreal Engine\Builds.
  */
 export function registryPlan(engines: readonly UnrealEngine[]): RegistryValue[] {
-  const values: RegistryValue[] = [];
-  const versions = new Map<string, UnrealEngine>();
-  for (const e of engines) {
-    if (e.build === 'source') {
-      values.push({ hive: 'HKCU', key: BUILDS_KEY, name: e.id, value: e.dir });
-      continue;
-    }
-    const v = majorMinor(e.version);
-    const had = versions.get(v);
-    if (!had || preference(e) < preference(had)) versions.set(v, e);
-  }
-  for (const [v, e] of versions)
-    values.push({ hive: 'HKLM', key: INSTALLED_KEY + '\\' + v, name: 'InstalledDirectory', value: e.dir });
+  const values: RegistryValue[] = engines
+    .filter((e) => e.build === 'source')
+    .map((e): RegistryValue => ({ hive: 'HKCU', key: BUILDS_KEY, name: e.id, value: e.dir }));
+  for (const e of preferredInstalled(engines))
+    values.push({
+      hive: 'HKLM',
+      key: INSTALLED_KEY + '\\' + majorMinor(e.version),
+      name: 'InstalledDirectory',
+      value: e.dir,
+    });
   return values;
 }
 

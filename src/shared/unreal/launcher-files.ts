@@ -8,7 +8,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { readBoundedFile } from '../io/bounded.js';
 import { decodeText, encodeText } from '../io/text.js';
-import { launcherAppName, type BuildVersion, type UnrealEngine } from './engines.js';
+import { launcherAppName, preferredInstalled, type BuildVersion, type UnrealEngine } from './engines.js';
 
 const win = path.win32;
 
@@ -117,6 +117,24 @@ export function launcherEntry(engine: UnrealEngine, ids: LauncherIds | null = nu
     AppVersion: ids?.appVersion ?? appVersionText(engine.version),
     AppName: name,
   };
+}
+
+/**
+ * The LauncherInstalled.dat entries for the installed builds: only the one preferred for each version (Unreal keeps
+ * the LAST entry per app name, so a second UE_5.4 would shadow the first), with the launcher's own saved entry when
+ * there is one, else the ids copied from this PC, else made up.
+ */
+export function launcherEntriesFor(
+  engines: readonly UnrealEngine[],
+  saved: readonly LauncherEntry[],
+  pcItems: readonly { readonly kind: string; readonly guest: string; readonly launcher?: LauncherIds | null }[],
+): LauncherEntry[] {
+  return preferredInstalled(engines).map((e) => {
+    const own = saved.find((s) => s.InstallLocation.toLowerCase() === e.dir.toLowerCase());
+    if (own) return own;
+    const pc = pcItems.find((i) => i.kind === 'unreal' && i.guest.toLowerCase() === e.dir.toLowerCase());
+    return launcherEntry(e, pc?.launcher ?? null);
+  });
 }
 
 /**

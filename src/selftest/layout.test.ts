@@ -41,6 +41,8 @@ const PURE_GUEST = [
   'guest/governor/decide.js',
   'guest/governor/core.js',
   'guest/daemon/live-folders.js',
+  'guest/toolchains/native/vs-request.js',
+  'guest/toolchains/native/vs-persist.js',
 ];
 const SIDE_EFFECTS = ['guest/runtime/session.js', 'guest/runtime/log.js'];
 

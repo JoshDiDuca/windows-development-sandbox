@@ -235,6 +235,36 @@ export const migrateSuite: Suite = {
       fs.rmSync(machineFile);
     }
 
+    t.section('drop-vs-install-files');
+    const dropVs = MIGRATIONS.find((m) => m.id === '2026-11-drop-vs-install-files');
+    if (!dropVs) return t.check(false, 'the drop-vs-install-files migration exists');
+    const oldVs = t.write(
+      t.at('vs', 'old.json'),
+      '// mine\n' +
+        JSON.stringify({
+          toolchains: { unreal: { enabled: true, keepInstallFiles: true, visualStudio: 'autosdk', components: ['X'] } },
+        }),
+    );
+    const fullVs = t.write(
+      t.at('vs', 'full.json'),
+      JSON.stringify({ toolchains: { unreal: { visualStudio: 'full' } } }),
+    );
+    const vsNotes: string[] = [];
+    const vsWanted = dropVs.applies(ctx(t.at('vs'), oldVs)) && !dropVs.applies(ctx(t.at('vs'), fullVs));
+    await dropVs.run(ctx(t.at('vs'), oldVs), (line) => vsNotes.push(line));
+    const vsAfter = parse(readText(oldVs)) as { toolchains: { unreal: Record<string, unknown> } };
+    t.check(
+      vsWanted &&
+        vsAfter.toolchains.unreal.keepInstallFiles === undefined &&
+        vsAfter.toolchains.unreal.visualStudio === undefined &&
+        vsAfter.toolchains.unreal.enabled === true &&
+        readText(oldVs).includes('// mine') &&
+        vsNotes.join().includes('toolchains.unreal.keepInstallFiles') &&
+        loadConfig(oldVs).config.toolchains.unreal.visualStudio === 'full' &&
+        !dropVs.applies(ctx(t.at('vs'), oldVs)),
+      'the retired Visual Studio settings are removed (a chosen "full" stays), the file loads again, and it is idempotent',
+    );
+
     t.section('sandbox migrate');
     const cmdUser = t.dir('cmd-user');
     const cmdConfig = t.write(

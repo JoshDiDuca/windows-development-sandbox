@@ -400,9 +400,9 @@ sandbox at that point, in name order. Use them for real installers (MSI, winget)
 The hooks keep their contract with the parallel boot: `pre-provision` runs before any developer tool is set up, and
 `pre-agent` runs alone, after everything else the boot does before the agent starts (the toolchains, the environment,
 Git, the VPN, Claude's settings and the agent's install); the agent starts after it. Visual Studio (and what needs it:
-Unreal, Rust with the MSVC host) is the one exception: unless a VPN or `network.allowOnly` is on, it installs in the
-background after the agent has started, so `pre-agent` hooks do not wait for it. The sandbox's log says when it
-is done.
+Unreal, Rust with the MSVC host) is the one exception: the first time, unless a VPN or `network.allowOnly` is on, it
+installs in the background after the agent has started, so `pre-agent` hooks do not wait for it. The sandbox's log says
+when it is done. Later boots put the saved copy back in seconds, before the agent starts.
 
 ## Agent commands
 

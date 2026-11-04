@@ -57,18 +57,20 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
 { "toolchains": { "unreal": { "enabled": true, "acceptLicense": true } }, "sandbox": { "vGpu": true } }
 ```
 
-- Unreal's build tool finds Visual Studio through its installer, so the portable MSVC is not enough. With `unreal` on,
-  the portable MSVC is left out and Rust builds with Visual Studio's MSVC.
-- Visual Studio is a real installer, so it runs at every boot and takes about 7 GB of the sandbox's disk (about 40 GB,
-  shared with the paging file and every build). It is installed only when 20 GB are free; otherwise boot says so and
-  skips it.
-- Visual Studio installs in the background: the agent starts first, and Visual Studio (with Unreal, and Rust when it
-  builds with the MSVC host) finishes some minutes later, at a lower priority. A project that needs it in the meantime
-  is told that it is still installing. With a VPN or `network.allowOnly` it installs before the agent starts, because
-  their firewall would cut its downloads.
-- `keepInstallFiles` (default on) saves an offline copy of its install files in `tools\visualstudio` once (about 10 GB,
-  only when 15 GB are free). Later boots then install without downloading; otherwise each boot downloads 5-8 GB. The
-  installers run only when Microsoft's signature on them checks out.
+- Unreal's build tool finds Visual Studio through its installer's Setup API, so the portable MSVC is not enough. With
+  `unreal` on, the portable MSVC is left out and Rust builds with Visual Studio's MSVC.
+- Visual Studio is installed **once**, then kept on the data disk like your project files (`tools\visualstudio\persist`,
+  about 6.5 GB for Community with the Windows SDK). Every later boot puts it back in a few seconds: no download, no
+  install, nothing big on the sandbox's disk. See [what persists](#cc-and-visual-studio-what-persists).
+- The first install runs in the background: the agent starts first, and Visual Studio (with Unreal, and Rust when it
+  builds with the MSVC host) finishes some minutes later, at a lower priority, then is saved. A project that needs it in
+  the meantime is told that it is still installing. With a VPN or `network.allowOnly` it installs before the agent
+  starts, because their firewall would cut its downloads. That first install needs 20 GB free on the sandbox's disk
+  (about 40 GB, shared with the paging file and every build) and 8 GB on the data disk to be saved; the installer runs
+  only when Microsoft's signature on it checks out.
+- `visualStudio` picks what is installed: `"full"` (default) is Visual Studio Community with the IDE, its debugger and
+  Unreal integration; `"buildtools"` is only the Visual Studio Build Tools (MSVC, the Windows SDK and the .NET Framework
+  parts UnrealBuildTool needs), for builds without the IDE.
 - `acceptLicense: true` is required: Visual Studio Community and the DirectX runtime come under Microsoft's licence
   terms. `components` adds more Visual Studio workload or component IDs.
 - The engine itself is not installed. Sign in to the Epic Games Launcher (Start menu) and install it there, or build it
@@ -83,21 +85,20 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
 
 #### C/C++ and Visual Studio: what persists
 
-| What          | Kept between sandboxes                                             |
-| ------------- | ------------------------------------------------------------------ |
-| MinGW         | kept                                                               |
-| MSVC portable | kept                                                               |
-| VS layout     | kept (the offline copy of the install files, `tools\visualstudio`) |
-| VS install    | redone from the layout at boot, no download (about 10-20 minutes)  |
-| autosdk       | kept                                                               |
+| What                         | Kept between sandboxes                                                              |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| MinGW                        | kept                                                                                |
+| MSVC portable                | kept                                                                                |
+| VS install (and Windows SDK) | kept on the data disk (`tools\visualstudio\persist`), put back in seconds each boot |
 
-- The installer crashes (exit `0xE0434352`) when it builds the layout in the shared data folder, so the layout is built
-  on the sandbox's own disk before Visual Studio is installed (9.5 GB free needed; a sandbox has about 14 GB free at
-  boot), copied to `tools\visualstudio`, and deleted from C:. A failure is explained in the log, and the installer's log
-  is copied to `C:\AgentData\logs\vs-layout-<date>.log`.
-- `toolchains.unreal.visualStudio: "autosdk"` (experimental, default `"full"`) skips Visual Studio: UnrealBuildTool finds
-  the portable MSVC through an AutoSDK tree (`tools\unreal\autosdk`, copies, made once and kept). The editor's Visual
-  Studio integration is not available. It needs `toolchains.msvc`, turned on for you under Unreal's licence acceptance.
+- The first boot that needs Visual Studio installs it and saves it once (about 6.5 GB on the data disk for Community:
+  Visual Studio 4 GB, the Windows SDK 1.9 GB, the .NET Framework reference assemblies 0.4 GB, its installer). Later
+  boots copy back only the small parts programs look for at fixed paths (vswhere and the installer, the Setup API, the
+  instance record, the reference assemblies: a few seconds) and register the rest where it is, so `vswhere`, `vcvars64`,
+  MSBuild and UnrealBuildTool find Visual Studio and the Windows SDK on the data disk.
+- A saved copy is used when it holds every component asked for (Community also serves a Build Tools request). Asking
+  for more (`components`, or `"full"` after `"buildtools"`) installs once more and saves the new install over it.
+- The Visual C++ runtime is installed with it (programs you build need it, and a saved copy does not bring it).
 
 ### Game, modding and mobile toolchains
 

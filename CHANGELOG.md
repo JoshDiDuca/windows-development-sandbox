@@ -13,6 +13,13 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   was open counted as a crash (it looks the same: busy, then gone, nothing in Windows' log) and was started again. Only
   ends Windows logged (a sandbox crash, low memory, a graphics driver reset, a Hyper-V error) restart it now; the
   others still get a crash report.
+- **Visual Studio is installed once and kept.** The first boot that needs it (Unreal, Flutter desktop, Unity IL2CPP)
+  installs it and saves it on the data disk (`tools\visualstudio\persist`, about 6.5 GB for Community with the Windows
+  SDK); every later boot puts it back in a few seconds, with no download, no install and nothing big on the sandbox's
+  disk. `vswhere`, `vcvars64`, MSBuild and UnrealBuildTool find it there. The offline install files are gone (the
+  installer always crashed making them in a sandbox), and so are `toolchains.unreal.keepInstallFiles` and
+  `visualStudio: "autosdk"` (a saved Visual Studio does what it was for); `sandbox migrate` removes them from your
+  settings. New: `visualStudio: "buildtools"` builds Unreal with the Visual Studio Build Tools only (no IDE).
 
 ## 1.23.2
 

@@ -89,7 +89,7 @@ export const ToolchainsSchema = z.strictObject({
   }),
   unreal: z.strictObject({
     enabled: enabled(
-      'Unreal Engine development: Visual Studio Community 2022 with the C++ game workload (MSVC, a Windows 11 SDK, .NET Framework targeting packs, Unreal integration and the Epic Games Launcher) and the DirectX End-User Runtime. A real installer: it runs every boot (~10 GB on the sandbox disk). The engine itself comes from the Epic Games Launcher or its source.',
+      'Unreal Engine development: Visual Studio Community 2022 with the C++ game workload (MSVC, a Windows 11 SDK, .NET Framework targeting packs, Unreal integration and the Epic Games Launcher) and the DirectX End-User Runtime. Visual Studio is installed once and kept on the data disk (~6.5 GB); later boots put it back in seconds. The engine itself comes from the Epic Games Launcher or its source.',
       'a .uproject or .uplugin',
     ),
     acceptLicense: z
@@ -100,15 +100,10 @@ export const ToolchainsSchema = z.strictObject({
     components: StringsSchema.describe(
       'More Visual Studio workload or component IDs to add, e.g. ["Microsoft.VisualStudio.Component.VC.Llvm.Clang"].',
     ),
-    keepInstallFiles: z
-      .boolean()
-      .describe(
-        'Keep an offline copy of the Visual Studio install files in tools\\visualstudio (~10 GB, made once), so later boots install without downloading them again. Skipped while that disk has too little room.',
-      ),
     visualStudio: z
-      .enum(['full', 'autosdk'])
+      .enum(['full', 'buildtools'])
       .describe(
-        '"full": install Visual Studio Community (the engine finds it through the Setup API; ~10 GB, redone every boot). "autosdk" (experimental): skip Visual Studio and build an Unreal AutoSDK tree from the portable MSVC in tools\\unreal\\autosdk (kept between sandboxes); UnrealBuildTool finds MSVC through AutoSDK, but the editor\'s Visual Studio integration is not available. Needs toolchains.msvc (turned on for you).',
+        '"full": Visual Studio Community with the C++ game workload (the IDE, its debugger and Unreal integration). "buildtools": only the Visual Studio Build Tools (MSVC, the Windows SDK and the .NET Framework parts UnrealBuildTool needs; no IDE). Either is installed once and kept on the data disk (tools\\visualstudio\\persist, ~6.5 GB for Community); later boots put it back in seconds.',
       ),
     persistEngines: z
       .boolean()

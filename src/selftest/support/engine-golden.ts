@@ -90,6 +90,8 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'sandbox/scripts/link-profile-dirs.ps1',
   'sandbox/scripts/new-shortcuts.ps1',
   'sandbox/scripts/repair-wmi-services.ps1',
+  'sandbox/scripts/restore-visual-studio.ps1',
+  'sandbox/scripts/save-visual-studio.ps1',
   'sandbox/scripts/set-desktop.ps1',
   'sandbox/scripts/set-dns-servers.ps1',
   'sandbox/scripts/set-machine-environment.ps1',

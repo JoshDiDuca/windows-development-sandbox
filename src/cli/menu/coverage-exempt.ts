@@ -21,6 +21,7 @@ export const COMMAND_PLACES: Readonly<Record<string, CommandPlace>> = {
   data: { place: 'Maintenance > Data' },
   storage: { place: 'Maintenance > Storage' },
   engine: { place: 'Maintenance > Engine' },
+  unreal: { place: 'Sandbox > Unreal Engine' },
   sync: { place: 'Maintenance > More commands' },
   logs: { place: 'Maintenance > Logs (key f follows)' },
   setup: { place: 'Maintenance > Health' },

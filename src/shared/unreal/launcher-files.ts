@@ -187,6 +187,7 @@ const ItemSchema = z.looseObject({
   InstallLocation: z.string().max(1024).optional(),
   AppName: z.string().max(200).optional(),
   InstallSize: z.number().int().min(0).optional(),
+  bIsIncompleteInstall: z.boolean().optional(),
 });
 
 /** The folder a launcher manifest says its app is installed in, or null. */
@@ -203,6 +204,27 @@ export function itemInfo(text: string): { installLocation: string; sizeBytes: nu
   } catch {
     return null; // Not a manifest we can read: left alone.
   }
+}
+
+/**
+ * The folders (lower-case, normalized) the manifests in these folders mark as a launcher install still in progress
+ * (bIsIncompleteInstall): not engines yet.
+ */
+export function incompleteDirs(...manifestDirs: string[]): Set<string> {
+  const dirs = new Set<string>();
+  for (const dir of manifestDirs)
+    for (const name of itemFiles(dir)) {
+      const bytes = readBoundedFile(win.join(dir, name), MAX_ITEM_BYTES);
+      if (!bytes) continue;
+      try {
+        const item = ItemSchema.parse(JSON.parse(stripBom(bytes.toString('utf8'))));
+        if (item.bIsIncompleteInstall === true && item.InstallLocation && win.isAbsolute(item.InstallLocation))
+          dirs.add(win.normalize(item.InstallLocation).toLowerCase());
+      } catch {
+        // Not a manifest we can read: it marks nothing.
+      }
+    }
+  return dirs;
 }
 
 /** The sizes the saved manifests give their engine folders (lower-case folder -> bytes). */

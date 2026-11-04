@@ -16,7 +16,9 @@ import {
   findEngines,
   findUproject,
   hasMcpPlugin,
+  incompleteDirs,
   itemSizes,
+  launcherManifestsDir,
   launcherEntriesFor,
   registryPlan,
   UNREAL_MCP_URL,
@@ -81,8 +83,12 @@ function launcherDirs(): string[] {
   return [...savedEntries().map((e) => e.InstallLocation), ...itemSizes(SAVED_MANIFESTS).keys()];
 }
 
-/** Every engine this sandbox has. */
+/** Every engine this sandbox has (an install the launcher has not finished is not one yet). */
 export function sandboxEngines(ctx: Pick<ToolCtx, 'pcInstalls'>, disk: EngineFs = DISK): UnrealEngine[] {
+  const incomplete = incompleteDirs(
+    launcherManifestsDir(process.env.ProgramData ?? 'C:\\ProgramData'),
+    SAVED_MANIFESTS,
+  );
   return findEngines(
     {
       mapped: mappedEngines(ctx),
@@ -91,7 +97,7 @@ export function sandboxEngines(ctx: Pick<ToolCtx, 'pcInstalls'>, disk: EngineFs 
       projectRoots: projectRoots(),
     },
     disk,
-  );
+  ).filter((e) => !incomplete.has(path.win32.normalize(e.dir).toLowerCase()));
 }
 
 /** The LauncherInstalled.dat entries for the installed builds: the launcher's own saved ones, else made from them. */
@@ -107,7 +113,10 @@ export async function registerEngines(
   aliases: readonly { readonly id: string; readonly dir: string }[] = [],
 ): Promise<void> {
   const selector = selectorFrom ? versionSelectorIn(selectorFrom.dir) : null;
-  const values = [...registryPlan(engines, aliases), ...(selector && exists(selector) ? fileAssociationPlan(selector) : [])];
+  const values = [
+    ...registryPlan(engines, aliases),
+    ...(selector && exists(selector) ? fileAssociationPlan(selector) : []),
+  ];
   if (values.length) await runScriptWithJsonAsync('set-registry-values.ps1', 'PlanFile', { values });
   try {
     writeLauncherEntries(launcherEntries(engines, ctx));

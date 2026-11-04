@@ -7,6 +7,13 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## Unreleased
+
+- **Closing the sandbox no longer restarts it.** With `resume.restartAfterCrash` on, a sandbox closed by hand while a session
+  was open counted as a crash (it looks the same: busy, then gone, nothing in Windows' log) and was started again. Only
+  ends Windows logged (a sandbox crash, low memory, a graphics driver reset, a Hyper-V error) restart it now; the
+  others still get a crash report.
+
 ## 1.23.2
 
 - **Visual Studio install files fit on the sandbox disk.** A sandbox has only about 14 GB free on C: at boot (the disk is

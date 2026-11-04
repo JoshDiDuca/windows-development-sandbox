@@ -98,7 +98,11 @@ export interface WatcherResume {
 }
 
 /** The ways the sandbox itself ends badly (the PC going down takes the watcher with it, so it never gets here). */
-const RESTARTABLE: readonly StopCause['kind'][] = ['sandboxCrash', 'memory', 'gpu', 'hyperv', 'vanished'];
+/**
+ * Ends that start the sandbox again: only those Windows logged. A "vanished" end (busy, no word of leaving, nothing
+ * in the log) is also what closing the Windows Sandbox window looks like, so it gets a report but no restart.
+ */
+const RESTARTABLE: readonly StopCause['kind'][] = ['sandboxCrash', 'memory', 'gpu', 'hyperv'];
 
 /**
  * The background watcher of one data folder: while the sandbox runs it syncs history back every minute, guards the

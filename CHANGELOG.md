@@ -7,8 +7,12 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.24.0
 
+- **A calm boot screen.** The sandbox's terminal shows one live block of the nine boot stages (done, running with what
+  runs now, waiting) instead of a stream of interleaved lines; warnings are collected and shown once; at the end the
+  tools are listed in two aligned columns with "Ready in ..." and what still installs in the background. The summary
+  stays in the scrollback above the session. Logs keep ordered, timestamped plain lines.
 - **Closing the sandbox no longer restarts it.** With `resume.restartAfterCrash` on, a sandbox closed by hand while a session
   was open counted as a crash (it looks the same: busy, then gone, nothing in Windows' log) and was started again. Only
   ends Windows logged (a sandbox crash, low memory, a graphics driver reset, a Hyper-V error) restart it now; the

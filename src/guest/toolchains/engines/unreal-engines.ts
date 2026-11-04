@@ -104,9 +104,10 @@ export async function registerEngines(
   engines: readonly UnrealEngine[],
   selectorFrom: UnrealEngine | null,
   ctx: Pick<ToolCtx, 'pcInstalls'>,
+  aliases: readonly { readonly id: string; readonly dir: string }[] = [],
 ): Promise<void> {
   const selector = selectorFrom ? versionSelectorIn(selectorFrom.dir) : null;
-  const values = [...registryPlan(engines), ...(selector && exists(selector) ? fileAssociationPlan(selector) : [])];
+  const values = [...registryPlan(engines, aliases), ...(selector && exists(selector) ? fileAssociationPlan(selector) : [])];
   if (values.length) await runScriptWithJsonAsync('set-registry-values.ps1', 'PlanFile', { values });
   try {
     writeLauncherEntries(launcherEntries(engines, ctx));
@@ -153,7 +154,12 @@ export async function setupUnrealEngines(env: ToolEnv, config: Toolchains['unrea
     return;
   }
   try {
-    await registerEngines(engines, engine ?? engines[0] ?? null, ctx);
+    await registerEngines(
+      engines,
+      engine ?? engines[0] ?? null,
+      ctx,
+      engine && choice.alias ? [{ id: choice.alias, dir: engine.dir }] : [],
+    );
   } catch (e) {
     warn('Unreal: registering the engines failed (' + errMsg(e) + '); Build.bat and RunUAT.bat still work from PATH');
   }

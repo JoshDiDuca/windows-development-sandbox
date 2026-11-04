@@ -255,6 +255,8 @@ export interface EngineChoice {
   readonly engine: UnrealEngine | null;
   /** Why this one, in plain words (or why none). */
   readonly reason: string;
+  /** The name the project gave a source build that is not registered here by that name: register it for this engine. */
+  readonly alias?: string;
 }
 
 /**
@@ -271,9 +273,23 @@ export function chooseEngine(engines: readonly UnrealEngine[], association: Engi
       : { engine: null, reason: 'the project asks for Unreal Engine ' + association.version + ', which is not here' };
   }
   if (association.kind === 'build') {
-    const engine = engines.find((e) => e.id.toLowerCase() === association.id.toLowerCase()) ?? null;
-    return engine
-      ? { engine, reason: 'the project asks for the source build ' + association.id }
+    const exact = engines.find((e) => e.id.toLowerCase() === association.id.toLowerCase());
+    if (exact) return { engine: exact, reason: 'the project asks for the source build ' + association.id };
+    // The project names a source build of this PC's registry; here the source sits in a project root or on the data
+    // disk under another name: use the newest of those and register the project's name for it.
+    const source = [...engines]
+      .filter((e) => e.build === 'source' && e.writable)
+      .sort((a, b) => compareVersions(b.version, a.version))[0];
+    return source
+      ? {
+          engine: source,
+          alias: association.id,
+          reason:
+            'the project names the source build ' +
+            association.id +
+            ' (registered on your PC); using the source build at ' +
+            source.dir,
+        }
       : { engine: null, reason: 'the project asks for the source build ' + association.id + ', which is not here' };
   }
   const newest = [...engines].sort((a, b) => compareVersions(b.version, a.version) || preference(a) - preference(b))[0];
@@ -318,12 +334,17 @@ export function preferredInstalled(engines: readonly UnrealEngine[]): UnrealEngi
 /**
  * The registry values that make Unreal find the engines: an installed build as HKLM\SOFTWARE\EpicGames\Unreal
  * Engine\<5.4> InstalledDirectory (one per version: the one a project would pick), a source build as a value under
- * HKCU\Software\Epic Games\Unreal Engine\Builds.
+ * HKCU\Software\Epic Games\Unreal Engine\Builds. `aliases`: names a project uses for a source build here (its GUID on
+ * this PC), registered for the folder they stand for, so the .uproject works unchanged.
  */
-export function registryPlan(engines: readonly UnrealEngine[]): RegistryValue[] {
+export function registryPlan(
+  engines: readonly UnrealEngine[],
+  aliases: readonly { readonly id: string; readonly dir: string }[] = [],
+): RegistryValue[] {
   const values: RegistryValue[] = engines
     .filter((e) => e.build === 'source')
     .map((e): RegistryValue => ({ hive: 'HKCU', key: BUILDS_KEY, name: e.id, value: e.dir }));
+  for (const a of aliases) values.push({ hive: 'HKCU', key: BUILDS_KEY, name: a.id, value: a.dir });
   for (const e of preferredInstalled(engines))
     values.push({
       hive: 'HKLM',

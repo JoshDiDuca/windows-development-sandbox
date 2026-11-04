@@ -50,6 +50,11 @@ const failed = (stage: string, name: string, status: number | null): void => {
   warn(message);
 };
 
+/** Whether `stage` has hooks to run (they write to the terminal themselves). */
+export function hasHooks(stage: string, target: HookTarget = BOOT): boolean {
+  return hooksOf(stage, target).length > 0;
+}
+
 export function runHooks(stage: string, env: NodeJS.ProcessEnv, target: HookTarget = BOOT): void {
   for (const { name, command } of hooksOf(stage, target)) {
     log('Hook [' + stage + ']: ' + name);

@@ -30,6 +30,8 @@ const PURE_GUEST = [
   'guest/boot/project-env.js',
   'guest/boot/runner.js',
   'guest/boot/graph.js',
+  'guest/boot/progress-view.js',
+  'guest/runtime/log-line.js',
   'guest/toolchains/split.js',
   'guest/toolchains/step-scheduler.js',
   'guest/audit/parse.js',

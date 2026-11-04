@@ -158,16 +158,64 @@ while holding one throws ("nested pool") so deadlock is impossible: acquire at t
 low priority and starts after the gate. The background VS bootstrapper gets `os.setPriority(pid,
 PRIORITY_BELOW_NORMAL)` (children inherit it).
 
-**Progress lines:** stage header `[n/9] <title>` once, when the stage's first task starts (stages may start out of
-order: fine). Per task: `[6/9] Claude settings: started` / `done in 0.4s` / `FAILED in 1.2s: ...` /
-`skipped (Agent install failed)`. Module `log()` lines get a `Task title | ` prefix while more than one task runs
-(`AsyncLocalStorage` context in log.ts). Final summary after `session` starts and before `viewSession`:
-`Boot ready in 31.8s. Slowest: Headroom 28.1s, Developer tools 7.0s, Environment 5.0s. In the background: Visual
-Studio (installing, see <log>).` Background completion writes a file-only line `Background done in 5m31s: ...`.
+**Progress:** see "Console output" below (superseded the first version's interleaved `[n/9] Task: started` lines and
+`Task title | ` prefixes). Background completion writes a file-only line `Background done in 5m31s: ...`.
 
-**Log file:** every file line gets an ISO timestamp (console unchanged). Background tasks run `quiet: true` (file only:
-once `viewSession` owns the console nothing else may print); their warnings go to the file and into status
+**Log file:** every file line gets an ISO timestamp. Background tasks run `quiet: true` (file only: once
+`viewSession` owns the console nothing else may print); their warnings go to the file and into status
 `background[].state = 'failed'`.
+
+### Console output
+
+What the sandbox's terminal shows while it starts: the first thing the user sees.
+
+```
+Agent sandbox · mw2-agent · claude · C:\Projects\AgentProjects\mw2-agent
+
+  ✓ 1  Network and session host                   8.5s
+  ✓ 2  Pre-provision hooks and desktop            8.5s
+  ⠴ 3  Developer tools                           13.3s  Visual C++ runtime, Apps (9/13)
+  · 4  VPN (off)                                        waiting
+  · 5  Git identity                                     waiting
+  ⠴ 6  Claude settings, history and claude-mem   13.3s  Headroom start
+  ⠴ 7  Agent: claude                             10.7s  Agent logins
+  · 8  Pre-agent hooks                                  waiting
+  · 9  Starting claude                                  waiting
+
+  ! gh: the GitHub login from an earlier sandbox was kept in Windows Credential Manager, which is…
+```
+
+- **One header line**, then (a terminal) a fixed block of nine stage rows that redraws in place ten times a second:
+  mark, number, short stage name (`stageName`), elapsed time, and on a running row the tasks that run now (the
+  toolchain row names the scheduler's active steps and `done/total`). Marks: spinner running, `✓` done, `!` a soft
+  task failed, `✗` a critical one failed, `-` skipped, `·` waiting. Rows are cut to the terminal's width (never
+  wrapped, so the redraw can move up over them). Windows Terminal (`WT_SESSION`) gets braille and check marks; the
+  classic console (Consolas) gets `- \ | /`, `√` and `x`. ANSI only; Node's console writer handles VT on both.
+- **Warnings** are collected (deduplicated) and shown under the block, one line each (the last four); in full once at
+  the end, yellow, without task prefixes.
+- **Info lines** of the modules (`log()`) go to the file only while the block is live. Programs the boot starts
+  (`exec`, `execAsync`, `runScript*`) hand their output to the log instead of writing over the block or between the
+  plain stages, and still after the release (the background steps must not write into the session; `routeOutput` in
+  `runtime/process.ts`). The hooks keep the terminal (`aside()`: the block steps aside, the hook prints, the block
+  comes back below it).
+- **At the end**, before `viewSession` takes the console: the block once more as a still list, `Warnings`, `Tools`
+  (the summary as aligned name/detail columns, wrapped under the detail column), notices (`notice()`: "If Claude asks
+  you to sign in ..."), then `Ready in 46.8s (slowest: Headroom proxy 24.6s, ...)`, `Still installing in the
+  background: Visual Studio, Unreal, Rust (a few minutes; it does not hold you up)` when work is deferred, and the log
+  path. The view then lets go of the console (`release`); nothing of it prints again. A failed boot releases it too
+  (the stages so far and the warnings), then main.ts prints the error.
+- **Not a terminal** (logs, CI, the dry run): plain lines without colours, in stage order. A stage is buffered and
+  printed once it and every stage before it have finished: `[3/9] Developer tools  13.6s`, then its info lines
+  indented under it (critical failures and skips as `x ... failed: ...` / `- ... skipped (...)`), so overlapping tasks
+  never interleave. No per-task lines. Then the same Warnings / Tools / Ready sections.
+- **The log file** keeps every line in time order: `2026-11-04T12:07:44.388Z [Developer tools] Installing ...`
+  (UTC, zero-padded; colours stripped; one timestamp per line of a multi-line message), plus the runner's per-task
+  `[3/9] Developer tools: started` / `done in 13.5s` trace lines and `[background] ...` for the background tasks.
+
+Code: `boot/progress-view.ts` (pure: the model, the plain renderer, the live frame, the final report; tested by text
+snapshots in the `boot-console` suite), `boot/boot-console.ts` (the thin terminal side: picks the mode, routes
+`log()`/`warn()`/`notice()` and program output to the view, the redraw timer), `runtime/log-line.ts` (pure file
+line format). The runner only emits events (`RunnerObserver`: started / finished) and file-only `trace` lines.
 
 **Status file `run\sandbox.json`:** the runner is the only writer during boot. `progress.step` = lowest stage with an
 unfinished foreground task; `active` = running task titles + the scheduler's active steps (new `RunOptions.progress`

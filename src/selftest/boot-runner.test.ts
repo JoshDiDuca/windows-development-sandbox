@@ -1,6 +1,6 @@
 // The parallel boot (docs/design/parallel-boot.md): the task runner, the pools, the boot graph and the toolchain
 // scheduler's download phase and background split. Fake tasks and deferred promises only: no machine state.
-import { BootRunner, bootSummary, checkGraph, type BootTaskDef, type RunnerOptions } from '../guest/boot/runner.js';
+import { BootRunner, checkGraph, duration, type BootTaskDef, type RunnerOptions } from '../guest/boot/runner.js';
 import { BOOT_TASKS, STAGES, stageTitle } from '../guest/boot/graph.js';
 import { backgroundNames, mergeParts, runSplit } from '../guest/toolchains/split.js';
 import { StepScheduler, type SchedulerSink } from '../guest/toolchains/step-scheduler.js';
@@ -47,6 +47,8 @@ const def = (
 interface Fixture {
   readonly lines: string[];
   readonly warnings: string[];
+  /** What the progress view heard: "started X" / "finished X done". */
+  readonly events: string[];
   readonly contexts: { quiet: boolean }[];
   options(extra?: Partial<RunnerOptions>): RunnerOptions;
 }
@@ -54,13 +56,19 @@ interface Fixture {
 const fixture = (): Fixture => {
   const lines: string[] = [];
   const warnings: string[] = [];
+  const events: string[] = [];
   const contexts: { quiet: boolean }[] = [];
   return {
     lines,
     warnings,
+    events,
     contexts,
     options: (extra = {}) => ({
-      say: (line) => void lines.push(line),
+      trace: (line) => void lines.push(line),
+      observer: {
+        started: (task) => void events.push('started ' + task.id),
+        finished: (task, outcome) => void events.push('finished ' + task.id + ' ' + outcome.state),
+      },
       warn: (line) => void warnings.push(line),
       now: () => Date.now(),
       dryRun: false,
@@ -304,7 +312,11 @@ export const bootRunnerSuite: Suite = {
         'a background task starts only on run("background"), in a quiet (file-only) log context',
         before + ' / ' + quietBefore,
       );
-      t.check(!f.lines.some((l) => l.includes('BG: started')), 'background tasks print no progress lines');
+      t.check(
+        !f.events.some((e) => e.includes(' bg')) && f.events.join(',') === 'started a,finished a done',
+        'the progress view hears only the foreground tasks (the background ones are file-only)',
+        f.events.join(','),
+      );
     }
 
     t.section('runner: graph checks');
@@ -447,25 +459,12 @@ export const bootRunnerSuite: Suite = {
           stageTitle(4) === 'VPN (off)',
         'there are nine stage titles, the VPN one names the server or says off',
       );
-      const summary = bootSummary(
-        31800,
-        [
-          { id: 'a', title: 'Headroom', state: 'done', ms: 28100 },
-          { id: 'b', title: 'Developer tools', state: 'done', ms: 7000 },
-          { id: 'c', title: 'Skipped one', state: 'skipped', ms: 0 },
-        ],
-        ['Visual Studio'],
-        'guest.log',
-      );
-      t.check(
-        summary.startsWith('Boot ready in 31.8s.') &&
-          summary.includes('Headroom 28.1s') &&
-          !summary.includes('Skipped one') &&
-          summary.includes('In the background: Visual Studio'),
-        'the boot summary names the time, the slowest tasks and the background work',
-        summary,
-      );
     }
+    t.equal(
+      [duration(0), duration(4630), duration(59949), duration(60000), duration(422400)],
+      ['0.0s', '4.6s', '59.9s', '1m00s', '7m02s'],
+      'durations: tenths of a second under a minute, then minutes and seconds',
+    );
 
     t.section('toolchain scheduler');
     {

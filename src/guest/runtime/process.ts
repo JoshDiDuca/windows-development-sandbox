@@ -9,9 +9,58 @@ import { SYSTEM } from '../../shared/system.js';
 import { scriptArgs } from '../../shared/scripts.js';
 import { isWin } from './paths.js';
 
+/** Takes the output of the programs started while the boot draws its progress (boot/boot-console.ts). */
+export interface OutputSink {
+  /** Whether programs started now hand their output over instead of writing to the console. */
+  capturing(): boolean;
+  /** One line of a program's output (to the log). */
+  line(text: string): void;
+}
+
+// Set by the boot only: this module stays free of the log (pure helpers such as tool-env import it).
+let outputSink: OutputSink | null = null;
+
+/** Hands the output of programs started from now on to `sink` while it is capturing (null: the console again). */
+export function routeOutput(sink: OutputSink | null): void {
+  outputSink = sink;
+}
+
+const captureOutput = (): boolean => outputSink?.capturing() ?? false;
+
+/** A program's captured output, line by line (its blank lines dropped). */
+function logOutput(text: string): void {
+  for (const line of text.split(/\r?\n/)) if (line.trim()) outputSink?.line(line.trimEnd());
+}
+
+/** What a program may print while the boot holds its output for the log (a larger output stops it). */
+const CAPTURE_BYTES = 64 * 1024 * 1024;
+/** A captured line longer than this is cut (an installer's progress bar without line ends). */
+const LINE_CHARS = 2000;
+
+/** Feeds a stream to the log line by line as it arrives. */
+function logLines(stream: NodeJS.ReadableStream | null): void {
+  if (!stream) return;
+  let partial = '';
+  stream.setEncoding('utf8');
+  stream.on('data', (chunk: string) => {
+    const lines = (partial + chunk).split(/\r?\n/);
+    partial = lines.pop()!.slice(0, LINE_CHARS);
+    logOutput(lines.map((l) => l.slice(0, LINE_CHARS)).join('\n'));
+  });
+  stream.on('end', () => logOutput(partial));
+}
+
 /** Runs a program, streaming output, and throws with a readable message when it fails. */
 export function exec(file: string, args: string[], options: SpawnSyncOptions = {}): void {
-  const result = spawnSync(file, args, { stdio: 'inherit', windowsHide: true, ...options });
+  // While the boot draws its progress, the program's output goes to the log (it would break the drawing).
+  const capture = captureOutput();
+  const result = spawnSync(file, args, {
+    stdio: capture ? ['inherit', 'pipe', 'pipe'] : 'inherit',
+    windowsHide: true,
+    ...(capture ? { maxBuffer: CAPTURE_BYTES } : {}),
+    ...options,
+  });
+  if (capture) logOutput(String(result.stdout ?? '') + '\n' + String(result.stderr ?? ''));
   if (result.error) throw result.error;
   if (result.status !== 0)
     throw new Error(path.basename(file) + ' ' + args.slice(0, 3).join(' ') + ' failed with exit code ' + result.status);
@@ -19,9 +68,24 @@ export function exec(file: string, args: string[], options: SpawnSyncOptions = {
 
 /** exec without blocking: other toolchains keep downloading while this one runs an installer. */
 export async function execAsync(file: string, args: string[], options: SpawnOptions = {}): Promise<void> {
-  const code = await spawnAsync(file, args, { stdio: 'inherit', ...options });
+  const code = captureOutput()
+    ? await new Promise<number>((resolve, reject) => {
+        const child = spawn(file, args, { stdio: ['inherit', 'pipe', 'pipe'], windowsHide: true, ...options });
+        logLines(child.stdout);
+        logLines(child.stderr);
+        child.once('error', reject);
+        child.once('close', (c) => resolve(c ?? -1));
+      })
+    : await spawnAsync(file, args, { stdio: 'inherit', ...options });
   if (code !== 0)
     throw new Error(path.basename(file) + ' ' + args.slice(0, 3).join(' ') + ' failed with exit code ' + code);
+}
+
+/** A script's error output: to the log while the boot holds the console, else to the console's error stream. */
+function scriptErrors(errors: string): void {
+  if (!errors) return;
+  if (captureOutput()) logOutput(errors);
+  else process.stderr.write(errors + '\n');
 }
 
 export function execOutput(file: string, args: string[], options: SpawnSyncOptions = {}): string {
@@ -31,14 +95,17 @@ export function execOutput(file: string, args: string[], options: SpawnSyncOptio
 
 /** Runs sandbox\scripts\<name> (a .ps1 in the launch folder) with `args`; throws when it fails. */
 export function runScript(name: string, args: readonly string[] = []): void {
+  const capture = captureOutput();
   const result = spawnSync(SYSTEM.powershell(), scriptArgs(name, args), {
-    stdio: ['inherit', 'inherit', 'pipe'],
+    stdio: ['inherit', capture ? 'pipe' : 'inherit', 'pipe'],
     encoding: 'utf8',
     windowsHide: true,
+    ...(capture ? { maxBuffer: CAPTURE_BYTES } : {}),
   });
+  if (capture) logOutput(String(result.stdout ?? ''));
   if (result.error) throw result.error;
   const errors = String(result.stderr ?? '').trim();
-  if (errors) process.stderr.write(errors + '\n');
+  scriptErrors(errors);
   if (result.status !== 0)
     throw new Error(name + ' failed with exit code ' + result.status + (errors ? ': ' + errors.slice(0, 400) : ''));
 }
@@ -46,10 +113,12 @@ export function runScript(name: string, args: readonly string[] = []): void {
 /** runScript without blocking the event loop (other boot tasks keep going while the script runs). */
 export function runScriptAsync(name: string, args: readonly string[] = []): Promise<void> {
   return new Promise((resolve, reject) => {
+    const capture = captureOutput();
     const child = spawn(SYSTEM.powershell(), scriptArgs(name, args), {
-      stdio: ['inherit', 'inherit', 'pipe'],
+      stdio: ['inherit', capture ? 'pipe' : 'inherit', 'pipe'],
       windowsHide: true,
     });
+    if (capture) logLines(child.stdout);
     let errors = '';
     child.stderr?.setEncoding('utf8');
     child.stderr?.on('data', (chunk: string) => {
@@ -58,7 +127,7 @@ export function runScriptAsync(name: string, args: readonly string[] = []): Prom
     child.once('error', reject);
     child.once('close', (code) => {
       errors = errors.trim();
-      if (errors) process.stderr.write(errors + '\n');
+      scriptErrors(errors);
       if (code !== 0)
         reject(new Error(name + ' failed with exit code ' + code + (errors ? ': ' + errors.slice(0, 400) : '')));
       else resolve();

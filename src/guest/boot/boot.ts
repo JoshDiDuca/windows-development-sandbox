@@ -15,7 +15,7 @@ import { linkProfileDirsAsync } from '../agents/profile-links.js';
 import { restoreClaudeMem } from '../setup/claude-mem.js';
 import { syncClaudeProfile } from '../setup/claude-profile.js';
 import { agentEnv, persistEnvironment } from '../setup/environment.js';
-import { runHooks } from '../setup/hooks.js';
+import { hasHooks, runHooks } from '../setup/hooks.js';
 import { applyAllowOnly, proxyEnv } from '../network/allow-only.js';
 import { applyNetworkPolicy, networkProblems, type LanState } from '../network/firewall.js';
 import { writeManagedSettings } from '../setup/managed-policy.js';
@@ -37,12 +37,14 @@ import { now } from '../../shared/channel/run-dir.js';
 import { writeJsonAtomic } from '../../shared/io/json.js';
 import { viewSession } from '../sessions/viewer.js';
 import { saveBootEnv } from './boot-env.js';
-import { BOOT_DEFS, STAGES, stageTitle, type BootTaskId } from './graph.js';
-import { BootRunner, bootSummary, seconds, type RunnerStatus, type TaskRun } from './runner.js';
+import { BOOT_DEFS, STAGES, stageName, stageTitle, type BootTaskId, type StageWho } from './graph.js';
+import { BootRunner, duration, type RunnerStatus, type TaskRun } from './runner.js';
+import { BootConsole } from './boot-console.js';
+import { stepsDetail } from './progress-view.js';
 import { installPools } from '../runtime/pools.js';
 import { primaryProject, saveProjectStatus } from './project-status.js';
 import { dryRun, isWin, localDir, logsDir, run, toolsDir } from '../runtime/paths.js';
-import { log, logPath, runQuiet, warn, withLogContext } from '../runtime/log.js';
+import { log, logPath, notice, record, runQuiet, warn, withLogContext } from '../runtime/log.js';
 import { mkdirp } from '../runtime/fs.js';
 import { session, workspace } from '../runtime/session.js';
 import { applyBootEnvironment, BOOT_SECRETS_VARIABLE, takeSecrets } from '../runtime/secrets.js';
@@ -181,6 +183,16 @@ export class Boot {
   private secrets: Readonly<SecretsFile> = Object.freeze({});
   private basePath = '';
   private readonly startedAt = Date.now();
+  private readonly who: StageWho = {
+    ...(session.vpn ? { vpnServer: session.vpn.server } : {}),
+    agent: session.harnessName,
+  };
+  /** The console while the boot runs: the stage rows, warnings and summary (released before the first session). */
+  private readonly progress = BootConsole.create(
+    Array.from({ length: STAGES }, (_, i) => ({ stage: i + 1, name: stageName(i + 1, this.who) })),
+    BOOT_DEFS.filter((d) => !d.background),
+    { plain: dryRun },
+  );
   private openGate: () => void = () => undefined;
   private readonly gate = new Promise<void>((resolve) => {
     this.openGate = resolve;
@@ -193,43 +205,21 @@ export class Boot {
   private stepsTotal = 0;
 
   async run(): Promise<void> {
-    log(
-      'Agent sandbox: ' +
-        session.project +
-        ' | workspace ' +
-        workspace +
-        ' | agent ' +
-        session.harnessName +
-        ' | log ' +
-        logPath,
-    );
-    if (!fs.statSync(workspace, { throwIfNoEntry: false })?.isDirectory())
-      throw new Error('Workspace folder is missing in the sandbox: ' + workspace);
-    this.basePath = process.env.PATH ?? '';
-    mkdirp(toolsDir);
-    mkdirp(run.root);
-    // The prelude is sequential: it changes process.env, so it ends before any task starts a program.
-    this.secrets = await this.takeSecretsAndAccounts();
-    applyBootEnvironment(this.secrets.harnessEnvironment);
-    prepareGithubFolder(this.secrets.githubToken);
-    installPools();
-
-    const runner = new BootRunner<BootTaskId>(BOOT_DEFS, this.tasks(), {
-      say: (line, quiet) => (quiet ? runQuiet(() => log(line)) : log(line)),
-      warn: (line, quiet) => (quiet ? runQuiet(() => warn(line)) : warn(line)),
-      now: () => Date.now(),
-      dryRun,
-      stages: STAGES,
-      stageTitle: (n) => this.stageTitle(n),
-      status: (s) => {
-        this.lastStatus = s;
-        this.publish();
-      },
-      inContext: (ctx, work) => withLogContext({ prefix: ctx.prefix, quiet: ctx.quiet }, work),
+    const agent = session.harness ? session.harnessName : 'no agent';
+    this.progress.start('Agent sandbox · ' + session.project + ' · ' + agent + ' · ' + workspace);
+    let runner: BootRunner<BootTaskId>;
+    try {
+      runner = await this.foreground();
+    } catch (e) {
+      this.progress.release(null);
+      throw e;
+    }
+    this.progress.release({
+      ms: Date.now() - this.startedAt,
+      outcomes: runner.results(),
+      background: this.backgroundNames(),
+      logPath,
     });
-    await runner.run('foreground');
-    const background = this.backgroundNames();
-    log(bootSummary(Date.now() - this.startedAt, runner.results(), background, logPath));
     if (dryRun) {
       // Same graph, one task at a time: the background tasks run in place, right after the session.
       this.openGate();
@@ -246,16 +236,51 @@ export class Boot {
     await later.catch((e: unknown) => warn('Background work failed: ' + errMsg(e)));
   }
 
-  private stageTitle(n: number): string {
-    return stageTitle(n, { ...(session.vpn ? { vpnServer: session.vpn.server } : {}), agent: session.harnessName });
+  /** The prelude, then every foreground task (the console shows them). */
+  private async foreground(): Promise<BootRunner<BootTaskId>> {
+    if (!fs.statSync(workspace, { throwIfNoEntry: false })?.isDirectory())
+      throw new Error('Workspace folder is missing in the sandbox: ' + workspace);
+    this.basePath = process.env.PATH ?? '';
+    mkdirp(toolsDir);
+    mkdirp(run.root);
+    // The prelude is sequential: it changes process.env, so it ends before any task starts a program.
+    this.secrets = await this.takeSecretsAndAccounts();
+    applyBootEnvironment(this.secrets.harnessEnvironment);
+    prepareGithubFolder(this.secrets.githubToken);
+    installPools();
+
+    const runner = new BootRunner<BootTaskId>(BOOT_DEFS, this.tasks(), {
+      trace: (line) => record(line),
+      warn: (line, quiet) => (quiet ? runQuiet(() => warn(line)) : warn(line)),
+      now: () => Date.now(),
+      dryRun,
+      stages: STAGES,
+      stageTitle: (n) => this.stageTitle(n),
+      status: (s) => {
+        this.lastStatus = s;
+        this.publish();
+      },
+      observer: this.progress,
+      inContext: (ctx, work) => withLogContext({ stage: ctx.stage, task: ctx.title, quiet: ctx.quiet }, work),
+    });
+    await runner.run('foreground');
+    return runner;
   }
 
-  /** The names shown for work that goes on after the boot is ready. */
+  private stageTitle(n: number): string {
+    return stageTitle(n, this.who);
+  }
+
+  /** The toolchain steps that go on after the boot is ready (Visual Studio and what needs it), in plan order. */
   private backgroundNames(): string[] {
     const t = this.tools;
     if (!t?.later) return [];
-    const later = t.names.filter((n) => !(n in t.steps));
-    return later.length ? [later.slice(0, 3).join(', ') + (later.length > 3 ? ' ...' : '')] : [];
+    return t.names.filter((n) => !(n in t.steps));
+  }
+
+  /** Runs a stage's hooks; they write to the terminal themselves, so the progress block steps aside for them. */
+  private hooks(stage: string, env: NodeJS.ProcessEnv): void {
+    if (hasHooks(stage)) this.progress.aside(() => runHooks(stage, env));
   }
 
   /**
@@ -289,7 +314,7 @@ export class Boot {
     setSandboxStatus(s.phase, s.message, {
       step: s.step,
       steps: STAGES,
-      title: this.stageTitle(s.step).replace(/ \(.*\)$/, ''),
+      title: stageName(s.step, this.who),
       active: [...s.running.map((name) => ({ name })), ...this.activeSteps],
       done: this.stepsDone,
       total: this.stepsTotal,
@@ -308,7 +333,7 @@ export class Boot {
       },
       audit: () => enableProcessAudit(),
       // 2 - pre-provision hooks and desktop
-      hooksPreProvision: () => runHooks('pre-provision', process.env),
+      hooksPreProvision: () => this.hooks('pre-provision', process.env),
       desktop: () => applyPersonalization(),
       browserGpu: () => keepBrowsersOffGpu(),
       // 3 - developer tools
@@ -364,7 +389,7 @@ export class Boot {
         if (session.harness) await agents.provision(session.harnessName, session.harness, this.env);
       },
       // 8 - pre-agent hooks
-      hooksPreAgent: () => runHooks('pre-agent', this.env),
+      hooksPreAgent: () => this.hooks('pre-agent', this.env),
       // 9 - start
       session: () => this.start(),
       // After the first session runs
@@ -398,6 +423,14 @@ export class Boot {
       },
       {
         progress: (p) => {
+          this.progress.detail(
+            'toolchains',
+            stepsDetail(
+              p.active.map((a) => a.name + (a.percent === undefined ? '' : ' ' + Math.round(a.percent) + '%')),
+              p.done,
+              p.total,
+            ),
+          );
           this.activeSteps = p.active;
           this.stepsDone = p.done;
           this.stepsTotal = p.total;
@@ -460,7 +493,7 @@ export class Boot {
       lan: this.lan,
     });
     saveProjectStatus(primaryProject(), workspace, 'ready', 'Ready', session.databases ?? [], this.summary);
-    for (const line of this.summary) log('  ' + line);
+    this.progress.summary(this.summary);
   }
 
   /** The toolchains' lines, then the missing protections, allowOnly and VS Code (in this order). */
@@ -477,7 +510,8 @@ export class Boot {
   private async toolchainsLater(): Promise<void> {
     const tools = this.tools;
     if (!tools?.later) return;
-    const name = this.backgroundNames()[0] ?? 'Visual Studio';
+    const names = this.backgroundNames();
+    const name = names.length ? names.slice(0, 3).join(', ') + (names.length > 3 ? ' ...' : '') : 'Visual Studio';
     const began = Date.now();
     setBackgroundWork([{ name, state: 'running' }]);
     log('Background: ' + name + ' (installing)');
@@ -504,7 +538,7 @@ export class Boot {
       saveProjectStatus(primaryProject(), workspace, 'ready', 'Ready', session.databases ?? [], this.summary);
       await soft('Sandbox guide for the agent', () => writeGuides(this.summary, this.lan));
       setBackgroundWork([{ name, state: 'done' }]);
-      log('Background done in ' + seconds(Date.now() - began) + ': ' + name);
+      log('Background done in ' + duration(Date.now() - began) + ': ' + name);
     } catch (e) {
       setBackgroundWork([{ name, state: 'failed' }]);
       throw e;
@@ -548,7 +582,7 @@ export class Boot {
       createdAt: now(),
     });
     if (!(await waitForPrimary())) throw new Error('The agent session did not start. Logs: ' + logsDir);
-    log('If Claude asks you to sign in, do it once; the login is saved in persistent storage.');
+    notice('If Claude asks you to sign in, do it once; the login is saved in persistent storage.');
   }
 }
 

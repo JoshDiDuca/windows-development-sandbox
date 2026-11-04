@@ -7,8 +7,8 @@ import path from 'node:path';
 
 const win = path.win32;
 const MAX_PACKS = 500;
-const MAX_FILES_PER_PACK = 20_000;
-const MAX_FILES = 200_000;
+const MAX_FILES_PER_PACK = 5_000;
+const MAX_FILES = 50_000;
 
 /** The default vault cache under a ProgramData folder. */
 export function defaultVaultDir(programData: string): string {

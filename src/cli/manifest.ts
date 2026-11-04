@@ -406,6 +406,33 @@ const COMMAND_LIST = [
     json,
   },
   {
+    name: 'unreal',
+    summary:
+      "Unreal Engine: the sandbox's engines, this PC's engines and assets, register an engine folder, open the launcher",
+    group: 'Projects & accounts',
+    json,
+    examples: [
+      'sandbox unreal                         engines, which project uses which, Visual Studio',
+      'sandbox unreal add-engine D:\\UE5       use this engine folder in sandboxes (writable)',
+      'sandbox unreal launcher                open the Epic Games Launcher in the running sandbox',
+    ],
+    args: [
+      {
+        name: 'action',
+        description: 'status, add-engine, forget-engine, launcher',
+        required: false,
+        choices: ['status'],
+      },
+      {
+        name: 'folder',
+        description: '(add-engine, forget-engine) the engine folder',
+        required: false,
+        when: [],
+      },
+    ],
+    options: [],
+  },
+  {
     name: 'engine',
     summary: '(beta) what runs your sandbox (Windows Sandbox or HCS) and what each engine can do on this PC',
     group: 'Health',

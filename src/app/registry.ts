@@ -94,6 +94,12 @@ import {
   revokeAccessRun,
   revokeAllAccessRun,
 } from './features/access/index.js';
+import {
+  forgetEngineFolderRun,
+  openEpicLauncherRun,
+  registerEngineFolderRun,
+  unrealOverviewRun,
+} from './features/unreal/index.js';
 
 export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>[] = [
   sandboxStatusRun,
@@ -184,6 +190,10 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   revokeAllAccessRun,
   lanOnRun,
   lanOffRun,
+  unrealOverviewRun,
+  registerEngineFolderRun,
+  forgetEngineFolderRun,
+  openEpicLauncherRun,
 ];
 
 export function implementationOf(id: string): Implementation<AnyDefinition, AppContext> | undefined {

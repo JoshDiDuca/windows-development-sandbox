@@ -34,7 +34,8 @@ const mappedFolders = (): MappedFolder[] =>
 
 /** The Unreal lines (engine per project, build/test/package/debug commands) when the sandbox is set up for Unreal. */
 function unrealLines(projects: readonly GuideProject[]): string[] {
-  const any = session.toolchains.unreal.enabled === true || projects.some((p) => p.tools?.some((t) => /^unreal/.test(t)));
+  const any =
+    session.toolchains.unreal.enabled === true || projects.some((p) => p.tools?.some((t) => /^unreal/.test(t)));
   if (!any) return [];
   const status = readUnrealStatus();
   if (!status.updatedAt) return [];

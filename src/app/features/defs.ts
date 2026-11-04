@@ -74,7 +74,15 @@ import {
   revokeAccess,
   revokeAllAccess,
 } from './access/access.def.js';
+import {
+  forgetEngineFolder,
+  openEpicLauncher,
+  registerEngineFolder,
+  unrealOverview,
+  unrealView,
+} from './unreal/unreal.def.js';
 
+export type { UnrealOverview } from './unreal/unreal.def.js';
 export type { AgentRow, AgentsList } from './agents/agents.def.js';
 export type { AccountRow, AccountsList, AgentAccounts } from './accounts/accounts.def.js';
 export type { AppRow, AppsList, CustomAppRow } from './apps/apps.def.js';
@@ -152,6 +160,9 @@ export const OPERATIONS = [
   revokeAllAccess,
   lanOn,
   lanOff,
+  registerEngineFolder,
+  forgetEngineFolder,
+  openEpicLauncher,
 ] as const;
 export const QUERIES = [
   sandboxStatus,
@@ -181,6 +192,7 @@ export const QUERIES = [
   githubStatus,
   listServices,
   accessStatus,
+  unrealOverview,
 ] as const;
 export const VIEWS = [
   sandboxView,
@@ -202,6 +214,7 @@ export const VIEWS = [
   vpnView,
   githubView,
   accessView,
+  unrealView,
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
@@ -281,6 +294,7 @@ export const NAV: readonly NavSection[] = [
       { label: 'Overview', view: 'sandbox' },
       { label: 'Projects', view: 'projects' },
       { label: 'Apps', view: 'apps' },
+      { label: 'Unreal Engine', view: 'unreal' },
     ],
   },
   {

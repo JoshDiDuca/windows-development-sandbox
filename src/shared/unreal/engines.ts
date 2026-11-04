@@ -25,11 +25,11 @@ export type EngineOrigin =
   | 'project';
 
 export const ORIGIN_LABELS: Readonly<Record<EngineOrigin, string>> = {
-  pc: 'from this PC (read-only)',
-  'pc-folder': 'a folder of this PC you registered',
-  launcher: 'installed with the Epic Games Launcher, on the data disk',
-  data: 'on the data disk',
-  project: 'a source build in a project folder',
+  pc: 'this PC, read-only',
+  'pc-folder': 'your folder on this PC',
+  launcher: 'Epic Games Launcher, data disk',
+  data: 'data disk',
+  project: 'in a project folder',
 };
 
 export interface BuildVersion {
@@ -121,7 +121,19 @@ export const isBuildId = (id: string): boolean => BUILD_ID.test(id);
  */
 export function stableBuildId(dir: string): string {
   const h = crypto.createHash('sha1').update(win.normalize(dir).toLowerCase()).digest('hex').toUpperCase();
-  return '{' + h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20, 32) + '}';
+  return (
+    '{' +
+    h.slice(0, 8) +
+    '-' +
+    h.slice(8, 12) +
+    '-' +
+    h.slice(12, 16) +
+    '-' +
+    h.slice(16, 20) +
+    '-' +
+    h.slice(20, 32) +
+    '}'
+  );
 }
 
 /** The engine in a folder, or null when it is not one. `id`: a source build's registered name (else one is made). */

@@ -85,7 +85,7 @@ export function placeEngines(persist: boolean): LauncherPlaceResult {
       mkdirp(ENGINES_DIR);
       for (const file of launcherSettingsFiles(localAppData())) setLauncherInstallLocation(file, ENGINES_DIR);
     } catch (e) {
-      error = 'could not write the launcher\'s settings (' + errMsg(e) + ')';
+      error = "could not write the launcher's settings (" + errMsg(e) + ')';
     }
   else error = 'toolchains.unreal.persistEngines is off';
   const set = persist && !error;
@@ -150,6 +150,7 @@ export function saveLauncherState(): boolean {
     mkdirp(SAVED_DIR);
     writeJsonAtomic(SAVED_ENTRIES, { entries: merged.slice(0, 64) });
   }
-  if (items.length || changed) log('Unreal: saved what the Epic Games Launcher knows about its engines on the data disk');
+  if (items.length || changed)
+    log('Unreal: saved what the Epic Games Launcher knows about its engines on the data disk');
   return items.length > 0 || changed;
 }

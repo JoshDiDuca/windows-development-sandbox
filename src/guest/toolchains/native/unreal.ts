@@ -92,7 +92,7 @@ async function part<T>(what: string, work: () => Promise<T>, fallback: T): Promi
 export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], _ctx: ToolCtx): Promise<void> {
   if (!config.acceptLicense)
     throw new Error(
-      'Unreal tools are installed only with toolchains.unreal.acceptLicense = true: Visual Studio Community and the DirectX End-User Runtime come under Microsoft licence terms (https://visualstudio.microsoft.com/license-terms/), the Epic Games Launcher under Epic\'s (https://www.epicgames.com/site/eula)',
+      "Unreal tools are installed only with toolchains.unreal.acceptLicense = true: Visual Studio Community and the DirectX End-User Runtime come under Microsoft licence terms (https://visualstudio.microsoft.com/license-terms/), the Epic Games Launcher under Epic's (https://www.epicgames.com/site/eula)",
     );
   if (dryRun) {
     log('(dry run) would install the DirectX End-User Runtime and the Epic Games Launcher');
@@ -103,7 +103,7 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], _c
   const launcher = await part('the Epic Games Launcher', ensureLauncher, null);
   // Before anyone opens the launcher: engines go to the data disk, and it knows the ones it installed there before.
   const place = placeEngines(config.persistEngines);
-  if (config.persistEngines) await part('restoring the launcher\'s engines', async () => restoreLauncherItems(), []);
+  if (config.persistEngines) await part("restoring the launcher's engines", async () => restoreLauncherItems(), []);
   if (place.problem) {
     warn('Unreal: ' + place.problem);
     env.summary.push('UNREAL: ' + place.problem);
@@ -135,7 +135,11 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], _c
   }));
   env.summary.push(
     'unreal tools: ' +
-      (vs ? 'Visual Studio ' + vs.version + (check.ok ? ' (UnrealBuildTool finds it)' : ' (UnrealBuildTool would NOT find it)') : 'no Visual Studio') +
+      (vs
+        ? 'Visual Studio ' +
+          vs.version +
+          (check.ok ? ' (UnrealBuildTool finds it)' : ' (UnrealBuildTool would NOT find it)')
+        : 'no Visual Studio') +
       ', DirectX End-User Runtime' +
       (launcher ? ', Epic Games Launcher' : '') +
       (debuggers ? ', cdb/windbg' : ''),

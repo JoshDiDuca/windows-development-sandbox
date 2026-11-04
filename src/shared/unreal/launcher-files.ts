@@ -46,7 +46,10 @@ export function launcherManifestsDir(programData: string): string {
  */
 export function launcherSettingsFiles(localAppData: string): string[] {
   const config = win.join(localAppData, 'EpicGamesLauncher', 'Saved', 'Config');
-  return [win.join(config, 'WindowsEditor', 'GameUserSettings.ini'), win.join(config, 'Windows', 'GameUserSettings.ini')];
+  return [
+    win.join(config, 'WindowsEditor', 'GameUserSettings.ini'),
+    win.join(config, 'Windows', 'GameUserSettings.ini'),
+  ];
 }
 
 // ---- LauncherInstalled.dat ------------------------------------------------------------------------------------
@@ -131,7 +134,10 @@ export function mergeLauncherInstalled(existing: string | null, entries: readonl
   }
   const same = (raw: unknown, mine: LauncherEntry): boolean => {
     const e = EntrySchema.safeParse(raw);
-    return e.success && win.normalize(e.data.InstallLocation).toLowerCase() === win.normalize(mine.InstallLocation).toLowerCase();
+    return (
+      e.success &&
+      win.normalize(e.data.InstallLocation).toLowerCase() === win.normalize(mine.InstallLocation).toLowerCase()
+    );
   };
   const kept = list.filter((raw) => !entries.some((mine) => same(raw, mine)));
   return JSON.stringify({ ...rest, InstallationList: [...kept, ...entries] }, null, '\t') + '\n';
@@ -226,7 +232,12 @@ export function saveItems(manifests: string, saved: string, root: string): strin
  * Puts saved manifests back where the launcher reads them, for the apps whose folder is still there. A manifest the
  * launcher already has is never replaced. Returns the folders they name.
  */
-export function restoreItems(saved: string, manifests: string, root: string, exists: (dir: string) => boolean): string[] {
+export function restoreItems(
+  saved: string,
+  manifests: string,
+  root: string,
+  exists: (dir: string) => boolean,
+): string[] {
   const dirs: string[] = [];
   for (const name of itemFiles(saved)) {
     const bytes = readBoundedFile(win.join(saved, name), MAX_ITEM_BYTES);

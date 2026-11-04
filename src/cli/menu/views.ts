@@ -19,6 +19,7 @@ import { webView } from '../../app/features/web/index.js';
 import { vpnView } from '../../app/features/vpn/index.js';
 import { githubView } from '../../app/features/github/index.js';
 import { accessView } from '../../app/features/access/index.js';
+import { unrealView } from '../../app/features/unreal/index.js';
 import type { AnyView } from '../../app/kernel/index.js';
 import type { SECTION_LABELS } from './shell.js';
 
@@ -36,6 +37,7 @@ export const MENU_VIEWS: readonly MenuViewPlace[] = [
   { view: accountsView, section: 'Accounts' },
   { view: appsView, section: 'Apps' },
   { view: projectsView, section: 'Sandbox' },
+  { view: unrealView, section: 'Sandbox' },
   { view: healthView, section: 'Maintenance' },
   { view: dataView, section: 'Maintenance' },
   { view: storageView, section: 'Maintenance' },

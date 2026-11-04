@@ -17,9 +17,7 @@ export const VsSetupReportSchema = z.object({
         isComplete: z.boolean(),
         isLaunchable: z.boolean(),
         packages: z.array(z.string().max(200)).max(50),
-        toolchains: z
-          .array(z.object({ version: z.string().max(40), cl: z.boolean(), link: z.boolean() }))
-          .max(50),
+        toolchains: z.array(z.object({ version: z.string().max(40), cl: z.boolean(), link: z.boolean() })).max(50),
       }),
     )
     .max(20),
@@ -45,7 +43,8 @@ const parts = (v: string): number[] => v.split('.').map((p) => parseInt(p, 10) |
 const newer = (a: string, b: string): number => {
   const x = parts(a);
   const y = parts(b);
-  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  for (let i = 0; i < Math.max(x.length, y.length); i++)
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
   return 0;
 };
 

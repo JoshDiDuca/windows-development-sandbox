@@ -44,7 +44,11 @@ export interface DiscoveredInstalls {
 }
 
 /** What a setting asks for: false (nothing), true (everything) or a list; "auto" follows the Unreal toolchain. */
-function wantedOf(s: PcInstalls, setting: PcInstallSource['setting'], unrealOn: boolean): boolean | (string | number)[] {
+function wantedOf(
+  s: PcInstalls,
+  setting: PcInstallSource['setting'],
+  unrealOn: boolean,
+): boolean | (string | number)[] {
   const value = s[setting];
   return value === 'auto' ? unrealOn : value;
 }

@@ -29,7 +29,7 @@ export function enginePlaceProblem(
     return {
       problem:
         'ENGINES WOULD GO ON THE SANDBOX DISK: ' +
-        (place.error ?? 'the Epic Games Launcher\'s install folder could not be set') +
+        (place.error ?? "the Epic Games Launcher's install folder could not be set") +
         '. Do not install an engine with the launcher in this sandbox (it would fill C: and be lost); install it on your PC instead (the next sandbox maps it read-only).',
       freeBytes: null,
     };

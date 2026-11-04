@@ -20,7 +20,9 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
   const several = projects.length > 1;
   for (const p of projects) {
     const choice = status.projects.find((s) => s.workspace.toLowerCase() === p.workspace.toLowerCase());
-    const engine = choice?.engine ? status.engines.find((e) => e.dir.toLowerCase() === choice.engine!.toLowerCase()) : undefined;
+    const engine = choice?.engine
+      ? status.engines.find((e) => e.dir.toLowerCase() === choice.engine!.toLowerCase())
+      : undefined;
     const name = several ? ' (' + win.basename(p.workspace) + ')' : '';
     if (engine)
       lines.push(
@@ -37,7 +39,9 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
           '; ' +
           (choice?.reason ?? '') +
           '). `UE_ROOT` is set; Build.bat, RunUAT.bat, UnrealEditor.exe and UnrealEditor-Cmd.exe are on PATH.' +
-          (engine.writable ? '' : ' Read-only: never install plugins into it; put them in the project\'s Plugins folder.'),
+          (engine.writable
+            ? ''
+            : " Read-only: never install plugins into it; put them in the project's Plugins folder."),
       );
     else if (choice) lines.push('- Unreal' + name + ': no engine for this project (' + choice.reason + ').');
   }
@@ -96,7 +100,9 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
 /** The short tool-summary line of a project's engine. */
 export function unrealSummaryLine(status: UnrealStatus, workspace: string): string {
   const choice = status.projects.find((s) => s.workspace.toLowerCase() === workspace.toLowerCase());
-  const engine = choice?.engine ? status.engines.find((e) => e.dir.toLowerCase() === choice.engine!.toLowerCase()) : undefined;
+  const engine = choice?.engine
+    ? status.engines.find((e) => e.dir.toLowerCase() === choice.engine!.toLowerCase())
+    : undefined;
   if (engine) return 'unreal: ' + engine.id + ' ' + engine.version + ' (' + ORIGIN_LABELS[engine.origin] + ')';
   return status.engines.length
     ? 'unreal: no engine for this project (' + (choice?.reason ?? 'none matches') + ')'

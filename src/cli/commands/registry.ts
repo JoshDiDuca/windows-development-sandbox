@@ -8,6 +8,7 @@ import { agentCommandsStatus } from '../../app/features/agent-commands/index.js'
 import { listAccounts } from '../../app/features/accounts/index.js';
 import { containedStatus, showStorage } from '../../app/features/storage/index.js';
 import { listProjects } from '../../app/features/projects/index.js';
+import { unrealOverview } from '../../app/features/unreal/index.js';
 import { definitionHandler } from '../operations/index.js';
 import { fail } from '../../core/util/index.js';
 import { claudeHost, config, doctor, hostCommand, logs, sync, watcher } from './maintenance/index.js';
@@ -57,6 +58,8 @@ export const HANDLERS: Readonly<Partial<Record<string, Handler>>> = {
     );
   },
   engine: engine,
+  // The bare command shows the overview; its actions (add-engine, forget-engine, launcher) are the operations' hints.
+  unreal: definitionHandler(unrealOverview),
   'host-claude': claudeHost,
   host: hostCommand,
   _watch: watcher,

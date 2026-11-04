@@ -84,7 +84,12 @@ function launcherDirs(): string[] {
 /** Every engine this sandbox has. */
 export function sandboxEngines(ctx: Pick<ToolCtx, 'pcInstalls'>, disk: EngineFs = DISK): UnrealEngine[] {
   return findEngines(
-    { mapped: mappedEngines(ctx), enginesRoot: ENGINES_DIR, launcherDirs: launcherDirs(), projectRoots: projectRoots() },
+    {
+      mapped: mappedEngines(ctx),
+      enginesRoot: ENGINES_DIR,
+      launcherDirs: launcherDirs(),
+      projectRoots: projectRoots(),
+    },
     disk,
   );
 }

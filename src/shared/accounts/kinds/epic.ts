@@ -21,7 +21,10 @@ export function epicSettingsFile(localAppData: string): string {
  * Config\WindowsEditor, older ones in Config\Windows.
  */
 export function epicSettingsFiles(localAppData: string): string[] {
-  return [localAppData + '\\EpicGamesLauncher\\Saved\\Config\\WindowsEditor\\GameUserSettings.ini', epicSettingsFile(localAppData)];
+  return [
+    localAppData + '\\EpicGamesLauncher\\Saved\\Config\\WindowsEditor\\GameUserSettings.ini',
+    epicSettingsFile(localAppData),
+  ];
 }
 
 const isHeader = (line: string): boolean => line.trimStart().startsWith('[');

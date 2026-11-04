@@ -1,9 +1,10 @@
 // Section 3: the sandbox as a whole. Status (the sandbox view: its facts, the window, stopping it), Projects (the
-// projects view: roots, the projects and the all-projects setting) and Databases (start and stop), each a category on
-// the left.
+// projects view: roots, the projects and the all-projects setting), Databases (start and stop) and Unreal Engine (the
+// unreal view), each a category on the left.
 import { listProjects, projectsPage, type ProjectsList } from '../../../app/features/projects/index.js';
 import { sandboxPage, sandboxStatus, type SandboxStatus } from '../../../app/features/sandbox/index.js';
 import { readQuery } from '../../../app/registry.js';
+import { unrealOverview, unrealPage, type UnrealOverview } from '../../../app/features/unreal/index.js';
 import { errMsg, safeText } from '../../../core/util/index.js';
 import { RunDir } from '../../../shared/channel/index.js';
 import type { Context } from '../../commands/context.js';
@@ -20,6 +21,8 @@ export interface SandboxModel {
   readonly databases: DatabaseRow[] | null;
   /** The agent "Start the sandbox" offers while nothing runs. */
   readonly defaultAgent: string;
+  /** The Unreal overview; null when it could not be read. */
+  readonly unreal: UnrealOverview | null;
 }
 
 const CATEGORIES = [
@@ -30,7 +33,19 @@ const CATEGORIES = [
     description: 'Project roots (folders of projects, opened without a restart) and the projects started before.',
   },
   { id: 'databases', label: 'Databases', description: 'Databases the sandbox can run: start and stop them.' },
+  {
+    id: 'unreal',
+    label: 'Unreal Engine',
+    description: "Engines, which project uses which, this PC's engines and assets, Visual Studio and the debugger.",
+  },
 ];
+
+/** The Unreal category: the Unreal view's rows and keys (prefixed, so they never clash with other rows). */
+function unrealMenu(m: SandboxModel): MenuView | undefined {
+  return m.unreal
+    ? menuView(unrealPage(m.unreal), { category: 'unreal', prefix: 'unreal:', refresh: false })
+    : undefined;
+}
 
 /** The status category: the sandbox view's rows (prefixed, so they never clash with the projects' rows). */
 function statusView(m: SandboxModel): MenuView {
@@ -45,6 +60,7 @@ function projectsView(m: SandboxModel): MenuView {
 /** The category whose rows and keys are open (the one the cursor is in). */
 function viewFor(m: SandboxModel, category: string | undefined): MenuView | undefined {
   if (category === 'projects') return projectsView(m);
+  if (category === 'unreal') return unrealMenu(m);
   if (category === 'status' || category === undefined) return statusView(m);
   return undefined;
 }
@@ -77,9 +93,22 @@ export function sandboxOptions(m: SandboxModel): ListOptions<string> {
     section: 'Databases',
     description: d.title + '. Enter ' + (d.running ? 'stops' : 'starts') + ' it (the first start downloads it).',
   }));
+  const unreal = unrealMenu(m);
+  const noUnreal: ListItem<string>[] = unreal
+    ? []
+    : [
+        {
+          value: 'info:unreal',
+          label: 'Could not read the Unreal set-up',
+          category: 'unreal',
+          section: 'Unreal Engine',
+          description: 'l looks again.',
+          disabled: 'l looks again.',
+        },
+      ];
   return {
     path: [],
-    items: [...statusItems, ...projects.items, ...databases, ...noDatabases],
+    items: [...statusItems, ...projects.items, ...databases, ...noDatabases, ...(unreal?.items ?? []), ...noUnreal],
     categories: CATEGORIES,
     empty: 'Nothing here yet.',
     actions: (category) =>
@@ -87,7 +116,9 @@ export function sandboxOptions(m: SandboxModel): ListOptions<string> {
         ? [...projects.actions, REFRESH]
         : category === 'databases'
           ? [REFRESH]
-          : [...status.actions, REFRESH],
+          : category === 'unreal'
+            ? [...(unreal?.actions ?? []), REFRESH]
+            : [...status.actions, REFRESH],
     enterLabel: (category, id) => viewFor(m, category)?.enterLabel(category, id) || enterLabel(id ?? '', m),
   };
 }
@@ -151,6 +182,7 @@ export class SandboxPage extends ListPage<string> {
       projects: await readQuery(listProjects, this.ctx),
       databases,
       defaultAgent: this.defaultAgent(),
+      unreal: await readQuery(unrealOverview, this.ctx).catch(() => null),
     };
   }
 

@@ -1,5 +1,5 @@
 // Runs the boot's tasks: each starts when the tasks it comes after are finished, a few at a time, in declaration order.
-// Pure (no runtime imports): the boot injects printing, the clock, the log context and the status.
+// Pure (no runtime imports): the boot injects the log, the clock, the log context, the status and the progress view.
 
 export interface BootTaskDef<Id extends string = string> {
   readonly id: Id;
@@ -34,9 +34,24 @@ export interface RunnerStatus {
   readonly message: string;
 }
 
+/** What the console's progress view hears (foreground tasks only: the background ones are file-only). */
+export interface RunnerObserver {
+  started(task: BootTaskDef): void;
+  /** Also for a task that was skipped (it never started). */
+  finished(task: BootTaskDef, outcome: TaskOutcome): void;
+}
+
+/** Who logs while a task runs. */
+export interface TaskContext {
+  readonly stage: number;
+  readonly title: string;
+  readonly quiet: boolean;
+}
+
 export interface RunnerOptions {
+  /** A line for the log file only: when each task started and finished (the console shows the progress view). */
+  trace(line: string): void;
   /** `quiet`: file only (background tasks). */
-  say(line: string, quiet?: boolean): void;
   warn(line: string, quiet?: boolean): void;
   /** Milliseconds. */
   now(): number;
@@ -46,15 +61,21 @@ export interface RunnerOptions {
   stages: number;
   stageTitle(stage: number): string;
   status?(status: RunnerStatus): void;
-  /** Runs a task's work so that its log lines carry the task (`prefix()` is empty while it runs alone). */
-  inContext?<T>(ctx: { prefix: () => string; quiet: boolean }, work: () => T): T;
+  observer?: RunnerObserver;
+  /** Runs a task's work so that its log lines carry the task (its stage and title, and whether they stay quiet). */
+  inContext?<T>(ctx: TaskContext, work: () => T): T;
 }
 
 const PARALLEL = 4;
-const CYAN = '\x1b[36m';
-const RESET = '\x1b[0m';
+const MINUTE = 60000;
 
-export const seconds = (ms: number): string => (ms / 1000).toFixed(1) + 's';
+/** "4.6s" under a minute, "7m02s" from there. */
+export function duration(ms: number): string {
+  // 59.96 s would round to "60.0s": from there it is "1m00s".
+  if (ms < MINUTE - 50) return (Math.max(0, ms) / 1000).toFixed(1) + 's';
+  const s = Math.round(ms / 1000);
+  return Math.floor(s / 60) + 'm' + String(s % 60).padStart(2, '0') + 's';
+}
 
 /** Dependencies must exist, ids be unique, the graph acyclic and no foreground task wait for a background one. */
 export function checkGraph(defs: readonly BootTaskDef[]): void {
@@ -92,7 +113,6 @@ export class BootRunner<Id extends string> {
   private readonly byId = new Map<string, BootTaskDef<Id>>();
   private readonly state = new Map<string, State>();
   private readonly outcomes = new Map<string, TaskOutcome>();
-  private readonly announced = new Set<number>();
   private readonly running = new Set<string>();
 
   constructor(
@@ -134,12 +154,12 @@ export class BootRunner<Id extends string> {
         this.state.set(d.id, 'running');
         this.running.add(d.id);
         const began = this.o.now();
-        if (!quiet) this.begin(d);
-        const prefix = (): string => (this.running.size > 1 && !d.exclusive ? d.title : '');
+        this.begin(d, quiet);
+        const ctx: TaskContext = { stage: d.stage, title: d.title, quiet };
         const work = async (): Promise<void> => {
           await this.impl[d.id]();
         };
-        const call = (): Promise<void> => (this.o.inContext ? this.o.inContext({ prefix, quiet }, work) : work());
+        const call = (): Promise<void> => (this.o.inContext ? this.o.inContext(ctx, work) : work());
         // A synchronous throw from a task is a failure too: the call starts inside a promise.
         void Promise.resolve()
           .then(call)
@@ -166,7 +186,7 @@ export class BootRunner<Id extends string> {
           for (const d of pending()) {
             const bad = d.after.find((a) => this.isBlocked(a));
             if (bad) {
-              this.skip(d, this.byId.get(bad)!.title + ' failed');
+              this.skip(d, this.byId.get(bad)!.title + ' failed', quiet);
               again = true;
             }
           }
@@ -198,41 +218,42 @@ export class BootRunner<Id extends string> {
     return s === 'skipped' || (s === 'failed' && this.byId.get(id)!.critical);
   }
 
-  private skip(d: BootTaskDef<Id>, why: string): void {
-    this.state.set(d.id, 'skipped');
-    this.outcomes.set(d.id, { id: d.id, title: d.title, state: 'skipped', ms: 0, error: why });
-    this.o.say('[' + d.stage + '/' + this.o.stages + '] ' + d.title + ': skipped (' + why + ')');
+  private tag(d: BootTaskDef<Id>): string {
+    return (d.background ? '[background] ' : '[' + d.stage + '/' + this.o.stages + '] ') + d.title;
   }
 
-  private begin(d: BootTaskDef<Id>): void {
-    if (!this.announced.has(d.stage)) {
-      this.announced.add(d.stage);
-      this.o.say('\n' + CYAN + '[' + d.stage + '/' + this.o.stages + '] ' + this.o.stageTitle(d.stage) + RESET);
-    }
-    this.o.say('[' + d.stage + '/' + this.o.stages + '] ' + d.title + ': started');
+  private skip(d: BootTaskDef<Id>, why: string, quiet: boolean): void {
+    this.state.set(d.id, 'skipped');
+    const outcome: TaskOutcome = { id: d.id, title: d.title, state: 'skipped', ms: 0, error: why };
+    this.outcomes.set(d.id, outcome);
+    this.o.trace(this.tag(d) + ': skipped (' + why + ')');
+    if (!quiet) this.o.observer?.finished(d, outcome);
+  }
+
+  private begin(d: BootTaskDef<Id>, quiet: boolean): void {
+    this.o.trace(this.tag(d) + ': started');
+    if (quiet) return;
+    this.o.observer?.started(d);
     this.report(d.stage);
   }
 
   private finish(d: BootTaskDef<Id>, began: number, quiet: boolean, error: unknown): void {
     const ms = this.o.now() - began;
     const message = error === undefined ? undefined : error instanceof Error ? error.message : String(error);
-    this.state.set(d.id, message === undefined ? 'done' : 'failed');
-    this.outcomes.set(d.id, {
+    const outcome: TaskOutcome = {
       id: d.id,
       title: d.title,
       state: message === undefined ? 'done' : 'failed',
       ms,
       ...(message === undefined ? {} : { error: message }),
-    });
-    const tag = '[' + d.stage + '/' + this.o.stages + '] ' + d.title;
-    if (message === undefined) {
-      if (!quiet) this.o.say(tag + ': done in ' + seconds(ms));
-    } else if (d.critical) {
-      this.o.warn(tag + ': FAILED in ' + seconds(ms) + ': ' + message, quiet);
-    } else {
-      this.o.warn(d.title + ' failed (continuing): ' + message, quiet);
-      if (!quiet) this.o.say(tag + ': FAILED in ' + seconds(ms) + ': ' + message);
-    }
+    };
+    this.state.set(d.id, outcome.state);
+    this.outcomes.set(d.id, outcome);
+    this.o.trace(this.tag(d) + (message === undefined ? ': done in ' : ': FAILED in ') + duration(ms));
+    // A soft failure is a warning and the boot goes on; a critical one stops the boot, which shows that error.
+    if (message !== undefined && !d.critical) this.o.warn(d.title + ' failed (continuing): ' + message, quiet);
+    if (message !== undefined && d.critical) this.o.trace(this.tag(d) + ': ' + message);
+    if (!quiet) this.o.observer?.finished(d, outcome);
   }
 
   private report(stageHint: number): void {
@@ -248,25 +269,4 @@ export class BootRunner<Id extends string> {
       message: '[' + step + '/' + this.o.stages + '] ' + this.o.stageTitle(step),
     });
   }
-}
-
-/** "Boot ready in 31.8s. Slowest: Headroom 28.1s, Developer tools 7.0s. In the background: Visual Studio (...)". */
-export function bootSummary(
-  totalMs: number,
-  outcomes: readonly TaskOutcome[],
-  background: readonly string[],
-  logPath: string,
-): string {
-  const slowest = [...outcomes]
-    .filter((o) => o.state !== 'skipped')
-    .sort((a, b) => b.ms - a.ms)
-    .slice(0, 3)
-    .map((o) => o.title + ' ' + seconds(o.ms));
-  return (
-    'Boot ready in ' +
-    seconds(totalMs) +
-    '.' +
-    (slowest.length ? ' Slowest: ' + slowest.join(', ') + '.' : '') +
-    (background.length ? ' In the background: ' + background.join(', ') + ' (installing, see ' + logPath + ').' : '')
-  );
 }

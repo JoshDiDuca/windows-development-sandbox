@@ -49,8 +49,19 @@ export const guestBootSuite: Suite = {
       headers.join(', '),
     );
     t.check(
-      boot.out.includes('Boot ready in ') && boot.out.includes('] Developer tools: done in '),
-      'the boot says how long it took and how long each task took',
+      /^Ready in \d+\.\ds/m.test(boot.out) && /^\[3\/9\] Developer tools +\d+\.\ds$/m.test(boot.out),
+      'the boot says how long it took and how long each stage took',
+      boot.out,
+    );
+    const tools = boot.out.indexOf('\nTools\n');
+    t.check(
+      !boot.out.includes(': started') &&
+        !/^\s*[A-Z][\w -]+ \| /m.test(boot.out) &&
+        !boot.out.includes('\x1b[') &&
+        tools > headers[8]! &&
+        /\n {2}gh {2,}off \(not listed in toolchains\.cli\)\n/.test(boot.out.slice(tools)),
+      'the dry run prints plain lines: no per-task lines, no prefixes, no colours; the tool list once, after the stages',
+      boot.out,
     );
     t.equal(
       steps.filter((s) => !boot.out.includes(s)),

@@ -7,6 +7,15 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.24.1
+
+- **Codex no longer blocks reading the workspace when started by hand.** A `codex` installed with `npm i -g` (in Node's
+  folder) came before the sandbox's own `codex` command on PATH, so it started without the sandbox's flags and set up
+  its own Windows sandbox. The sandbox's agent commands now come first on PATH, and `config.toml` carries
+  `sandbox_mode` and `approval_policy` from the codex settings (marked lines; your own lines win), so any Codex start
+  obeys them.
+
+
 ## 1.24.0
 
 - **A calm boot screen.** The sandbox's terminal shows one live block of the nine boot stages (done, running with what
@@ -17,12 +26,6 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   was open counted as a crash (it looks the same: busy, then gone, nothing in Windows' log) and was started again. Only
   ends Windows logged (a sandbox crash, low memory, a graphics driver reset, a Hyper-V error) restart it now; the
   others still get a crash report.
-- **Codex no longer blocks reading the workspace when started by hand.** A `codex` installed with `npm i -g` (in Node's
-  folder) came before the sandbox's own `codex` command on PATH, so it started without the sandbox's flags and set up
-  its own Windows sandbox. The sandbox's agent commands now come first on PATH, and `config.toml` carries
-  `sandbox_mode` and `approval_policy` from the codex settings (marked lines; your own lines win), so any Codex start
-  obeys them.
-
 ## 1.23.2
 
 - **Visual Studio install files fit on the sandbox disk.** A sandbox has only about 14 GB free on C: at boot (the disk is

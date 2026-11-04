@@ -7,12 +7,8 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## Unreleased
+## 1.25.0
 
-- **Closing the sandbox no longer restarts it.** With `resume.restartAfterCrash` on, a sandbox closed by hand while a session
-  was open counted as a crash (it looks the same: busy, then gone, nothing in Windows' log) and was started again. Only
-  ends Windows logged (a sandbox crash, low memory, a graphics driver reset, a Hyper-V error) restart it now; the
-  others still get a crash report.
 - **Visual Studio is installed once and kept.** The first boot that needs it (Unreal, Flutter desktop, Unity IL2CPP)
   installs it and saves it on the data disk (`tools\visualstudio\persist`, about 6.5 GB for Community with the Windows
   SDK); every later boot puts it back in a few seconds, with no download, no install and nothing big on the sandbox's
@@ -21,6 +17,24 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   `visualStudio: "autosdk"` (a saved Visual Studio does what it was for); `sandbox migrate` removes them from your
   settings. New: `visualStudio: "buildtools"` builds Unreal with the Visual Studio Build Tools only (no IDE).
 
+## 1.24.1
+
+- **Codex no longer blocks reading the workspace when started by hand.** A `codex` installed with `npm i -g` (in Node's
+  folder) came before the sandbox's own `codex` command on PATH, so it started without the sandbox's flags and set up
+  its own Windows sandbox. The sandbox's agent commands now come first on PATH, and `config.toml` carries
+  `sandbox_mode` and `approval_policy` from the codex settings (marked lines; your own lines win), so any Codex start
+  obeys them.
+
+## 1.24.0
+
+- **A calm boot screen.** The sandbox's terminal shows one live block of the nine boot stages (done, running with what
+  runs now, waiting) instead of a stream of interleaved lines; warnings are collected and shown once; at the end the
+  tools are listed in two aligned columns with "Ready in ..." and what still installs in the background. The summary
+  stays in the scrollback above the session. Logs keep ordered, timestamped plain lines.
+- **Closing the sandbox no longer restarts it.** With `resume.restartAfterCrash` on, a sandbox closed by hand while a session
+  was open counted as a crash (it looks the same: busy, then gone, nothing in Windows' log) and was started again. Only
+  ends Windows logged (a sandbox crash, low memory, a graphics driver reset, a Hyper-V error) restart it now; the
+  others still get a crash report.
 ## 1.23.2
 
 - **Visual Studio install files fit on the sandbox disk.** A sandbox has only about 14 GB free on C: at boot (the disk is

@@ -120,10 +120,21 @@ type CodexSettings = Config['codex'];
 /** The marker the sandbox puts above the lines it writes into config.toml. */
 const CODEX_MARKER = '# Set by the sandbox';
 
+/** The full marker line: what it is and where to change it. */
+const CODEX_MARKER_LINE =
+  CODEX_MARKER + ' from its codex settings (`sandbox config`); a line of your own without it wins.';
+
+/** Markers whose lines count as the sandbox's: CODEX_MARKER, and a hand-made fix's (`# agent-sandbox:`). */
+const CODEX_MARKERS = [CODEX_MARKER, '# agent-sandbox:'] as const;
+
+/** The top-level keys the sandbox writes under its marker. */
+const CODEX_OWNED_KEYS = ['sandbox_mode', 'approval_policy', 'model', 'model_reasoning_effort'] as const;
+
 /**
- * The flags every Codex start gets. Flags beat config.toml and a resumed thread's saved permissions, which is why the
- * sandbox does not rely on the file. Full access with no questions is the one flag that skips Codex's Windows sandbox
- * setup for certain. Pure.
+ * The flags every Codex start through the sandbox gets (the codex.cmd shim, the daemon's sessions). Flags beat
+ * config.toml and a resumed thread's saved permissions; config.toml carries the same settings for a start without
+ * them (codexConfigOwned). Full access with no questions is the one flag that skips Codex's Windows sandbox setup for
+ * certain. Pure.
  */
 export function codexArguments(c: CodexSettings): string[] {
   const out =
@@ -144,10 +155,13 @@ export function agentArguments(name: string, harness: Harness, codex: CodexSetti
 export const MAX_CODEX_CONFIG_BYTES = 1024 * 1024;
 
 /**
- * Codex's config.toml as the sandbox wants it, every other line byte for byte: the lines an older version wrote above
- * the first table (sandbox_mode, approval_policy, under the marker comment) are gone, `[windows] sandbox` follows
- * windowsSandbox ("off" removes the line, so Codex does not set up its own sandbox users), and
- * mcp_oauth_credentials_store = "file" is added when it is not set. Running it again changes nothing. Pure.
+ * Codex's config.toml as the sandbox wants it, every other line byte for byte. Above the first table, under the
+ * marker comment: sandbox_mode, approval_policy (and model, model_reasoning_effort when set), so ANY start of Codex
+ * obeys the codex settings, also one without the shim's flags (a copy installed with npm -g). The marked lines are
+ * replaced each time; a key the user set on a line of their own above the first table is left to them.
+ * `[windows] sandbox` follows windowsSandbox ("off" removes the line, which Codex adds back after its own setup, so it
+ * does not set up its own sandbox users), and mcp_oauth_credentials_store = "file" is added when it is not set.
+ * Keeps the file's line endings; running it again changes nothing. Pure.
  */
 export function codexConfigOwned(toml: string, c: CodexSettings): string {
   const eol = toml.includes('\r\n') ? '\r\n' : '\n';
@@ -155,16 +169,35 @@ export function codexConfigOwned(toml: string, c: CodexSettings): string {
   let top = firstTable < 0 ? toml : toml.slice(0, firstTable);
   const tables = firstTable < 0 ? '' : toml.slice(firstTable);
   top = top.replace(MARKED_LINES, '');
-  if (c.mcpLoginsInFile && !/^[ \t]*mcp_oauth_credentials_store[ \t]*=/m.test(top)) {
+  if (c.mcpLoginsInFile && !hasKey(top, 'mcp_oauth_credentials_store')) {
     if (top && !top.endsWith('\n')) top += eol;
     top += 'mcp_oauth_credentials_store = "file"' + eol + (tables ? eol : '');
   }
-  return top + codexWindowsSandbox(tables, c.windowsSandbox, eol);
+  const values: Record<(typeof CODEX_OWNED_KEYS)[number], string> = {
+    sandbox_mode: c.sandboxMode,
+    approval_policy: c.approvalPolicy,
+    model: c.model,
+    model_reasoning_effort: c.reasoningEffort === 'default' ? '' : c.reasoningEffort,
+  };
+  const lines = CODEX_OWNED_KEYS.filter((k) => values[k] && !hasKey(top, k)).map(
+    (k) => k + ' = ' + JSON.stringify(values[k]),
+  );
+  const marked = lines.length ? [CODEX_MARKER_LINE, ...lines].join(eol) + eol + (top || tables ? eol : '') : '';
+  return marked + top + codexWindowsSandbox(tables, c.windowsSandbox, eol);
 }
 
-/** The lines an older version wrote above the first table: its marker comment, then sandbox_mode / approval_policy. */
+/** True when the top of config.toml sets the key on a line of its own. */
+function hasKey(top: string, key: string): boolean {
+  return new RegExp('^[ \t]*' + key + '[ \t]*=', 'm').test(top);
+}
+
+/** The lines the sandbox wrote above the first table: a marker comment, the keys it owns, then one blank line. */
 const MARKED_LINES = new RegExp(
-  '^' + CODEX_MARKER + '[^\r\n]*\r?\n(?:(?:sandbox_mode|approval_policy)[ \t]*=[^\r\n]*\r?\n)*(?:[ \t]*\r?\n)?',
+  '^(?:' +
+    CODEX_MARKERS.join('|') +
+    ')[^\r\n]*\r?\n(?:(?:' +
+    CODEX_OWNED_KEYS.join('|') +
+    ')[ \t]*=[^\r\n]*(?:\r?\n|$))*(?:[ \t]*\r?\n)?',
   'm',
 );
 

@@ -187,7 +187,8 @@ too. How it is kept and handed over: [security](security.md#github-cli).
 - `localState` is for agents that keep SQLite databases (Codex). SQLite cannot run in the shared data folder, so the
   agent runs from a copy on the sandbox's own disk, restored at start and saved after the agent exits.
 - Every configured agent is a command in every terminal tab (`claude`, `codex` ...). One that is not installed yet
-  installs on first use (`sbx-agent list` shows them).
+  installs on first use (`sbx-agent list` shows them). These commands come first on PATH, so they win over a copy
+  installed with `npm i -g` in Node's folder.
 
 ### Agent environment variables
 
@@ -213,6 +214,10 @@ re-grants file permissions over your profile at every start), so the default is 
   `on-request`, `on-failure`, `untrusted`) become launch flags on every Codex start: a new tab, a restart and the
   `codex` command of a terminal. Flags beat `config.toml` and the permissions a resumed thread saved. Full access with
   `never` uses `--dangerously-bypass-approvals-and-sandbox`, which skips the Windows sandbox setup for certain.
+- The same settings are also written at the top of `config.toml` (`sandbox_mode`, `approval_policy`, and `model`,
+  `model_reasoning_effort` when set), under a `# Set by the sandbox` comment, so a Codex started without the flags
+  (say, one you installed yourself with `npm i -g @openai/codex`) obeys them too. The sandbox replaces those marked
+  lines at every boot; a line of your own for the same key (without the comment above it) is kept and wins.
 - `codex.model` (empty = Codex's default) and `codex.reasoningEffort` are passed as `-c` overrides.
 - `codex.windowsSandbox` (`off`, `unelevated`, `elevated`): `off` removes `[windows] sandbox` from `config.toml`.
 - `codex.mcpLoginsInFile` (default on) sets `mcp_oauth_credentials_store = "file"` unless you set it yourself.

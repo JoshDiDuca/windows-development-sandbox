@@ -81,6 +81,7 @@ import { uiTextSuite } from './ui-text.test.js';
 import { menuCoverageSuite } from './menu-coverage.test.js';
 import { auditSuite } from './audit.test.js';
 import { bootRunnerSuite } from './boot-runner.test.js';
+import { bootConsoleSuite } from './boot-console.test.js';
 import { layoutSuite } from './layout.test.js';
 import { menuSuite } from './menu.test.js';
 import { menuPerfSuite } from './menu-perf.test.js';
@@ -135,6 +136,7 @@ export const SUITES: Suite[] = [
   // pure helpers and the command line
   layoutSuite,
   bootRunnerSuite,
+  bootConsoleSuite,
   toolchainsSuite,
   persistedInstallsSuite,
   steamSuite,

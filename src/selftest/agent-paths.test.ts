@@ -26,6 +26,7 @@ import {
   pathKey,
   planPath,
   rebuildPath,
+  sessionPath,
   splitPath,
 } from '../guest/setup/path-plan.js';
 import { withReloadEnvironment } from '../host/tools/index.js';
@@ -135,6 +136,34 @@ export const agentPathsSuite: Suite = {
       planPath({ entries: ['C:\\a;C:\\nvm\\v24.1.0'], exists, drop: (f) => isPinnedNodeDir(f, 'C:\\NVM') }),
       ['C:\\a'],
       'a pinned node version is never machine-wide',
+    );
+    const agentPath = sessionPath({
+      commands: 'C:\\nvm\\bin',
+      prepend: ['C:\\AgentData\\tools\\bin', 'C:\\AgentData\\tools\\nvm', 'C:\\nvm\\nodejs'],
+      base: ['C:\\Windows\\system32', 'c:\\NVM\\bin\\'],
+      append: ['C:\\AgentData\\tools\\agents\\codex'],
+    });
+    t.equal(
+      agentPath,
+      [
+        'C:\\nvm\\bin',
+        'C:\\AgentData\\tools\\bin',
+        'C:\\AgentData\\tools\\nvm',
+        'C:\\nvm\\nodejs',
+        'C:\\Windows\\system32',
+        'C:\\AgentData\\tools\\agents\\codex',
+      ],
+      "the sandbox's agent shims come first, before nvm's node folder (an npm -g codex there) and the agent's own folder",
+    );
+    t.equal(
+      planPath({ entries: [agentPath.join(';')], exists: () => true })[0],
+      'C:\\nvm\\bin',
+      'and stay first on the machine PATH that terminal tabs get',
+    );
+    t.equal(
+      rebuildPath({ machine: agentPath.join(';'), user: 'C:\\nvm\\nodejs', process: '', env: {} }).split(';')[0],
+      'C:\\nvm\\bin',
+      'a new shell keeps them first',
     );
     t.check(
       isPinnedNodeDir('C:\\nvm\\v24.1.0\\', 'C:\\nvm') && !isPinnedNodeDir('C:\\nvm', 'C:\\nvm'),

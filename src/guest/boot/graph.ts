@@ -5,15 +5,28 @@ import type { BootTaskDef } from './runner.js';
 
 export const STAGES = 9;
 
-/** The titles of the nine stages (the host shows the short form without the brackets). */
-export function stageTitle(stage: number, who: { vpnServer?: string; agent?: string } = {}): string {
+/** Who the stage titles name. */
+export interface StageWho {
+  readonly vpnServer?: string;
+  readonly agent?: string;
+}
+
+/** The titles of the nine stages, with a note where one helps (the host's status message). */
+export function stageTitle(stage: number, who: StageWho = {}): string {
+  return stage === 3
+    ? stageName(stage, who) + ' (the first start downloads them once; later starts are quick)'
+    : stageName(stage, who);
+}
+
+/** The short titles of the nine stages: the console's stage rows and the host's progress line. */
+export function stageName(stage: number, who: StageWho = {}): string {
   switch (stage) {
     case 1:
       return 'Network and session host';
     case 2:
       return 'Pre-provision hooks and desktop';
     case 3:
-      return 'Developer tools (the first start downloads them once; later starts are quick)';
+      return 'Developer tools';
     case 4:
       return who.vpnServer ? 'VPN (' + who.vpnServer + ')' : 'VPN (off)';
     case 5:

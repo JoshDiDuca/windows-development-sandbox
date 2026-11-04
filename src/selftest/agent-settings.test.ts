@@ -72,19 +72,68 @@ export const agentSettingsSuite: Suite = {
     const old =
       '# Set by the sandbox: x\nsandbox_mode = "danger-full-access"\n\n[tui]\nscreen_reader_detection_done = true\n\n[windows]\nsandbox = "elevated"\n';
     const owned = codexConfigOwned(old, CODEX);
-    t.check(
-      !owned.includes('sandbox_mode') && !owned.includes('Set by the sandbox') && !owned.includes('sandbox = '),
-      'the old sandbox_mode lines and [windows] sandbox are removed',
+    const marker = owned.split('\n')[0];
+    t.check(marker.startsWith('# Set by the sandbox'), 'the marked lines start the file', owned);
+    t.equal(
       owned,
-    );
-    t.check(
-      owned.includes('mcp_oauth_credentials_store = "file"') &&
-        owned.includes('[tui]\nscreen_reader_detection_done = true\n') &&
-        owned.includes('[windows]'),
-      'MCP logins go to a file; every other line stays',
-      owned,
+      marker +
+        '\nsandbox_mode = "danger-full-access"\napproval_policy = "never"\n\nmcp_oauth_credentials_store = "file"\n\n' +
+        '[tui]\nscreen_reader_detection_done = true\n\n[windows]\n',
+      'sandbox_mode and approval_policy are written above the first table (the old marked lines replaced), MCP logins go to a file, [windows] sandbox is removed for "off", every other line stays',
     );
     t.equal(codexConfigOwned(owned, CODEX), owned, 'running it again changes nothing');
+    t.equal(
+      codexConfigOwned(owned, { ...CODEX, sandboxMode: 'workspace-write', approvalPolicy: 'on-request' }),
+      owned
+        .replace('"danger-full-access"', '"workspace-write"')
+        .replace('approval_policy = "never"', 'approval_policy = "on-request"'),
+      'changed settings replace the marked lines in place',
+    );
+    const tuned = codexConfigOwned('', { ...CODEX, model: 'gpt-5', reasoningEffort: 'high', mcpLoginsInFile: false });
+    t.equal(
+      tuned.split('\n').slice(1),
+      [
+        'sandbox_mode = "danger-full-access"',
+        'approval_policy = "never"',
+        'model = "gpt-5"',
+        'model_reasoning_effort = "high"',
+        '',
+      ],
+      'model and reasoning effort are written when set (an empty file gets only the marked lines)',
+    );
+    t.equal(
+      codexConfigOwned(tuned, { ...CODEX, mcpLoginsInFile: false }),
+      tuned.replace('model = "gpt-5"\nmodel_reasoning_effort = "high"\n', ''),
+      'and removed again when cleared',
+    );
+    const mine = 'approval_policy = "on-request"\n\n[windows]\nsandbox = "elevated"\n';
+    const respected = codexConfigOwned(mine, { ...CODEX, mcpLoginsInFile: false });
+    t.check(
+      respected.includes('sandbox_mode = "danger-full-access"') &&
+        respected.includes('approval_policy = "on-request"') &&
+        !respected.includes('approval_policy = "never"') &&
+        !respected.includes('sandbox = "elevated"'),
+      "a user's own unmarked line is kept and not written again",
+      respected,
+    );
+    t.equal(codexConfigOwned(respected, { ...CODEX, mcpLoginsInFile: false }), respected, 'stable with it too');
+    const crlf = old.replace(/\n/g, '\r\n');
+    const ownedCrlf = codexConfigOwned(crlf, CODEX);
+    t.equal(ownedCrlf, owned.replace(/\n/g, '\r\n'), 'a CRLF file is edited the same way and keeps CRLF');
+    t.equal(codexConfigOwned(ownedCrlf, CODEX), ownedCrlf, 'running it again on CRLF changes nothing');
+    const byHand =
+      '# agent-sandbox: Windows Sandbox already contains Codex; its own command sandbox is off.\n' +
+      'sandbox_mode = "danger-full-access"\napproval_policy = "never"\nmcp_oauth_credentials_store = "file"\n\n' +
+      '[tui]\nscreen_reader_detection_done = true\n\n[projects.\'c:\\x\']\ntrust_level = "trusted"\n';
+    const adopted = codexConfigOwned(byHand, CODEX);
+    t.equal(
+      adopted,
+      marker +
+        '\nsandbox_mode = "danger-full-access"\napproval_policy = "never"\n\nmcp_oauth_credentials_store = "file"\n\n' +
+        '[tui]\nscreen_reader_detection_done = true\n\n[projects.\'c:\\x\']\ntrust_level = "trusted"\n',
+      'lines under the hand-made "# agent-sandbox:" marker count as the sandbox\'s and are replaced',
+    );
+    t.equal(codexConfigOwned(adopted, CODEX), adopted, 'and stay stable after that');
     t.includes(
       codexConfigOwned(old, { ...CODEX, windowsSandbox: 'unelevated' }),
       '[windows]\nsandbox = "unelevated"',
@@ -94,11 +143,6 @@ export const agentSettingsSuite: Suite = {
       codexConfigOwned('mcp_oauth_credentials_store = "keyring"\n', CODEX),
       'mcp_oauth_credentials_store = "keyring"',
       "a user's own mcp_oauth_credentials_store is kept",
-    );
-    t.equal(
-      codexConfigOwned('', { ...CODEX, mcpLoginsInFile: false }),
-      '',
-      'an empty file stays empty when nothing is owned',
     );
 
     t.section('Anthropic key pattern');

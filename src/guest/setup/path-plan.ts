@@ -44,6 +44,29 @@ export function planPath(input: PathPlanInput): string[] {
   return msvcBeforeGitUsr(result);
 }
 
+/**
+ * The PATH folders of the agent environment (sessions, the machine PATH, terminal tabs): the sandbox's own commands
+ * folder first, because its `claude` / `codex` shims carry the sandbox's flags and must beat a copy installed with
+ * `npm i -g` in nvm's node folder; then the toolchains' folders, the process's own and the appended ones. No
+ * duplicates (matched like pathKey); MSVC's tools before Git's usr\bin.
+ */
+export function sessionPath(o: {
+  readonly commands: string;
+  readonly prepend: readonly string[];
+  readonly base: readonly string[];
+  readonly append: readonly string[];
+}): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const folder of [o.commands, ...o.prepend, ...o.base, ...o.append]) {
+    const key = pathKey(folder);
+    if (!folder.trim() || seen.has(key)) continue;
+    seen.add(key);
+    result.push(folder);
+  }
+  return msvcBeforeGitUsr(result);
+}
+
 /** `base` with the folders of `extra` it lacks added at the end (a process keeps its own order and entries). */
 export function appendMissing(base: string, extra: string, skip: (folder: string) => boolean = () => false): string {
   const seen = new Set(splitPath(base).map(pathKey));

@@ -117,7 +117,8 @@ export function resetMachineBound(): void {
 
 /**
  * Boot: Codex's config.toml follows the codex settings (codexConfigOwned): no Windows sandbox setup of its own, its MCP
- * logins in a file. The sandbox mode itself travels as launch flags (codexArguments), which beat this file.
+ * logins in a file, the sandbox mode and approval policy for a start without the launch flags (codexArguments, which
+ * beat this file and still go on every start through the sandbox).
  */
 export function codexBootConfig(): void {
   if (dryRun || !session.agents?.codex || !session.codex) return;

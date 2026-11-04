@@ -57,6 +57,8 @@ export const UnrealStatusSchema = z.object({
   /** cdb.exe of the Windows SDK's debuggers, null when they are missing. */
   debugger: Text().nullable(),
   ddc: z.object({ mode: z.enum(['persisted', 'local']), dir: Text().nullable() }),
+  /** This PC's vault cache folders (Fab and Marketplace packs), read-only in the sandbox. */
+  vaults: z.array(Text()).max(4).default([]),
   /** The editor's MCP server address when the project's engine has the plugin. */
   mcpUrl: Text(200).nullable(),
 });

@@ -184,6 +184,7 @@ export async function setupUnrealEngines(env: ToolEnv, config: Toolchains['unrea
       { workspace, engine: engine?.dir ?? null, reason: choice.reason },
     ].slice(-64),
     ddc: { mode: config.derivedDataCache, dir: ddc },
+    vaults: ctx.pcInstalls.items.filter((i) => i.kind === 'unreal-vault').map((i) => i.guest),
     mcpUrl: mcp ?? (ctx.duringSession ? s.mcpUrl : null),
   }));
   env.summary.push(unrealSummaryLine(status, workspace));

@@ -53,6 +53,12 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
         status.engines.map((e) => e.id + ' ' + e.version + (e.writable ? '' : ' (read-only)')).join(', ') +
         ". A project uses the one its .uproject's EngineAssociation names (a writable copy before this PC's read-only one), else the newest.",
     );
+  if (status.vaults.length)
+    lines.push(
+      "- Unreal assets from the user's PC (Fab / Marketplace downloads, read-only, new ones appear at once): `" +
+        status.vaults.join('`, `') +
+        '`, one folder per pack: `<Pack>\\data\\Content\\...` (use it: `robocopy "<vault>\\<Pack>\\data\\Content" "<Project>\\Content" /E`) or a code plugin `<Pack>\\data\\<Name>.uplugin` (copy `<Pack>\\data` to `<Project>\\Plugins\\<Name>`). Never write into it. Projects under the mapped project root are the PC\'s own folders: assets the user adds there show up at once.',
+    );
   if (!status.engines.length) return lines;
   const uproject = projects.find((p) => p.uproject)?.uproject ?? '<Project>.uproject';
   const project = win.basename(uproject, '.uproject');

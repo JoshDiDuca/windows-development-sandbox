@@ -35,6 +35,11 @@ export const PcInstallsSchema = z
       .describe(
         'Unreal Engine folders of this PC to use in the sandbox, writable (a source build, or a copy you build plugins into): each must hold Engine\\Build\\Build.version. Mapped under C:\\PcInstalls\\unreal and registered there.',
       ),
+    unrealAssets: z
+      .union([z.literal('auto'), z.boolean()])
+      .describe(
+        "The Epic Games Launcher's vault cache of this PC (the Fab and Marketplace packs you downloaded), read-only in the sandbox at C:\\PcInstalls\\unreal\\Vault: what you download on your PC is there for the agents at once. \"auto\" = whenever the sandbox is set up for Unreal, true = always, false = never.",
+      ),
     unityEditors: pick(
       z.string().regex(/^\d+\.\d+\.\d+[abfp]\d+$/),
       'Unity editors installed with Unity Hub',

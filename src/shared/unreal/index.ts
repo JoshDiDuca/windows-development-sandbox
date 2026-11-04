@@ -5,3 +5,4 @@ export * from './status.js';
 export * from './guide.js';
 export * from './vs-check.js';
 export * from './room.js';
+export * from './vault.js';

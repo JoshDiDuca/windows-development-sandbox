@@ -65,6 +65,7 @@ export const DEFAULTS: Config = {
     epicGames: false,
     unrealEngines: 'auto',
     unrealEngineFolders: [],
+    unrealAssets: 'auto',
     unityEditors: false,
   },
   provisioning: {

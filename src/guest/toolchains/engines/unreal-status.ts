@@ -24,6 +24,7 @@ const EMPTY: UnrealStatus = {
   visualStudio: { version: '', path: '', how: '', check: '', ok: false },
   debugger: null,
   ddc: { mode: 'local', dir: null },
+  vaults: [],
   mcpUrl: null,
 };
 

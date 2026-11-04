@@ -5,7 +5,7 @@
 /** Where this PC's installs appear in the sandbox (reserved: RESERVED_GUEST). */
 export const PC_INSTALLS_GUEST = 'C:\\PcInstalls';
 
-export type PcInstallKind = 'steam-game' | 'steam-library' | 'epic-game' | 'unreal' | 'unity';
+export type PcInstallKind = 'steam-game' | 'steam-library' | 'epic-game' | 'unreal' | 'unreal-vault' | 'unity';
 
 export interface PcInstall {
   readonly kind: PcInstallKind;
@@ -41,6 +41,7 @@ const AREA: Readonly<Record<PcInstallKind, string>> = {
   'steam-library': 'steam',
   'epic-game': 'epic',
   unreal: 'unreal',
+  'unreal-vault': 'unreal',
   unity: 'unity',
 };
 

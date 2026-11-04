@@ -13,6 +13,7 @@ import type { PcInstallSource } from './source.js';
 import { steamInstalls } from './steam.js';
 import { unityInstalls } from './unity.js';
 import { unrealFolders, unrealInstalls } from './unreal.js';
+import { unrealVault } from './unreal-vault.js';
 
 export type PcInstalls = Config['pcInstalls'];
 
@@ -24,6 +25,7 @@ export const PC_INSTALL_SOURCES: readonly PcInstallSource[] = [
   epicInstalls,
   unrealFolders,
   unrealInstalls,
+  unrealVault,
   unityInstalls,
 ];
 
@@ -31,7 +33,7 @@ export interface DiscoverOptions {
   readonly packageRoot: string;
   readonly storageRoot: string;
   readonly sources?: readonly PcInstallSource[];
-  /** This launch sets the sandbox up for Unreal (pcInstalls.unrealEngines "auto" maps the engines then). */
+  /** This launch sets the sandbox up for Unreal ("auto" maps this PC's engines and vault cache then). */
   readonly unrealOn?: boolean;
 }
 

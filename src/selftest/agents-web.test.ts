@@ -911,6 +911,17 @@ export const agentsWebSuite: Suite = {
     };
     t.check(signerMatches(signed, COMET_SIGNER), 'Perplexity AI, Inc. with its GlobalSign EV certificate passes');
     t.check(
+      signerMatches(
+        {
+          subject:
+            'E=dmitryp@perplexity.ai, CN="PERPLEXITY AI, INC.", O="PERPLEXITY AI, INC.", L=San Francisco, S=California, C=US, SERIALNUMBER=6909743, OID.2.5.4.15=Private Organization',
+          issuer: signed.issuer,
+        },
+        COMET_SIGNER,
+      ),
+      'the subject as Windows reports it (E= contact address first) passes: it was refused before',
+    );
+    t.check(
       !signerMatches(null, COMET_SIGNER) &&
         !signerMatches(
           { ...signed, subject: signed.subject.replace('O="PERPLEXITY AI, INC."', 'O=Someone Else') },
@@ -937,6 +948,17 @@ export const agentsWebSuite: Suite = {
     t.check(chromiumBin(stage, 'comet.exe') === null, 'a Chrome-bin without the browser does not count');
     t.write(path.join(stage, 'd', 'Chrome-bin', 'comet.exe'), 'x');
     t.equal(chromiumBin(stage, 'comet.exe'), path.join(stage, 'd', 'Chrome-bin'), 'the browser folder is found');
+    const real = t.dir('web-unpack-real');
+    const nested = path.join(real, 'bin', 'Offline', '{a8c89918}', '{42e10078}');
+    t.write(path.join(nested, 'mini_installer.exe'), 'x');
+    t.write(path.join(real, 'updater.7z'), 'x');
+    t.check(
+      path.basename(nextInner(real) ?? '') === 'mini_installer.exe',
+      "Comet's current installer (updater.7z, mini_installer.exe five folders down) is opened stage by stage",
+    );
+    const only = t.dir('web-unpack-first');
+    t.write(path.join(only, 'updater.7z'), 'x');
+    t.check(path.basename(nextInner(only) ?? '') === 'updater.7z', 'updater.7z is a stage too');
     const appDir = t.dir('web-kept');
     t.check(keptInstaller(appDir) === null, 'no installer kept when it was unpacked');
     t.write(path.join(appDir, 'installer', 'comet_installer.exe'), 'x');

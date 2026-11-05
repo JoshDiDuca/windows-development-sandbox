@@ -7,7 +7,7 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
-## 1.26.0
+## 1.25.1
 
 - **Unreal Engine for agents.** This PC's engines come into the sandbox read-only and registered (LauncherInstalled.dat,
   registry, .uproject association); engines the Epic Games Launcher installs in a sandbox go to the data disk and come

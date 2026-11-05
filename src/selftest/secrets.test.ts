@@ -190,7 +190,7 @@ export const secretsSuite: Suite = {
     t.write(path.join(hostClaude, 'settings.json'), '{"enabledPlugins":{"p@m":true}}');
     const launch = t.at('plugins-launch');
     const profile = { ...DEFAULTS.claudeProfile, hostDir: hostClaude, globalStateFile: '' };
-    const staged = stageClaudeProfile(profile, launch, 'D:\Code\app', DEFAULTS.secrets);
+    const staged = stageClaudeProfile(profile, launch, 'D:/Code/app', DEFAULTS.secrets);
     const out = path.join(launch, 'claude-profile', 'plugins');
     t.check(staged.staged.includes('plugins'), 'plugins are staged');
     t.check(

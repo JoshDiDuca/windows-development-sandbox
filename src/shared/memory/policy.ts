@@ -150,3 +150,11 @@ export function chooseTargetDir(
 export function maxCompilers(cpus: number, profile: LoadProfile): number | null {
   return profile === 'gentle' ? Math.min(4, Math.max(2, Math.floor(cpus / 4))) : null;
 }
+
+/**
+ * The cargo variable that names the linker of a Rust host (`x86_64-pc-windows-msvc` ->
+ * `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER`).
+ */
+export function cargoLinkerVar(host: string): string {
+  return 'CARGO_TARGET_' + host.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_LINKER';
+}

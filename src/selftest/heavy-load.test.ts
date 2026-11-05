@@ -21,6 +21,7 @@ import {
   gentleCpuLimit,
   maxCompilers,
   chooseTargetDir,
+  cargoLinkerVar,
 } from '../shared/memory/index.js';
 import { HeartbeatSchema } from '../shared/channel/index.js';
 import { heartbeatLine, lastEndOf, vanishedCause, stopWarning, type Life } from '../host/life/index.js';
@@ -474,6 +475,11 @@ export const heavyLoadSuite: Suite = {
         Boolean(chooseTargetDir('auto', 10 * 1024 ** 3).warning) &&
         chooseTargetDir('shared', 1).targetDir === 'shared',
       'targetDir "auto": local with 25 GB free on C:, else separate with a warning; other values stay',
+    );
+    t.check(
+      cargoLinkerVar('x86_64-pc-windows-msvc') === 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER' &&
+        cargoLinkerVar('aarch64-pc-windows-msvc') === 'CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER',
+      'cargo linker variable names the host triple (the msvc host links with lld, not link.exe)',
     );
     const beat = {
       at: '2026-11-02T21:31:00.000Z',

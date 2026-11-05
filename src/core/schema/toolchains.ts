@@ -66,7 +66,7 @@ export const ToolchainsSchema = z.strictObject({
     linker: z
       .enum(['lld', 'gnu'])
       .describe(
-        'GNU host: "lld" links with Rust\'s own lld through MinGW\'s gcc (much less memory than GNU ld), "gnu" with GNU ld.',
+        '"lld" (default) links with Rust\'s own lld: through MinGW\'s gcc on the GNU host (much less memory than GNU ld), and instead of link.exe on the MSVC host (link.exe writes executables into mapped folders as all zeros: os error 1392). "gnu" keeps GNU ld / link.exe.',
       ),
     linkSlots: z
       .union([z.literal('auto'), z.number().int().min(1).max(32)])

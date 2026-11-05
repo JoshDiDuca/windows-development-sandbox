@@ -131,8 +131,11 @@ installed on your PC read-only into sandboxes ([configuration](configuration.md#
   warning that builds then write through the mapped workspace. `"separate"` builds into
   `target\sandbox` of each checkout, so each agent's git worktree gets its own; `"shared"` uses cargo's normal `target`;
   `"local"` uses the sandbox's own disk (fast, lost on close). A `CARGO_TARGET_DIR` you set always wins.
-- **`rust.linker`, `rust.linkSlots`:** on the GNU host, `"lld"` (default, far less memory than GNU ld) or `"gnu"`, and
-  how many programs may link at once in the whole sandbox (`"auto"` = one per 6 GB of the sandbox's memory, 1 to 4).
+- **`rust.linker`, `rust.linkSlots`:** `"lld"` (default) links with Rust's own lld: on the GNU host it uses far less
+  memory than GNU ld, and on the MSVC host it replaces `link.exe`, which writes executables into mapped folders (the
+  workspace) as all zeros ([os error 1392](troubleshooting.md#a-program-a-build-just-made-will-not-run-the-file-or-directory-is-corrupted-and-unreadable-os-error-1392)).
+  `"gnu"` keeps GNU ld / `link.exe`. `linkSlots` (GNU host) is how many programs may link at once in the whole sandbox
+  (`"auto"` = one per 6 GB of the sandbox's memory, 1 to 4).
   When this PC is under load the memory governor also lets only one linker run at a time.
 - sccache keeps its cache in `C:\AgentData\cache\sccache` unless the project sets `SCCACHE_DIR`.
 

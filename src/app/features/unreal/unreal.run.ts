@@ -4,12 +4,17 @@
 // and opening the Epic Games Launcher in the running sandbox (an exec request).
 import path from 'node:path';
 import { humanBytes } from '../../../core/disk.js';
-import { errMsg, fail, safeText } from '../../../core/util/index.js';
+import { assertNoLinks, errMsg, fail, safeText } from '../../../core/util/index.js';
 import { requireOnPc, type Context } from '../../../cli/commands/context.js';
 import { SandboxChannel } from '../../../host/channel/index.js';
 import { isSandboxRunning } from '../../../host/sandbox/index.js';
 import { pcEnv } from '../../../host/accounts/index.js';
-import { findEngineFolders, findUnrealInstalls, unrealPcFiles } from '../../../host/pc-installs/unreal.js';
+import {
+  findEngineFolders,
+  findUnrealInstalls,
+  pcSourceBuilds,
+  unrealPcFiles,
+} from '../../../host/pc-installs/unreal.js';
 import { PC_VAULT_FS, vaultDirs } from '../../../host/pc-installs/unreal-vault.js';
 import { readBoundedFile, readValid } from '../../../shared/io/index.js';
 import { RunDir } from '../../../shared/channel/index.js';
@@ -40,8 +45,14 @@ const MAX_PACKS_SHOWN = 40;
 const s = (text: string): string => safeText(text);
 const sn = (text: string | null): string | null => (text === null ? null : safeText(text));
 
-function readStatus(ctx: Context): UnrealStatus | null {
-  return readValid(UnrealStatusSchema, path.join(ctx.dataPath, 'tools', 'unreal', UNREAL_STATUS_FILE));
+export function readStatus(dataPath: string): UnrealStatus | null {
+  const file = path.join(dataPath, 'tools', 'unreal', UNREAL_STATUS_FILE);
+  try {
+    assertNoLinks(dataPath, file);
+  } catch {
+    return null; // A link under the data folder: never followed.
+  }
+  return readValid(UnrealStatusSchema, file);
 }
 
 const settingText = (v: unknown): string => (Array.isArray(v) ? v.join(', ') || 'none' : String(v));
@@ -113,11 +124,12 @@ export function unrealOverviewOf(
 function lookAtPc(ctx: Context): ReturnType<Parameters<typeof unrealOverviewOf>[2]> {
   const config = ctx.loaded.config.pcInstalls;
   const pc = pcEnv();
-  const folders = findEngineFolders({ read: readBoundedFile }, config.unrealEngineFolders);
+  const files = unrealPcFiles(pc);
+  const folders = findEngineFolders(files, config.unrealEngineFolders);
   const installs =
     config.unrealEngines === false
       ? []
-      : findUnrealInstalls(unrealPcFiles(pc), Array.isArray(config.unrealEngines) ? config.unrealEngines : true);
+      : findUnrealInstalls(files, Array.isArray(config.unrealEngines) ? config.unrealEngines : true);
   const engines = [
     ...folders,
     ...installs.filter((i) => !folders.some((f) => f.host.toLowerCase() === i.host.toLowerCase())),
@@ -126,7 +138,17 @@ function lookAtPc(ctx: Context): ReturnType<Parameters<typeof unrealOverviewOf>[
     name: e.name,
     folder: e.host,
     writable: e.writable === true,
+    source: false,
   }));
+  const loose = pcSourceBuilds(files)
+    .filter((b) => !folders.some((f) => f.host.toLowerCase() === b.host.toLowerCase()))
+    .map((b) => ({
+      id: '',
+      name: 'Unreal Engine ' + b.version + ' (source build)',
+      folder: b.host,
+      writable: false,
+      source: true,
+    }));
   const vault =
     config.unrealAssets === false
       ? []
@@ -142,11 +164,11 @@ function lookAtPc(ctx: Context): ReturnType<Parameters<typeof unrealOverviewOf>[
             more: Math.max(0, packs.length - MAX_PACKS_SHOWN),
           };
         });
-  return { engines, vault };
+  return { engines: [...engines, ...loose], vault };
 }
 
 export const unrealOverviewRun = implement(unrealOverview, (ctx) =>
-  unrealOverviewOf(ctx, readStatus(ctx), () => lookAtPc(ctx)),
+  unrealOverviewOf(ctx, readStatus(ctx.dataPath), () => lookAtPc(ctx)),
 );
 
 /** The engine in a folder of this PC, or a failure that says what is wrong. */
@@ -213,7 +235,7 @@ export const openEpicLauncherRun = implement(openEpicLauncher, async (ctx, _inpu
     fail('No sandbox is running.', 'Start one for a project with a .uproject; the launcher opens in its window.');
   const status = new RunDir(ctx.dataPath).readSandboxStatus();
   if (status?.phase !== 'ready') fail('The sandbox is not ready yet.', 'Try again in a moment.');
-  if (!readStatus(ctx)?.launcher.installed)
+  if (!readStatus(ctx.dataPath)?.launcher.installed)
     fail(
       'The Epic Games Launcher is not installed in this sandbox.',
       'It is installed when the sandbox is set up for Unreal with the licence accepted (Unreal set-up settings).',

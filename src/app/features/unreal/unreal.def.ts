@@ -32,6 +32,7 @@ const PcEngineSchema = z.object({
   name: z.string().describe('Unreal Engine 5.4.4'),
   folder: z.string().describe('Its folder on this PC'),
   writable: z.boolean().describe('A folder you registered (mapped writable)'),
+  source: z.boolean().describe('A source build this PC registered: not mapped until its folder is registered'),
 });
 
 const PackSchema = z.object({
@@ -194,12 +195,16 @@ function pcSection(o: UnrealOverview): Section {
     items: o.pc.engines.map((e): Item => ({
       id: 'pc:' + e.folder,
       label: e.name,
-      hint: e.writable ? 'registered, writable' : 'read-only',
-      description: e.folder + ' appears in the sandbox at C:\\PcInstalls\\unreal\\' + e.id + '.',
-      cells: { engine: e.name, how: e.writable ? 'writable' : 'read-only', folder: e.folder },
-      ...(e.writable
-        ? { actions: [action(forgetEngineFolder, { folder: e.folder }, { key: 'x', verb: 'forget' })] }
-        : {}),
+      hint: e.source ? 'source build, not mapped' : e.writable ? 'registered, writable' : 'read-only',
+      description: e.source
+        ? e.folder + ' is a source build: building writes inside the engine, so register its folder to use it.'
+        : e.folder + ' appears in the sandbox at C:\\PcInstalls\\unreal\\' + e.id + '.',
+      cells: { engine: e.name, how: e.source ? 'not mapped' : e.writable ? 'writable' : 'read-only', folder: e.folder },
+      ...(e.source
+        ? { actions: [action(registerEngineFolder, { folder: e.folder }, { key: 'a', verb: 'register' })] }
+        : e.writable
+          ? { actions: [action(forgetEngineFolder, { folder: e.folder }, { key: 'x', verb: 'forget' })] }
+          : {}),
     })),
     columns: [
       { key: 'engine', label: 'Engine' },

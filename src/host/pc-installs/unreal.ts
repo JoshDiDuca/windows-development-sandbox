@@ -1,9 +1,9 @@
 // Unreal Engine versions of this PC (pcInstalls.unrealEngines): the launcher's LauncherInstalled.dat (engines it
-// installed, with its own ids), HKCU\Software\Epic Games\Unreal Engine\Builds (source builds UnrealVersionSelector
-// registered) and the launcher's default folders (<Program Files>\Epic Games\UE_*, for an install whose
-// LauncherInstalled.dat is gone). Each must hold Engine\Build\Build.version; it is mapped read-only at
-// C:\PcInstalls\unreal\UE_5.4 (src-<id> for a source build). pcInstalls.unrealEngineFolders: folders you registered,
-// mapped writable (dir-<name>). Every file is read bounded.
+// installed, with its own ids) and the launcher's default folders (<Program Files>\Epic Games\UE_*, for an install
+// whose LauncherInstalled.dat is gone). Each must hold Engine\Build\Build.version; it is mapped read-only at
+// C:\PcInstalls\unreal\UE_5.4. Source builds (HKCU\Software\Epic Games\Unreal Engine\Builds) are NOT mapped by
+// themselves, as UBT writes inside an engine. pcInstalls.unrealEngineFolders: folders you registered, mapped writable
+// (dir-<name>; a source build of this PC keeps its build id). Every file is read bounded.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,9 +58,6 @@ const versionOf = (dir: string, files: Pick<UnrealPcFiles, 'read'>): BuildVersio
 const isWanted = (wanted: true | readonly (string | number)[], v: BuildVersion): boolean =>
   wanted === true || wanted.map((w) => String(w).replace(/^UE_/i, '')).includes(v.major + '.' + v.minor);
 
-/** A source build's guest folder name: src-<its id, letters and digits only>. */
-const sourceId = (buildId: string): string => 'src-' + (buildId.replace(/[^A-Za-z0-9-]/g, '').slice(0, 60) || 'build');
-
 /** The engines of this PC that `wanted` maps, each folder once, at most MAX_PC_ENGINES. */
 export function findUnrealInstalls(files: UnrealPcFiles, wanted: true | readonly (string | number)[]): PcInstall[] {
   const found: PcInstall[] = [];
@@ -85,21 +82,6 @@ export function findUnrealInstalls(files: UnrealPcFiles, wanted: true | readonly
   };
   for (const i of files.launcherInstalled ? launcherInstallations(files.launcherInstalled) : [])
     if (APP_NAME.test(i.appName)) installed(i.installLocation, i.ids ?? undefined);
-  for (const { name, value } of regValues(files.builds)) {
-    const dir = value.replace(/\//g, '\\');
-    if (!win.isAbsolute(dir)) continue;
-    const v = versionOf(dir, files);
-    if (!v || !isWanted(wanted, v)) continue;
-    add({
-      kind: 'unreal',
-      id: sourceId(name),
-      name: 'Unreal Engine ' + versionText(v) + ' (source build)',
-      version: versionText(v),
-      host: win.normalize(dir),
-      guest: '',
-      buildId: name.slice(0, 64),
-    });
-  }
   for (const name of files
     .list(files.defaultRoot)
     .filter((n) => APP_NAME.test(n))
@@ -108,12 +90,33 @@ export function findUnrealInstalls(files: UnrealPcFiles, wanted: true | readonly
   return found;
 }
 
-/** The engine folders you registered (pcInstalls.unrealEngineFolders), mapped writable. */
+/** A source build of this PC's Builds key. */
+export interface PcSourceBuild {
+  readonly buildId: string;
+  readonly version: string;
+  readonly host: string;
+}
+
+/** Source builds this PC registered (the Builds key). They are not mapped by themselves: UBT writes inside them. */
+export function pcSourceBuilds(files: Pick<UnrealPcFiles, 'read' | 'builds'>): PcSourceBuild[] {
+  const found: PcSourceBuild[] = [];
+  for (const { name, value } of regValues(files.builds)) {
+    const dir = value.replace(/\//g, '\\');
+    if (!win.isAbsolute(dir) || found.length >= MAX_PC_ENGINES) continue;
+    const v = versionOf(dir, files);
+    if (v) found.push({ buildId: name.slice(0, 64), version: versionText(v), host: win.normalize(dir) });
+  }
+  return found;
+}
+
+/** The engine folders you registered (pcInstalls.unrealEngineFolders), mapped writable. A folder that is a source
+ * build of this PC keeps the PC's build id. */
 export function findEngineFolders(
-  files: Pick<UnrealPcFiles, 'read'>,
+  files: Pick<UnrealPcFiles, 'read' | 'builds'>,
   folders: readonly (string | number)[],
 ): PcInstall[] {
   const found: PcInstall[] = [];
+  const sources = pcSourceBuilds(files);
   for (const raw of folders.map(String)) {
     const dir = win.normalize(raw);
     if (!win.isAbsolute(dir) || found.some((f) => f.host.toLowerCase() === dir.toLowerCase())) continue;
@@ -126,6 +129,7 @@ export function findEngineFolders(
         .replace(/^\.+/, '')
         .slice(0, 40) || 'engine';
     const id = 'dir-' + base;
+    const source = sources.find((b) => b.host.toLowerCase() === dir.toLowerCase());
     found.push({
       kind: 'unreal',
       id: found.some((f) => f.id === id) ? id + '-' + (found.length + 1) : id,
@@ -134,6 +138,7 @@ export function findEngineFolders(
       host: dir,
       guest: '',
       writable: true,
+      ...(source ? { buildId: source.buildId } : {}),
     });
   }
   return found;
@@ -176,7 +181,7 @@ export const unrealInstalls: PcInstallSource = {
 export const unrealFolders: PcInstallSource = {
   kind: 'unreal',
   setting: 'unrealEngineFolders',
-  find(wanted: true | readonly (string | number)[], _pc: PcEnv): PcInstall[] {
-    return wanted === true ? [] : findEngineFolders({ read: readBoundedFile }, wanted);
+  find(wanted: true | readonly (string | number)[], pc: PcEnv): PcInstall[] {
+    return wanted === true ? [] : findEngineFolders(unrealPcFiles(pc), wanted);
   },
 };

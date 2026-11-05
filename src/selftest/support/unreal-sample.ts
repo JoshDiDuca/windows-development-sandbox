@@ -47,12 +47,19 @@ export const UNREAL_SAMPLE: UnrealOverview = {
   pc: {
     setting: 'auto',
     engines: [
-      { id: 'UE_5.6', name: 'Unreal Engine 5.6.1', folder: 'C:\\Program Files\\Epic Games\\UE_5.6', writable: false },
+      {
+        id: 'UE_5.6',
+        name: 'Unreal Engine 5.6.1',
+        folder: 'C:\\Program Files\\Epic Games\\UE_5.6',
+        writable: false,
+        source: false,
+      },
       {
         id: 'dir-UnrealEngine',
         name: 'Unreal Engine 5.7.0 (UnrealEngine)',
         folder: 'D:\\Src\\UnrealEngine',
         writable: true,
+        source: false,
       },
     ],
     problem: null,

@@ -4,17 +4,21 @@
 // kept, .item manifests, GameUserSettings.ini in UTF-16 and UTF-8), the room check, the guide lines, UnrealBuildTool's
 // Visual Studio verdict, the vault cache, this PC's discovery (fixtures), the apps catalogue entries and the Unreal
 // page. Temp folders and fixtures only: never this machine's registry or launcher.
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULTS } from '../core/config/index.js';
+import { isWin } from '../core/util/index.js';
 import { ConfigSchema } from '../core/schema/index.js';
 import { decodeText, encodeText, readBoundedFile } from '../shared/io/index.js';
+import { SYSTEM } from '../shared/system.js';
 import {
   chooseEngine,
   ddcVars,
   enginePlaceProblem,
   ENGINE_NEED_BYTES,
   engineAt,
+  engineExtraDirs,
   engineToolDirs,
   engineVars,
   entriesUnder,
@@ -22,24 +26,30 @@ import {
   findEngines,
   findUproject,
   hasMcpPlugin,
+  incompleteDirs,
+  isBuildId,
   installLocationOf,
   itemSizes,
+  launcherEntriesFor,
   launcherEntry,
   launcherInstallations,
   mergeLauncherInstalled,
   parseBuildVersion,
   parseEngineAssociation,
+  preferredInstalled,
   registryPlan,
   restoreItems,
   saveItems,
   setLauncherInstallLocation,
   stableBuildId,
+  UNREAL_STATUS_FILE,
   unrealGuideLines,
   unrealSummaryLine,
   uprojectAssociation,
   vaultDirsFromIni,
   vaultPacks,
   vsVerdict,
+  VsSetupReportSchema,
   withInstallLocation,
   type EngineFs,
   type UnrealEngine,
@@ -48,13 +58,14 @@ import {
   type VsSetupReport,
 } from '../shared/unreal/index.js';
 import { discoverPcInstalls, type PcInstallSource } from '../host/pc-installs/index.js';
-import { findEngineFolders, findUnrealInstalls, regValues } from '../host/pc-installs/unreal.js';
+import { findEngineFolders, findUnrealInstalls, pcSourceBuilds, regValues } from '../host/pc-installs/unreal.js';
 import { findEpicGames } from '../host/pc-installs/epic.js';
 import { vaultInstalls } from '../host/pc-installs/unreal-vault.js';
 import { GAMEDEV_APPS } from '../shared/apps/catalogue-gamedev.js';
 import { APPS } from '../shared/apps/index.js';
 import { pageActions } from '../app/kernel/index.js';
 import { engineFolderProblem, unrealPage, unrealView } from '../app/features/unreal/index.js';
+import { readStatus } from '../app/features/unreal/unreal.run.js';
 import { pageLines } from '../cli/output/render-view.js';
 import { UNREAL_SAMPLE } from './support/unreal-sample.js';
 import type { Suite } from './support/suite.js';
@@ -264,9 +275,9 @@ export const enginesSuite: Suite = {
 
     t.section('PATH, variables, the derived data cache, MCP');
     t.equal(
-      engineToolDirs(pcEngine, DISK),
+      [...engineToolDirs(pcEngine, DISK), ...engineExtraDirs(pcEngine, DISK)],
       [path.join(pcEngine, 'Engine', 'Build', 'BatchFiles'), path.join(pcEngine, 'Engine', 'Binaries', 'Win64')],
-      'the engine folders that exist go on PATH (Build.bat, RunUAT.bat, UnrealEditor-Cmd.exe)',
+      'the engine folders that exist go on PATH (Build.bat and RunUAT.bat first, the DLL folders last)',
     );
     t.equal(
       engineVars(installed),
@@ -518,6 +529,7 @@ export const enginesSuite: Suite = {
           installationPath: 'C:\\AgentData\\tools\\visualstudio\\persist\\Community',
           installationVersion: '17.14.37827.9',
           productId: 'Microsoft.VisualStudio.Product.Community',
+          state: 4294967295,
           isComplete: true,
           isLaunchable: true,
           packages: ['Microsoft.VisualStudio.Workload.NativeGame', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'],
@@ -546,6 +558,10 @@ export const enginesSuite: Suite = {
       'no C++ x64 tools: not found',
     );
     t.check(!vsVerdict({ ...report, sdks: [] }).ok, 'no Windows SDK: not found');
+    t.check(
+      !vsVerdict({ ...report, instances: [{ ...report.instances[0], state: 0 }] }).ok,
+      'an instance that is not local (state 0): not usable, as UnrealBuildTool sees it',
+    );
     const old = vsVerdict({
       ...report,
       instances: [{ ...report.instances[0], toolchains: [{ version: '14.36.1', cl: true, link: true }] }],
@@ -635,10 +651,9 @@ export const enginesSuite: Suite = {
       pcFound.map((i) => [i.id, i.version, i.launcher?.itemId ?? null, i.buildId ?? null]),
       [
         ['UE_5.4', '5.4.4', 'item54', null],
-        ['src-2D9FCA5D-4E7B-4C12-8B6E-1A2B3C4D5E6F', '5.7.0', null, '{2D9FCA5D-4E7B-4C12-8B6E-1A2B3C4D5E6F}'],
         ['UE_5.6', '5.6.1', null, null],
       ],
-      "the launcher's engines (with its ids), the registered source builds, and the default folders",
+      "the launcher's engines (with its ids) and the default folders: a source build is not mapped by itself",
     );
     t.check(
       pcFound.every((i) => i.host !== path.join(pcRoot, 'gone')),
@@ -654,7 +669,11 @@ export const enginesSuite: Suite = {
       ['UE_5.4', 'UE_5.6'],
       'no LauncherInstalled.dat: the default folders',
     );
-    const folders = findEngineFolders({ read: DISK.read }, [pcSource, path.join(pcRoot, 'nothing'), 'relative']);
+    const folders = findEngineFolders({ read: DISK.read, builds: reg }, [
+      pcSource,
+      path.join(pcRoot, 'nothing'),
+      'relative',
+    ]);
     t.equal(
       folders.map((f) => [f.id, f.writable]),
       [['dir-UnrealEngine', true]],
@@ -788,6 +807,220 @@ export const enginesSuite: Suite = {
       empty,
       'Install Unreal Engine on this PC with the Epic Games Launcher',
       'no engine: the page says how to get one',
+    );
+    t.section('every route on real disk: the engines, the registry, the launcher files, this PC');
+    const R = (...p: string[]): string => path.join(t.dir('real'), ...p);
+    const rPc = makeEngine(R('PcInstalls', 'unreal', 'UE_5.4'), [5, 4, 4], true);
+    const rCopy = makeEngine(R('PcInstalls', 'unreal', 'dir-UE54Copy'), [5, 4, 1], true);
+    const rEngines = t.dir('real', 'tools', 'unreal', 'engines');
+    const rLauncher = makeEngine(path.join(rEngines, 'UE_5.5'), [5, 5, 0], true);
+    const rUnfinished = makeEngine(path.join(rEngines, 'UE_5.6'), [5, 6, 0], true);
+    const rSource = makeEngine(R('Projects', 'Work', 'UnrealEngine'), [5, 5, 1], false);
+    const rManifests = t.dir('real', 'Manifests');
+    t.write(
+      path.join(rManifests, 'A1.item'),
+      JSON.stringify({ InstallLocation: rLauncher, bIsIncompleteInstall: false, InstallSize: 1 }),
+    );
+    t.write(
+      path.join(rManifests, 'B2.item'),
+      JSON.stringify({ InstallLocation: rUnfinished, bIsIncompleteInstall: true, InstallSize: 1 }),
+    );
+    const guid = '{11111111-2222-3333-4444-555555555555}';
+    t.write(R('Projects', 'Work', 'MyGame', 'MyGame.uproject'), JSON.stringify({ EngineAssociation: guid }));
+    t.write(R('Projects', 'Work', 'OldGame', 'OldGame.uproject'), JSON.stringify({ EngineAssociation: '5.4' }));
+    const unfinished = incompleteDirs(rManifests);
+    t.equal([...unfinished], [rUnfinished.toLowerCase()], 'a launcher install that is not finished is listed as such');
+    const realEngines = findEngines(
+      {
+        mapped: [
+          { guest: rPc, id: 'UE_5.4' },
+          { guest: rCopy, id: 'dir-UE54Copy', writable: true },
+        ],
+        enginesRoot: rEngines,
+        launcherDirs: [rLauncher.toLowerCase(), rUnfinished.toLowerCase()],
+        projectRoots: [R('Projects', 'Work')],
+      },
+      DISK,
+    ).filter((e) => !unfinished.has(e.dir.toLowerCase()));
+    t.check(
+      !realEngines.some((e) => e.dir === rUnfinished) && realEngines.some((e) => e.dir === rLauncher),
+      'the unfinished install (UE_5.6) is not an engine; the finished one (UE_5.5) is',
+    );
+    const projectChoice = (name: string): ReturnType<typeof chooseEngine> => {
+      const uproject = findUproject(R('Projects', 'Work', name), DISK)!;
+      return chooseEngine(realEngines, uprojectAssociation(fs.readFileSync(uproject, 'utf8'))!);
+    };
+    t.equal(
+      projectChoice('OldGame').engine?.dir,
+      rCopy,
+      'a project asking for 5.4 gets the writable copy, not the PC engine',
+    );
+    const mine = projectChoice('MyGame');
+    t.check(
+      mine.engine?.dir === rSource && mine.alias === guid,
+      "a project naming this PC's source build GUID gets the source build here, with the GUID as its alias",
+    );
+    const rPlan = registryPlan(realEngines, [{ id: guid, dir: rSource }]);
+    t.check(
+      rPlan.some((v) => v.hive === 'HKCU' && v.name === guid && v.value === rSource),
+      'the registry plan registers the GUID for the source build (HKCU Builds)',
+    );
+    t.equal(
+      rPlan.filter((v) => v.name === 'InstalledDirectory' && v.key.endsWith('\\5.4')).map((v) => v.value),
+      [rCopy],
+      'HKLM 5.4 InstalledDirectory is the writable copy (one value per version)',
+    );
+    const entries = launcherEntriesFor(realEngines, [], []);
+    t.equal(
+      entries.filter((e) => e.AppName === 'UE_5.4').map((e) => e.InstallLocation),
+      [rCopy],
+      'LauncherInstalled.dat gets exactly one UE_5.4 entry (the preferred engine)',
+    );
+    t.equal(
+      preferredInstalled(realEngines).map((e) => e.dir),
+      [rLauncher, rCopy],
+      'one installed engine per version, newest first',
+    );
+    const fortnite = JSON.stringify({
+      InstallationList: [{ InstallLocation: 'C:\\Games\\Fortnite', AppName: 'Fortnite', AppVersion: '1' }],
+    });
+    const rMerged = launcherInstallations(mergeLauncherInstalled(fortnite, entries));
+    t.check(
+      rMerged.some((i) => i.appName === 'Fortnite') && rMerged.some((i) => i.appName === 'UE_5.4'),
+      'merging into a file with a Fortnite entry keeps Fortnite',
+    );
+    const savedItems = R('state', 'Manifests');
+    t.equal(
+      saveItems(rManifests, savedItems, rEngines).sort(),
+      ['A1.item', 'B2.item'],
+      'the .item rManifests are saved',
+    );
+    const rFresh = t.dir('real', 'fresh', 'Manifests');
+    const rBack = restoreItems(savedItems, rFresh, rEngines, (d) => fs.existsSync(d));
+    t.check(
+      fs.existsSync(path.join(rFresh, 'A1.item')) &&
+        fs.readFileSync(path.join(rFresh, 'A1.item'), 'utf8') ===
+          fs.readFileSync(path.join(rManifests, 'A1.item'), 'utf8') &&
+        rBack.includes(rLauncher),
+      'saved manifests come back byte for byte into a fresh Manifests folder',
+    );
+    const rIni = R('state', 'GameUserSettings.ini');
+    fs.mkdirSync(path.dirname(rIni), { recursive: true });
+    fs.writeFileSync(
+      rIni,
+      Buffer.concat([
+        Buffer.from([0xff, 0xfe]),
+        Buffer.from('[Other]\r\nKeep=1\r\n[Launcher]\r\nDefaultAppInstallLocation=C:\\Old\r\n', 'utf16le'),
+      ]),
+    );
+    setLauncherInstallLocation(rIni, rEngines);
+    const after = fs.readFileSync(rIni);
+    const afterText = after.subarray(2).toString('utf16le');
+    t.check(
+      after[0] === 0xff && after[1] === 0xfe && afterText.includes('Keep=1') && afterText.includes(rEngines),
+      'the install location in a UTF-16 GameUserSettings.ini keeps the byte-order mark and the other sections',
+    );
+    t.check(isBuildId('UE5 Main (CL1)') && isBuildId(guid), 'a registered name may hold spaces and brackets');
+    t.check(
+      !isBuildId(' x') && !isBuildId('a"b') && !isBuildId('a\\b') && !isBuildId(''),
+      'but not quotes, slashes or edge spaces',
+    );
+    t.check(
+      engineToolDirs(rPc, DISK).length === 1 && engineExtraDirs(rPc, DISK).every((d) => d.includes('Binaries')),
+      'only BatchFiles goes first on PATH; the DLL folders go last',
+    );
+
+    t.section("every route on real disk: this PC's files");
+    const pcRoot2 = t.dir('real', 'PC');
+    const pcLauncher2 = makeEngine(path.join(pcRoot2, 'Epic Games', 'UE_5.4'), [5, 4, 4], true);
+    makeEngine(path.join(pcRoot2, 'Epic Games', 'UE_5.3'), [5, 3, 2], true);
+    const pcSrc = makeEngine(path.join(pcRoot2, 'src', 'UnrealEngine'), [5, 7, 0], false);
+    const pcFiles = {
+      launcherInstalled: JSON.stringify({
+        InstallationList: [
+          {
+            InstallLocation: pcLauncher2,
+            NamespaceId: 'ue',
+            ItemId: 'i',
+            ArtifactId: 'UE_5.4',
+            AppVersion: 'v',
+            AppName: 'UE_5.4',
+          },
+        ],
+      }),
+      builds:
+        '\r\nHKEY_CURRENT_USER\\Software\\Epic Games\\Unreal Engine\\Builds\r\n    ' +
+        guid +
+        '    REG_SZ    ' +
+        pcSrc +
+        '\r\n',
+      defaultRoot: path.join(pcRoot2, 'Epic Games'),
+      list: DISK.list,
+      read: DISK.read,
+    };
+    t.equal(
+      findUnrealInstalls(pcFiles, true).map((i) => i.id),
+      ['UE_5.4', 'UE_5.3'],
+      "the PC's launcher engine and the default folder's UE_5.3 are found, and no source build",
+    );
+    t.equal(
+      pcSourceBuilds(pcFiles).map((b) => [b.buildId, b.host]),
+      [[guid, pcSrc]],
+      "the PC's source build is listed on its own",
+    );
+    const registered = findEngineFolders(pcFiles, [pcSrc]);
+    t.check(
+      registered.length === 1 && registered[0].writable === true && registered[0].buildId === guid,
+      "a registered source build is mapped writable and keeps the PC's build id",
+    );
+    const linkData = t.dir('real', 'data');
+    const target = t.dir('real', 'elsewhere');
+    t.write(path.join(target, UNREAL_STATUS_FILE), JSON.stringify(status));
+    t.write(path.join(linkData, 'plain', 'tools', 'unreal', UNREAL_STATUS_FILE), JSON.stringify(status));
+    t.check(readStatus(path.join(linkData, 'plain')) !== null, 'a status file in the data folder is read');
+    fs.mkdirSync(path.join(linkData, 'linked', 'tools'), { recursive: true });
+    fs.symlinkSync(target, path.join(linkData, 'linked', 'tools', 'unreal'), 'junction');
+    t.check(readStatus(path.join(linkData, 'linked')) === null, 'a junction at tools\\unreal is never followed');
+    t.check(
+      !vsVerdict({
+        ...report,
+        instances: [{ ...report.instances[0], state: 0 }],
+      }).ok,
+      'Visual Studio with state 0 is not usable',
+    );
+
+    if (!isWin) return;
+    t.section('the Visual Studio probe: the helper compiles and the script reports');
+    const vsDir = t.dir('real', 'vs');
+    const vsCsc = spawnSync(
+      SYSTEM.csc(),
+      [
+        '/nologo',
+        '/target:library',
+        '/out:' + path.join(vsDir, 'VsSetup.dll'),
+        path.join(t.packageRoot, 'sandbox', 'csharp', 'VsSetup.cs'),
+      ],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    t.check(vsCsc.status === 0, 'VsSetup.cs compiles with the C# 5 compiler', vsCsc.stdout);
+    const vsJson = path.join(vsDir, 'vs.json');
+    const vsRun = spawnSync(
+      SYSTEM.powershell(),
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        path.join(t.packageRoot, 'sandbox', 'scripts', 'get-vs-setup.ps1'),
+        '-ResultFile',
+        vsJson,
+      ],
+      { encoding: 'utf8', windowsHide: true, timeout: 120_000 },
+    );
+    t.check(vsRun.status === 0, 'get-vs-setup.ps1 runs', vsRun.stderr);
+    t.check(
+      fs.existsSync(vsJson) && VsSetupReportSchema.safeParse(JSON.parse(fs.readFileSync(vsJson, 'utf8'))).success,
+      'and its report fits the schema',
     );
   },
 };

@@ -9,6 +9,7 @@ import { listAccounts } from '../../app/features/accounts/index.js';
 import { containedStatus, showStorage } from '../../app/features/storage/index.js';
 import { listProjects } from '../../app/features/projects/index.js';
 import { unrealOverview } from '../../app/features/unreal/index.js';
+import { unityOverview } from '../../app/features/unity/index.js';
 import { definitionHandler } from '../operations/index.js';
 import { fail } from '../../core/util/index.js';
 import { claudeHost, config, doctor, hostCommand, logs, sync, watcher } from './maintenance/index.js';
@@ -60,6 +61,8 @@ export const HANDLERS: Readonly<Partial<Record<string, Handler>>> = {
   engine: engine,
   // The bare command shows the overview; its actions (add-engine, forget-engine, launcher) are the operations' hints.
   unreal: definitionHandler(unrealOverview),
+  // Same for Unity: its actions (hub, sign-in, add-bridge, remove-bridge) are the operations' hints.
+  unity: definitionHandler(unityOverview),
   'host-claude': claudeHost,
   host: hostCommand,
   _watch: watcher,

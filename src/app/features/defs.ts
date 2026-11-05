@@ -82,7 +82,17 @@ import {
   unrealView,
 } from './unreal/unreal.def.js';
 
+import {
+  addEditorBridge,
+  openUnityHub,
+  removeEditorBridge,
+  unityOverview,
+  unitySignIn,
+  unityView,
+} from './unity/unity.def.js';
+
 export type { UnrealOverview } from './unreal/unreal.def.js';
+export type { UnityOverview } from './unity/unity.def.js';
 export type { AgentRow, AgentsList } from './agents/agents.def.js';
 export type { AccountRow, AccountsList, AgentAccounts } from './accounts/accounts.def.js';
 export type { AppRow, AppsList, CustomAppRow } from './apps/apps.def.js';
@@ -163,6 +173,10 @@ export const OPERATIONS = [
   registerEngineFolder,
   forgetEngineFolder,
   openEpicLauncher,
+  openUnityHub,
+  unitySignIn,
+  addEditorBridge,
+  removeEditorBridge,
 ] as const;
 export const QUERIES = [
   sandboxStatus,
@@ -193,6 +207,7 @@ export const QUERIES = [
   listServices,
   accessStatus,
   unrealOverview,
+  unityOverview,
 ] as const;
 export const VIEWS = [
   sandboxView,
@@ -215,6 +230,7 @@ export const VIEWS = [
   githubView,
   accessView,
   unrealView,
+  unityView,
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
@@ -295,6 +311,7 @@ export const NAV: readonly NavSection[] = [
       { label: 'Projects', view: 'projects' },
       { label: 'Apps', view: 'apps' },
       { label: 'Unreal Engine', view: 'unreal' },
+      { label: 'Unity', view: 'unity' },
     ],
   },
   {

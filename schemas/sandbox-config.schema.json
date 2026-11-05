@@ -485,7 +485,7 @@
                 "lld",
                 "gnu"
               ],
-              "description": "GNU host: \"lld\" links with Rust's own lld through MinGW's gcc (much less memory than GNU ld), \"gnu\" with GNU ld."
+              "description": "\"lld\" (default) links with Rust's own lld: through MinGW's gcc on the GNU host (much less memory than GNU ld), and instead of link.exe on the MSVC host (link.exe writes executables into mapped folders as all zeros: os error 1392). \"gnu\" keeps GNU ld / link.exe."
             },
             "linkSlots": {
               "anyOf": [

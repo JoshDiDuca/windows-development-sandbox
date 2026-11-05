@@ -154,6 +154,25 @@ samples) is kept in `<storage>\logs\crashes`; `sandbox logs --crash` prints the 
   events) and Hyper-V or `vmwp.exe` errors. Closing the window while it sits idle is still on purpose.
 - **Blue screens on your PC too?** Test its memory (Windows Memory Diagnostic, or turn off XMP/EXPO for a while).
 
+## A program a build just made will not run: "The file or directory is corrupted and unreadable" (os error 1392)
+
+Seen as a Rust build script (`build-script-build.exe`), a test program or a linker temp file that cannot start or be
+read, now and then, or every time on a folder shared with this PC (the workspace, `C:\AgentData`).
+
+- **Cause (measured in a sandbox, 5 Nov 2026).** MSVC's `link.exe` writes the executable into a mapped folder as a file
+  of the right size that holds only zeros (Windows reports it as a corrupt image). The same link to the sandbox's own
+  `C:` is fine, a plain copy of a good exe into the mapped folder is fine, and Rust's own lld (`lld-link`) writes the
+  same file whole into the mapped folder. So it is how `link.exe` writes through the mapped folder, not your PC's
+  disk, its free space, an antivirus (Defender is off in the sandbox) or the pagefile. Why it is "sometimes" in other
+  people's logs is not known: in this test it failed every time. `cvtres.exe` (resources) and other MSVC tools that write
+  into a mapped folder can show the same error.
+- **What the sandbox does.** On the MSVC host, Rust links with lld (`rust.linker` `"lld"`, the default; the boot
+  summary says `rust linking: lld`). If it still happens, check `rust.linker` is not `"gnu"` and that no
+  `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER` or `.cargo\config.toml` sets `link.exe` again.
+- **Other build tools** that run `link.exe` (CMake, MSBuild, `cl /link`) have no such switch: build into the sandbox's own
+  disk (`rust.targetDir` `"local"`, or an output folder under `C:\`) and copy the result into the workspace.
+- **Nothing to do on your PC**: this is not caused by disk health or AV on the host.
+
 ## The PC froze or restarted during heavy builds
 
 If the whole PC stops responding and restarts (not only the sandbox window closing), check these in order:

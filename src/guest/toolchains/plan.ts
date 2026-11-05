@@ -47,6 +47,7 @@ import {
   cargoDefaults,
   cargoShim,
   linkGate,
+  lldLink,
   resolveTargetDir,
   targetSummary,
 } from './native/rust-extras.js';
@@ -126,6 +127,8 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
           cargoDefaults(rustHost(config));
           cargoShim(env, rust);
           linkGate(env, rust, rustHost(config));
+          lldLink(env, rust, rustHost(config));
+          lldLink(env, rust, rustHost(config));
         }
       },
     },

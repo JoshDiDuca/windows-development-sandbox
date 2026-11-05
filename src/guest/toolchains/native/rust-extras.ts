@@ -8,7 +8,7 @@ import { execOutput } from '../../runtime/process.js';
 import { ensureCompiled } from '../../runtime/csc.js';
 import { arch, tool, type ToolEnv } from '../tool-env.js';
 import { wanted } from '../detect.js';
-import { cargoJobs, chooseTargetDir } from '../../../shared/memory/index.js';
+import { cargoJobs, cargoLinkerVar, chooseTargetDir } from '../../../shared/memory/index.js';
 import { linkerSlots } from '../../governor/decide.js';
 import { warn } from '../../runtime/log.js';
 import { freeBytes } from '../persisted.js';
@@ -85,6 +85,26 @@ export function linkGate(env: ToolEnv, rust: Toolchains['rust'], host: string): 
       env.vars.AGENT_LINK_SLOTS +
       ' at once',
   );
+}
+
+/**
+ * MSVC host: link.exe writes an executable into a mapped folder (the workspace, C:\AgentData) as all zeros, so a
+ * fresh build script or test program fails with "The file or directory is corrupted and unreadable" (os error 1392).
+ * Rust's own lld (a copy of rust-lld.exe named lld-link.exe, which is how lld picks its mode) writes them whole.
+ * `rust.linker` "gnu" keeps link.exe; a linker the user set for the target wins.
+ */
+export function lldLink(env: ToolEnv, rust: Toolchains['rust'], host: string): void {
+  if (!host.endsWith('-pc-windows-msvc') || rust.linker !== 'lld') return;
+  const variable = cargoLinkerVar(host);
+  if (process.env[variable]) return;
+  const rustEnv = { ...process.env, RUSTUP_HOME: tool('rust', 'rustup'), CARGO_HOME: tool('rust', 'cargo') };
+  const sysroot = execOutput(tool('rust', 'cargo', 'bin', 'rustc.exe'), ['--print', 'sysroot'], { env: rustEnv });
+  const lld = sysroot ? path.join(sysroot, 'lib', 'rustlib', host, 'bin', 'rust-lld.exe') : '';
+  if (!lld || !exists(lld)) return;
+  const shim = path.join(mkdirp(tool('shims')), 'lld-link.exe');
+  fs.copyFileSync(lld, shim);
+  env.vars[variable] = shim;
+  env.summary.push('rust linking: lld (link.exe writes empty files into mapped folders)');
 }
 
 /**

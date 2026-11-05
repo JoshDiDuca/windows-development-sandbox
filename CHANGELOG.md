@@ -7,6 +7,14 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.26.0
+
+- **Unreal Engine for agents.** This PC's engines come into the sandbox read-only and registered (LauncherInstalled.dat,
+  registry, .uproject association); engines the Epic Games Launcher installs in a sandbox go to the data disk and come
+  back every boot; each project builds with the engine its .uproject names, with Build.bat, RunUAT.bat, the editor and
+  cdb on PATH and the derived data cache kept; your Fab/Marketplace downloads are there read-only; new Unreal page
+  (`sandbox unreal`, menu, web); apps Krita, Inkscape, Audacity, RenderDoc.
+
 ## 1.25.0
 
 - **Visual Studio is installed once and kept.** The first boot that needs it (Unreal, Flutter desktop, Unity IL2CPP)

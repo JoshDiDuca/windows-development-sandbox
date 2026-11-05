@@ -7,7 +7,7 @@ import { Draft } from '../cli/menu/settings/draft.js';
 import { z } from 'zod';
 import { addedAgents, agentNameProblem, commandFromPackage, newAgent } from '../app/features/agents/index.js';
 import { APP_GROUPS, appRows, REQUEST_APP, requestAppUrl } from '../app/features/apps/index.js';
-import { appsCategories, appsItems } from '../cli/menu/pages/apps-page.js';
+import { appsCategories, appsItems, stageTicks } from '../cli/menu/pages/apps-page.js';
 import { readMenuView, saveMenuView } from '../cli/menu/memory.js';
 import path from 'node:path';
 import { argPathKind, optionLabel, optionPathKind, plainDescription } from '../cli/menu/command-fields.js';
@@ -865,6 +865,42 @@ export const menuSuite: Suite = {
       groupIds.join(),
     );
 
+    t.section('a Store app ticked on the Apps page is saved and shown on');
+    const appsFile = ConfigFile.user(t.at('apps-store', 'config.json'));
+    const appsDraft = new Draft();
+    const perplexityRow = (d: Draft): boolean | undefined =>
+      appsItems(appsFile, t.dir('apps-store-data'), d).find((i) => i.value === 'perplexity-desktop')?.checked;
+    t.check(perplexityRow(appsDraft) === false, 'the Perplexity desktop app starts off');
+    const alreadyOn = appRows(appsFile, t.dir('apps-store-data'))
+      .filter((r) => r.on)
+      .map((r) => r.id);
+    stageTicks(appsFile, appsDraft, [...alreadyOn, 'perplexity-desktop']);
+    t.check(
+      perplexityRow(appsDraft) === true && appsDraft.count() === 1,
+      'ticking it shows it on and stages one change',
+    );
+    const applied = appsDraft.apply();
+    t.check(
+      applied.saved === 1 &&
+        applied.problems.length === 0 &&
+        (appsFile.valueInFile(['apps', 'install']) as string[]).includes('perplexity-desktop') &&
+        perplexityRow(new Draft()) === true,
+      'Ctrl+S writes it into apps.install and the page still shows it on',
+    );
+    const toggleCtx = { loaded: { configPath: appsFile.file }, options: {}, dataPath: t.dir('apps-store-data') };
+    await runDefinition(
+      'apps.toggle',
+      toggleCtx as unknown as AppContext,
+      { id: 'perplexity-desktop', on: false },
+      quiet(),
+    );
+    t.check(
+      !((ConfigFile.user(appsFile.file).valueInFile(['apps', 'install']) as string[] | undefined) ?? []).includes(
+        'perplexity-desktop',
+      ),
+      'and the web toggle (apps.toggle) turns it off in the same list',
+    );
+
     t.section('dialog box');
     const box = dialogBox({ title: 'Unsaved changes', lines: ['You have 2 unsaved changes.'], buttons: 'Save' }, 61);
     const base = Array.from({ length: 12 }, () => 'x'.repeat(60));
@@ -1037,14 +1073,27 @@ export const menuSuite: Suite = {
     t.equal(
       overflow.map((b) => b.slice(0, b.indexOf('\n'))),
       [],
-      'every screen is exactly as tall as the terminal and never wider, at 200x60, 100x30, 80x24 and 60x20',
+      'every screen is exactly as tall as the terminal and never wider, at 200x60, 120x30, 100x30, 80x24 and 60x20',
     );
     t.check(
-      SIZES.length === 4 &&
+      SIZES.length === 5 &&
         screens.includes('=== 7 Maintenance · health (80x24) ===') &&
         screens.includes('unsaved: 2') &&
         screens.includes('Save'),
       'all screens render at both sizes; the settings screen shows its unsaved count and the leave dialog offers Save',
+    );
+    const serviceScreens = blocks.filter((b) => /^6 Accounts · (epic|perplexity|comet) \((80x24|120x30)\)/.test(b));
+    const serviceRows = serviceScreens.flatMap((b) => b.split('\n').slice(1));
+    t.check(
+      serviceScreens.length === 6 &&
+        serviceRows.every((l) => !/\bsandbox (account|launch|config)\b/.test(l)) &&
+        serviceRows.every(
+          (l) => !l.includes('(encrypted)') && !/[A-Za-z]…/.test(l.replace(/(file|sign-in|Forget)…/g, '')),
+        ) &&
+        serviceRows.some((l) => l.includes('On this PC') && l.includes('found')) &&
+        serviceRows.some((l) => l.includes('Perplexity API')) &&
+        !serviceRows.some((l) => l.includes('Perplexity API key')),
+      'the service pages read short at 80 and 120 columns: short names, a few facts, no cut words, no command hints',
     );
     const out = process.env.MENU_SCREENS_OUT;
     if (out) fs.writeFileSync(out, screens, 'utf8');

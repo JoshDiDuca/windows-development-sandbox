@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { CliOptions } from '../args.js';
 import type { LoadedConfig } from '../../core/types.js';
-import { DEFAULTS, loadConfig, userDir } from '../../core/config/index.js';
+import { DEFAULTS, loadConfig, userConfigPath, userDir } from '../../core/config/index.js';
 import { expandPath, fail, isInsideOrEqual, UserError } from '../../core/util/index.js';
 import { GUEST_DATA_DIR, insideSandbox, isSandboxRunning } from '../../host/sandbox/index.js';
 import type { Borrowed } from '../../host/sharing/index.js';
@@ -118,4 +118,20 @@ export function guestPathFor(hostDir: string, workspaceHost: string, guestWorksp
 /** The guest folder for the current directory (or --workspace) in the running sandbox. */
 export function currentGuestDir(ctx: Context, workspaceHost: string, guestWorkspace: string): string {
   return guestPathFor(path.resolve(ctx.options.workspace ?? process.cwd()), workspaceHost, guestWorkspace);
+}
+
+/**
+ * Reads the settings file again after an operation ran, so a long-lived context (the menu, the web server) shows what
+ * the operation saved. Only a context that knows its file is touched, and a file that cannot be read keeps what is
+ * there (the page for it reports the problem).
+ */
+export function refreshSettings(ctx: Context): void {
+  try {
+    const known = ctx.loaded.configPath ?? ctx.options?.config;
+    // No file yet: the operation may have created it.
+    if (!known && !(ctx.loaded.configPath === null && fs.existsSync(userConfigPath()))) return;
+    ctx.loaded = loadConfig(known);
+  } catch {
+    // A broken settings file keeps the settings the context had; the settings page says what is wrong.
+  }
 }

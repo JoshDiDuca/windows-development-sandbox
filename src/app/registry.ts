@@ -1,6 +1,7 @@
 // Every feature's implementation, by id (Node side; features/defs.ts is the pure half the browser uses). Surfaces run
 // definitions only through here, so input and output are checked the same way everywhere.
 import type { AppContext } from './context.js';
+import { refreshSettings } from '../cli/commands/context.js';
 import { fail } from '../core/util/errors.js';
 import {
   accessNeeded,
@@ -216,7 +217,21 @@ export function implementationOf(id: string): Implementation<AnyDefinition, AppC
 export function runDefinition(id: string, ctx: AppContext, input: unknown, io: OperationIO): Promise<unknown> {
   const impl = implementationOf(id);
   if (!impl) throw new Error('No implementation for ' + id);
-  return invoke(impl, ctx, input, io);
+  return invokeAndRefresh(impl, ctx, input, io);
+}
+
+/** invoke(), then reads the settings again after an operation: the next read of any page sees what it saved. */
+async function invokeAndRefresh(
+  impl: Implementation<AnyDefinition, AppContext>,
+  ctx: AppContext,
+  input: unknown,
+  io: OperationIO,
+): Promise<unknown> {
+  try {
+    return await invoke(impl, ctx, input, io);
+  } finally {
+    if (impl.def.kind === 'operation') refreshSettings(ctx);
+  }
 }
 
 /** Reads a query in-process (the menu): typed output, and no questions. */
@@ -252,7 +267,7 @@ export function createRpcHost(ctx: AppContext): RpcHost {
       if (!impl) throw new Error('Not allowed on the web: ' + id);
       const need = accessNeeded(impl.def, input);
       if (!allows(caller, need)) fail(refusalText(caller, need));
-      return invoke(impl, ctx, input, io);
+      return invokeAndRefresh(impl, ctx, input, io);
     },
   };
 }

@@ -12,6 +12,7 @@ import {
   SERVICE_NAMES_TEXT,
   servicePage,
   serviceRow,
+  type ServiceRow,
 } from '../app/features/accounts/index.js';
 import { fakeIO } from '../app/kernel/index.js';
 import { buildProgram, parseCli } from '../cli/args.js';
@@ -41,7 +42,7 @@ import {
   fingerprint,
   readEpicLogin,
   SERVICE_KINDS,
-  SERVICE_SPECS,
+  type ServiceKind,
   serviceWanted,
   withEpicLogin,
   type UsedBy,
@@ -49,6 +50,7 @@ import {
 import { RunDir } from '../shared/channel/index.js';
 import type { SecretsFile } from '../shared/channel/secrets.js';
 import { decodeText, encodeText, readBoundedFile } from '../shared/io/index.js';
+import { isKindReady } from '../shared/readiness.js';
 import type { Suite } from './support/suite.js';
 
 const SIGN_IN = 'PlantedEpicSignIn' + 'AbCdEf0123456789+/'.repeat(6) + '==';
@@ -521,8 +523,10 @@ export const serviceAccountsSuite: Suite = {
     );
     const lines = pageLines(servicePage(row)).join('\n');
     t.check(
-      lines.includes('Epic Games') && lines.includes(SERVICE_SPECS.epic.warnings[1]) && !lines.includes(SIGN_IN),
-      'a service shows its state and its warnings, never the sign-in',
+      lines.includes('Epic Games') &&
+        servicePage(row).sections[0].facts?.some((f) => f.description === 'The agent can use it.') === true &&
+        !lines.includes(SIGN_IN),
+      'a service shows its state and one short warning, never the sign-in',
     );
     t.check(
       Object.values(accountsView.queries).some((q) => q.id === 'accounts.services') &&
@@ -530,6 +534,107 @@ export const serviceAccountsSuite: Suite = {
           accountsView.operations.some((o) => o.id === id),
         ),
       'the accounts view offers the services and their actions on every surface',
+    );
+
+    t.section('every action a service page shows works from the menu');
+    const shareOn = { ...config, accounts: { ...config.accounts, perplexity: { share: true } } };
+    const pcFound = { localAppData: t.dir('svc-pc-found'), appData: '', programData: '', env: {} };
+    t.write(epicSettingsFile(pcFound.localAppData), INI);
+    const pcNone = { localAppData: t.dir('svc-pc-none'), appData: '', programData: '', env: {} };
+    const pageStore = new ServiceAccountStore(t.dir('svc-page'), SecretStore.memory());
+    const pageLeases = new AccountLeases(t.dir('svc-page-leases'));
+    const rowOn = (kind: ServiceKind, pc: typeof pcFound | undefined, c = config): ServiceRow =>
+      serviceRow(kind, c, pageStore, pageLeases, pc);
+    const labelsOf = (row: ServiceRow): string[] => servicePage(row).sections[0].actions!.map((a) => a.label);
+
+    const descriptionsOf = (r: ServiceRow): string =>
+      (servicePage(r).sections[0].facts ?? []).map((f) => ' ' + (f.description ?? '')).join('');
+    const epicFound = rowOn('epic', pcFound);
+    const epicText = pageLines(servicePage(epicFound)).join('\n') + descriptionsOf(epicFound);
+    t.check(
+      epicFound.onPc === true &&
+        /On this PC\s+found/.test(epicText) &&
+        epicText.includes("takes this PC's") &&
+        !epicText.includes(SIGN_IN),
+      'a kind that comes from this PC says it is found there (never the sign-in), and what sharing does',
+    );
+    t.check(
+      rowOn('epic', pcNone).onPc === false &&
+        /On this PC\s+not found/.test(pageLines(servicePage(rowOn('epic', pcNone))).join('\n')),
+      'and says not found when this PC has none',
+    );
+    t.check(
+      labelsOf(epicFound).includes("Take this PC's sign-in") &&
+        !labelsOf(epicFound).some((l) => l.startsWith('Import…')),
+      'taking it from this PC has a plain name',
+    );
+    const perplexityLabels = labelsOf(rowOn('perplexity', pcFound, shareOn));
+    t.check(
+      perplexityLabels.includes("Take this PC's sign-in") &&
+        perplexityLabels.includes('Import from a file…') &&
+        perplexityLabels.includes('Type the sign-in…'),
+      'the API key can be taken from this PC, read from a file or typed',
+    );
+    const cometRow = rowOn('comet', pcFound);
+    const cometText = pageLines(servicePage(cometRow)).join('\n') + descriptionsOf(cometRow);
+    t.check(
+      cometRow.onPc === null &&
+        cometRow.sandboxOnly &&
+        labelsOf(cometRow).every((l) => l === 'Share with sandboxes') &&
+        cometText.includes('Sign in once inside a sandbox; it is kept for the next ones.'),
+      'Comet offers only sharing and says plainly to sign in once inside a sandbox',
+    );
+
+    // Every action a page shows is one its kind can do (import: a PC or file way; sign in: a typed way).
+    for (const kind of SERVICE_KINDS.filter(isKindReady)) {
+      const r = rowOn(kind, pcFound);
+      for (const a of servicePage(r).sections[0].actions ?? []) {
+        if (a.kind !== 'operation') continue;
+        const src = HOST_SOURCES[kind];
+        const ok =
+          a.op === 'accounts.service.import'
+            ? Boolean(src.fromPc || src.fromFile)
+            : a.op === 'accounts.service.login'
+              ? Boolean(src.fromAnswers)
+              : ['accounts.service.logout', 'settings.set'].includes(a.op);
+        t.check(ok, kind + ': "' + a.label + '" is something this kind can do');
+      }
+    }
+
+    // The paths themselves, through the menu's questions (fakeIO): a file, typed, forgotten.
+    const envFile = t.write(t.at('svc-page', 'keys.env'), 'PERPLEXITY_API_KEY=pplx-PlantedKey0123456789\n');
+    const fileIO = fakeIO([envFile, true]);
+    const fromFile = await importServiceFlow(
+      fileIO.io,
+      'perplexity',
+      undefined,
+      { store: pageStore, pc: pcNone, share: true },
+      true,
+    );
+    t.check(
+      pageStore.info('perplexity')?.source === 'file' &&
+        fileIO.seen.questions[0].kind === 'path' &&
+        !fromFile.message.includes('PlantedKey'),
+      'Import from a file asks for the file even when this PC could give one, and saves it',
+    );
+    await logoutServiceFlow(fakeIO([true]).io, 'perplexity', t.dir('svc-page-root'), pageStore, pageLeases);
+    const pcWithKey = { ...pcNone, env: { PERPLEXITY_API_KEY: 'pplx-FromThisPc0123456789' } };
+    const keyRow = rowOn('perplexity', pcWithKey);
+    t.check(keyRow.onPc === true, 'the API key in this terminal is found on this PC');
+    await importServiceFlow(fakeIO([true]).io, 'perplexity', undefined, {
+      store: pageStore,
+      pc: pcWithKey,
+      share: true,
+    });
+    t.check(pageStore.info('perplexity')?.source === 'pc', "Take this PC's sign-in saves the PC's key");
+    await loginServiceFlow(fakeIO(['pplx-Typed0123456789']).io, 'perplexity', { store: pageStore, share: true });
+    t.check(pageStore.info('perplexity')?.source === 'typed', 'Type the sign-in saves what was typed');
+    const savedRow = rowOn('perplexity', pcWithKey);
+    t.check(labelsOf(savedRow).includes('Forget…') && savedRow.state === 'saved', 'a saved sign-in offers Forget');
+    await t.throws(
+      () => importServiceFlow(fakeIO([true]).io, 'comet', undefined, { store: pageStore, pc: pcWithKey, share: true }),
+      'inside a sandbox',
+      'Comet has nothing to import: the error says to sign in inside a sandbox',
     );
   },
 };

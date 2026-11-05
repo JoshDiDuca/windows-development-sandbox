@@ -124,6 +124,10 @@ function serviceRow(over: Partial<ServiceRow>): ServiceRow {
     canImport: true,
     canLogin: true,
     needsFile: false,
+    fromPc: false,
+    hasFileSource: false,
+    onPc: null,
+    sandboxOnly: false,
     ready: true,
     ...over,
   };

@@ -4,7 +4,7 @@
 // builders; services.run.ts does the work. The kinds live in shared/accounts (a def imports no shared code): the
 // query's rows carry everything a page shows.
 import { z } from 'zod';
-import { action, type Action, type Fact, type Item, type Note, type Page, type Section } from '../../kernel/index.js';
+import { action, type Action, type Fact, type Page, type Section } from '../../kernel/index.js';
 import { defineOperation, defineQuery } from '../../kernel/index.js';
 import { setSetting } from '../settings/settings.def.js';
 
@@ -33,6 +33,13 @@ export const ServiceRowSchema = z.object({
   canImport: z.boolean().describe('It can be taken from this PC or a file (sandbox account import)'),
   canLogin: z.boolean().describe('It can be typed (sandbox account login)'),
   needsFile: z.boolean().describe('Importing it needs --from <file>'),
+  fromPc: z.boolean().describe("This PC's own program can give it (the next launch takes it when sharing is on)"),
+  hasFileSource: z.boolean().describe('It can be read from a file you name'),
+  onPc: z
+    .boolean()
+    .nullable()
+    .describe('This PC has one to take (null: it cannot be taken from this PC). Only the presence, never the sign-in'),
+  sandboxOnly: z.boolean().describe('Only a sandbox can give it: sign in once inside one and it is kept'),
   ready: z.boolean().describe('Its sign-in is written; false: the menu and the web leave it out (the CLI says coming)'),
 });
 export type ServiceRow = z.output<typeof ServiceRowSchema>;
@@ -42,7 +49,7 @@ export type ServicesList = z.output<typeof ServicesListSchema>;
 
 const STATE_TEXT: Readonly<Record<ServiceRow['state'], string>> = {
   none: 'not saved',
-  saved: 'saved (encrypted)',
+  saved: 'saved',
   unreadable: 'cannot be read',
 };
 const STATE_TONE: Readonly<Record<ServiceRow['state'], Fact['tone']>> = {
@@ -51,10 +58,10 @@ const STATE_TONE: Readonly<Record<ServiceRow['state'], Fact['tone']>> = {
   unreadable: 'danger',
 };
 const SOURCE_TEXT: Readonly<Record<string, string>> = {
-  pc: 'taken from this PC',
+  pc: 'from this PC',
   file: 'from a file',
-  typed: 'typed in',
-  sandbox: 'signed in (or renewed) in a sandbox',
+  typed: 'by typing it',
+  sandbox: 'from a sandbox',
 };
 
 const day = (iso: string | null): string => (iso ? iso.slice(0, 10) : '');
@@ -97,6 +104,7 @@ export const serviceImport = defineOperation({
   input: z.object({
     name: KindSchema,
     from: z.string().max(1000).optional().describe('(import) the file or folder to take the sign-in from'),
+    file: z.boolean().optional().describe('(import) ask for a file even when this PC has one to take'),
   }),
   output: MessageSchema,
   text: (o) => o.message,
@@ -131,7 +139,15 @@ export function serviceCategory(kind: string): string {
   return 'service:' + kind;
 }
 
-/** What can be done with one service: share or stop, import, sign in, forget. */
+/** What to do when this PC has no sign-in to take, by kind (short). */
+const PC_HELP: Readonly<Record<string, string>> = {
+  epic: 'Sign in to the Epic launcher here, with Remember me on.',
+  steam: 'Log in once with SteamCMD in C:\\steamcmd.',
+  unity: 'Sign in to the Unity Hub here.',
+  perplexity: 'Set PERPLEXITY_API_KEY for your Windows user.',
+};
+
+/** What can be done with one service: share or stop, take or import, type it, forget. Every one works from the menu. */
 function serviceActions(s: ServiceRow): Action[] {
   return [
     action(
@@ -144,54 +160,87 @@ function serviceActions(s: ServiceRow): Action[] {
         importance: 1,
       },
     ),
-    ...(s.canImport ? [action(serviceImport, { name: s.kind }, { key: 'i', verb: 'import', importance: 1 })] : []),
-    ...(s.canLogin ? [action(serviceLogin, { name: s.kind }, { key: 'n', verb: 'sign in', importance: 1 })] : []),
+    ...(s.fromPc
+      ? [
+          action(
+            serviceImport,
+            { name: s.kind },
+            { key: 'i', verb: 'take from this PC', label: "Take this PC's sign-in", importance: 1 },
+          ),
+        ]
+      : []),
+    ...(s.hasFileSource
+      ? [
+          action(
+            serviceImport,
+            { name: s.kind, file: true },
+            {
+              key: s.fromPc ? 'f' : 'i',
+              verb: 'import a file',
+              label: 'Import from a file…',
+              importance: s.fromPc ? 2 : 1,
+            },
+          ),
+        ]
+      : []),
+    ...(s.canLogin
+      ? [
+          action(
+            serviceLogin,
+            { name: s.kind },
+            { key: 'n', verb: 'type it in', label: 'Type the sign-in…', importance: 1 },
+          ),
+        ]
+      : []),
     ...(s.state !== 'none'
       ? [action(serviceLogout, { name: s.kind }, { key: 'x', verb: 'forget', importance: 2 })]
       : []),
   ];
 }
 
-/** How to get a first sign-in, in words (the actions below do it). */
-function howTo(s: ServiceRow): string {
-  const ways = [...(s.canImport ? ['import it'] : []), ...(s.canLogin ? ['type it in'] : [])];
-  return ways.length
-    ? ways.join(' or ')
-    : "sign in once inside a sandbox (it can't be copied from this PC: Windows locks it to your PC account)";
+/** The one line of help for a service: how to get its first sign-in, or what happens next. Short. */
+function helpLine(s: ServiceRow): string | undefined {
+  if (s.state !== 'none') return undefined;
+  if (s.sandboxOnly) return 'Sign in once inside a sandbox; it is kept for the next ones.';
+  if (s.fromPc && s.onPc)
+    return s.share ? "The next sandbox takes this PC's." : "Share it and the next sandbox takes this PC's.";
+  if (s.fromPc) return PC_HELP[s.kind] ?? 'Not found on this PC.';
+  return s.canLogin ? 'Type it in, or import it from a file.' : 'Import it from a file.';
 }
 
-/** One service's section: its facts, its warnings and its actions. */
+/** One service's section: a few short facts and its actions. The full warnings are asked before saving. */
 export function serviceSection(s: ServiceRow): Section {
   const facts: Fact[] = [
     {
       id: s.kind + ':share',
-      label: 'Shared with sandboxes',
+      label: 'Shared',
       value: s.share ? 'on' : 'off',
       tone: s.share ? 'ok' : 'muted',
-      description: 'For sandboxes that use ' + s.usedFor + '. ' + s.warnings.join(' '),
+      description: 'The agent can use it.',
     },
     {
       id: s.kind + ':state',
       label: 'Sign-in',
       value: STATE_TEXT[s.state] + (s.savedAt ? '  ' + day(s.savedAt) : ''),
       tone: STATE_TONE[s.state],
-      description: s.state === 'none' ? 'Save one: ' + howTo(s) + '.' : undefined,
+      description:
+        s.state === 'unreadable'
+          ? 'Only the Windows user that saved it can read it: save it again.'
+          : (helpLine(s) ?? (s.source ? 'Saved ' + (SOURCE_TEXT[s.source] ?? s.source) + '.' : undefined)),
     },
-    ...(s.source ? [{ id: s.kind + ':source', label: 'From', value: SOURCE_TEXT[s.source] ?? s.source }] : []),
+    ...(s.onPc === null
+      ? []
+      : [
+          {
+            id: s.kind + ':pc',
+            label: 'On this PC',
+            value: s.onPc ? 'found' : 'not found',
+            tone: s.onPc ? ('ok' as const) : ('muted' as const),
+          },
+        ]),
     ...(s.summary ? [{ id: s.kind + ':summary', label: 'Account', value: s.summary }] : []),
     ...(s.heldBy
       ? [{ id: s.kind + ':held', label: 'In use by', value: 'sandbox ' + s.heldBy, tone: 'accent' as const }]
-      : []),
-  ];
-  const warnings: Item[] = s.warnings.map((w, i) => ({
-    id: s.kind + ':warning:' + i,
-    label: w,
-    tone: 'warn' as const,
-    group: 'Before you share it',
-  }));
-  const notes: Note[] = [
-    ...(s.state === 'unreadable'
-      ? [{ text: 'Only the Windows user that saved it can read it: save it again.', tone: 'muted' as const }]
       : []),
   ];
   return {
@@ -199,8 +248,6 @@ export function serviceSection(s: ServiceRow): Section {
     title: s.label,
     summary: (s.share ? 'shared' : 'not shared') + ' · ' + STATE_TEXT[s.state],
     facts,
-    items: warnings,
-    notes,
     actions: serviceActions(s),
   };
 }

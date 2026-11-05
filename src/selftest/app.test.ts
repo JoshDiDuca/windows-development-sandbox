@@ -7,7 +7,13 @@ import path from 'node:path';
 import { z } from 'zod';
 import { agentNameProblem, agentsPage, agentsView } from '../app/features/agents/index.js';
 import { DEFINITIONS, NAV, navSections, navViews, QUERIES, VIEWS, viewById } from '../app/features/defs.js';
-import { accountsPage, agentPage, listAccounts, type AgentAccounts } from '../app/features/accounts/index.js';
+import {
+  accountsPage,
+  agentPage,
+  listAccounts,
+  listServices,
+  type AgentAccounts,
+} from '../app/features/accounts/index.js';
 import { addProject, projectRoots, projectsPage } from '../app/features/projects/index.js';
 import { cleanData, dataPage, showData } from '../app/features/data/index.js';
 import {
@@ -19,7 +25,7 @@ import {
 } from '../app/features/storage/index.js';
 import { insideSandbox, isSandboxRunning } from '../host/sandbox/index.js';
 import { CRASH, listLogs, logsPage, tailLog } from '../app/features/logs/index.js';
-import { DEFAULTS } from '../core/config/index.js';
+import { DEFAULTS, loadConfig } from '../core/config/index.js';
 import { sandboxPage, type SandboxStatus } from '../app/features/sandbox/index.js';
 import {
   closeSession,
@@ -735,6 +741,28 @@ export const appSuite: Suite = {
       storageRoot: t.at('app-apps', 'storage'),
       dataPath: t.dir('app-apps', 'data'),
     } as unknown as AppContext;
+    t.section('a page read after an action shows what the action saved');
+    const freshConfig = t.writeJson(t.at('app-fresh', 'config.json'), {
+      storage: { root: t.dir('app-fresh', 'storage') },
+    });
+    const freshCtx = {
+      loaded: loadConfig(freshConfig),
+      options: {},
+      storageRoot: t.at('app-fresh', 'storage'),
+      dataPath: t.dir('app-fresh', 'data'),
+    } as unknown as AppContext;
+    const shareOf = async (): Promise<boolean | undefined> =>
+      (await readQuery(listServices, freshCtx, { name: 'comet' })).services[0]?.share;
+    t.check((await shareOf()) === false, 'a service starts not shared');
+    await runDefinition('settings.set', freshCtx, { scope: 'user', key: 'accounts.comet.share', value: true }, quiet);
+    t.check((await shareOf()) === true, 'after the share toggle runs, the service page reads it as shared');
+    await runDefinition('settings.set', freshCtx, { scope: 'user', key: 'accounts.comet.share', value: false }, quiet);
+    t.check((await shareOf()) === false, 'and as not shared again after the next toggle');
+    await runDefinition('apps.toggle', freshCtx, { id: 'perplexity-desktop', on: true }, quiet);
+    t.check(
+      freshCtx.loaded.config.apps.install.includes('perplexity-desktop'),
+      'an app turned on in Apps is in the settings every page reads next',
+    );
     await runDefinition('apps.toggle', appsCtx, { id: 'lazygit', on: true }, quiet);
     const onText = fs.readFileSync(appsConfig, 'utf8');
     await runDefinition('apps.toggle', appsCtx, { id: 'lazygit', on: false }, quiet);

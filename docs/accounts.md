@@ -37,6 +37,16 @@ sandbox config set accounts.epic.share true      # let sandboxes have it
 
 `sandbox account list` shows your agent logins and, under them, the services that are shared or saved.
 
+## In the menu and the web UI
+
+Each service has a short page: **Shared** (on or off), **Sign-in** (saved with its date, or not saved), **On this PC**
+(found or not found, for the ones your PC can give), and **Account** when one is saved. The names are short (Epic
+Games, Steam, Unity, FiveM key, Perplexity API, Comet, Perplexity app). The actions on the page are the ones that work
+for that service: *Take this PC's sign-in*, *Import from a file...*, *Type the sign-in...*, *Forget...* and the share
+toggle. Comet and the Perplexity app offer only the share toggle: sign in once inside a sandbox and it is kept for the
+next ones. The full warnings are asked before a sign-in is saved. Anything you change in the menu or the web UI shows on
+every page straight away.
+
 ## Sharing
 
 Saving a sign-in does not hand it to anything yet. `accounts.<service>.share` (default off) decides whether sandboxes

@@ -433,6 +433,38 @@ const COMMAND_LIST = [
     options: [],
   },
   {
+    name: 'unity',
+    summary:
+      "Unity: the sandbox's editors, this PC's editors and Asset Store downloads, the licence, the editor bridge, Unity Hub",
+    group: 'Projects & accounts',
+    json,
+    examples: [
+      'sandbox unity                          editors, which project opens with which, the licence',
+      'sandbox unity sign-in                  sign in to Unity in the running sandbox',
+      'sandbox unity add-bridge D:\\Game       add the editor bridge to a project (asks first)',
+    ],
+    args: [
+      {
+        name: 'action',
+        description: 'status, hub, sign-in, add-bridge, remove-bridge',
+        required: false,
+        choices: ['status'],
+      },
+      {
+        name: 'project',
+        description: '(add-bridge, remove-bridge) the Unity project folder',
+        required: false,
+        when: [],
+      },
+    ],
+    options: [
+      text('--bridge', 'name', '(add-bridge) pipeline (Unity 6 and later) or coplay (older Unity)', {
+        when: 'add-bridge',
+        label: 'Bridge',
+      }),
+    ],
+  },
+  {
     name: 'engine',
     summary: '(beta) what runs your sandbox (Windows Sandbox or HCS) and what each engine can do on this PC',
     group: 'Health',

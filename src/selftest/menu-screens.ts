@@ -11,6 +11,7 @@ import { maintenanceOptions, type MaintenanceModel } from '../cli/menu/pages/mai
 import { sandboxOptions, type SandboxModel } from '../cli/menu/pages/sandbox-page.js';
 import { sessionsOptions } from '../cli/menu/pages/sessions-page.js';
 import { UNREAL_SAMPLE } from './support/unreal-sample.js';
+import { UNITY_SAMPLE } from './support/unity-sample.js';
 import { settingsOf, settingsOptions } from '../cli/menu/pages/settings-page.js';
 import { CATEGORIES } from '../app/features/settings/index.js';
 import { agentsOptions } from '../cli/menu/pages/agents-page.js';
@@ -229,6 +230,7 @@ export function renderScreens(dir: string): string {
     ],
     defaultAgent: 'claude',
     unreal: UNREAL_SAMPLE,
+    unity: UNITY_SAMPLE,
   };
   const stopped: SandboxModel = {
     ...sandbox,
@@ -460,7 +462,7 @@ export function renderScreens(dir: string): string {
           size,
         ),
       );
-    for (const category of ['status', 'projects', 'databases', 'unreal'])
+    for (const category of ['status', 'projects', 'databases', 'unreal', 'unity'])
       out.push(
         block(
           '3 Sandbox · ' + category,

@@ -1,10 +1,11 @@
 // Section 3: the sandbox as a whole. Status (the sandbox view: its facts, the window, stopping it), Projects (the
 // projects view: roots, the projects and the all-projects setting), Databases (start and stop) and Unreal Engine (the
-// unreal view), each a category on the left.
+// unreal view) and Unity (the unity view), each a category on the left.
 import { listProjects, projectsPage, type ProjectsList } from '../../../app/features/projects/index.js';
 import { sandboxPage, sandboxStatus, type SandboxStatus } from '../../../app/features/sandbox/index.js';
 import { readQuery } from '../../../app/registry.js';
 import { unrealOverview, unrealPage, type UnrealOverview } from '../../../app/features/unreal/index.js';
+import { unityOverview, unityPage, type UnityOverview } from '../../../app/features/unity/index.js';
 import { errMsg, safeText } from '../../../core/util/index.js';
 import { RunDir } from '../../../shared/channel/index.js';
 import type { Context } from '../../commands/context.js';
@@ -23,6 +24,8 @@ export interface SandboxModel {
   readonly defaultAgent: string;
   /** The Unreal overview; null when it could not be read. */
   readonly unreal: UnrealOverview | null;
+  /** The Unity overview; null when it could not be read. */
+  readonly unity: UnityOverview | null;
 }
 
 const CATEGORIES = [
@@ -38,6 +41,11 @@ const CATEGORIES = [
     label: 'Unreal Engine',
     description: "Engines, which project uses which, this PC's engines and assets, Visual Studio and the debugger.",
   },
+  {
+    id: 'unity',
+    label: 'Unity',
+    description: "Editors, this PC's editors and Asset Store downloads, the licence, the editor bridge and Unity Hub.",
+  },
 ];
 
 /** The Unreal category: the Unreal view's rows and keys (prefixed, so they never clash with other rows). */
@@ -45,6 +53,11 @@ function unrealMenu(m: SandboxModel): MenuView | undefined {
   return m.unreal
     ? menuView(unrealPage(m.unreal), { category: 'unreal', prefix: 'unreal:', refresh: false })
     : undefined;
+}
+
+/** The Unity category: the Unity view's rows and keys (prefixed, so they never clash with other rows). */
+function unityMenu(m: SandboxModel): MenuView | undefined {
+  return m.unity ? menuView(unityPage(m.unity), { category: 'unity', prefix: 'unity:', refresh: false }) : undefined;
 }
 
 /** The status category: the sandbox view's rows (prefixed, so they never clash with the projects' rows). */
@@ -61,6 +74,7 @@ function projectsView(m: SandboxModel): MenuView {
 function viewFor(m: SandboxModel, category: string | undefined): MenuView | undefined {
   if (category === 'projects') return projectsView(m);
   if (category === 'unreal') return unrealMenu(m);
+  if (category === 'unity') return unityMenu(m);
   if (category === 'status' || category === undefined) return statusView(m);
   return undefined;
 }
@@ -106,9 +120,31 @@ export function sandboxOptions(m: SandboxModel): ListOptions<string> {
           disabled: 'l looks again.',
         },
       ];
+  const unity = unityMenu(m);
+  const noUnity: ListItem<string>[] = unity
+    ? []
+    : [
+        {
+          value: 'info:unity',
+          label: 'Could not read the Unity set-up',
+          category: 'unity',
+          section: 'Unity',
+          description: 'l looks again.',
+          disabled: 'l looks again.',
+        },
+      ];
   return {
     path: [],
-    items: [...statusItems, ...projects.items, ...databases, ...noDatabases, ...(unreal?.items ?? []), ...noUnreal],
+    items: [
+      ...statusItems,
+      ...projects.items,
+      ...databases,
+      ...noDatabases,
+      ...(unreal?.items ?? []),
+      ...noUnreal,
+      ...(unity?.items ?? []),
+      ...noUnity,
+    ],
     categories: CATEGORIES,
     empty: 'Nothing here yet.',
     actions: (category) =>
@@ -118,7 +154,9 @@ export function sandboxOptions(m: SandboxModel): ListOptions<string> {
           ? [REFRESH]
           : category === 'unreal'
             ? [...(unreal?.actions ?? []), REFRESH]
-            : [...status.actions, REFRESH],
+            : category === 'unity'
+              ? [...(unity?.actions ?? []), REFRESH]
+              : [...status.actions, REFRESH],
     enterLabel: (category, id) => viewFor(m, category)?.enterLabel(category, id) || enterLabel(id ?? '', m),
   };
 }
@@ -183,6 +221,7 @@ export class SandboxPage extends ListPage<string> {
       databases,
       defaultAgent: this.defaultAgent(),
       unreal: await readQuery(unrealOverview, this.ctx).catch(() => null),
+      unity: await readQuery(unityOverview, this.ctx).catch(() => null),
     };
   }
 

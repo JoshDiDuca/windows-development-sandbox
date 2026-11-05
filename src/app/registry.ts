@@ -100,6 +100,13 @@ import {
   registerEngineFolderRun,
   unrealOverviewRun,
 } from './features/unreal/index.js';
+import {
+  addBridgeRun,
+  openUnityHubRun,
+  removeBridgeRun,
+  unityOverviewRun,
+  unitySignInRun,
+} from './features/unity/index.js';
 
 export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>[] = [
   sandboxStatusRun,
@@ -194,6 +201,11 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   registerEngineFolderRun,
   forgetEngineFolderRun,
   openEpicLauncherRun,
+  unityOverviewRun,
+  openUnityHubRun,
+  unitySignInRun,
+  addBridgeRun,
+  removeBridgeRun,
 ];
 
 export function implementationOf(id: string): Implementation<AnyDefinition, AppContext> | undefined {

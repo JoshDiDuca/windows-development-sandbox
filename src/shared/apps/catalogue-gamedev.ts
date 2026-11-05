@@ -59,6 +59,7 @@ export const GAMEDEV_APPS: readonly AppEntry[] = [
     size: '100 MB',
     source: { github: 'f3d-app/f3d', asset: '^F3D-[\\d.]+-Windows-x86_64\\.zip$' },
     exe: 'f3d.exe',
+    onPath: true,
     needs: ['mesa'],
   },
   {

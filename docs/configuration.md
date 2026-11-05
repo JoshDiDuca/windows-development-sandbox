@@ -405,9 +405,26 @@ installed in one sandbox runs in your other sandboxes too.
 | `pcInstalls.unrealEngines` | `"auto"` (default: whenever the sandbox is set up for Unreal), `true`, `false`, or a list of versions, e.g. `["5.4"]` |
 | `pcInstalls.unrealEngineFolders` | a list of engine folders of this PC, mapped writable (a source build, or a copy of an engine) |
 | `pcInstalls.unrealAssets`  | `"auto"` (default), `true` or `false`: the launcher's vault cache (Fab and Marketplace packs), read-only |
-| `pcInstalls.unityEditors`  | `true` or a list of editor versions, e.g. `["6000.0.32f1"]`                      |
+| `pcInstalls.unityEditors`  | `"auto"` (default: whenever the sandbox is set up for Unity), `true`, `false`, or a list of versions, e.g. `["6000.0.32f1"]` |
+| `pcInstalls.unityAssets`   | `"auto"` (default), `true` or `false`: this PC's Asset Store downloads (`.unitypackage`), read-only |
 
-Unreal is described in [game engines](game-engines.md). The agent can read what is mapped.
+Unreal is described in [game engines](game-engines.md), Unity in [Unity](unity.md). The agent can read what is mapped.
+
+## Unity
+
+`toolchains.unity` sets Unity up for a project: its editor and modules, the Unity CLI, and the agents' MCP server and
+skills. Your licence is accepted with `toolchains.unity.acceptLicense` (a project file cannot accept it for you).
+Editors, modules, licence and the Asset Store are in [Unity](unity.md). These four are the agent settings:
+
+| Setting                          | Default              | What it does                                                                                                   |
+| -------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `toolchains.unity.mcp`           | `true`               | the Unity CLI's MCP server as `sbx-unity` in Claude Code and Codex (read-only tools; the open editor's tools need the Unity Pipeline package) |
+| `toolchains.unity.agentSkills`   | `true`               | Unity's skills for Claude Code and Codex, synced every boot                                                    |
+| `toolchains.unity.cliVersion`    | `"1.0.0-beta.16"`    | the Unity CLI version, checked against the SHA-256 Unity publishes: a version, or `"latest"`. It never updates itself |
+| `toolchains.unity.assetCache`    | `"persisted"`        | where Asset Store downloads made in the sandbox go: `"persisted"` (`tools\unity\asset-store`, kept), `"pc"` (this PC's downloads, read-only) or `"local"` (lost on close) |
+
+The other keys (`enabled`, `acceptLicense`, `version`, `modules`, `hub`, `keepVersions`) are described in
+[Unity](unity.md).
 
 ## Hooks
 

@@ -9,7 +9,7 @@ own.
 | ---------- | ----------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- |
 | `epic`     | the Epic Games Launcher's "Remember me" sign-in                               | sign in once in a sandbox, or `import epic`    | Unreal                                   |
 | `steam`    | SteamCMD's cached login (no password)                                         | `sbx-steam login` in a sandbox, or `import`    | Steam                                    |
-| `unity`    | your Unity licence file, or your Unity ID                                     | sign in once in a sandbox, `import` or `login` | Unity                                    |
+| `unity`    | your Unity licence file (Personal), or your Unity ID and Plus/Pro serial      | sign in once in a sandbox, `import` or `login` | Unity ([unity.md](unity.md))             |
 | `cfx`      | a FiveM / RedM server licence key (and a Steam Web API key)                   | `import cfx --from server.cfg`, or `login cfx` | the FiveM server                         |
 | `keystore` | an Android upload keystore and its passwords                                  | `import keystore --from upload.jks`            | Android (and Flutter, React Native ...)  |
 | `play`     | a Google Play service account key                                             | `import play --from key.json`                  | Android                                  |
@@ -19,8 +19,9 @@ own.
 | `comet`    | the perplexity.ai sign-in cookies of the Comet browser                        | sign in to Comet once in a sandbox (it can't be copied from this PC: Windows locks it to your PC account) | the Comet app |
 | `perplexityapp` | the perplexity.ai sign-in cookies of the Perplexity desktop app | sign in to the app once in a sandbox (it can't be copied from this PC: Windows locks it to your PC account) | the Perplexity desktop app |
 
-Unity, the Android keys, Expo and App Store Connect come in a later version: their rows are there, and
-saving one says so for now. Perplexity, Comet and the Perplexity desktop app work now: see [agents-web.md](agents-web.md).
+Unity works now: see [unity.md](unity.md). The Android keys, Expo and App Store Connect come in a later version: their
+rows are there, and saving one says so for now. Perplexity, Comet and the Perplexity desktop app work now: see
+[agents-web.md](agents-web.md).
 
 ## Commands
 
@@ -40,8 +41,9 @@ sandbox config set accounts.epic.share true      # let sandboxes have it
 
 Saving a sign-in does not hand it to anything yet. `accounts.<service>.share` (default off) decides whether sandboxes
 get it, and then only a sandbox where a toolchain that uses it is on: the Epic sign-in goes to sandboxes with Unreal,
-the keystore to sandboxes that build for Android. A project's `.sandbox-config.json` can turn sharing off for itself,
-never on. When a sandbox starts with several projects and one of them turns it off, the sandbox does not get it.
+the Unity sign-in to sandboxes with Unity, the keystore to sandboxes that build for Android. A project's
+`.sandbox-config.json` can turn sharing off for itself, never on. When a sandbox starts with several projects and one of
+them turns it off, the sandbox does not get it.
 
 **The agent in the sandbox can use every sign-in it gets.** Share only what you would let the agent use.
 

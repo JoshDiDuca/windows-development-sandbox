@@ -15,7 +15,7 @@ Start with the [README](../README.md). Version history is in the [changelog](../
 | [agents-web.md](agents-web.md)           | Perplexity (API, Computer), the Comet browser and browser-driving MCP servers |
 | [game-engines.md](game-engines.md)       | Unreal engines and Godot (coming)                                             |
 | [mixamo.md](mixamo.md)                 | Mixamo characters and animations into Unreal, and the downloads folder        |
-| [unity.md](unity.md)                     | Unity (coming)                                                                |
+| [unity.md](unity.md)                     | Unity editors, licence and sign-in, Asset Store, the Unity CLI and MCP        |
 | [steam.md](steam.md)                     | SteamCMD, games and servers, Workshop, builds and the Steam client           |
 | [fivem.md](fivem.md)                     | FiveM / RedM server development (coming)                                      |
 | [android.md](android.md)                 | The Android SDK, Kotlin, .NET MAUI and app signing (coming)                   |

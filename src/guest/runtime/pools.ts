@@ -1,10 +1,9 @@
 // The guest's work pools: network bodies, heavy local work and installers. A task takes one slot at the leaf (the
 // call that downloads, unpacks or installs), never while it holds another: the limiter refuses nested pools.
-import os from 'node:os';
-import { spawn, type SpawnOptions } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { heavy, installer, net, INSTALLER_WAIT_MS, installerRetry } from '../../shared/concurrency/index.js';
-import { downloader, limitExtraction } from '../../shared/download/index.js';
+import { downloader, limitExtraction, lowerPriority, type SpawnAsyncOptions } from '../../shared/download/index.js';
 import { log } from './log.js';
 import { execAsync } from './process.js';
 
@@ -16,17 +15,8 @@ export function installPools(): void {
   limitExtraction(heavy);
 }
 
-const BELOW_NORMAL = os.constants.priority.PRIORITY_BELOW_NORMAL;
-
 /** Lowers a process (and the children it starts from now on) to below-normal priority; best effort. */
-export function belowNormal(pid: number | undefined): void {
-  if (pid === undefined) return;
-  try {
-    os.setPriority(pid, BELOW_NORMAL);
-  } catch {
-    /* the process may have ended already; a normal priority only makes it a little slower to share the machine */
-  }
-}
+export const belowNormal = lowerPriority;
 
 export interface InstallerOptions {
   /** Below-normal priority for the installer and what it starts (the background Visual Studio). */
@@ -69,7 +59,7 @@ export async function runInstallerChecked(file: string, args: string[], o: Insta
     throw new Error(path.basename(file) + ' ' + args.slice(0, 3).join(' ') + ' failed with exit code ' + code);
 }
 
-/** execAsync for heavy local work (npm, uv, rustup ...): one of the two heavy slots. */
-export function execHeavy(file: string, args: string[], options: SpawnOptions = {}): Promise<void> {
-  return heavy.run(() => execAsync(file, args, options));
+/** execAsync for heavy local work (npm, uv, rustup ...): one of the two heavy slots, at below-normal priority. */
+export function execHeavy(file: string, args: string[], options: SpawnAsyncOptions = {}): Promise<void> {
+  return heavy.run(() => execAsync(file, args, { ...options, lowPriority: true }));
 }

@@ -6,7 +6,17 @@ import { backgroundNames, mergeParts, runSplit } from '../guest/toolchains/split
 import { StepScheduler, type SchedulerSink } from '../guest/toolchains/step-scheduler.js';
 import type { ToolchainStep } from '../guest/toolchains/step.js';
 import { type ToolEnv } from '../guest/toolchains/tool-env.js';
-import { Limiter, asBackground, installerRetry, INSTALLER_RETRIES } from '../shared/concurrency/index.js';
+import os from 'node:os';
+import {
+  Limiter,
+  asBackground,
+  installerRetry,
+  INSTALLER_RETRIES,
+  net,
+  heavy,
+  installer,
+} from '../shared/concurrency/index.js';
+import { spawnAsync } from '../shared/download/index.js';
 import type { Suite } from './support/suite.js';
 
 interface Deferred {
@@ -373,6 +383,26 @@ export const bootRunnerSuite: Suite = {
         message,
       );
       t.check((await a.run(() => 7)) === 7 && a.running === 0, 'the slot is free again after a nested-pool error');
+    }
+    {
+      // At most 3 downloads + 2 unpacks + 1 installer run at once, whatever the boot tasks, steps and apps ask for.
+      const busy = async (pool: Limiter): Promise<number> => {
+        await Promise.all(Array.from({ length: 12 }, () => pool.run(() => sleep(5))));
+        return pool.peak;
+      };
+      t.check(
+        (await busy(net)) <= 3 && (await busy(heavy)) <= 2 && (await busy(installer)) <= 1,
+        'the shared pools cap at net 3, heavy 2 and installer 1',
+        'net ' + net.peak + ', heavy ' + heavy.peak + ', installer ' + installer.peak,
+      );
+      const script = 'setTimeout(() => process.exit(require("os").getPriority() > 0 ? 0 : 3), 400)';
+      const low = await spawnAsync(process.execPath, ['-e', script], { lowPriority: true });
+      const normal = await spawnAsync(process.execPath, ['-e', script]);
+      t.check(
+        low === 0 && normal === 3 && os.getPriority() <= 0,
+        'lowPriority starts a program below normal priority; the default stays normal',
+        'low ' + low + ', normal ' + normal,
+      );
     }
     t.check(
       installerRetry(1618, 1) &&

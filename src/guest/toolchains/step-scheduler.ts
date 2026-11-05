@@ -16,7 +16,7 @@ export interface SchedulerSink {
 }
 
 /** How many installers run at once: enough to overlap downloads with installs, few enough not to thrash the disk. */
-const PARALLEL = 4;
+const PARALLEL = 3;
 
 export interface RunOptions {
   /** Progress lines ("Installing Go, Rust (3 of 9 done)"); default: the sandbox's boot status. */

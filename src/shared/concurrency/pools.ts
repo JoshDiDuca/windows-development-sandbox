@@ -3,7 +3,7 @@
 import { Limiter } from './limiter.js';
 
 /** HTTP bodies. */
-export const net = new Limiter(4, 'net');
+export const net = new Limiter(3, 'net');
 /** extractArchive, 7-Zip/NSIS unpack, npm ci/install, uv/pip, Steam, robocopy of big layouts, rustup/cargo. */
 export const heavy = new Limiter(2, 'heavy');
 /** Every msiexec, vcredist, DXSETUP and the Visual Studio bootstrapper: Windows runs one install at a time. */

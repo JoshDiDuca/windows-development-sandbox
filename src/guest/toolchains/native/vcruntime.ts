@@ -6,7 +6,7 @@ import { dryRun } from '../../runtime/paths.js';
 import { exists } from '../../runtime/fs.js';
 import { log } from '../../runtime/log.js';
 import { downloadFile } from '../install.js';
-import { SIGNERS, signedBy } from '../installers.js';
+import { SIGNERS, signedByAsync } from '../installers.js';
 import { tool, type ToolEnv } from '../tool-env.js';
 
 const VC_REDIST = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
@@ -39,7 +39,7 @@ export async function setupVcRuntime(env: ToolEnv, summary = true): Promise<bool
       log('Downloading the Visual C++ runtime (~25 MB once) ...');
       await downloadFile(VC_REDIST, installer);
     }
-    if (!signedBy(installer, SIGNERS.microsoft)) {
+    if (!(await signedByAsync(installer, SIGNERS.microsoft))) {
       fs.rmSync(installer, { force: true });
       throw new Error('vc_redist.x64.exe is not signed by Microsoft; deleted it (it is downloaded again next boot)');
     }

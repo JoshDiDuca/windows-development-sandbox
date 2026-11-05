@@ -129,6 +129,8 @@ export interface AppEntry {
   exe: string;
   /** A command-line tool: its folder goes on PATH (no desktop shortcut). */
   cli?: boolean;
+  /** A desktop program an agent also runs by name (F3D renders previews): its folder goes on PATH, shortcut kept. */
+  onPath?: boolean;
   /** Needs these first: 7-Zip to unpack an installer, Mesa for OpenGL without a GPU. */
   needs?: ('7zip' | 'mesa')[];
   /**

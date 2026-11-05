@@ -796,6 +796,8 @@ export const enginesSuite: Suite = {
       'Krita, Inkscape, Audacity, RenderDoc, F3D, ImageMagick, nomacs, then the Unity add-ons (Blender was there)',
     );
     t.check(ids.includes('blender'), 'Blender is in the catalogue');
+    const f3d = GAMEDEV_APPS.find((a) => a.id === 'f3d')!;
+    t.check(f3d.onPath === true && !f3d.cli, 'F3D is on PATH (the preview guide runs `f3d`) and keeps its shortcut');
     t.check(
       GAMEDEV_APPS.every((a) => (a.category === 'gamedev' || a.id === 'unity-mcp') && a.exe && a.about.length > 20),
       'each is a game-development app with its program',

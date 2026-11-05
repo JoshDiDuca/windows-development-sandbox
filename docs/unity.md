@@ -23,9 +23,8 @@ can run in the background after the agent starts, as Visual Studio's does; a sav
 editors are removed, least recently used first, beyond `keepVersions` (default 2, up to 20).
 
 Exact versions only. Opening a project in another Unity version upgrades its files, so each project opens with the
-version its own `ProjectVersion.txt` names, never a near one. The exception is `toolchains.unity.version`: when it is
-not `"project"` (the default), that version is used for every project in the sandbox instead. Set it only when all the
-projects in the sandbox use that version.
+version its own `ProjectVersion.txt` names, never a near one. `toolchains.unity.version` set to a version (instead of
+`"project"`, the default) is only for folders without a `ProjectVersion.txt`, such as a new project.
 
 ## Editors from this PC
 

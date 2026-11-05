@@ -130,7 +130,7 @@ export const ToolchainsSchema = z.strictObject({
       .string()
       .min(1)
       .describe(
-        '"project" = the version in ProjectSettings/ProjectVersion.txt, or an editor version such as "6000.0.32f1".',
+        '"project" = the version in ProjectSettings/ProjectVersion.txt, or an editor version such as "6000.0.32f1" for folders without one (a project\'s own version always wins).',
       ),
     modules: z
       .array(z.string().regex(/^[a-z0-9-]+$/))

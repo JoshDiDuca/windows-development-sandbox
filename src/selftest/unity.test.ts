@@ -38,6 +38,7 @@ import {
   unityCliMcpServer,
   unityGuideLines,
   UnityStatusSchema,
+  wantedVersion,
   withBridge,
   type AssetFs,
   type UnityEditor,
@@ -127,6 +128,17 @@ export const unitySuite: Suite = {
       { version: '2022.3.40f1', changeset: null },
       'without a revision',
     );
+    t.equal(
+      wantedVersion('m_EditorVersion: 2022.3.40f1\n', '6000.0.58f2'),
+      { version: '2022.3.40f1', changeset: null },
+      "a project's own version wins over the setting",
+    );
+    t.equal(
+      wantedVersion(null, '6000.0.58f2'),
+      { version: '6000.0.58f2', changeset: null },
+      'the setting is for folders without one',
+    );
+    t.equal(wantedVersion(null, 'project'), null, '"project" and no file: nothing');
     t.equal(
       parseProjectVersion(
         'm_EditorVersion: 2022.3.40f1\r\nm_EditorVersionWithRevision: 2022.3.40f1 (0123456789ab)\r\n',

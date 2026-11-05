@@ -74,6 +74,16 @@ export function parseProjectVersion(text: string): ProjectVersion | null {
   return version ? { version, changeset } : null;
 }
 
+/**
+ * The editor to open a project with: its own ProjectVersion.txt always wins (another version upgrades its files); the
+ * setting's version ("project" or e.g. "6000.0.32f1") is only for folders without one.
+ */
+export function wantedVersion(projectFile: string | null, setting: string): ProjectVersion | null {
+  const own = projectFile === null ? null : parseProjectVersion(projectFile);
+  if (own) return own;
+  return setting !== 'project' && UNITY_VERSION.test(setting) ? { version: setting, changeset: null } : null;
+}
+
 /** The Unity Pipeline package (and so `unity command` / `unity eval`) needs Unity 6 or later. */
 export function supportsPipeline(version: string): boolean {
   const v = parseUnityVersion(version);

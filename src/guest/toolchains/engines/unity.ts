@@ -14,9 +14,8 @@ import {
   installModulesArgs,
   installNeedBytes,
   installPathArgs,
-  parseProjectVersion,
-  UNITY_VERSION,
   unitySummaryLine,
+  wantedVersion,
   type UnityEditor,
   type UnityFs,
   type WantedEditor,
@@ -67,13 +66,14 @@ export function sandboxEditors(ctx: Pick<ToolCtx, 'pcInstalls'>): UnityEditor[] 
   return findEditors({ mapped: mappedEditors(ctx), dataRoot: EDITORS_DIR }, DISK);
 }
 
-/** The editor a project asks for: its ProjectVersion.txt (read bounded), or the version the setting names. */
+/**
+ * The editor a project asks for: its ProjectVersion.txt (read bounded) always wins, since opening a project in another
+ * version upgrades its files; the version the setting names is only for folders without one.
+ */
 export function wantedEditor(config: Pick<Toolchains['unity'], 'version'>, workspace: string): WantedEditor | null {
-  if (config.version !== 'project')
-    return UNITY_VERSION.test(config.version) ? { version: config.version, changeset: null } : null;
   const file = path.join(workspace, 'ProjectSettings', 'ProjectVersion.txt');
   const bytes = readBoundedFile(file, MAX_PROJECT_VERSION_BYTES);
-  return bytes ? parseProjectVersion(bytes.toString('utf8')) : null;
+  return wantedVersion(bytes ? bytes.toString('utf8') : null, config.version);
 }
 
 /** Whether the project's editor is already here (a first install goes to the background). */

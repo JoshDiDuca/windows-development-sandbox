@@ -6,6 +6,8 @@ DirectX for Unreal are in [toolchains](toolchains.md#unreal-engine); Visual Stud
 and kept on the data disk ([what persists](toolchains.md#cc-and-visual-studio-what-persists)). Sign-ins for the
 launcher are in [Accounts](accounts.md). Mixamo characters: [mixamo.md](mixamo.md).
 
+Unity has its own page: [unity.md](unity.md).
+
 ## Unreal engines kept between sandboxes
 
 Sign in to the Epic Games Launcher (Start menu) and install an engine there. Engines go to `tools\unreal\engines` on the

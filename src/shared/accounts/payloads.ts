@@ -39,16 +39,24 @@ export const SteamPayloadSchema = z.strictObject({
 });
 
 /** A Unity licence file (Unity_lic.ulf), and the Unity ID to sign in with when it has to be made again. */
-export const UnityPayloadSchema = z.strictObject({
-  ulf: z
-    .string()
-    .min(1)
-    .max(128 * KB)
-    .optional(),
-  email: z.string().email().max(256).optional(),
-  password: secretText(1024).optional(),
-  serial: secretText(64).optional(),
-});
+export const UnityPayloadSchema = z
+  .strictObject({
+    ulf: z
+      .string()
+      .min(1)
+      .max(128 * KB)
+      .optional(),
+    /** The named-user licence (UnityEntitlementLicense.xml) a Unity sign-in makes. */
+    entitlement: z
+      .string()
+      .min(1)
+      .max(128 * KB)
+      .optional(),
+    email: z.string().email().max(256).optional(),
+    password: secretText(1024).optional(),
+    serial: secretText(64).optional(),
+  })
+  .refine((p) => Object.keys(p).length > 0, 'empty Unity sign-in');
 
 /** A FiveM / RedM server licence key from the Cfx.re keymaster, and an optional Steam Web API key. */
 export const CfxPayloadSchema = z.strictObject({

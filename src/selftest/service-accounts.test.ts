@@ -428,7 +428,7 @@ export const serviceAccountsSuite: Suite = {
     }
 
     t.section('the account command');
-    t.check(!COMMANDS.some((c) => ['epic', 'steam', 'unity'].includes(c.name)), 'no command of its own for a service');
+    t.check(!COMMANDS.some((c) => ['epic', 'steam'].includes(c.name)), 'no command of its own for a service');
     const account = buildProgram(() => undefined).commands.find((c) => c.name() === 'account')!;
     const help = account.helpInformation();
     t.check(

@@ -19,6 +19,10 @@ import { steamSuite } from './steam.test.js';
 import { enginesSuite } from './engines.test.js';
 import { mixamoSuite } from './mixamo.test.js';
 import { unitySuite } from './unity.test.js';
+import { unitySetupSuite } from './unity-setup.test.js';
+import { unityAccountsSuite } from './unity-accounts.test.js';
+import { unityPageSuite } from './unity-page.test.js';
+import { unityAgentSuite } from './unity-agent.test.js';
 import { fivemSuite } from './fivem.test.js';
 import { androidSuite } from './android.test.js';
 import { mobileSuite } from './mobile.test.js';
@@ -145,6 +149,10 @@ export const SUITES: Suite[] = [
   enginesSuite,
   mixamoSuite,
   unitySuite,
+  unitySetupSuite,
+  unityAccountsSuite,
+  unityPageSuite,
+  unityAgentSuite,
   fivemSuite,
   androidSuite,
   mobileSuite,

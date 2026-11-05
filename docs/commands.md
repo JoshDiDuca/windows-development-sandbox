@@ -179,6 +179,18 @@ exits with 1. More: [install](install.md#updating).
 
 More in [game engines](game-engines.md).
 
+## Unity
+
+|                                                                  |                                                                                                                   |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `sandbox unity [status] [--json]`                                | the editors in the sandbox, which one each project opens with, this PC's editors and Asset Store downloads, the licence, the editor bridge and the agent tools |
+| `sandbox unity sign-in`                                          | sign in to Unity in the running sandbox (Unity Personal; the licence is kept for the next sandboxes)                  |
+| `sandbox unity hub`                                              | open Unity Hub in the running sandbox (needs `toolchains.unity.hub`)                                                  |
+| `sandbox unity add-bridge <project> [--bridge pipeline\|coplay]` | add the editor bridge to a project's `Packages/manifest.json` (asks first; `pipeline` for Unity 6 and later, else `coplay`) |
+| `sandbox unity remove-bridge <project>`                          | take the editor bridge out of a project (asks first)                                                                  |
+
+More in [Unity](unity.md).
+
 ## Health
 
 |                                   |                                                                                                                      |

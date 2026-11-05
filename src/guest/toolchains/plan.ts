@@ -35,7 +35,8 @@ import {
 import { duringSession } from '../runtime/project-context.js';
 import { setupSteam } from './steam/steam.js';
 import { setupGodot } from './engines/godot.js';
-import { setupUnity } from './engines/unity.js';
+import { setupUnity, unityEditorSaved } from './engines/unity.js';
+import { prefetchUnityCli } from './engines/unity-cli.js';
 import { setupFivem } from './fivem/fivem.js';
 import { setupAndroid } from './mobile/android.js';
 import { setupFlutter } from './mobile/flutter.js';
@@ -165,6 +166,9 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       name: 'Unity',
       enabled: wanted(config.unity.enabled, 'unity'),
       after: ['Visual Studio', 'Android SDK'],
+      ...ahead(() => prefetchUnityCli(config.unity.cliVersion)),
+      // Only the first install of an editor (several GB) goes to the background; a saved one is back in seconds.
+      background: deferred && !unityEditorSaved(config.unity, ctx),
       install: (env) => setupUnity(env, config.unity, ctx),
     },
     {

@@ -40,11 +40,16 @@ export const PcInstallsSchema = z
       .describe(
         'The Epic Games Launcher\'s vault cache of this PC (the Fab and Marketplace packs you downloaded), read-only in the sandbox at C:\\PcInstalls\\unreal\\Vault: what you download on your PC is there for the agents at once. "auto" = whenever the sandbox is set up for Unreal, true = always, false = never.',
       ),
-    unityEditors: pick(
-      z.string().regex(/^\d+\.\d+\.\d+[abfp]\d+$/),
-      'Unity editors installed with Unity Hub',
-      '["6000.0.32f1"]',
-    ),
+    unityEditors: z
+      .union([z.literal('auto'), z.boolean(), z.array(z.string().regex(/^\d+\.\d+\.\d+[abfp]\d+$/))])
+      .describe(
+        'Unity editors installed on this PC (with Unity Hub), read-only in the sandbox under C:\\PcInstalls\\unity: a project opens with the PC\'s editor without a download. "auto" = all of them whenever the sandbox is set up for Unity, true = always, false = never, or a list (e.g. ["6000.0.32f1"]).',
+      ),
+    unityAssets: z
+      .union([z.literal('auto'), z.boolean()])
+      .describe(
+        'This PC\'s Unity Asset Store downloads (.unitypackage files), read-only at C:\\PcInstalls\\unity\\AssetStore: what you download on your PC is there for the agents at once. "auto" = whenever the sandbox is set up for Unity, true = always, false = never.',
+      ),
   })
   .describe(
     "Games, engines and editors installed on this PC, mapped read-only into sandboxes (no copy, no room on the sandbox's disk).",

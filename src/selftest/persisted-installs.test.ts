@@ -500,7 +500,7 @@ export const persistedInstallsSuite: Suite = {
     );
     const shown = settingsOf(ConfigFile.user(t.at('settings', 'config.json'))).map((r) => r.key.join('.'));
     t.check(
-      !shown.some((k) => /^toolchains\.(unity|godot|android|flutter|dart|reactNative)\./.test(k)) &&
+      !shown.some((k) => /^toolchains\.(godot|android|flutter|dart|reactNative)\./.test(k)) &&
         shown.includes('toolchains.unreal.visualStudio') &&
         shown.some((k) => k.startsWith('toolchains.fivem.')),
       'settings do not list the toolchains that are not written yet',

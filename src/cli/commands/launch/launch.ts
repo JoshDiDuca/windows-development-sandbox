@@ -269,6 +269,7 @@ class Launcher {
       packageRoot: ctx.packageRoot,
       storageRoot: ctx.storageRoot,
       unrealOn: toolchainsOn.has('unreal'),
+      unityOn: toolchainsOn.has('unity'),
     });
     // This PC's commit (RAM plus paging file) bounds the sandbox's memory as much as free RAM does.
     const hostMemory = generateOnly ? null : readHostMemory(ctx.storageRoot);

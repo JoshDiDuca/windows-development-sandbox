@@ -12,6 +12,7 @@ import { epicInstalls } from './epic.js';
 import type { PcInstallSource } from './source.js';
 import { steamInstalls } from './steam.js';
 import { unityInstalls } from './unity.js';
+import { unityAssets } from './unity-assets.js';
 import { unrealFolders, unrealInstalls } from './unreal.js';
 import { unrealVault } from './unreal-vault.js';
 
@@ -27,6 +28,7 @@ export const PC_INSTALL_SOURCES: readonly PcInstallSource[] = [
   unrealInstalls,
   unrealVault,
   unityInstalls,
+  unityAssets,
 ];
 
 export interface DiscoverOptions {
@@ -35,6 +37,8 @@ export interface DiscoverOptions {
   readonly sources?: readonly PcInstallSource[];
   /** This launch sets the sandbox up for Unreal ("auto" maps this PC's engines and vault cache then). */
   readonly unrealOn?: boolean;
+  /** This launch sets the sandbox up for Unity ("auto" maps this PC's editors and Asset Store downloads then). */
+  readonly unityOn?: boolean;
 }
 
 export interface DiscoveredInstalls {
@@ -43,14 +47,24 @@ export interface DiscoveredInstalls {
   readonly notes: string[];
 }
 
-/** What a setting asks for: false (nothing), true (everything) or a list; "auto" follows the Unreal toolchain. */
+/** The toolchain an "auto" setting follows. */
+export const AUTO_FOLLOWS: Readonly<Partial<Record<PcInstallSource['setting'], 'unreal' | 'unity'>>> = {
+  unrealEngines: 'unreal',
+  unrealAssets: 'unreal',
+  unityEditors: 'unity',
+  unityAssets: 'unity',
+};
+
+/** What a setting asks for: false (nothing), true (everything) or a list; "auto" follows its toolchain. */
 function wantedOf(
   s: PcInstalls,
   setting: PcInstallSource['setting'],
-  unrealOn: boolean,
+  on: { readonly unreal: boolean; readonly unity: boolean },
 ): boolean | (string | number)[] {
   const value = s[setting];
-  return value === 'auto' ? unrealOn : value;
+  if (value !== 'auto') return value;
+  const follows = AUTO_FOLLOWS[setting];
+  return follows ? on[follows] : false;
 }
 
 export function discoverPcInstalls(s: PcInstalls, o: DiscoverOptions, pc: PcEnv = pcEnv()): DiscoveredInstalls {
@@ -58,7 +72,7 @@ export function discoverPcInstalls(s: PcInstalls, o: DiscoverOptions, pc: PcEnv 
   const items: Omit<PcInstall, 'host'>[] = [];
   const notes: string[] = [];
   for (const source of o.sources ?? PC_INSTALL_SOURCES) {
-    const wanted = wantedOf(s, source.setting, o.unrealOn === true);
+    const wanted = wantedOf(s, source.setting, { unreal: o.unrealOn === true, unity: o.unityOn === true });
     if (wanted === false || (Array.isArray(wanted) && !wanted.length)) continue;
     let found: PcInstall[] = [];
     try {

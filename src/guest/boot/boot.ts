@@ -107,7 +107,7 @@ function writeDbCommand(): string {
   return dir;
 }
 
-/** sbx-steam, sbx-fivem, sbx-unity, sbx-android for the toolchains that are on: runtime\tool.js with that helper. */
+/** sbx-steam, sbx-fivem, sbx-android for the toolchains that are on: runtime\tool.js with that helper. */
 function writeDevToolCommands(dir: string): void {
   const script = path.join(path.dirname(process.argv[1]), 'tool.js');
   for (const tool of devToolsFor(session.toolchains))

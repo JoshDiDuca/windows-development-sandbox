@@ -14,6 +14,7 @@ import {
   type McpServerConfig,
   withAddonMcpServers,
 } from '../../shared/apps/index.js';
+import { UNITY_MCP_NAME } from '../../shared/unity/index.js';
 import { writeJsonAtomic } from '../../shared/io/json.js';
 import { cometExe } from '../browser/comet.js';
 import { exists, mkdirp } from '../runtime/fs.js';
@@ -24,17 +25,25 @@ import { installedMcpAddons } from './agent-addons.js';
 
 /** The Unreal editor's MCP server (Unreal 5.8's ModelContextProtocol plugin), set by the Unreal engines step. */
 export const UNREAL_MCP_NAME = 'sbx-unreal-editor';
-let unrealMcp: McpServerConfig | null = null;
+/** The engines' own MCP servers: not an Apps add-on, set by the engine's step each boot, and sent to Codex too. */
+export const ENGINE_MCP_NAMES = [UNREAL_MCP_NAME, UNITY_MCP_NAME] as const;
+const engineMcp = new Map<string, McpServerConfig>();
 
 /** The names of every MCP server the sandbox can add (the ones it may remove). */
-const ADDON_MCP_NAMES = [...APPS.flatMap((a) => (a.mcp ? [a.mcp.name] : [])), UNREAL_MCP_NAME];
+const ADDON_MCP_NAMES = [...APPS.flatMap((a) => (a.mcp ? [a.mcp.name] : [])), ...ENGINE_MCP_NAMES];
 
 /**
- * Adds the Unreal editor's MCP server (its address) to the next writeAddonMcpServers, or takes it away (null). It only
- * answers while the editor runs with the plugin on; until then Claude Code lists it as not connected.
+ * Adds an engine's MCP server to the next writeAddonMcpServers, or takes it away (null). A server for an editor only
+ * answers while the editor runs; until then Claude Code lists it as not connected.
  */
+export function setEngineMcp(name: (typeof ENGINE_MCP_NAMES)[number], server: McpServerConfig | null): void {
+  if (server) engineMcp.set(name, server);
+  else engineMcp.delete(name);
+}
+
+/** Adds the Unreal editor's MCP server (its address) to the next writeAddonMcpServers, or takes it away (null). */
 export function setUnrealMcp(url: string | null): void {
-  unrealMcp = url ? { type: 'http', url } : null;
+  setEngineMcp(UNREAL_MCP_NAME, url ? { type: 'http', url } : null);
 }
 
 /** Variables only this sandbox can tell an add-on's server (where Comet is). */
@@ -59,7 +68,7 @@ export function writeAddonMcpServers(): string[] {
   writeCodexAddonMcpServers(on);
   const servers: Record<string, McpServerConfig> = {
     ...Object.fromEntries(on.map(({ mcp, server }) => [mcp.name, server])),
-    ...(unrealMcp ? { [UNREAL_MCP_NAME]: unrealMcp } : {}),
+    ...Object.fromEntries(engineMcp),
   };
   const file = path.join(claudeDir, '.claude.json');
   let state: unknown = {};
@@ -95,10 +104,10 @@ function writeCodexAddonMcpServers(on: readonly { mcp: AddonMcp; server: McpServ
       .filter(({ mcp }) => mcp.codex)
       .map(({ mcp, server }) => [mcp.name, { ...server, ...(mcp.envVars?.length ? { envVars: mcp.envVars } : {}) }]),
   );
-  if (unrealMcp) servers[UNREAL_MCP_NAME] = unrealMcp;
+  for (const [name, server] of engineMcp) servers[name] = server;
   const before = exists(file) ? fs.readFileSync(file, 'utf8') : '';
   if (!before && !Object.keys(servers).length) return;
-  const known = [...APPS.flatMap((a) => (a.mcp?.codex ? [a.mcp.name] : [])), UNREAL_MCP_NAME];
+  const known = [...APPS.flatMap((a) => (a.mcp?.codex ? [a.mcp.name] : [])), ...ENGINE_MCP_NAMES];
   const result = codexWithAddonMcpServers(before, servers, known);
   for (const name of result.skipped)
     warn('Codex MCP servers from Apps: ' + name + ' is already in config.toml in another form, left as it is');

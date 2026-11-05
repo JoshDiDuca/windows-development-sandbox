@@ -19,6 +19,7 @@ settings always win.
 | **C / C++** ✅               | MinGW-w64 GCC, CMake, Ninja, premake5, win_flex/bison                                                                                                                                                                            |                                                                                                                                        |
 | MSVC                         | `cl`, `link` and the Windows SDK, portable (about 1-2 GB, once); `vcvars64.bat` and `vswhere` work. Needs `toolchains.msvc.acceptLicense` ([MSVC](#msvc))                                                                        | `*.vcxproj`, `CMakePresets.json`, scripts that call vcvars/vswhere, Rust when your PC uses MSVC                                        |
 | Unreal                       | Visual Studio Community 2022 with the C++ game workload, and the DirectX runtime. Needs `toolchains.unreal.acceptLicense` ([Unreal Engine](#unreal-engine))                                                                      | `*.uproject`, `*.uplugin`                                                                                                              |
+| Unity                        | The editor version each project asks for (exact: on the data disk, or read-only from this PC), its modules, and the Unity CLI with its MCP server and skills. Needs `toolchains.unity.acceptLicense` ([Unity](unity.md))                  | `ProjectSettings/ProjectVersion.txt`                                                                                                   |
 | **C# / .NET** ✅             | .NET SDK, workloads, global tools, .NET Framework reference assemblies (net48, net472 ...)                                                                                                                                       | `global.json`                                                                                                                          |
 | Go                           | from go.dev, `GOTOOLCHAIN=auto`                                                                                                                                                                                                  | `go.mod`                                                                                                                               |
 | Java                         | Temurin JDK, Maven, Gradle                                                                                                                                                                                                       | `.java-version`, `.sdkmanrc`                                                                                                           |
@@ -102,13 +103,13 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
 
 ### Game, modding and mobile toolchains
 
-These settings are in place; the installs come in a later version. Each is `"auto"` by default, and the licensed ones
-(Unity, the FiveM server, the Android SDK) install only once you set their `acceptLicense`. A project file can never
-accept a licence for you.
+Unity is set up (see [Unity](unity.md)). The others are in place; their installs come in a later version. Each is
+`"auto"` by default, and the licensed ones (Unity, the FiveM server, the Android SDK) install only once you set their
+`acceptLicense`. A project file can never accept a licence for you.
 
 |                            | What it sets up                                                | Found from                                                |
 | -------------------------- | -------------------------------------------------------------- | --------------------------------------------------------- |
-| Unity ([unity](unity.md))  | the editor version the project asks for, modules, Unity Hub    | `ProjectSettings/ProjectVersion.txt`                      |
+| Unity ([unity](unity.md))  | the editor version the project asks for, modules, the Unity CLI with its MCP server and skills (Unity Hub when asked) | `ProjectSettings/ProjectVersion.txt`                      |
 | Godot ([engines](game-engines.md)) | Godot (and its .NET build), export templates           | `project.godot`                                           |
 | Steam ([steam](steam.md))  | SteamCMD and `sbx-steam`, the Steam client when asked          | `steam_appid.txt`, `steam_api64.dll`, `steam_api.dll`     |
 | FiveM / RedM ([fivem](fivem.md)) | the FXServer with txAdmin and `sbx-fivem`                | `fxmanifest.lua`, `__resource.lua`                        |
@@ -216,14 +217,14 @@ list them in `apps.install`:
 
 | Category             | Apps                                                                                                                                                                                                         |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Agent add-ons        | rtk, Headroom, ccusage, Playwright MCP, Context7 MCP, claude-mem, REA ([details](#agent-add-ons)); Perplexity MCP, Perplexity Computer MCP, Comet MCP, Chrome DevTools MCP, Browser Use MCP, Perplexity desktop app ([agents-web.md](agents-web.md)) |
+| Agent add-ons        | rtk, Headroom, ccusage, Playwright MCP, Context7 MCP, claude-mem, REA, MCP for Unity ([details](#agent-add-ons)); Perplexity MCP, Perplexity Computer MCP, Comet MCP, Chrome DevTools MCP, Browser Use MCP, Perplexity desktop app ([agents-web.md](agents-web.md)) |
 | Editors              | Notepad++, Sublime Text, Neovim ([VS Code](#vs-code) is its own setting)                                                                                                                                     |
 | Database clients     | DBeaver, pgAdmin 4, HeidiSQL, DB Browser for SQLite, MongoDB Compass, Redis Insight, DbGate, Beekeeper Studio, dynamodb-admin                                                                                |
 | API clients          | Bruno, Insomnia                                                                                                                                                                                              |
 | Git                  | SourceGit, lazygit, GitHub Desktop and Jujutsu `jj` (these two need git access `full`: they push past the sandbox's git guard)                                                                               |
 | Utilities            | 7-Zip, WinMerge, Everything, Sysinternals Suite, ImHex (Windows Terminal is on by default)                                                                                                                   |
 | Browsers             | Chrome for Testing, Firefox, Comet (Perplexity's agentic browser, [agents-web.md](agents-web.md))                                                                                                           |
-| Game development     | Godot, Blender, LÖVE, Defold, Pixelorama, Tiled (Mesa is added for OpenGL without a GPU)                                                                                                                     |
+| Game development     | Godot, Blender, LÖVE, Defold, Pixelorama, Tiled, openupm-cli for Unity packages (Mesa is added for OpenGL without a GPU)                                                                                                                     |
 | Reverse engineering  | Ghidra, x64dbg, ILSpy, dnSpyEx, Detect It Easy, PE-bear, Cutter, radare2, JADX, System Informer (for programs you are allowed to analyse)                                                                    |
 | Cloud and Kubernetes | kubectl, Helm, k9s, Terraform, Azure CLI, Google Cloud CLI, AWS CLI                                                                                                                                          |
 | Diagrams and docs    | draw.io, Pandoc                                                                                                                                                                                              |
@@ -281,6 +282,10 @@ rtk, Headroom, ccusage and the two MCP servers can be turned on only in your own
   plugin on your PC into the sandbox. The switch in Apps changes that setting.
 - **REA** (Reverse Engineer Anything) installs from npm. Run `rea setup` once to add its MCP server to Claude Code and
   Codex.
+- **MCP for Unity** ([CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp), MIT, `"unity-mcp"`) lets Claude Code
+  and Codex work in an open Unity editor, as the MCP server `sbx-unity-mcp`. Its project needs the Coplay editor bridge,
+  which is added only when you ask. Only your own settings can turn it on
+  ([Unity](unity.md#mcp-for-unity-and-openupm-cli)).
 - **Perplexity, Comet and browser-driving MCP servers** (Perplexity MCP, Perplexity Computer MCP, Comet MCP, Chrome
   DevTools MCP, Browser Use MCP) are in [agents-web.md](agents-web.md). They go into Codex's `config.toml` too.
 

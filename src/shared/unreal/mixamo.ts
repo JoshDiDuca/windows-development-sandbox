@@ -1,5 +1,5 @@
-// The guide's Mixamo lines (free rigged characters and animations, downloaded in the sandbox's browser) and how to bring
-// them into Unreal. Pure: the guide adds them when an Unreal engine is set up (guide.ts).
+// The guide's Mixamo lines (free rigged characters and animations, downloaded in the sandbox's browser) and how
+// to bring them into Unreal. Pure: the guide adds them when an Unreal engine is set up (guide.ts).
 
 /** The Mixamo lines: where downloads land, the export settings, the import, and the licence. */
 export function mixamoGuideLines(o: { readonly downloads: string; readonly script: string | null }): string[] {

@@ -14,6 +14,7 @@ Start with the [README](../README.md). Version history is in the [changelog](../
 | [accounts.md](accounts.md)               | Service sign-ins for sandboxes: Epic, Steam, Unity, signing and store keys    |
 | [agents-web.md](agents-web.md)           | Perplexity (API, Computer), the Comet browser and browser-driving MCP servers |
 | [game-engines.md](game-engines.md)       | Unreal engines and Godot (coming)                                             |
+| [mixamo.md](mixamo.md)                 | Mixamo characters and animations into Unreal, and the downloads folder        |
 | [unity.md](unity.md)                     | Unity (coming)                                                                |
 | [steam.md](steam.md)                     | SteamCMD, games and servers, Workshop, builds and the Steam client           |
 | [fivem.md](fivem.md)                     | FiveM / RedM server development (coming)                                      |

@@ -95,9 +95,10 @@ function writeCodexAddonMcpServers(on: readonly { mcp: AddonMcp; server: McpServ
       .filter(({ mcp }) => mcp.codex)
       .map(({ mcp, server }) => [mcp.name, { ...server, ...(mcp.envVars?.length ? { envVars: mcp.envVars } : {}) }]),
   );
+  if (unrealMcp) servers[UNREAL_MCP_NAME] = unrealMcp;
   const before = exists(file) ? fs.readFileSync(file, 'utf8') : '';
   if (!before && !Object.keys(servers).length) return;
-  const known = APPS.flatMap((a) => (a.mcp?.codex ? [a.mcp.name] : []));
+  const known = [...APPS.flatMap((a) => (a.mcp?.codex ? [a.mcp.name] : [])), UNREAL_MCP_NAME];
   const result = codexWithAddonMcpServers(before, servers, known);
   for (const name of result.skipped)
     warn('Codex MCP servers from Apps: ' + name + ' is already in config.toml in another form, left as it is');

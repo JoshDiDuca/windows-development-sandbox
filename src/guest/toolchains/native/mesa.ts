@@ -6,7 +6,8 @@ import { SYSTEM } from '../../../shared/system.js';
 import { dryRun } from '../../runtime/paths.js';
 import { execAsync, scriptOutput } from '../../runtime/process.js';
 import { exists } from '../../runtime/fs.js';
-import { log } from '../../runtime/log.js';
+import { log, warn } from '../../runtime/log.js';
+import { errMsg } from '../../../core/util/errors.js';
 import { arch, tool, type ToolEnv } from '../tool-env.js';
 import { installFromGithub } from '../install.js';
 
@@ -37,6 +38,8 @@ export async function setupMesa(env: ToolEnv, config: Toolchains['mesa']): Promi
 }
 
 const VULKAN_RUNTIME = 'https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-runtime-components.zip';
+/** Used when "latest" is not published yet (LunarG announces a version before its runtime zip is up: a 404). */
+const VULKAN_RUNTIME_PINNED = 'https://sdk.lunarg.com/sdk/download/1.4.350.0/windows/vulkan-runtime-components.zip';
 
 /**
  * Software Vulkan: Mesa's lavapipe plus the Khronos loader (vulkan-1.dll, from LunarG's runtime components; Windows
@@ -47,15 +50,19 @@ const setupLavapipe = async (env: ToolEnv, mesaDir: string): Promise<void> => {
   const icd = path.join(mesaDir, arch === 'arm64' ? 'lvp_icd.aarch64.json' : 'lvp_icd.x86_64.json');
   if (!exists(icd)) throw new Error('this Mesa build has no lavapipe (' + path.basename(icd) + ')');
   const dir = tool('vulkan');
-  if (!exists(path.join(dir, 'vulkan-1.dll'))) {
-    log('Downloading the Vulkan loader (~10 MB once) ...');
+  // vulkaninfo.exe too: a copy kept from an older runtime zip may lack it.
+  if (!exists(path.join(dir, 'vulkan-1.dll')) || !exists(path.join(dir, 'vulkaninfo.exe'))) {
+    log('Downloading the Vulkan loader (~20 MB once) ...');
     // LunarG publishes no checksum for this zip; it comes over HTTPS from LunarG, the Khronos SDK's maintainer.
     // The zip has x86 and x64 folders: only the 64-bit loader (and vulkaninfo) is extracted.
-    await downloader.archive(VULKAN_RUNTIME, dir, {
-      locate: 'vulkan-1.dll',
-      fileName: 'vulkan-runtime.zip',
-      members: ['*/x64/*'],
-    });
+    const fetchRuntime = (url: string): Promise<void> =>
+      downloader.archive(url, dir, { locate: 'vulkan-1.dll', fileName: 'vulkan-runtime.zip', members: ['*/x64/*'] });
+    try {
+      await fetchRuntime(VULKAN_RUNTIME);
+    } catch (e) {
+      warn('The latest Vulkan runtime could not be downloaded (' + errMsg(e) + '); using version 1.4.350.0.');
+      await fetchRuntime(VULKAN_RUNTIME_PINNED);
+    }
   }
   const register = (file: string): Promise<void> =>
     execAsync(

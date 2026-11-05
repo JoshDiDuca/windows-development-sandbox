@@ -205,9 +205,16 @@ export const DEFAULTS: Config = {
       home: { env: { CODEX_HOME: 'codex' }, loginFiles: ['auth.json', '.credentials.json'], hostDir: '~/.codex' },
       localState: { CODEX_SQLITE_HOME: 'sqlite' },
       // Its own command sandbox keeps local users' passwords sealed with DPAPI: unreadable in the next sandbox
-      // ("CryptUnprotectData" on every command), so it sets that sandbox up again at each boot. tmp\arg0: folders
-      // Codex cannot remove in a mapped folder (os error 145, a warning at every start); nothing holds them at boot.
-      bootReset: ['.sandbox-secrets', '.sandbox\\setup_marker.json', '.sandbox\\deny_read_acl_state.json', 'tmp\\arg0'],
+      // ("CryptUnprotectData" on every command), so it sets that sandbox up again at each boot. tmp\arg0 and
+      // tmp\arg0-windows (newer Codex): folders Codex cannot remove in a mapped folder (os error 145, a warning at
+      // every start); nothing holds them at boot.
+      bootReset: [
+        '.sandbox-secrets',
+        '.sandbox\\setup_marker.json',
+        '.sandbox\\deny_read_acl_state.json',
+        'tmp\\arg0',
+        'tmp\\arg0-windows',
+      ],
       resumeArguments: ['resume', '--last'],
     },
     gemini: {

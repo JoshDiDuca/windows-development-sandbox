@@ -1,6 +1,6 @@
-// One `sbx-<name>` helper for terminals and the agent (sbx-steam, sbx-fivem, sbx-unity, sbx-android): runtime\tool.js
+// One `sbx-<name>` helper for terminals and the agent (sbx-steam, sbx-fivem, sbx-android): runtime\tool.js
 // runs it with the rest of the command line. Boot writes the .cmd shims for the toolchains that are on.
-export type DevToolName = 'steam' | 'fivem' | 'unity' | 'android';
+export type DevToolName = 'steam' | 'fivem' | 'android';
 
 export interface DevTool {
   readonly name: DevToolName;

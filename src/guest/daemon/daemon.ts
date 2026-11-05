@@ -14,6 +14,7 @@ import { warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
 import { flushAccounts } from './accounts.js';
 import { captureLauncherEngines } from '../toolchains/engines/unreal-engines.js';
+import { captureUnityEditors } from '../toolchains/engines/unity.js';
 
 const POLL_MS = 400;
 const MEM_SAVE_MS = 120000;
@@ -54,6 +55,7 @@ export class Daemon {
       void flushAccounts();
       // Engines the Epic Games Launcher installed on the data disk since: kept for the next sandbox.
       void captureLauncherEngines().catch((e: unknown) => warn('Unreal launcher save: ' + errMsg(e)));
+      void captureUnityEditors().catch((e: unknown) => warn('Unity editors: ' + errMsg(e)));
     }
   }
 

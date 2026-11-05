@@ -13,6 +13,7 @@ import { liveFolders } from './live.js';
 import { warn } from '../runtime/log.js';
 import { errMsg } from '../../core/util/errors.js';
 import { flushAccounts } from './accounts.js';
+import { captureLauncherEngines } from '../toolchains/engines/unreal-engines.js';
 
 const POLL_MS = 400;
 const MEM_SAVE_MS = 120000;
@@ -51,6 +52,8 @@ export class Daemon {
       safely('claude-mem save', saveClaudeMem);
       safely('agent databases save', saveLocalState);
       void flushAccounts();
+      // Engines the Epic Games Launcher installed on the data disk since: kept for the next sandbox.
+      void captureLauncherEngines().catch((e: unknown) => warn('Unreal launcher save: ' + errMsg(e)));
     }
   }
 

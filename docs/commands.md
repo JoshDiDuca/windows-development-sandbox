@@ -168,6 +168,17 @@ exits with 1. More: [install](install.md#updating).
 | `sandbox engine leftovers [--json]`           | HCS systems of yours still running after a command stopped early                                                                                  |
 | `sandbox engine clean [--yes]`                | stop those HCS systems, after asking. Deletes no files and touches nothing else                                                                   |
 
+## Unreal
+
+|                                           |                                                                                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `sandbox unreal [status] [--json]`        | the engines in use, what each project builds with, the launcher, Visual Studio, the engines of this PC and the vault   |
+| `sandbox unreal add-engine [folder]`      | use an engine folder of this PC in the sandbox, writable (a source build, or a copy of an engine). Asks when no folder |
+| `sandbox unreal forget-engine <folder>`   | stop mapping a registered engine folder (nothing on the PC is deleted)                                                  |
+| `sandbox unreal launcher`                 | open the Epic Games Launcher in the running sandbox                                                                     |
+
+More in [game engines](game-engines.md).
+
 ## Health
 
 |                                   |                                                                                                                      |

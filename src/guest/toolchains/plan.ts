@@ -15,6 +15,7 @@ import { setupDotnet } from './native/dotnet.js';
 import { setupMesa } from './native/mesa.js';
 import { setupMsvc } from './native/msvc/index.js';
 import { fetchDirectX, setupUnreal } from './native/unreal.js';
+import { setupUnrealEngines } from './engines/unreal-engines.js';
 import { fetchRustupInit, setupRust } from './native/rust.js';
 import { setupNode } from './languages/node.js';
 import { setupPwsh } from './tools/pwsh.js';
@@ -104,6 +105,14 @@ export function plan(config: Toolchains, versions: ToolVersions, o: ToolchainOpt
       after: ['Visual Studio'],
       ...ahead(() => fetchDirectX(config.unreal)),
       install: (env) => setupUnreal(env, config.unreal, ctx),
+    },
+    // Each project's engine (its .uproject's EngineAssociation) on its PATH: not shared, a project that joins later
+    // gets its own. It registers every engine too, so this PC's engines work without the licence step above.
+    {
+      name: 'Unreal engines',
+      enabled: unreal,
+      after: ['Unreal'],
+      install: (env) => setupUnrealEngines(env, config.unreal, ctx),
     },
     {
       name: 'MSVC',

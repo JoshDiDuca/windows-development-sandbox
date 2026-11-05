@@ -78,8 +78,8 @@ targeting packs, Visual Studio's Unreal support, the Epic Games Launcher, and th
 - Your Epic Games Launcher sign-in can be kept between sandboxes: turn on `accounts.epic.share` and sign in once (or
   take your PC's with `sandbox account import epic`). See [accounts](accounts.md).
 - `persistEngines` and `derivedDataCache` (both on by default) are for engines the launcher installs and Unreal's
-  shader cache, kept in `tools\unreal`; engines on your PC can be mapped read-only with `pcInstalls.unrealEngines`. They
-  come in a later version ([game engines](game-engines.md)).
+  shader cache, kept in `tools\unreal`; engines on your PC can be mapped read-only with `pcInstalls.unrealEngines`
+  ([game engines](game-engines.md)).
 - Visual Studio is shared with the other toolchains that need it (Flutter's Windows desktop builds and Unity's
   `windows-il2cpp` module get its Build Tools, under `toolchains.msvc.acceptLicense`): one install serves them all.
 

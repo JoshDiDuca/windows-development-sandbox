@@ -10,6 +10,7 @@ import { appsOptions, stageTicks } from '../cli/menu/pages/apps-page.js';
 import { maintenanceOptions, type MaintenanceModel } from '../cli/menu/pages/maintenance-page.js';
 import { sandboxOptions, type SandboxModel } from '../cli/menu/pages/sandbox-page.js';
 import { sessionsOptions } from '../cli/menu/pages/sessions-page.js';
+import { UNREAL_SAMPLE } from './support/unreal-sample.js';
 import { settingsOf, settingsOptions } from '../cli/menu/pages/settings-page.js';
 import { CATEGORIES } from '../app/features/settings/index.js';
 import { agentsOptions } from '../cli/menu/pages/agents-page.js';
@@ -227,6 +228,7 @@ export function renderScreens(dir: string): string {
       { name: 'redis', running: false, port: 6379, title: 'Redis' },
     ],
     defaultAgent: 'claude',
+    unreal: UNREAL_SAMPLE,
   };
   const stopped: SandboxModel = {
     ...sandbox,
@@ -458,7 +460,7 @@ export function renderScreens(dir: string): string {
           size,
         ),
       );
-    for (const category of ['status', 'projects', 'databases'])
+    for (const category of ['status', 'projects', 'databases', 'unreal'])
       out.push(
         block(
           '3 Sandbox · ' + category,

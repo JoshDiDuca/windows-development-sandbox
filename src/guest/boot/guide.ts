@@ -7,6 +7,9 @@ import { dataDir, launchDir, logsDir, toolsDir } from '../runtime/paths.js';
 import { addonGuideLine, APPS, headroomGuideLine, RTK_GUIDE_LINE } from '../../shared/apps/index.js';
 import { installedAddon, installedRtk } from '../setup/agent-addons.js';
 import { projectFolderLines, toolLines, type GuideProject, type MappedFolder } from './guide-lines.js';
+import { findUproject, unrealGuideLines } from '../../shared/unreal/index.js';
+import { DISK } from '../toolchains/engines/unreal-engines.js';
+import { readUnrealStatus } from '../toolchains/engines/unreal-status.js';
 
 const BEGIN = '<!-- agent-sandbox:begin (generated every boot, do not edit) -->';
 const END = '<!-- agent-sandbox:end -->';
@@ -28,6 +31,23 @@ const mirrorLine = (): string[] => {
 /** Folders mapped for other projects at boot; launch folders from before mappedProjects only list the guest side. */
 const mappedFolders = (): MappedFolder[] =>
   session.mappedProjects ?? (session.roots ?? []).map((guest) => ({ host: 'a folder on the PC', guest }));
+
+/** The Unreal lines (engine per project, build/test/package/debug commands) when the sandbox is set up for Unreal. */
+function unrealLines(projects: readonly GuideProject[]): string[] {
+  const any =
+    session.toolchains.unreal.enabled === true || projects.some((p) => p.tools?.some((t) => /^unreal/.test(t)));
+  if (!any) return [];
+  const status = readUnrealStatus();
+  if (!status.updatedAt) return [];
+  const folders = [workspace, ...projects.map((p) => p.guest)];
+  return unrealGuideLines(
+    status,
+    folders
+      .filter((f, i) => folders.findIndex((g) => g.toLowerCase() === f.toLowerCase()) === i)
+      .filter((f) => status.projects.some((p) => p.workspace.toLowerCase() === f.toLowerCase()))
+      .map((f) => ({ workspace: f, uproject: findUproject(f, DISK) })),
+  );
+}
 
 /** Deliberately tiny: it is loaded into every conversation. */
 export function sandboxGuide(
@@ -54,6 +74,7 @@ export function sandboxGuide(
     '- RO: `' + launchDir + "` (this boot's scripts) · lost on close: everything else, incl. `C:\\nvm` (Node symlink)",
     ...mirrorLine(),
     ...toolLines(session.project, toolSummary, projects),
+    ...unrealLines(projects),
     // Agent add-ons that change how the agent works (rtk, Headroom, MCP servers, ccusage).
     ...addons,
     '- Persistent installs: `npm i -g` (per nvm version), `pip`, `cargo install`, `dotnet tool -g`, `uv tool`, `bun add -g`. Real installers must re-run each boot via a hook (ask the user).',

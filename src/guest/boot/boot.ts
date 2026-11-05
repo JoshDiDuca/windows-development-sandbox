@@ -54,7 +54,20 @@ import { errMsg } from '../../core/util/errors.js';
 
 const PRIMARY_POLLS = 600;
 const POLL_MS = 500;
-const VSCODE_LANGUAGES = ['python', 'java', 'go', 'rust', 'cpp', 'msvc', 'dotnet', 'ruby', 'php', 'deno', 'pwsh'];
+const VSCODE_LANGUAGES = [
+  'python',
+  'java',
+  'go',
+  'rust',
+  'cpp',
+  'msvc',
+  'unreal',
+  'dotnet',
+  'ruby',
+  'php',
+  'deno',
+  'pwsh',
+];
 
 function startDaemon(env: NodeJS.ProcessEnv, secrets: SecretsFile): void {
   spawn(process.execPath, [path.join(path.dirname(process.argv[1]), 'daemon.js')], {

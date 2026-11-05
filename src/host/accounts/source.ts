@@ -13,6 +13,8 @@ export interface PcEnv {
   readonly localAppData: string;
   readonly appData: string;
   readonly programData: string;
+  /** C:\Program Files (where the Epic Games Launcher installs engines by default). */
+  readonly programFiles?: string;
   /** The environment the command runs with (a variable set in this terminal). */
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** A variable of this Windows user's saved environment (HKCU\Environment), or null when it is not set. */
@@ -57,6 +59,7 @@ export function pcEnv(): PcEnv {
     localAppData: env.LOCALAPPDATA ?? '',
     appData: env.APPDATA ?? '',
     programData: env.ProgramData ?? env.PROGRAMDATA ?? 'C:\\ProgramData',
+    programFiles: env.ProgramFiles ?? 'C:\\Program Files',
     env,
     userVariable: savedUserVariable,
   };

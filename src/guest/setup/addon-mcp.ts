@@ -22,8 +22,20 @@ import { claudeDir, session, stateDir } from '../runtime/session.js';
 import { log, warn } from '../runtime/log.js';
 import { installedMcpAddons } from './agent-addons.js';
 
-/** The names of every MCP server an add-on can add (the ones the sandbox may remove). */
-const ADDON_MCP_NAMES = APPS.flatMap((a) => (a.mcp ? [a.mcp.name] : []));
+/** The Unreal editor's MCP server (Unreal 5.8's ModelContextProtocol plugin), set by the Unreal engines step. */
+export const UNREAL_MCP_NAME = 'sbx-unreal-editor';
+let unrealMcp: McpServerConfig | null = null;
+
+/** The names of every MCP server the sandbox can add (the ones it may remove). */
+const ADDON_MCP_NAMES = [...APPS.flatMap((a) => (a.mcp ? [a.mcp.name] : [])), UNREAL_MCP_NAME];
+
+/**
+ * Adds the Unreal editor's MCP server (its address) to the next writeAddonMcpServers, or takes it away (null). It only
+ * answers while the editor runs with the plugin on; until then Claude Code lists it as not connected.
+ */
+export function setUnrealMcp(url: string | null): void {
+  unrealMcp = url ? { type: 'http', url } : null;
+}
 
 /** Variables only this sandbox can tell an add-on's server (where Comet is). */
 function placeEnv(id: string): Record<string, string> {
@@ -45,7 +57,10 @@ function addonServers(): { mcp: AddonMcp; server: McpServerConfig }[] {
 export function writeAddonMcpServers(): string[] {
   const on = addonServers();
   writeCodexAddonMcpServers(on);
-  const servers: Record<string, McpServerConfig> = Object.fromEntries(on.map(({ mcp, server }) => [mcp.name, server]));
+  const servers: Record<string, McpServerConfig> = {
+    ...Object.fromEntries(on.map(({ mcp, server }) => [mcp.name, server])),
+    ...(unrealMcp ? { [UNREAL_MCP_NAME]: unrealMcp } : {}),
+  };
   const file = path.join(claudeDir, '.claude.json');
   let state: unknown = {};
   if (fs.existsSync(file)) {
@@ -80,9 +95,10 @@ function writeCodexAddonMcpServers(on: readonly { mcp: AddonMcp; server: McpServ
       .filter(({ mcp }) => mcp.codex)
       .map(({ mcp, server }) => [mcp.name, { ...server, ...(mcp.envVars?.length ? { envVars: mcp.envVars } : {}) }]),
   );
+  if (unrealMcp) servers[UNREAL_MCP_NAME] = unrealMcp;
   const before = exists(file) ? fs.readFileSync(file, 'utf8') : '';
   if (!before && !Object.keys(servers).length) return;
-  const known = APPS.flatMap((a) => (a.mcp?.codex ? [a.mcp.name] : []));
+  const known = [...APPS.flatMap((a) => (a.mcp?.codex ? [a.mcp.name] : [])), UNREAL_MCP_NAME];
   const result = codexWithAddonMcpServers(before, servers, known);
   for (const name of result.skipped)
     warn('Codex MCP servers from Apps: ' + name + ' is already in config.toml in another form, left as it is');

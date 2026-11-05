@@ -392,10 +392,12 @@ installed in one sandbox runs in your other sandboxes too.
 | -------------------------- | -------------------------------------------------------------------------------- |
 | `pcInstalls.steamGames`    | `true` (every Steam library) or a list of app IDs, e.g. `[480]`                  |
 | `pcInstalls.epicGames`     | `true` or a list of Epic app names                                               |
-| `pcInstalls.unrealEngines` | `true` or a list of versions, e.g. `["5.4"]`                                     |
+| `pcInstalls.unrealEngines` | `"auto"` (default: whenever the sandbox is set up for Unreal), `true`, `false`, or a list of versions, e.g. `["5.4"]` |
+| `pcInstalls.unrealEngineFolders` | a list of engine folders of this PC, mapped writable (a source build, or a copy of an engine) |
+| `pcInstalls.unrealAssets`  | `"auto"` (default), `true` or `false`: the launcher's vault cache (Fab and Marketplace packs), read-only |
 | `pcInstalls.unityEditors`  | `true` or a list of editor versions, e.g. `["6000.0.32f1"]`                      |
 
-Finding them on this PC comes in a later version; until then nothing is mapped. The agent can read what is mapped.
+Unreal is described in [game engines](game-engines.md). The agent can read what is mapped.
 
 ## Hooks
 

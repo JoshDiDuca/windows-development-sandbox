@@ -75,6 +75,8 @@ const BY_TOOLCHAIN: Readonly<Record<string, readonly string[]>> = {
   rust: ['rust-lang.rust-analyzer', 'vadimcn.vscode-lldb'],
   cpp: ['ms-vscode.cpptools', 'ms-vscode.cmake-tools'],
   msvc: ['ms-vscode.cpptools', 'ms-vscode.cmake-tools'],
+  // Unreal C++ (IntelliSense from the generated .code-workspace) and the C# of the *.Build.cs / *.Target.cs rules.
+  unreal: ['ms-vscode.cpptools', 'ms-dotnettools.csharp'],
   dotnet: ['ms-dotnettools.csharp'],
   ruby: ['shopify.ruby-lsp'],
   php: ['bmewburn.vscode-intelephense-client', 'xdebug.php-debug'],

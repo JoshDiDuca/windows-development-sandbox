@@ -7,6 +7,16 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.27.0
+
+- **Unity for agents.** Editors install once to the data disk (`tools\unity\editors\<version>`) or come read-only from
+  this PC, always the exact version a project names, with the modules you list; the Unity CLI with its MCP server
+  (`sbx-unity`) and skills for Claude Code and Codex; your Unity licence and sign-in in Accounts (Personal: sign in once
+  in a sandbox and it is kept; Plus/Pro serials are activated and handed back); this PC's Asset Store downloads
+  read-only; the editor bridge added to a project only when you ask; new Unity page (`sandbox unity`, menu, web); MCP
+  for Unity and openupm-cli in Apps. The `sbx-unity` helper command is gone: agents use `unity` itself. Unity's flags
+  are from its docs and are checked on a first real boot.
+
 ## 1.26.0
 
 - **Perplexity desktop app.** The Microsoft Store app is in Apps: your PC fetches its signed package with winget under

@@ -7,6 +7,21 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.27.2
+
+- **Pages update after you change something.** The menu and the web UI read your settings once at start, so turning on
+  sharing, an app or a setting showed the old value until you restarted the menu. Every action now reads the settings
+  again, and so does saving the Apps page.
+- **Accounts, shorter and only what works.** Short names (Epic Games, Unity, Perplexity API, Comet, Perplexity app,
+  FiveM key ...), four short facts per service (shared, sign-in, on this PC, account) and one line of help. The actions
+  say what they do ("Take this PC's sign-in", "Import from a file…", "Type the sign-in…") and appear only where they
+  work: Comet and the Perplexity app say to sign in once inside a sandbox. Services that are not ready yet are left out
+  of the menu.
+- **A gentler boot.** Unpacking and installers run below normal priority, signature checks no longer stall the boot,
+  and fewer things run at once (3 downloads, 3 toolchain steps, 2 app unpacks); app downloads wait behind the ones
+  other steps need first.
+- F3D is on PATH, as the asset-preview guide expects.
+
 ## 1.27.1
 
 - **Your Unreal Engine is mapped again.** The Fab plugin's launcher entry points at the engine's folder, so the engine

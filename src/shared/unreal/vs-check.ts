@@ -14,6 +14,7 @@ export const VsSetupReportSchema = z.object({
         installationPath: z.string().max(400),
         installationVersion: z.string().max(60),
         productId: z.string().max(200),
+        state: z.number().int().min(0),
         isComplete: z.boolean(),
         isLaunchable: z.boolean(),
         packages: z.array(z.string().max(200)).max(50),
@@ -57,7 +58,8 @@ export interface VsVerdict {
 export function vsVerdict(r: VsSetupReport): VsVerdict {
   if (r.setupError) return { ok: false, text: 'the Setup Configuration API failed: ' + r.setupError.slice(0, 300) };
   const usable = r.instances.filter(
-    (i) => i.isComplete && i.packages.includes('Microsoft.VisualStudio.Component.VC.Tools.x86.x64'),
+    (i) =>
+      (i.state & 1) === 1 && i.isComplete && i.packages.includes('Microsoft.VisualStudio.Component.VC.Tools.x86.x64'),
   );
   if (!usable.length)
     return {

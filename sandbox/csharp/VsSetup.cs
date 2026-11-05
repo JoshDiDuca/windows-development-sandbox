@@ -127,39 +127,84 @@ namespace AgentSandbox
         {
             List<SetupInstanceInfo> found = new List<SetupInstanceInfo>();
             ISetupConfiguration2 setup = (ISetupConfiguration2)new SetupConfiguration();
-            IEnumSetupInstances instances = setup.EnumAllInstances();
-            ISetupInstance[] one = new ISetupInstance[1];
-            while (true)
+            IEnumSetupInstances instances = null;
+            try
             {
-                int fetched;
-                instances.Next(1, one, out fetched);
-                if (fetched == 0)
+                instances = setup.EnumAllInstances();
+                ISetupInstance[] one = new ISetupInstance[1];
+                while (true)
                 {
-                    break;
+                    int fetched;
+                    instances.Next(1, one, out fetched);
+                    if (fetched == 0)
+                    {
+                        break;
+                    }
+                    ISetupInstance2 instance = (ISetupInstance2)one[0];
+                    try
+                    {
+                        found.Add(Describe(instance));
+                    }
+                    finally
+                    {
+                        Marshal.ReleaseComObject(instance);
+                    }
                 }
-                ISetupInstance2 instance = (ISetupInstance2)one[0];
-                SetupInstanceInfo info = new SetupInstanceInfo();
-                info.InstanceId = instance.GetInstanceId();
-                info.InstallationPath = instance.GetInstallationPath();
-                info.InstallationVersion = instance.GetInstallationVersion();
-                info.State = instance.GetState();
-                ISetupPackageReference product = instance.GetProduct();
-                info.ProductId = product == null ? "" : product.GetId();
-                info.IsComplete = instance.IsComplete();
-                info.IsLaunchable = instance.IsLaunchable();
-                ISetupPackageReference[] packages = instance.GetPackages();
-                List<string> ids = new List<string>();
-                if (packages != null)
+            }
+            finally
+            {
+                if (instances != null)
                 {
-                    foreach (ISetupPackageReference package in packages)
+                    Marshal.ReleaseComObject(instances);
+                }
+                Marshal.ReleaseComObject(setup);
+            }
+            return found.ToArray();
+        }
+
+        private static SetupInstanceInfo Describe(ISetupInstance2 instance)
+        {
+            SetupInstanceInfo info = new SetupInstanceInfo();
+            info.InstanceId = instance.GetInstanceId();
+            info.InstallationPath = instance.GetInstallationPath();
+            info.InstallationVersion = instance.GetInstallationVersion();
+            info.State = instance.GetState();
+            ISetupPackageReference product = instance.GetProduct();
+            if (product == null)
+            {
+                info.ProductId = "";
+            }
+            else
+            {
+                try
+                {
+                    info.ProductId = product.GetId();
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(product);
+                }
+            }
+            info.IsComplete = instance.IsComplete();
+            info.IsLaunchable = instance.IsLaunchable();
+            ISetupPackageReference[] packages = instance.GetPackages();
+            List<string> ids = new List<string>();
+            if (packages != null)
+            {
+                foreach (ISetupPackageReference package in packages)
+                {
+                    try
                     {
                         ids.Add(package.GetId());
                     }
+                    finally
+                    {
+                        Marshal.ReleaseComObject(package);
+                    }
                 }
-                info.Packages = ids.ToArray();
-                found.Add(info);
             }
-            return found.ToArray();
+            info.Packages = ids.ToArray();
+            return info;
         }
     }
 }

@@ -439,7 +439,7 @@
           "properties": {
             "share": {
               "type": "boolean",
-              "description": "Hand your saved Unity sign-in to sandboxes that use unity (sign in once in a sandbox, or take this PC's licence from Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. A Pro seat is handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep it until you return it. Yours only: a project file can only turn it off."
+              "description": "Hand your saved Unity sign-in to sandboxes that use unity (sign in once in a sandbox, or take this PC's licence from Accounts). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It works in one sandbox at a time: a second sandbox starts without it while the first one runs. Unity Personal is activated by signing in: sign in to Unity once in a sandbox and the licence it makes is kept for the next ones (if Unity refuses it there, sign in again). A Plus or Pro serial is activated in each sandbox and handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep the seat until you remove it at id.unity.com (My Seats). A licence file taken from this PC may not work in a sandbox: Unity ties it to the computer. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -596,6 +596,10 @@
         "unityEditors": {
           "anyOf": [
             {
+              "type": "string",
+              "const": "auto"
+            },
+            {
               "type": "boolean"
             },
             {
@@ -606,7 +610,19 @@
               }
             }
           ],
-          "description": "Unity editors installed with Unity Hub of this PC, read-only in the sandbox under C:\\PcInstalls: true = all of them, false = none, or a list (e.g. [\"6000.0.32f1\"]). The agent can read their files."
+          "description": "Unity editors installed on this PC (with Unity Hub), read-only in the sandbox under C:\\PcInstalls\\unity: a project opens with the PC's editor without a download. \"auto\" = all of them whenever the sandbox is set up for Unity, true = always, false = never, or a list (e.g. [\"6000.0.32f1\"])."
+        },
+        "unityAssets": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "auto"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "description": "This PC's Unity Asset Store downloads (.unitypackage files), read-only at C:\\PcInstalls\\unity\\AssetStore: what you download on your PC is there for the agents at once. \"auto\" = whenever the sandbox is set up for Unity, true = always, false = never."
         }
       },
       "additionalProperties": false,
@@ -939,7 +955,7 @@
                   "const": "auto"
                 }
               ],
-              "description": "Unity: the editor version a project asks for, from Unity's release API (checked against its published hash), installed into tools\\unity\\<version> (6-7 GB each), with the modules you list. true, false, or \"auto\" = only when the project has ProjectSettings/ProjectVersion.txt."
+              "description": "Unity: the editor version a project asks for, from Unity's release API (checked against its published hash), installed on the data disk (tools\\unity\\editors\\<version>, 8-13 GB each, kept between sandboxes), with the modules you list. This PC's editors (pcInstalls.unityEditors) are used first. true, false, or \"auto\" = only when the project has ProjectSettings/ProjectVersion.txt."
             },
             "acceptLicense": {
               "type": "boolean",
@@ -960,13 +976,35 @@
             },
             "hub": {
               "type": "boolean",
-              "description": "Also Unity Hub, with the installed editors listed in it."
+              "description": "Also Unity Hub (kept on the data disk), for signing in to Unity Personal and installing editors by hand."
             },
             "keepVersions": {
               "type": "integer",
               "minimum": 1,
               "maximum": 20,
               "description": "How many editor versions to keep in tools\\unity; older ones are removed (the least recently used first)."
+            },
+            "mcp": {
+              "type": "boolean",
+              "description": "The Unity CLI's MCP server (unity mcp) in Claude Code and Codex as sbx-unity: Unity's read-only tools always, the open editor's tools when the project has the Unity Pipeline package (Unity 6 and later). Nothing in your project changes."
+            },
+            "agentSkills": {
+              "type": "boolean",
+              "description": "Unity's skills for Claude Code and Codex, from Unity-Technologies/skills at the commit the Unity CLI pins."
+            },
+            "cliVersion": {
+              "type": "string",
+              "pattern": "^(latest|\\d+\\.\\d+\\.\\d+(-[A-Za-z0-9.]+)?)$",
+              "description": "The Unity CLI version, checked against the SHA-256 Unity publishes: a version such as \"1.0.0-beta.16\", or \"latest\". It never updates itself."
+            },
+            "assetCache": {
+              "type": "string",
+              "enum": [
+                "persisted",
+                "pc",
+                "local"
+              ],
+              "description": "\"persisted\": Asset Store downloads made in the sandbox go to tools\\unity\\asset-store (kept). \"pc\": the sandbox uses this PC's Asset Store downloads (read-only; download new ones on your PC). \"local\": Unity's own place on the sandbox disk (lost when it closes)."
             }
           },
           "additionalProperties": false

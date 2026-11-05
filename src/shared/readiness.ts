@@ -3,9 +3,9 @@
 
 export const NOT_READY = {
   /** Toolchains whose step is a stub: their settings rows are hidden and "auto" never turns them on. */
-  toolchains: ['unity', 'godot', 'android', 'flutter', 'dart', 'reactNative'],
+  toolchains: ['godot', 'android', 'flutter', 'dart', 'reactNative'],
   /** Service sign-ins whose host or guest side is a stub: the menu and the web do not list them. */
-  kinds: ['unity', 'keystore', 'play', 'expo', 'appstore'],
+  kinds: ['keystore', 'play', 'expo', 'appstore'],
 } as const satisfies Record<string, readonly string[]>;
 
 export const isToolchainReady = (name: string): boolean => !(NOT_READY.toolchains as readonly string[]).includes(name);

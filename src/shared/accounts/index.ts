@@ -12,6 +12,7 @@ export {
   type EpicPayload,
 } from './kinds/epic.js';
 export * from './kinds/steam.js';
+export * from './kinds/unity.js';
 export {
   PERPLEXITY_ENV,
   perplexityKeyFromText,

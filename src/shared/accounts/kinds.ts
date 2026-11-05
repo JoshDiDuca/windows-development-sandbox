@@ -123,7 +123,9 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
     warnings: [
       AGENT_CAN_USE,
       ONE_PLACE,
-      'A Pro seat is handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep it until you return it.',
+      'Unity Personal is activated by signing in: sign in to Unity once in a sandbox and the licence it makes is kept for the next ones (if Unity refuses it there, sign in again).',
+      'A Plus or Pro serial is activated in each sandbox and handed back when the sandbox stops cleanly; a sandbox closed abruptly may keep the seat until you remove it at id.unity.com (My Seats).',
+      'A licence file taken from this PC may not work in a sandbox: Unity ties it to the computer.',
     ],
     fields: [
       { name: 'email', label: 'Unity ID email', secret: false, optional: true },

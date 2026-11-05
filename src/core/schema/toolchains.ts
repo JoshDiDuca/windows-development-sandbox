@@ -118,7 +118,7 @@ export const ToolchainsSchema = z.strictObject({
   }),
   unity: z.strictObject({
     enabled: enabled(
-      "Unity: the editor version a project asks for, from Unity's release API (checked against its published hash), installed into tools\\unity\\<version> (6-7 GB each), with the modules you list.",
+      "Unity: the editor version a project asks for, from Unity's release API (checked against its published hash), installed on the data disk (tools\\unity\\editors\\<version>, 8-13 GB each, kept between sandboxes), with the modules you list. This PC's editors (pcInstalls.unityEditors) are used first.",
       'ProjectSettings/ProjectVersion.txt',
     ),
     acceptLicense: z
@@ -137,7 +137,11 @@ export const ToolchainsSchema = z.strictObject({
       .describe(
         'Editor modules to add: "android" (4-5 GB, also the Android SDK), "webgl" (1.5 GB), "windows-il2cpp" (adds Visual Studio\'s C++ parts), "ios" (Xcode project export only: iOS builds need a Mac).',
       ),
-    hub: z.boolean().describe('Also Unity Hub, with the installed editors listed in it.'),
+    hub: z
+      .boolean()
+      .describe(
+        'Also Unity Hub (kept on the data disk), for signing in to Unity Personal and installing editors by hand.',
+      ),
     keepVersions: z
       .number()
       .int()
@@ -145,6 +149,27 @@ export const ToolchainsSchema = z.strictObject({
       .max(20)
       .describe(
         'How many editor versions to keep in tools\\unity; older ones are removed (the least recently used first).',
+      ),
+    mcp: z
+      .boolean()
+      .describe(
+        "The Unity CLI's MCP server (unity mcp) in Claude Code and Codex as sbx-unity: Unity's read-only tools always, the open editor's tools when the project has the Unity Pipeline package (Unity 6 and later). Nothing in your project changes.",
+      ),
+    agentSkills: z
+      .boolean()
+      .describe(
+        "Unity's skills for Claude Code and Codex, from Unity-Technologies/skills at the commit the Unity CLI pins.",
+      ),
+    cliVersion: z
+      .string()
+      .regex(/^(latest|\d+\.\d+\.\d+(-[A-Za-z0-9.]+)?)$/)
+      .describe(
+        'The Unity CLI version, checked against the SHA-256 Unity publishes: a version such as "1.0.0-beta.16", or "latest". It never updates itself.',
+      ),
+    assetCache: z
+      .enum(['persisted', 'pc', 'local'])
+      .describe(
+        '"persisted": Asset Store downloads made in the sandbox go to tools\\unity\\asset-store (kept). "pc": the sandbox uses this PC\'s Asset Store downloads (read-only; download new ones on your PC). "local": Unity\'s own place on the sandbox disk (lost when it closes).',
       ),
   }),
   godot: z.strictObject({

@@ -114,7 +114,8 @@
     "unrealEngines": "auto",
     "unrealEngineFolders": [],
     "unrealAssets": "auto",
-    "unityEditors": false
+    "unityEditors": "auto",
+    "unityAssets": "auto"
   },
   "provisioning": {
     "copyFromHost": true,
@@ -180,7 +181,11 @@
       "version": "project",
       "modules": [],
       "hub": false,
-      "keepVersions": 2
+      "keepVersions": 2,
+      "mcp": true,
+      "agentSkills": true,
+      "cliVersion": "1.0.0-beta.16",
+      "assetCache": "persisted"
     },
     "godot": {
       "enabled": "auto",

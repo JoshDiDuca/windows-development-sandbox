@@ -8,7 +8,14 @@ export {
   type SecretsConfig,
 } from './secrets.js';
 export { findSecretFiles } from './secret-files.js';
-export { hostClaudeDir, hostGlobalStateFile, sandboxGlobalState, stageClaudeProfile } from './claude-profile.js';
+export {
+  hostClaudeDir,
+  hostGlobalStateFile,
+  pluginFilter,
+  pluginTrimLevel,
+  sandboxGlobalState,
+  stageClaudeProfile,
+} from './claude-profile.js';
 export { capturePersonalization } from './personalize.js';
 export { toRegFile, type RegValue } from './reg-file.js';
 export { AccountStore, accountsDir, type Account, type AccountMeta, type AccountRow } from './accounts.js';

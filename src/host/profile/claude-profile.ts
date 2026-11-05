@@ -8,14 +8,50 @@ import { stripMcpServers, stripSettings, type SecretsConfig } from './secrets.js
 const MAX_BYTES = 250 * 1024 * 1024;
 
 /** Real files only: a link inside ~/.claude (even a loop or a dead one) is neither followed nor counted nor copied. */
-function directorySize(dir: string): number {
+function directorySize(dir: string, keep: (full: string) => boolean = () => true): number {
   let total = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) total += directorySize(full);
+    if (!keep(full)) continue;
+    if (entry.isDirectory()) total += directorySize(full, keep);
     else if (entry.isFile()) total += fs.statSync(full).size;
   }
   return total;
+}
+
+/** Plugin leftovers Claude never reads: interrupted clones (temp_*) and marketplace backups. */
+function isPluginJunk(parts: readonly string[]): boolean {
+  const top = parts[0]?.toLowerCase();
+  const name = parts[1]?.toLowerCase() ?? '';
+  return (
+    parts.length >= 2 &&
+    (top === 'cache' || top === 'marketplaces') &&
+    (name.startsWith('temp_') || name.endsWith('.backup') || name.endsWith('.staging'))
+  );
+}
+
+/**
+ * Which parts of your plugins folder are staged, as a filter over full paths. Everything Claude needs to load a plugin
+ * (installed_plugins.json, marketplaces, the plugin cache) is kept; when that is over the size cap, git history
+ * (`.git`) and then `node_modules` are left out, and the guest's plugins restore what they need on first use.
+ */
+export function pluginFilter(source: string, level: 0 | 1 | 2): (full: string) => boolean {
+  return (full: string): boolean => {
+    if (full === source) return true;
+    const parts = path.relative(source, full).split(path.sep);
+    if (isPluginJunk(parts)) return false;
+    if (level >= 1 && parts.includes('.git')) return false;
+    if (level >= 2 && parts.includes('node_modules')) return false;
+    return true;
+  };
+}
+
+/** The least trimmed level at which the plugins folder fits the cap, or null when even the most trimmed does not. */
+export function pluginTrimLevel(source: string): 0 | 1 | 2 | null {
+  for (const level of [0, 1, 2] as const) {
+    if (directorySize(source, pluginFilter(source, level)) <= MAX_BYTES) return level;
+  }
+  return null;
 }
 
 function validJson(file: string): boolean {
@@ -94,14 +130,16 @@ export function stageClaudeProfile(
         );
       else fs.copyFileSync(source, destination);
     } else if (dirExists(source)) {
-      if (directorySize(source) > MAX_BYTES) {
+      const level = name === 'plugins' ? pluginTrimLevel(source) : directorySize(source) > MAX_BYTES ? null : 0;
+      if (level === null) {
         result.skipped.push(name + ' (over 250 MB)');
         continue;
       }
+      const keep = name === 'plugins' ? pluginFilter(source, level) : (): boolean => true;
       fs.cpSync(source, destination, {
         recursive: true,
         force: true,
-        filter: (from: string) => from === source || !isLink(from),
+        filter: (from: string) => from === source || (!isLink(from) && keep(from)),
       });
     } else {
       result.skipped.push(name + ' (not found)');

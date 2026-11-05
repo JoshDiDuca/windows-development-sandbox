@@ -8,6 +8,7 @@ import { errMsg } from '../../core/util/index.js';
 import { SandboxChannel } from '../../host/channel/index.js';
 import { RunDir } from '../../shared/channel/index.js';
 import { isSandboxRunning } from '../../host/sandbox/index.js';
+import { reloadSettings } from '../../app/context.js';
 import type { Context } from '../commands/context.js';
 import { lookAtSandbox } from '../commands/shared-use.js';
 import { commandLine } from '../history.js';
@@ -120,7 +121,11 @@ export class Menu {
         new MaintenancePage(app, ctx),
       ],
       draft,
-      (saved) => this.applyAgentCommands(saved),
+      (saved) => {
+        // Ctrl+S wrote the file: every page and operation reads the new settings from here on.
+        reloadSettings(this.ctx);
+        return this.applyAgentCommands(saved);
+      },
     );
   }
 

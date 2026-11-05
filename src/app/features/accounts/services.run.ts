@@ -29,12 +29,25 @@ import { cancelled, type OperationIO } from '../../kernel/index.js';
 import { isKindReady } from '../../../shared/readiness.js';
 import { listServices, serviceImport, serviceLogin, serviceLogout, type ServiceRow } from './services.def.js';
 
+/** Does this PC have a sign-in to take? Only whether, never what: the payload is dropped at once. */
+function presentOnPc(kind: ServiceKind, pc: PcEnv | undefined): boolean | null {
+  const source = HOST_SOURCES[kind];
+  if (!source.fromPc) return null;
+  if (!pc) return false;
+  try {
+    return source.fromPc(pc) !== null;
+  } catch {
+    return false; // This PC's program has no usable sign-in.
+  }
+}
+
 /** One service's row: never the sign-in, and the store's summary through safeText. */
 export function serviceRow(
   kind: ServiceKind,
   config: Config,
   store: ServiceAccountStore,
   leases: AccountLeases,
+  pc?: PcEnv,
 ): ServiceRow {
   const spec: ServiceSpec = SERVICE_SPECS[kind];
   const source = HOST_SOURCES[kind];
@@ -56,6 +69,10 @@ export function serviceRow(
     canImport: Boolean(source.fromPc || source.fromFile),
     canLogin: Boolean(source.fromAnswers),
     needsFile: Boolean(source.fromFile && !source.fromPc),
+    fromPc: Boolean(source.fromPc),
+    hasFileSource: Boolean(source.fromFile),
+    onPc: presentOnPc(kind, pc),
+    sandboxOnly: !source.fromPc && !source.fromFile && !source.fromAnswers,
     ready: isKindReady(kind),
   };
 }
@@ -135,6 +152,7 @@ export async function importServiceFlow(
   kind: ServiceKind,
   from: string | undefined,
   deps: ImportDeps,
+  wantFile = false,
 ): Promise<{ message: string }> {
   const spec: ServiceSpec = SERVICE_SPECS[kind];
   const source = HOST_SOURCES[kind];
@@ -143,7 +161,7 @@ export async function importServiceFlow(
     failWith(spec.label + ' cannot be imported.', 'Type it instead.', {
       op: 'accounts.service.login',
       input: { name: kind },
-      label: 'Sign in…',
+      label: 'Type the sign-in…',
       cli: 'sandbox account login ' + kind,
     });
   let file = from === undefined ? undefined : path.resolve(from);
@@ -154,7 +172,7 @@ export async function importServiceFlow(
       return false;
     }
   };
-  const useFile = Boolean(source.fromFile && (file ? isFile(file) : !source.fromPc));
+  const useFile = Boolean(source.fromFile && (file ? isFile(file) : wantFile || !source.fromPc));
   if (useFile && !file) {
     const asked = await io.path({ title: 'The ' + spec.label + ' file:', pathKind: 'file' });
     if (asked === undefined) cancelled();
@@ -264,7 +282,8 @@ export const listServicesRun = implement(listServices, async (ctx, input) => {
   if (name !== undefined && name !== '' && !isServiceKind(name))
     fail('There is no service called "' + safeText(input.name ?? '') + '".', 'Use one of: ' + SERVICE_KINDS.join(', '));
   const kinds = name ? [name as ServiceKind] : [...SERVICE_KINDS];
-  return { services: kinds.map((k) => serviceRow(k, ctx.loaded.config, store, leases)) };
+  const pc = pcEnv();
+  return { services: kinds.map((k) => serviceRow(k, ctx.loaded.config, store, leases, pc)) };
 });
 
 export const serviceImportRun = implement(serviceImport, async (ctx, input, io) => {
@@ -272,11 +291,17 @@ export const serviceImportRun = implement(serviceImport, async (ctx, input, io) 
   const kind = await kindOf(io, input.name, 'import', (s) =>
     Boolean(HOST_SOURCES[s.kind].fromPc || HOST_SOURCES[s.kind].fromFile),
   );
-  return importServiceFlow(io, kind, input.from, {
-    store: new ServiceAccountStore(ctx.storageRoot),
-    pc: pcEnv(),
-    share: ctx.loaded.config.accounts[kind].share,
-  });
+  return importServiceFlow(
+    io,
+    kind,
+    input.from,
+    {
+      store: new ServiceAccountStore(ctx.storageRoot),
+      pc: pcEnv(),
+      share: ctx.loaded.config.accounts[kind].share,
+    },
+    input.file ?? false,
+  );
 });
 
 export const serviceLoginRun = implement(serviceLogin, async (ctx, input, io) => {

@@ -101,7 +101,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   steam: {
     kind: 'steam',
-    label: 'Steam (SteamCMD)',
+    label: 'Steam',
     usedBy: ['steam'],
     sources: ['file', 'sandbox'],
     singleHolder: true,
@@ -137,7 +137,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   cfx: {
     kind: 'cfx',
-    label: 'Cfx.re (FiveM / RedM server key)',
+    label: 'FiveM key',
     usedBy: ['fivem'],
     sources: ['typed', 'file'],
     singleHolder: false,
@@ -166,7 +166,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   keystore: {
     kind: 'keystore',
-    label: 'Android upload keystore',
+    label: 'Android keystore',
     usedBy: ['android'],
     sources: ['file'],
     singleHolder: false,
@@ -181,7 +181,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   play: {
     kind: 'play',
-    label: 'Google Play (service account)',
+    label: 'Google Play',
     usedBy: ['android'],
     sources: ['file'],
     singleHolder: false,
@@ -192,7 +192,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   expo: {
     kind: 'expo',
-    label: 'Expo (EAS)',
+    label: 'Expo',
     usedBy: ['reactNative'],
     sources: ['typed'],
     singleHolder: false,
@@ -203,7 +203,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   appstore: {
     kind: 'appstore',
-    label: 'App Store Connect API key',
+    label: 'App Store Connect',
     usedBy: ['reactNative', 'flutter'],
     sources: ['file', 'typed'],
     singleHolder: false,
@@ -217,7 +217,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   perplexity: {
     kind: 'perplexity',
-    label: 'Perplexity API key',
+    label: 'Perplexity API',
     usedBy: ['perplexity'],
     sources: ['pc', 'file', 'typed'],
     singleHolder: false,
@@ -241,7 +241,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   comet: {
     kind: 'comet',
-    label: 'Comet (Perplexity browser)',
+    label: 'Comet',
     usedBy: ['comet'],
     sources: ['sandbox'],
     singleHolder: false,
@@ -258,7 +258,7 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
   },
   perplexityapp: {
     kind: 'perplexityapp',
-    label: 'Perplexity desktop app',
+    label: 'Perplexity app',
     usedBy: ['perplexityapp'],
     sources: ['sandbox'],
     singleHolder: false,

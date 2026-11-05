@@ -18,11 +18,16 @@ import { ListPage, type Outcome } from './list-page.js';
 
 export type AccountsModel = AccountsList;
 
+/** The services the menu lists: those whose sign-in is written (the others would offer actions that cannot work). */
+function shown(m: AccountsModel): AccountsModel['services'] {
+  return m.services.filter((s) => s.ready);
+}
+
 /** The menu's rows, keys and Enter labels of one agent's category. */
 function viewOf(m: AccountsModel, category: string | undefined): MenuView {
   const agent = m.agents.find((a) => a.name === category);
   if (agent) return menuView(agentPage(agent), { category: agent.name, refresh: false });
-  const service = m.services.find((s) => serviceCategory(s.kind) === category);
+  const service = shown(m).find((s) => serviceCategory(s.kind) === category);
   if (service) return menuView(servicePage(service), { category: serviceCategory(service.kind), refresh: false });
   return menuView({ title: 'Accounts', sections: [] }, { refresh: false });
 }
@@ -31,8 +36,7 @@ function viewOf(m: AccountsModel, category: string | undefined): MenuView {
 export function accountsOptions(m: AccountsModel): ListOptions<string> {
   return {
     path: [],
-    intro:
-      'Logins saved on this PC, per agent (Use puts one into the sandbox; new launches start with the default), and the service sign-ins sandboxes may get.',
+    intro: 'Logins saved on this PC, per agent, and the service sign-ins sandboxes may get.',
     categories: [
       ...m.agents.map((a) => ({
         id: a.name,
@@ -41,17 +45,15 @@ export function accountsOptions(m: AccountsModel): ListOptions<string> {
           ? 'Saved ' + a.name + ' logins.'
           : "This agent's login is not kept between sandboxes: it cannot be pointed at a folder we control.",
       })),
-      ...m.services.map((s) => ({
+      ...shown(m).map((s) => ({
         id: serviceCategory(s.kind),
         label: s.label,
-        description: 'Your ' + s.label + ' sign-in for sandboxes that use ' + s.usedFor + '.',
+        description: 'For ' + s.usedFor + '.',
       })),
     ],
     items: [
       ...m.agents.flatMap((a) => menuView(agentPage(a), { category: a.name, refresh: false }).items),
-      ...m.services.flatMap(
-        (s) => menuView(servicePage(s), { category: serviceCategory(s.kind), refresh: false }).items,
-      ),
+      ...shown(m).flatMap((s) => menuView(servicePage(s), { category: serviceCategory(s.kind), refresh: false }).items),
     ],
     empty: 'No agents.',
     actions: (category) => viewOf(m, category).actions,

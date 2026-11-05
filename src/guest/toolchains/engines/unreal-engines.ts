@@ -10,6 +10,7 @@ import { readBoundedFile } from '../../../shared/io/bounded.js';
 import {
   chooseEngine,
   ddcVars,
+  engineExtraDirs,
   engineToolDirs,
   engineVars,
   fileAssociationPlan,
@@ -176,6 +177,7 @@ export async function setupUnrealEngines(env: ToolEnv, config: Toolchains['unrea
   Object.assign(env.vars, ddcVars(config.derivedDataCache, DDC_DIR));
   if (engine) {
     env.prepend.push(...engineToolDirs(engine.dir, DISK));
+    env.append.push(...engineExtraDirs(engine.dir, DISK));
     Object.assign(env.vars, engineVars(engine));
   }
   const mcp = engine && hasMcpPlugin(engine, DISK) ? UNREAL_MCP_URL : null;

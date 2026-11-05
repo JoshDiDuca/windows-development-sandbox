@@ -110,10 +110,11 @@ export function isInstalledBuild(dir: string, fs: EngineFs): boolean {
   return fs.exists(win.join(dir, 'Engine', 'Build', 'InstalledBuild.txt'));
 }
 
-const BUILD_ID = /^(\{[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}|[A-Za-z0-9][A-Za-z0-9._ -]{0,63})$/;
+// eslint-disable-next-line no-control-regex -- control characters are what a registered name must not hold
+const BUILD_ID = /^[^\x00-\x1f"\\/]{1,64}$/;
 
 /** Whether a name can be a source build's registered name (UnrealVersionSelector writes a {GUID}). */
-export const isBuildId = (id: string): boolean => BUILD_ID.test(id);
+export const isBuildId = (id: string): boolean => id === id.trim() && BUILD_ID.test(id);
 
 /**
  * A source build's registered name when it has none of its own: a GUID made from its folder, so it is the same every
@@ -389,8 +390,12 @@ export function fileAssociationPlan(selector: string): RegistryValue[] {
 
 /** The folders of an engine an agent runs its tools from (those that exist), in PATH order. */
 export function engineToolDirs(dir: string, fs: Pick<EngineFs, 'exists'>): string[] {
+  return [win.join(dir, 'Engine', 'Build', 'BatchFiles')].filter((d) => fs.exists(d));
+}
+
+/** The engine folders put at the END of PATH: they hold many DLLs, which every program started from PATH would load. */
+export function engineExtraDirs(dir: string, fs: Pick<EngineFs, 'exists'>): string[] {
   return [
-    win.join(dir, 'Engine', 'Build', 'BatchFiles'),
     win.join(dir, 'Engine', 'Binaries', 'Win64'),
     win.join(dir, 'Engine', 'Binaries', 'DotNET', 'UnrealBuildTool'),
   ].filter((d) => fs.exists(d));

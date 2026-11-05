@@ -407,6 +407,10 @@
         "shareToken": {
           "type": "boolean",
           "description": "Give each sandbox the GitHub token you saved in Accounts (best a fine-grained token limited to some repositories and permissions), so gh and https git work there without logging in. Only with provisioning.git.access \"full\". The agent in the sandbox can read the token and use it for whatever it allows. A project file (.sandbox-config.json) cannot turn this on."
+        },
+        "usePcLogin": {
+          "type": "boolean",
+          "description": "Give each sandbox the GitHub CLI (gh) login from this PC, when there is one, so gh and https git work there without logging in. Used when no token saved for sandboxes is handed over. Only with provisioning.git.access \"full\". Without a gh login on the PC nothing happens. The login reaches everything your account can, and the agent in the sandbox can read it. A project file (.sandbox-config.json) cannot turn this on."
         }
       },
       "additionalProperties": false
@@ -510,6 +514,16 @@
             "share": {
               "type": "boolean",
               "description": "Hand your saved Comet (Perplexity browser) sign-in to sandboxes that use the Comet app (sign in to Comet once in a sandbox: it cannot be taken from this PC). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can act as you in Comet and spend your Perplexity Computer credits; agentic browsing is open to prompt injection from the pages it reads. Your Comet sign-in can't be copied from this PC: Windows locks it to your PC account. Sign in once inside a sandbox and it is kept for the next ones. Only the perplexity.ai sign-in cookies are kept: never saved passwords, other sites, localStorage or history. Never import your main browser profile. Several sandboxes can use it at once: the sign-in the last one hands back is kept. Yours only: a project file can only turn it off."
+            }
+          },
+          "additionalProperties": false
+        },
+        "perplexityapp": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "boolean",
+              "description": "Hand your saved Perplexity desktop app sign-in to sandboxes that use the Perplexity desktop app (sign in to the Perplexity app once in a sandbox: it cannot be taken from this PC). Kept encrypted on this PC; The agent in the sandbox can use this sign-in while it is there. It can act as you in the Perplexity app and spend your Perplexity Computer credits; the app acts on the pages it reads, which can try to steer it. Your sign-in in the Perplexity app can't be copied from this PC: Windows locks it to your PC account. Sign in once inside a sandbox and it is kept for the next ones. Only the perplexity.ai sign-in cookies are kept: never saved passwords, other sites, localStorage or history. Several sandboxes can use it at once: the sign-in the last one hands back is kept. Yours only: a project file can only turn it off."
             }
           },
           "additionalProperties": false
@@ -1521,7 +1535,7 @@
                   "const": "auto"
                 }
               ],
-              "description": "GitHub CLI (gh). Only with provisioning.git.access \"full\": gh can push and merge through the GitHub API, past a read-only git. Your PC's gh login is never copied; `gh auth login` inside persists (GH_CONFIG_DIR), unless a token you saved for sandboxes is handed over (github.shareToken). \"auto\" = when the project has a .github folder."
+              "description": "GitHub CLI (gh). Only with provisioning.git.access \"full\": gh can push and merge through the GitHub API, past a read-only git. Your PC's gh login is copied only with github.usePcLogin (or a token you saved for sandboxes with github.shareToken); otherwise `gh auth login` inside persists (GH_CONFIG_DIR). \"auto\" = when the project has a .github folder."
             },
             "zstd": {
               "anyOf": [
@@ -2105,6 +2119,7 @@
               "perplexity-mcp",
               "perplexity-computer-mcp",
               "comet",
+              "perplexity-desktop",
               "comet-mcp",
               "chrome-devtools-mcp",
               "browser-use-mcp"

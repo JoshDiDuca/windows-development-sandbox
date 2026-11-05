@@ -6,6 +6,7 @@ import { cometSource } from './kinds/comet.js';
 import { epicSource } from './kinds/epic.js';
 import { expoSource } from './kinds/expo.js';
 import { keystoreSource } from './kinds/keystore.js';
+import { perplexityAppSource } from './kinds/perplexityapp.js';
 import { perplexitySource } from './kinds/perplexity.js';
 import { playSource } from './kinds/play.js';
 import { steamSource } from './kinds/steam.js';
@@ -23,4 +24,5 @@ export const HOST_SOURCES: { readonly [K in ServiceKind]: HostSource<K> } = {
   appstore: appstoreSource,
   perplexity: perplexitySource,
   comet: cometSource,
+  perplexityapp: perplexityAppSource,
 };

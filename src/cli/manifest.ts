@@ -322,7 +322,7 @@ const COMMAND_LIST = [
       {
         name: 'name',
         description:
-          'account name, or the service (status, import, login, logout): epic, steam, unity, cfx, keystore, play, expo, appstore, perplexity or comet',
+          'account name, or the service (status, import, login, logout): epic, steam, unity, cfx, keystore, play, expo, appstore, perplexity, comet or perplexityapp',
         required: false,
         choices: 'accounts',
       },

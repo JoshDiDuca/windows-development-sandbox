@@ -39,7 +39,7 @@ export const DEFAULTS: Config = {
   },
   network: { blockPrivateRanges: true, allowOnly: [], blockHosts: [], forwardPorts: [], dns: [], proxy: '' },
   vpn: { enabled: false, provider: 'nordvpn', protocol: 'udp', country: '', configFile: '', killSwitch: true },
-  github: { shareToken: false },
+  github: { shareToken: false, usePcLogin: false },
   codex: {
     sandboxMode: 'danger-full-access',
     approvalPolicy: 'never',
@@ -59,6 +59,7 @@ export const DEFAULTS: Config = {
     appstore: { share: false },
     perplexity: { share: false },
     comet: { share: false },
+    perplexityapp: { share: false },
   },
   pcInstalls: {
     steamGames: false,

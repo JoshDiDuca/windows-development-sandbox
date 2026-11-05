@@ -56,3 +56,13 @@ export function appsNeedUv(apps: Config['apps'] | undefined): boolean {
 export function appsNeedMesa(apps: Config['apps'] | undefined): boolean {
   return Boolean(apps?.install.some((id) => appById(id)?.needs?.includes('mesa')));
 }
+
+/** The chosen apps that come from the Microsoft Store: what this PC has to fetch for them. */
+export function storeApps(install: readonly string[]): { id: string; productId: string; packageName: string }[] {
+  return install.flatMap((id) => {
+    const source = appById(id)?.source;
+    return source !== undefined && 'store' in source
+      ? [{ id, productId: source.store.productId, packageName: source.store.packageName }]
+      : [];
+  });
+}

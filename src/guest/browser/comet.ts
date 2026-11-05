@@ -63,7 +63,7 @@ export function devToolsEndpoint(profile: string = cometProfileDir()): DevToolsE
 }
 
 /** A connection to the Comet running with this profile, or null when none answers. */
-async function connect(profile: string): Promise<CdpConnection | null> {
+export async function connect(profile: string): Promise<CdpConnection | null> {
   const endpoint = devToolsEndpoint(profile);
   if (!endpoint) return null;
   try {

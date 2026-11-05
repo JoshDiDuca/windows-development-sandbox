@@ -14,13 +14,16 @@ export {
 } from './catalogue.js';
 export { ASSOCIATIONS, associationPlan } from './associations.js';
 export { previewGuideLine } from './preview.js';
-export { exeMatcher, appsToInstall, appsNeedMesa, appsNeedUv } from './selection.js';
+export { exeMatcher, appsToInstall, appsNeedMesa, appsNeedUv, storeApps } from './selection.js';
 export { signerMatches, type AppSigner, type Signature } from '../signer.js';
 export {
   AGENTS_WEB_APPS,
   BROWSER_USE_VERSION,
   CHROME_DEVTOOLS_MCP_VERSION,
   COMET_DOWNLOAD_URL,
+  PERPLEXITY_DESKTOP_FAMILY,
+  PERPLEXITY_DESKTOP_PACKAGE,
+  PERPLEXITY_DESKTOP_PRODUCT_ID,
   COMET_MCP_VERSION,
   COMET_SIGNER,
   PERPLEXITY_COMPUTER_MCP_URL,
@@ -47,3 +50,12 @@ export {
   RTK_GUIDE_LINE,
   withAddonMcpServers,
 } from './agent-addons.js';
+export {
+  isStorePackageFile,
+  STORE_PACKAGE_MANIFEST,
+  StorePackageFileSchema,
+  StorePackageManifestSchema,
+  storePackageRole,
+  type StorePackageFile,
+  type StorePackageManifest,
+} from './store-package.js';

@@ -51,6 +51,8 @@ function howToSave(spec: ServiceSpec): string {
   if (spec.kind === 'unity')
     return 'sign in to Unity once in this sandbox (Unity page: Sign in to Unity), or: sandbox account login unity';
   if (spec.kind === 'comet') return 'sign in to Comet once in this sandbox, and it is kept for the next ones';
+  if (spec.kind === 'perplexityapp')
+    return 'sign in to the Perplexity app once in this sandbox, and it is kept for the next ones';
   if (spec.returns) return 'sign in once in this sandbox, or: sandbox account import ' + spec.kind;
   return spec.sources.includes('typed')
     ? 'save one: sandbox account login ' + spec.kind

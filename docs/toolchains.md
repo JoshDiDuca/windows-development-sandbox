@@ -216,7 +216,7 @@ list them in `apps.install`:
 
 | Category             | Apps                                                                                                                                                                                                         |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Agent add-ons        | rtk, Headroom, ccusage, Playwright MCP, Context7 MCP, claude-mem, REA ([details](#agent-add-ons)); Perplexity MCP, Perplexity Computer MCP, Comet MCP, Chrome DevTools MCP, Browser Use MCP ([agents-web.md](agents-web.md)) |
+| Agent add-ons        | rtk, Headroom, ccusage, Playwright MCP, Context7 MCP, claude-mem, REA ([details](#agent-add-ons)); Perplexity MCP, Perplexity Computer MCP, Comet MCP, Chrome DevTools MCP, Browser Use MCP, Perplexity desktop app ([agents-web.md](agents-web.md)) |
 | Editors              | Notepad++, Sublime Text, Neovim ([VS Code](#vs-code) is its own setting)                                                                                                                                     |
 | Database clients     | DBeaver, pgAdmin 4, HeidiSQL, DB Browser for SQLite, MongoDB Compass, Redis Insight, DbGate, Beekeeper Studio, dynamodb-admin                                                                                |
 | API clients          | Bruno, Insomnia                                                                                                                                                                                              |

@@ -7,6 +7,16 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.26.0
+
+- **Perplexity desktop app.** The Microsoft Store app is in Apps: your PC fetches its signed package with winget under
+  your own Store access, and the sandbox installs it every boot. Sign in once in a sandbox and the sign-in is kept for
+  the next ones, like Comet's (`accounts.perplexityapp.share`).
+- **Your PC's `gh` login in sandboxes.** `github.usePcLogin` (off by default) hands your PC's GitHub CLI login to
+  sandboxes, read from `hosts.yml` or `gh auth token`, so nobody runs `gh auth login` in each sandbox. It is used only
+  with git access `full`, a token saved with `sandbox github login` still wins, and nothing happens when the PC has no
+  gh login.
+
 ## 1.25.1
 
 - **Unreal Engine for agents.** This PC's engines come into the sandbox read-only and registered (LauncherInstalled.dat,

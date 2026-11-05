@@ -120,7 +120,11 @@ export class AppInstaller {
       if (!exe) throw new Error(entry.exe + ' not found in the download');
       await afterInstall(entry, exe);
       // A proxy or MCP server (agent add-ons) is started by the sandbox or the agent: no PATH entry, no shortcut.
-      if (!entry.service && (entry.cli || entry.id === 'sysinternals')) this.env.prepend.push(path.dirname(exe));
+      if (!entry.service && (entry.cli || entry.id === 'sysinternals')) {
+        // rustup's rust-analyzer proxy (in cargo's bin folder) only errors until its component is added.
+        if (entry.id === 'rust-analyzer') this.env.prepend.unshift(path.dirname(exe));
+        else this.env.prepend.push(path.dirname(exe));
+      }
       if (!entry.cli && !entry.service) this.gui.push({ name: entry.name, exe, ...this.launchArgs(entry) });
       this.installed.push(entry.name);
     } catch (e) {

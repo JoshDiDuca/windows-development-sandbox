@@ -1,7 +1,6 @@
 // Every feature's implementation, by id (Node side; features/defs.ts is the pure half the browser uses). Surfaces run
 // definitions only through here, so input and output are checked the same way everywhere.
-import type { AppContext } from './context.js';
-import { refreshSettings } from '../cli/commands/context.js';
+import { reloadSettings, type AppContext } from './context.js';
 import { fail } from '../core/util/errors.js';
 import {
   accessNeeded,
@@ -230,7 +229,7 @@ async function invokeAndRefresh(
   try {
     return await invoke(impl, ctx, input, io);
   } finally {
-    if (impl.def.kind === 'operation') refreshSettings(ctx);
+    if (impl.def.kind === 'operation') reloadSettings(ctx);
   }
 }
 

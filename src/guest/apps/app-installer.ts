@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Config, GitAccess } from '../../core/types.js';
-import { appsToInstall, type AppEntry } from '../../shared/apps/index.js';
+import { appsToInstall, previewGuideLine, type AppEntry } from '../../shared/apps/index.js';
 import { downloader, moveIntoPlace, stagingFolder } from '../../shared/download/index.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
 import { dryRun, launchDir } from '../runtime/paths.js';
@@ -41,6 +41,7 @@ const PARALLEL = 3;
 export class AppInstaller {
   private readonly gui: Shortcut[] = [];
   private readonly installed: string[] = [];
+  private readonly installedIds: string[] = [];
 
   constructor(
     private readonly env: ToolEnv,
@@ -97,6 +98,8 @@ export class AppInstaller {
       this.env.summary.push(
         'apps: ' + this.installed.join(', ') + ' (shortcuts on the desktop and in Start > Sandbox apps)',
       );
+    const preview = previewGuideLine(this.installedIds);
+    if (preview) this.env.summary.push(preview);
   }
 
   private async installOne(entry: AppEntry): Promise<void> {
@@ -127,6 +130,7 @@ export class AppInstaller {
       }
       if (!entry.cli && !entry.service) this.gui.push({ name: entry.name, exe, ...this.launchArgs(entry) });
       this.installed.push(entry.name);
+      this.installedIds.push(entry.id);
     } catch (e) {
       warn(
         entry.name + ' could not be installed and is skipped; the other apps are not affected. Reason: ' + errMsg(e),

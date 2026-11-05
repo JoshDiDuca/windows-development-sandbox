@@ -750,8 +750,8 @@ export const enginesSuite: Suite = {
     t.check(new Set(ids).size === ids.length, 'every app id is used once');
     t.equal(
       GAMEDEV_APPS.map((a) => a.id),
-      ['krita', 'inkscape', 'audacity', 'renderdoc'],
-      'Krita, Inkscape, Audacity, RenderDoc (Blender was there)',
+      ['krita', 'inkscape', 'audacity', 'renderdoc', 'f3d', 'imagemagick', 'nomacs'],
+      'Krita, Inkscape, Audacity, RenderDoc, then F3D, ImageMagick, nomacs for previews (Blender was there)',
     );
     t.check(ids.includes('blender'), 'Blender is in the catalogue');
     t.check(

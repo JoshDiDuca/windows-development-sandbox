@@ -21,6 +21,7 @@ import {
   addonMcpServer,
   APP_CATEGORIES,
   APPS,
+  associationPlan,
   appsNeedMesa,
   appsNeedUv,
   appsToInstall,
@@ -33,6 +34,7 @@ import {
   headroomEnv,
   headroomUrl,
   PLAYWRIGHT_MCP_VERSION,
+  previewGuideLine,
   RTK_VERSION,
   withAddonMcpServers,
 } from '../shared/apps/index.js';
@@ -42,7 +44,7 @@ import type { Suite } from './support/suite.js';
 export const toolchainsSuite: Suite = {
   name: 'toolchains',
   title: 'version pickers, release assets, PowerShell 7 and CLI tool decisions',
-  run: (t) => {
+  run: async (t) => {
     t.section('version pickers');
     const releases = [
       { version: 'v23.1.0', lts: false as const },
@@ -302,6 +304,49 @@ export const toolchainsSuite: Suite = {
         APPS.every((a) => APP_CATEGORIES.some((c) => c.id === a.category)) &&
         !APPS.some(badPattern),
       'apps: ids are unique, every app is in a known category, every GitHub asset pattern compiles',
+    );
+    t.section('asset preview apps');
+    const previewPick = (id: string, files: string[]): string[] => {
+      const source = APPS.find((x) => x.id === id)?.source;
+      const re = new RegExp(source && 'github' in source ? source.asset : '$^');
+      return files.filter((f) => re.test(f));
+    };
+    t.check(
+      ['f3d', 'imagemagick', 'nomacs'].every((id) => APPS.some((a) => a.id === id && a.category === 'gamedev')) &&
+        previewPick('f3d', [
+          'F3D-4.0.1-Windows-x86_64.zip',
+          'F3D-4.0.1-Windows-x86_64.exe',
+          'F3D-4.0.1-Windows-x86_64-raytracing.zip',
+        ]).join() === 'F3D-4.0.1-Windows-x86_64.zip' &&
+        previewPick('imagemagick', [
+          'ImageMagick-7.1.2-35-portable-Q16-HDRI-x64.7z',
+          'ImageMagick-7.1.2-35-portable-Q16-x64.7z',
+          'ImageMagick-7.1.2-35-portable-Q16-HDRI-arm64.7z',
+        ]).join() === 'ImageMagick-7.1.2-35-portable-Q16-HDRI-x64.7z' &&
+        previewPick('nomacs', ['nomacs-portable-win.zip', 'nomacs-setup.exe']).join() === 'nomacs-portable-win.zip',
+      'preview apps: F3D, ImageMagick and nomacs are in the catalogue and pick the portable download only',
+    );
+    const f3d = associationPlan('f3d', 'C:\\x\\f3d.exe');
+    t.check(
+      f3d.some((v) => v.key === 'Software\\Classes\\.fbx' && v.value === 'Sandbox.f3d') &&
+        f3d.some((v) => v.key.endsWith('\\shell\\open\\command') && v.value === '"C:\\x\\f3d.exe" "%1"') &&
+        f3d.every((v) => v.hive === 'HKCU' && v.name === '') &&
+        associationPlan('nomacs', 'C:\\x\\nomacs.exe').some((v) => v.key === 'Software\\Classes\\.tga') &&
+        associationPlan('krita', 'C:\\x\\k.exe').length === 0,
+      'preview apps: double-click associations name the app per extension; an app without any gets none',
+    );
+    await t.throws(() => associationPlan('f3d', 'f3d.exe'), 'not a program path', 'a relative program path is refused');
+    await t.throws(
+      () => associationPlan('f3d', 'C:\\a"b.exe'),
+      'not a program path',
+      'a quoted program path is refused',
+    );
+    t.check(
+      previewGuideLine([]) === null &&
+        previewGuideLine(['jq']) === null &&
+        (previewGuideLine(['f3d']) ?? '').includes('--output=') &&
+        previewGuideLine(['imagemagick']) !== null,
+      'preview apps: the agent preview line appears only when F3D or ImageMagick is installed',
     );
     t.check(
       exeMatcher('/^Godot_v[\\d.]+-stable_win64\\.exe$/')('Godot_v4.7.2-stable_win64.exe') &&

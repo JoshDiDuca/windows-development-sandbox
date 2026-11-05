@@ -12,6 +12,8 @@ export {
   PLAYWRIGHT_MCP_VERSION,
   RTK_VERSION,
 } from './catalogue.js';
+export { ASSOCIATIONS, associationPlan } from './associations.js';
+export { previewGuideLine } from './preview.js';
 export { exeMatcher, appsToInstall, appsNeedMesa, appsNeedUv } from './selection.js';
 export { signerMatches, type AppSigner, type Signature } from '../signer.js';
 export {

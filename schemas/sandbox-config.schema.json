@@ -1594,6 +1594,7 @@
               "f3d",
               "imagemagick",
               "nomacs",
+              "openupm-cli",
               "lua-language-server",
               "stylua",
               "selene"

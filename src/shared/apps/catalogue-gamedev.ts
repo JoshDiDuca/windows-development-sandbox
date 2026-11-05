@@ -5,6 +5,10 @@
 // an Inno Setup installer) and Quixel Bridge lives inside the Epic Games Launcher / Fab: neither is here.
 import type { AppEntry } from './catalogue.js';
 
+/** Pinned packages, installed from the lock files in sandbox\addons\<id> (renewing them: docs/toolchains.md). */
+export const UNITY_MCP_VERSION = '10.3.0';
+export const OPENUPM_CLI_VERSION = '4.5.3';
+
 export const GAMEDEV_APPS: readonly AppEntry[] = [
   {
     id: 'krita',
@@ -76,5 +80,34 @@ export const GAMEDEV_APPS: readonly AppEntry[] = [
     size: '60 MB',
     source: { github: 'nomacs/nomacs', asset: '^nomacs-portable-win\\.zip$' },
     exe: 'nomacs.exe',
+  },
+  {
+    id: 'unity-mcp',
+    name: 'MCP for Unity',
+    category: 'agents',
+    about:
+      'Lets Claude Code and Codex work in an open Unity editor (CoplayDev/unity-mcp 10.3.0, MIT; Unity 2021.3 to 6.x). Your project needs its package (Unity page: Add the editor bridge). Telemetry is off.',
+    size: '60 MB',
+    source: { locked: 'uv', package: 'mcpforunityserver', version: UNITY_MCP_VERSION },
+    exe: 'mcp-for-unity.exe',
+    service: true,
+    mcp: {
+      name: 'sbx-unity-mcp',
+      program: true,
+      args: ['--transport', 'stdio'],
+      env: { DISABLE_TELEMETRY: '1', UNITY_MCP_DISABLE_TELEMETRY: '1', MCP_DISABLE_TELEMETRY: '1' },
+      codex: true,
+    },
+    plugsInto: 'Claude Code and Codex as the MCP server sbx-unity-mcp',
+    userOnly: true,
+  },
+  {
+    id: 'openupm-cli',
+    name: 'openupm-cli',
+    category: 'gamedev',
+    about: 'Adds OpenUPM packages to Unity projects from the command line (openupm 4.5.3, BSD-3-Clause).',
+    size: '15 MB',
+    source: { locked: 'npm', package: 'openupm-cli', version: OPENUPM_CLI_VERSION },
+    exe: 'openupm.cmd',
   },
 ];

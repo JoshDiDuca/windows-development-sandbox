@@ -750,12 +750,12 @@ export const enginesSuite: Suite = {
     t.check(new Set(ids).size === ids.length, 'every app id is used once');
     t.equal(
       GAMEDEV_APPS.map((a) => a.id),
-      ['krita', 'inkscape', 'audacity', 'renderdoc', 'f3d', 'imagemagick', 'nomacs'],
-      'Krita, Inkscape, Audacity, RenderDoc, then F3D, ImageMagick, nomacs for previews (Blender was there)',
+      ['krita', 'inkscape', 'audacity', 'renderdoc', 'f3d', 'imagemagick', 'nomacs', 'unity-mcp', 'openupm-cli'],
+      'Krita, Inkscape, Audacity, RenderDoc, F3D, ImageMagick, nomacs, then the Unity add-ons (Blender was there)',
     );
     t.check(ids.includes('blender'), 'Blender is in the catalogue');
     t.check(
-      GAMEDEV_APPS.every((a) => a.category === 'gamedev' && a.exe && a.about.length > 20),
+      GAMEDEV_APPS.every((a) => (a.category === 'gamedev' || a.id === 'unity-mcp') && a.exe && a.about.length > 20),
       'each is a game-development app with its program',
     );
     const audacity = new RegExp((GAMEDEV_APPS.find((a) => a.id === 'audacity')!.source as { asset: string }).asset);

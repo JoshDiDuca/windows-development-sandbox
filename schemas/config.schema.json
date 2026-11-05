@@ -2097,6 +2097,8 @@
               "f3d",
               "imagemagick",
               "nomacs",
+              "unity-mcp",
+              "openupm-cli",
               "lua-language-server",
               "stylua",
               "selene",

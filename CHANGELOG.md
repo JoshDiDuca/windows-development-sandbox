@@ -14,6 +14,22 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
   back every boot; each project builds with the engine its .uproject names, with Build.bat, RunUAT.bat, the editor and
   cdb on PATH and the derived data cache kept; your Fab/Marketplace downloads are there read-only; new Unreal page
   (`sandbox unreal`, menu, web); apps Krita, Inkscape, Audacity, RenderDoc.
+- **Downloads to the data disk; Mixamo for Unreal.** Edge and Chrome save downloads to `C:\AgentData\downloads` (kept
+  between sandboxes); the guide tells agents how to bring Mixamo characters and animations into Unreal.
+- **Look at models and textures before they go into a game.** F3D (FBX, glTF/GLB, OBJ, STL, PLY, 3DS, USD), nomacs
+  (TGA, PSD, DDS, EXR) and ImageMagick are new Game-development apps, kept on the data disk. Double-click a model or
+  texture to open it; agents are told how to render previews into the package's `previews\` folder.
+- **Rust no longer fails with "os error 1392".** Visual Studio's `link.exe` sometimes wrote programs into mapped folders
+  as all zeros, so build scripts and tests failed with "The file or directory is corrupted and unreadable". Rust on the
+  MSVC host now links with Rust's own lld (`rust.linker` "lld", the default; "gnu" keeps `link.exe`).
+- **Claude plugins from your PC reach the sandbox.** A plugins folder over 250 MB was skipped whole; now leftovers of
+  interrupted clones and marketplace backups are left out, then git history, then `node_modules`, before anything is
+  skipped.
+- **Comet installs again.** Its signature is checked against the subject Windows reports today, and its current
+  installer layout (`updater.7z`, `mini_installer.exe` deeper inside) is unpacked.
+- Codex's `tmp\arg0-windows` is cleared at boot (no more stale-arg0 warning on every start); Headroom's log rotates at
+  20 MB; `vulkaninfo` is fetched when a kept Vulkan copy lacks it, with a pinned runtime when LunarG's latest link is
+  missing; the rust-analyzer app comes before rustup's proxy on PATH.
 
 ## 1.25.0
 

@@ -67,4 +67,7 @@ sync (every few minutes, and when the sandbox stops). The next sandboxes start s
 - `logout` deletes the saved one, lets go of its hold, and deletes any copy a sandbox left that your PC has not taken
   yet.
 
+The GitHub token for sandboxes, and the option to use your PC's `gh` login (`github.usePcLogin`), are described in
+[configuration](configuration.md#github-token).
+
 See also [security](security.md#service-sign-ins).

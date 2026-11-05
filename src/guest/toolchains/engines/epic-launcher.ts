@@ -7,12 +7,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { readBoundedFile } from '../../../shared/io/bounded.js';
+import type { PcInstall } from '../../../shared/paths/pc-installs.js';
 import { readValid, writeJsonAtomic } from '../../../shared/io/json.js';
 import { SYSTEM } from '../../../shared/system.js';
 import {
   enginePlaceProblem,
   ENGINE_NEED_BYTES,
   entriesUnder,
+  itemInstallLocation,
+  ITEM_NAME,
   launcherInstalledFile,
   launcherManifestsDir,
   launcherSettingsFiles,
@@ -122,6 +125,23 @@ export function savedEntries(): LauncherEntry[] {
 /** Puts the saved manifests back where the launcher reads them; the engine folders they name. */
 export function restoreLauncherItems(): string[] {
   return restoreItems(SAVED_MANIFESTS, launcherManifestsDir(programData()), ENGINES_DIR, exists);
+}
+
+/**
+ * The manifests of this PC's engines (session.json) where the launcher reads them: without one it drops the engine
+ * from LauncherInstalled.dat when it starts. Only a manifest of the engine's own folder; one of ours is replaced.
+ */
+export function writePcLauncherItems(items: readonly Pick<PcInstall, 'kind' | 'guest' | 'launcherItem'>[]): number {
+  const dir = launcherManifestsDir(programData());
+  let written = 0;
+  for (const i of items) {
+    if (i.kind !== 'unreal' || !i.launcherItem || !ITEM_NAME.test(i.launcherItem.name)) continue;
+    const at = itemInstallLocation(i.launcherItem.text);
+    if (!at || path.win32.resolve(at).toLowerCase() !== path.win32.resolve(i.guest).toLowerCase()) continue;
+    fs.writeFileSync(path.join(mkdirp(dir), i.launcherItem.name), i.launcherItem.text, 'utf8');
+    written++;
+  }
+  return written;
 }
 
 /** Merges these entries into the launcher's LauncherInstalled.dat (foreign entries kept). */

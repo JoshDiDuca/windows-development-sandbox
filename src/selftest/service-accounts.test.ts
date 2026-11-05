@@ -243,6 +243,16 @@ export const serviceAccountsSuite: Suite = {
       fromPc.payloads.epic?.data === SIGN_IN && signIns.info('epic')?.source === 'pc',
       "shared with nothing saved: this PC's own sign-in is taken and saved, as import would",
     );
+    for (const file of epicSettingsFiles(pcLocal)) fs.writeFileSync(file, INI.replace(SIGN_IN, RENEWED));
+    t.check(
+      deliver({ pc: thisPc }).payloads.epic?.data === RENEWED && signIns.read('epic')?.data === RENEWED,
+      "one taken from this PC follows it: the PC's renewed sign-in replaces the stale copy",
+    );
+    signIns.save('epic', { data: SIGN_IN }, 'sandbox');
+    t.check(
+      deliver({ pc: thisPc }).payloads.epic?.data === SIGN_IN && signIns.info('epic')?.source === 'sandbox',
+      'one a sandbox handed back is newer than the PC’s and is kept',
+    );
     signIns.remove('epic');
     t.check(!deliver().payloads.epic, 'without this PC (pc left out) nothing is taken');
     const sharedRun = await f.run({}, config);

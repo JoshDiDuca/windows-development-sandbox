@@ -7,6 +7,7 @@ import type { Config, ResolvedMapping } from '../../core/types.js';
 import { assertSafeMapping } from '../../core/safe-paths.js';
 import { dirExists, errMsg } from '../../core/util/index.js';
 import { pcInstallGuest, type PcInstall, type PcInstallManifest } from '../../shared/paths/index.js';
+import { relocateItem } from '../../shared/unreal/index.js';
 import { pcEnv, type PcEnv } from '../accounts/index.js';
 import { epicInstalls } from './epic.js';
 import type { PcInstallSource } from './source.js';
@@ -105,8 +106,10 @@ export function discoverPcInstalls(s: PcInstalls, o: DiscoverOptions, pc: PcEnv 
           readOnly: !writable,
           label: writable ? 'this PC, writable' : 'this PC, read-only',
         });
-        const { host: _host, ...shown } = install;
-        items.push({ ...shown, guest });
+        const { host: _host, launcherItem, ...shown } = install;
+        // The manifest names the sandbox's folder, or it is left out: no path of this PC goes to the sandbox.
+        const moved = launcherItem ? relocateItem(launcherItem.text, install.host, guest) : null;
+        items.push({ ...shown, guest, ...(moved ? { launcherItem: { name: launcherItem!.name, text: moved } } : {}) });
       } catch (e) {
         notes.push('pcInstalls: ' + install.name + ' is not mapped: ' + errMsg(e));
       }

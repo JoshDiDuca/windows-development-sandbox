@@ -64,17 +64,24 @@ function howToSave(spec: ServiceSpec): string {
     : 'save one: sandbox account import ' + spec.kind + ' --from <file>';
 }
 
-/** The first time a shared kind has nothing saved: this PC's own sign-in, saved like `sandbox account import`. */
-function takeFromPc(kind: ServiceKind, pc: PcEnv | undefined, store: ServiceAccountStore): unknown {
+/**
+ * This PC's own sign-in, saved like `sandbox account import`: when nothing is saved, and when the saved one was taken
+ * from this PC and the PC's has changed since (Epic replaces its token whenever the launcher here renews it, so the
+ * old copy no longer signs in). One a sandbox handed back is newer than the PC's and is kept.
+ */
+function takeFromPc(kind: ServiceKind, pc: PcEnv | undefined, store: ServiceAccountStore, saved: unknown): unknown {
   const source = HOST_SOURCES[kind];
-  if (!pc || !source.fromPc) return null;
+  if (!pc || !source.fromPc) return saved;
+  if (saved && store.info(kind)?.source !== 'pc') return saved;
   let payload: unknown = null;
   try {
     payload = source.fromPc(pc);
   } catch {
-    return null; // This PC's program has no usable sign-in: the note says how to save one.
+    return saved; // This PC's program has no usable sign-in: the saved one (or the note) stands.
   }
-  if (payload) store.save(kind, payload as never, 'pc', source.summary(payload as never));
+  if (!payload) return saved;
+  if (!saved || fingerprint(payload) !== fingerprint(saved))
+    store.save(kind, payload as never, 'pc', source.summary(payload as never));
   return payload;
 }
 
@@ -109,7 +116,7 @@ export function prepareServiceAccounts(i: DeliveryInput): AccountDelivery {
       } catch {
         unreadable = true;
       }
-      if (!payload && !unreadable) payload = takeFromPc(kind, i.pc, store);
+      if (!unreadable) payload = takeFromPc(kind, i.pc, store, payload);
       if (spec.singleHolder) {
         const claim = leases.claim(kind, dataSet, i.launchId, payload ? fingerprint(payload) : null, i.isRunning);
         if (!claim.ok) {

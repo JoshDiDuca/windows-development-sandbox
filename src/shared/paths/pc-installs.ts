@@ -29,6 +29,11 @@ export interface PcInstall {
     readonly artifactId: string;
     readonly appVersion: string;
   };
+  /**
+   * The launcher's manifest of an engine (its Data\Manifests\<name>.item on this PC): without one the sandbox's
+   * launcher drops the engine from its library. Its paths name the sandbox's folder by the time it is in session.json.
+   */
+  readonly launcherItem?: { readonly name: string; readonly text: string };
 }
 
 /** What session.json says about them: no host paths. */

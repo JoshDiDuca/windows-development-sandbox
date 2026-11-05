@@ -38,6 +38,7 @@ import {
   parseEngineAssociation,
   preferredInstalled,
   registryPlan,
+  relocateItem,
   restoreItems,
   saveItems,
   setLauncherInstallLocation,
@@ -721,6 +722,34 @@ export const enginesSuite: Suite = {
       [['dir-UnrealEngine', true]],
       'a registered folder is mapped writable; one without an engine is left out',
     );
+    const pcManifests = t.dir('pc-pcManifests');
+    const itemText = JSON.stringify({
+      AppName: 'UE_5.4',
+      InstallLocation: pcLauncher.replace(/\\/g, '/'),
+      ManifestLocation: pcLauncher + '/.egstore',
+      StagingLocation: 'D:\\Elsewhere\\bps',
+      InstallSize: 123,
+    });
+    fs.writeFileSync(path.join(pcManifests, 'ABCDEF0123.item'), itemText);
+    fs.writeFileSync(path.join(pcManifests, 'notes.txt'), 'not a manifest');
+    const pcRegistered = findEngineFolders(
+      { read: DISK.read, builds: '', launcherInstalled: dat, manifests: pcManifests, list: DISK.list },
+      [pcLauncher],
+    )[0];
+    t.check(
+      pcRegistered?.launcher?.itemId === 'item54' && pcRegistered.launcherItem?.name === 'ABCDEF0123.item',
+      'a pcRegistered folder the launcher installed keeps its ids and its manifest',
+    );
+    const moved = relocateItem(itemText, pcLauncher, 'C:\\PcInstalls\\unreal\\dir-UE_5.4');
+    const movedItem = JSON.parse(moved ?? '{}') as Record<string, unknown>;
+    t.check(
+      movedItem.InstallLocation === 'C:\\PcInstalls\\unreal\\dir-UE_5.4' &&
+        movedItem.ManifestLocation === 'C:\\PcInstalls\\unreal\\dir-UE_5.4\\.egstore' &&
+        !('StagingLocation' in movedItem) &&
+        movedItem.InstallSize === 123,
+      "the manifest names the sandbox's folder; a path elsewhere on this PC is dropped",
+    );
+    t.equal(relocateItem(itemText, path.join(pcRoot, 'other'), 'C:\\x'), null, 'a manifest of another folder: none');
     t.equal(
       findEpicGames(dat, true).map((g) => g.id),
       ['Fortnite'],

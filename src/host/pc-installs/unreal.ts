@@ -13,8 +13,11 @@ import type { PcInstall } from '../../shared/paths/index.js';
 import { SYSTEM } from '../../shared/system.js';
 import {
   BUILDS_KEY,
+  itemInstallLocation,
+  ITEM_NAME,
   launcherInstallations,
   launcherInstalledFile,
+  launcherManifestsDir,
   MAX_LAUNCHER_FILE_BYTES,
   parseBuildVersion,
   versionText,
@@ -38,6 +41,8 @@ export interface UnrealPcFiles {
   readonly defaultRoot: string;
   /** More folders that may hold UE_x.y folders: the same places on every drive (D:\Program Files\Epic Games ...). */
   readonly otherRoots?: readonly string[];
+  /** The launcher's Data\Manifests folder (its .item files), or none. */
+  readonly manifests?: string;
   readonly list: (dir: string) => string[];
   readonly read: (file: string, max: number) => Buffer | null;
 }
@@ -57,6 +62,37 @@ const versionOf = (dir: string, files: Pick<UnrealPcFiles, 'read'>): BuildVersio
   const bytes = files.read(win.join(dir, 'Engine', 'Build', 'Build.version'), 64 * 1024);
   return bytes ? parseBuildVersion(bytes.toString('utf8')) : null;
 };
+
+/** At most this much of a manifest goes into session.json (an engine's is a few KB). */
+const MAX_ITEM_BYTES = 64 * 1024;
+
+/** The launcher's manifest of the app in `dir` (with this PC's paths), or nothing. */
+function launcherItemOf(
+  dir: string,
+  files: Pick<UnrealPcFiles, 'manifests' | 'list' | 'read'>,
+): { launcherItem?: PcInstall['launcherItem'] } {
+  if (!files.manifests) return {};
+  const want = win.resolve(dir).toLowerCase();
+  for (const name of files.list(files.manifests).filter((n) => ITEM_NAME.test(n))) {
+    const bytes = files.read(win.join(files.manifests, name), MAX_ITEM_BYTES);
+    const at = bytes ? itemInstallLocation(bytes.toString('utf8')) : null;
+    if (bytes && at && win.resolve(at).toLowerCase() === want)
+      return { launcherItem: { name, text: bytes.toString('utf8') } };
+  }
+  return {};
+}
+
+/** The launcher's ids for the app in `dir` (from LauncherInstalled.dat), or nothing. */
+function launcherIdsOf(
+  dir: string,
+  files: Pick<UnrealPcFiles, 'launcherInstalled'>,
+): { launcher?: PcInstall['launcher'] } {
+  const want = win.resolve(dir).toLowerCase();
+  const entry = (files.launcherInstalled ? launcherInstallations(files.launcherInstalled) : []).find(
+    (i) => APP_NAME.test(i.appName) && i.ids && win.resolve(i.installLocation).toLowerCase() === want,
+  );
+  return entry?.ids ? { launcher: entry.ids } : {};
+}
 
 const isWanted = (wanted: true | readonly (string | number)[], v: BuildVersion): boolean =>
   wanted === true || wanted.map((w) => String(w).replace(/^UE_/i, '')).includes(v.major + '.' + v.minor);
@@ -81,6 +117,7 @@ export function findUnrealInstalls(files: UnrealPcFiles, wanted: true | readonly
       host: win.normalize(dir),
       guest: '',
       ...(ids ? { launcher: ids } : {}),
+      ...launcherItemOf(dir, files),
     });
   };
   const listed = files.launcherInstalled ? launcherInstallations(files.launcherInstalled) : [];
@@ -124,7 +161,8 @@ export function pcSourceBuilds(files: Pick<UnrealPcFiles, 'read' | 'builds'>): P
 /** The engine folders you registered (pcInstalls.unrealEngineFolders), mapped writable. A folder that is a source
  * build of this PC keeps the PC's build id. */
 export function findEngineFolders(
-  files: Pick<UnrealPcFiles, 'read' | 'builds'>,
+  files: Pick<UnrealPcFiles, 'read' | 'builds'> &
+    Partial<Pick<UnrealPcFiles, 'launcherInstalled' | 'manifests' | 'list'>>,
   folders: readonly (string | number)[],
 ): PcInstall[] {
   const found: PcInstall[] = [];
@@ -151,6 +189,9 @@ export function findEngineFolders(
       guest: '',
       writable: true,
       ...(source ? { buildId: source.buildId } : {}),
+      // An engine the launcher installed keeps its ids and manifest, so the sandbox's launcher lists it too.
+      ...launcherIdsOf(dir, { launcherInstalled: files.launcherInstalled ?? null }),
+      ...(files.list ? launcherItemOf(dir, { manifests: files.manifests, list: files.list, read: files.read }) : {}),
     });
   }
   return found;
@@ -181,6 +222,7 @@ export function unrealPcFiles(pc: PcEnv): UnrealPcFiles {
       win.join(d, 'Program Files', 'Epic Games'),
       win.join(d, 'Epic Games'),
     ]),
+    manifests: launcherManifestsDir(pc.programData),
     list: listDir,
     read: readBoundedFile,
   };

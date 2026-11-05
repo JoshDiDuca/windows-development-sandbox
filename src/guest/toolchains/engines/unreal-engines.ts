@@ -43,7 +43,7 @@ import { session } from '../../runtime/session.js';
 import { setUnrealMcp, writeAddonMcpServers } from '../../setup/addon-mcp.js';
 import type { ToolCtx } from '../step.js';
 import type { ToolEnv } from '../tool-env.js';
-import { saveLauncherState, savedEntries, writeLauncherEntries } from './epic-launcher.js';
+import { saveLauncherState, savedEntries, writeLauncherEntries, writePcLauncherItems } from './epic-launcher.js';
 import { DDC_DIR, ENGINES_DIR, SAVED_DIR, updateUnrealStatus } from './unreal-status.js';
 
 const SAVED_MANIFESTS = path.join(SAVED_DIR, 'Manifests');
@@ -120,6 +120,7 @@ export async function registerEngines(
   ];
   if (values.length) await runScriptWithJsonAsync('set-registry-values.ps1', 'PlanFile', { values });
   try {
+    writePcLauncherItems(ctx.pcInstalls.items);
     writeLauncherEntries(launcherEntries(engines, ctx));
   } catch (e) {
     warn("Unreal: the Epic Games Launcher's LauncherInstalled.dat was left as it is (" + errMsg(e) + ')');

@@ -239,6 +239,36 @@ export function itemSizes(saved: string): Map<string, number> {
   return sizes;
 }
 
+/** A launcher manifest's file name (<hex id>.item). */
+export const ITEM_NAME = /^[A-Za-z0-9_-]{1,80}\.item$/;
+
+/**
+ * A launcher manifest moved from folder `from` to `to`: every path in it under `from` (either slash) is under `to`, and
+ * a path elsewhere is dropped (it would only name this PC). Null when the text is not a manifest of `from`.
+ */
+export function relocateItem(text: string, from: string, to: string): string | null {
+  let item: unknown;
+  try {
+    item = JSON.parse(stripBom(text));
+  } catch {
+    return null; // Not JSON: not a manifest.
+  }
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const base = win.resolve(from).toLowerCase();
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(item)) {
+    if (typeof value !== 'string' || !win.isAbsolute(value)) {
+      out[key] = value;
+      continue;
+    }
+    const full = win.resolve(value);
+    const low = full.toLowerCase();
+    if (low === base || low.startsWith(base + '\\')) out[key] = to + full.slice(base.length);
+  }
+  const at = typeof out.InstallLocation === 'string' ? out.InstallLocation : '';
+  return at.toLowerCase() === to.toLowerCase() ? JSON.stringify(out, null, '\t') : null;
+}
+
 /** Whether the text is a launcher manifest of an app installed under `root`. */
 export function isItemUnder(text: string, root: string): boolean {
   const at = itemInstallLocation(text);
@@ -247,7 +277,7 @@ export function isItemUnder(text: string, root: string): boolean {
 
 function itemFiles(dir: string): string[] {
   try {
-    return fs.readdirSync(dir).filter((f) => /^[A-Za-z0-9_-]{1,80}\.item$/.test(f));
+    return fs.readdirSync(dir).filter((f) => ITEM_NAME.test(f));
   } catch {
     return [];
   }

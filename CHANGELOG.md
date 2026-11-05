@@ -7,6 +7,16 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.27.3
+
+- **The Epic Games Launcher in the sandbox lists your engine.** It drops an engine from its library when it has no
+  manifest for it, so a mapped engine showed as not installed. Each engine of your PC now brings the launcher's own
+  manifest (its `.item`, with the paths moved to the sandbox's folder, nothing else of your PC in it) and its ids, also
+  for a folder you registered.
+- **The Epic sign-in follows your PC.** Epic replaces its token whenever the launcher renews it, so a copy taken from
+  your PC earlier stopped signing in (the launcher only remembered your email). When the saved sign-in came from your
+  PC and the PC's has changed, the launch takes the new one; one a sandbox handed back is newer and is kept.
+
 ## 1.27.2
 
 - **Pages update after you change something.** The menu and the web UI read your settings once at start, so turning on

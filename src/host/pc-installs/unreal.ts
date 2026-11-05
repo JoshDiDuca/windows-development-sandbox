@@ -1,6 +1,7 @@
 // Unreal Engine versions of this PC (pcInstalls.unrealEngines): the launcher's LauncherInstalled.dat (engines it
-// installed, with its own ids) and the launcher's default folders (<Program Files>\Epic Games\UE_*, for an install
-// whose LauncherInstalled.dat is gone). Each must hold Engine\Build\Build.version; it is mapped read-only at
+// installed, with its own ids) and folders named UE_x.y in the launcher's default places on every drive
+// (<drive>\Program Files\Epic Games, <drive>\Epic Games) and next to what it lists (an install whose entry is gone).
+// Each must hold Engine\Build\Build.version; it is mapped read-only at
 // C:\PcInstalls\unreal\UE_5.4. Source builds (HKCU\Software\Epic Games\Unreal Engine\Builds) are NOT mapped by
 // themselves, as UBT writes inside an engine. pcInstalls.unrealEngineFolders: folders you registered, mapped writable
 // (dir-<name>; a source build of this PC keeps its build id). Every file is read bounded.
@@ -35,6 +36,8 @@ export interface UnrealPcFiles {
   readonly builds: string;
   /** The launcher's default engines folder (<Program Files>\Epic Games). */
   readonly defaultRoot: string;
+  /** More folders that may hold UE_x.y folders: the same places on every drive (D:\Program Files\Epic Games ...). */
+  readonly otherRoots?: readonly string[];
   readonly list: (dir: string) => string[];
   readonly read: (file: string, max: number) => Buffer | null;
 }
@@ -80,13 +83,22 @@ export function findUnrealInstalls(files: UnrealPcFiles, wanted: true | readonly
       ...(ids ? { launcher: ids } : {}),
     });
   };
-  for (const i of files.launcherInstalled ? launcherInstallations(files.launcherInstalled) : [])
-    if (APP_NAME.test(i.appName)) installed(i.installLocation, i.ids ?? undefined);
-  for (const name of files
-    .list(files.defaultRoot)
-    .filter((n) => APP_NAME.test(n))
-    .sort())
-    installed(win.join(files.defaultRoot, name));
+  const listed = files.launcherInstalled ? launcherInstallations(files.launcherInstalled) : [];
+  for (const i of listed) if (APP_NAME.test(i.appName)) installed(i.installLocation, i.ids ?? undefined);
+  // Folders named like an engine: the default places, and the folders that hold what the launcher installed (an
+  // engine whose entry is gone often sits next to one that is listed, or next to a game).
+  const roots = [files.defaultRoot, ...(files.otherRoots ?? []), ...listed.map((i) => win.dirname(i.installLocation))];
+  const seen = new Set<string>();
+  for (const root of roots) {
+    const key = win.resolve(root).toLowerCase();
+    if (seen.has(key) || seen.size >= 32) continue;
+    seen.add(key);
+    for (const name of files
+      .list(root)
+      .filter((n) => APP_NAME.test(n))
+      .sort())
+      installed(win.join(root, name));
+  }
   return found;
 }
 
@@ -165,6 +177,10 @@ export function unrealPcFiles(pc: PcEnv): UnrealPcFiles {
     launcherInstalled: dat ? dat.toString('utf8') : null,
     builds: query.status === 0 ? String(query.stdout ?? '') : '',
     defaultRoot: win.join(pc.programFiles ?? 'C:\\Program Files', 'Epic Games'),
+    otherRoots: (pc.drives?.() ?? []).flatMap((d) => [
+      win.join(d, 'Program Files', 'Epic Games'),
+      win.join(d, 'Epic Games'),
+    ]),
     list: listDir,
     read: readBoundedFile,
   };

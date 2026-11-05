@@ -37,6 +37,7 @@ import { AccountWatch } from '../guest/accounts/watch.js';
 import { epicAdapter } from '../guest/accounts/kinds/epic.js';
 import {
   epicSettingsFile,
+  epicSettingsFiles,
   fingerprint,
   readEpicLogin,
   SERVICE_KINDS,
@@ -228,6 +229,20 @@ export const serviceAccountsSuite: Suite = {
       !first.payloads.epic && first.leased.includes('epic') && launchLeases.holder('epic')?.launchId === 'L-boot',
       'nothing saved yet: the lease is claimed anyway, so a first sign-in made there can come back',
     );
+    const pcLocal = t.dir('svc-pc-local');
+    for (const file of epicSettingsFiles(pcLocal)) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, INI);
+    }
+    const thisPc = { localAppData: pcLocal, appData: t.dir('svc-pc-roaming'), programData: t.dir('svc-pc-data') };
+    signIns.remove('epic');
+    const fromPc = deliver({ pc: thisPc });
+    t.check(
+      fromPc.payloads.epic?.data === SIGN_IN && signIns.info('epic')?.source === 'pc',
+      "shared with nothing saved: this PC's own sign-in is taken and saved, as import would",
+    );
+    signIns.remove('epic');
+    t.check(!deliver().payloads.epic, 'without this PC (pc left out) nothing is taken');
     const sharedRun = await f.run({}, config);
     const launched = generateSandbox({
       packageRoot: t.packageRoot,

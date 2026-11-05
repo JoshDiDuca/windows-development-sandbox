@@ -466,6 +466,7 @@ export const enginesSuite: Suite = {
       projects: [{ workspace: 'C:\\Projects\\Work\\MyGame', engine: pcEngine, reason: 'the project asks for 5.4' }],
       launcher: {
         installed: true,
+        exe: null,
         installLocation: enginesRoot,
         problem: null,
         freeBytes: null,
@@ -628,6 +629,14 @@ export const enginesSuite: Suite = {
           AppVersion: 'v',
           AppName: 'UE_5.3',
         },
+        {
+          InstallLocation: pcLauncher,
+          NamespaceId: 'ue',
+          ItemId: 'fab',
+          ArtifactId: 'FabPlugin_5.4',
+          AppVersion: '5.4.4-1+++UE5+Release-5.4-0.0.21',
+          AppName: 'FabPlugin_5.4',
+        },
       ],
     });
     const reg =
@@ -669,6 +678,39 @@ export const enginesSuite: Suite = {
       ['UE_5.4', 'UE_5.6'],
       'no LauncherInstalled.dat: the default folders',
     );
+    const otherDrive = makeEngine(path.join(pcRoot, 'F', 'Program Files', 'Epic Games', 'UE_5.8'), [5, 8, 0], true);
+    t.equal(
+      findUnrealInstalls(
+        {
+          ...files,
+          launcherInstalled: null,
+          defaultRoot: path.join(pcRoot, 'none'),
+          otherRoots: [path.join(pcRoot, 'F', 'Program Files', 'Epic Games')],
+        },
+        true,
+      ).map((i) => i.host),
+      [otherDrive],
+      'an engine in the default place on another drive is found',
+    );
+    const nextTo = JSON.stringify({
+      InstallationList: [
+        {
+          InstallLocation: path.join(pcRoot, 'F', 'Program Files', 'Epic Games', 'SomeGame'),
+          NamespaceId: 'fn',
+          ItemId: 'g',
+          ArtifactId: 'SomeGame',
+          AppVersion: '1',
+          AppName: 'SomeGame',
+        },
+      ],
+    });
+    t.equal(
+      findUnrealInstalls({ ...files, launcherInstalled: nextTo, defaultRoot: path.join(pcRoot, 'none') }, true).map(
+        (i) => i.id,
+      ),
+      ['UE_5.8'],
+      'and one next to what the launcher lists',
+    );
     const folders = findEngineFolders({ read: DISK.read, builds: reg }, [
       pcSource,
       path.join(pcRoot, 'nothing'),
@@ -682,7 +724,7 @@ export const enginesSuite: Suite = {
     t.equal(
       findEpicGames(dat, true).map((g) => g.id),
       ['Fortnite'],
-      "the launcher's games are the epic-game installs (engines are not)",
+      "the launcher's games are the epic-game installs (engines and the Fab plugin in one are not)",
     );
     t.equal(findEpicGames(dat, ['nothing']), [], 'a list maps only those games');
     t.check(engineFolderProblem(pcSource, DISK.read) === null, 'Register an engine folder accepts an engine folder');

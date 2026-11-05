@@ -1,7 +1,8 @@
 // Which saved service sign-ins a launch hands to its sandbox: only kinds you share (accounts.<kind>.share), that a
 // toolchain (or app) on for this boot uses, and that no other project in the boot turned off. A one-holder kind (Epic,
 // Steam, Unity) also needs its lease, and a kind several sandboxes share that comes back (Comet) gets one of its own;
-// the lease is claimed even when nothing is saved yet, so a first sign-in made in the sandbox can come back. What a
+// the lease is claimed even when nothing is saved yet, so a first sign-in made in the sandbox can come back. With
+// nothing saved, this PC's own sign-in (Epic launcher, Unity licence, SteamCMD, ...) is taken and saved once. What a
 // sandbox left behind earlier is taken first, so the newest one travels. The payloads are returned for
 // generateSandbox's one-shot file only; the notes never hold a secret.
 import type { BootWant } from '../../core/local-config/index.js';
@@ -19,6 +20,8 @@ import {
 import { setNameOf } from '../storage/index.js';
 import { takeHandoffs } from './handoff.js';
 import { AccountLeases } from './leases.js';
+import type { PcEnv } from './source.js';
+import { HOST_SOURCES } from './sources.js';
 import { ServiceAccountStore } from './store.js';
 
 export interface AccountDelivery {
@@ -41,6 +44,8 @@ export interface DeliveryInput {
   readonly isRunning: (dataSet: string) => boolean;
   readonly store?: ServiceAccountStore;
   readonly leases?: AccountLeases;
+  /** This PC's folders: a shared kind with nothing saved takes this PC's own sign-in (left out: never). */
+  readonly pc?: PcEnv;
 }
 
 /** How to get a first sign-in of a kind, for the note when none is saved. */
@@ -57,6 +62,20 @@ function howToSave(spec: ServiceSpec): string {
   return spec.sources.includes('typed')
     ? 'save one: sandbox account login ' + spec.kind
     : 'save one: sandbox account import ' + spec.kind + ' --from <file>';
+}
+
+/** The first time a shared kind has nothing saved: this PC's own sign-in, saved like `sandbox account import`. */
+function takeFromPc(kind: ServiceKind, pc: PcEnv | undefined, store: ServiceAccountStore): unknown {
+  const source = HOST_SOURCES[kind];
+  if (!pc || !source.fromPc) return null;
+  let payload: unknown = null;
+  try {
+    payload = source.fromPc(pc);
+  } catch {
+    return null; // This PC's program has no usable sign-in: the note says how to save one.
+  }
+  if (payload) store.save(kind, payload as never, 'pc', source.summary(payload as never));
+  return payload;
 }
 
 export function prepareServiceAccounts(i: DeliveryInput): AccountDelivery {
@@ -90,6 +109,7 @@ export function prepareServiceAccounts(i: DeliveryInput): AccountDelivery {
       } catch {
         unreadable = true;
       }
+      if (!payload && !unreadable) payload = takeFromPc(kind, i.pc, store);
       if (spec.singleHolder) {
         const claim = leases.claim(kind, dataSet, i.launchId, payload ? fingerprint(payload) : null, i.isRunning);
         if (!claim.ok) {

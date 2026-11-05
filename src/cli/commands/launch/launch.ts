@@ -23,7 +23,7 @@ import { findSecretFiles } from '../../../host/profile/index.js';
 import { RepoGuardStore } from '../../../host/guard/index.js';
 import { hostPublicIp, prepareVpn, readVpnLine, vpnNotes } from '../../../host/vpn/index.js';
 import { prepareGithubToken } from '../../../host/github/index.js';
-import { prepareServiceAccounts } from '../../../host/accounts/index.js';
+import { pcEnv, prepareServiceAccounts } from '../../../host/accounts/index.js';
 import { prepareStorePackages } from '../../../host/apps/index.js';
 import { storeApps } from '../../../shared/apps/index.js';
 import { discoverPcInstalls } from '../../../host/pc-installs/index.js';
@@ -255,6 +255,7 @@ class Launcher {
           launchId,
           // A new launch needs no sandbox running, so a lease held elsewhere is from one that stopped.
           isRunning: () => isSandboxRunning(),
+          pc: pcEnv(),
         });
     // Store apps (apps.install): their packages are fetched with this PC's own Store tooling.
     const store = generateOnly

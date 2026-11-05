@@ -37,6 +37,8 @@ export const UnrealStatusSchema = z.object({
     .max(64),
   launcher: z.object({
     installed: z.boolean(),
+    /** Its program (Program Files or Program Files (x86), by launcher version); null when there is none. */
+    exe: Text().nullable().default(null),
     /** Where the launcher installs engines; null when it could not be set. */
     installLocation: Text().nullable(),
     /** Why engines would not go to the data disk (shown loudly), null when they do. */

@@ -3,6 +3,7 @@
 // One module per kind under kinds/; sources.ts lists them.
 import { spawnSync } from 'node:child_process';
 import type { Payload, ServiceKind } from '../../shared/accounts/index.js';
+import { diskUsage } from '../../core/disk.js';
 import { fail } from '../../core/util/index.js';
 import { SYSTEM } from '../../shared/system.js';
 import { refuseInSelfTest } from '../test-guard.js';
@@ -19,6 +20,8 @@ export interface PcEnv {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** A variable of this Windows user's saved environment (HKCU\Environment), or null when it is not set. */
   readonly userVariable?: (name: string) => string | null;
+  /** This PC's local drives ("D:\\"), asked only by the searches that look on every drive. */
+  readonly drives?: () => readonly string[];
 }
 
 /** The value of `name` in `reg query <key> /v <name>` output, or null. */
@@ -62,6 +65,7 @@ export function pcEnv(): PcEnv {
     programFiles: env.ProgramFiles ?? 'C:\\Program Files',
     env,
     userVariable: savedUserVariable,
+    drives: () => diskUsage(env.ProgramData ?? 'C:\\').map((d) => d.drive),
   };
 }
 

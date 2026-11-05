@@ -39,13 +39,17 @@ const SAVED_ENTRIES = path.join(SAVED_DIR, 'LauncherInstalled.json');
 const programData = (): string => process.env.ProgramData ?? 'C:\\ProgramData';
 const localAppData = (): string => process.env.LOCALAPPDATA ?? '';
 
-/** The launcher's program (launcher 17+ is 64-bit; older ones were in Win32). */
+/** The launcher's program: newer MSIs install into Program Files, older ones into Program Files (x86). */
 export function launcherExe(): string | null {
-  const root = path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Epic Games', 'Launcher');
-  for (const arch of ['Win64', 'Win32']) {
-    const exe = path.join(root, 'Portal', 'Binaries', arch, 'EpicGamesLauncher.exe');
-    if (exists(exe)) return exe;
-  }
+  const roots = [
+    process.env.ProgramFiles ?? 'C:\\Program Files',
+    process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
+  ];
+  for (const root of roots)
+    for (const arch of ['Win64', 'Win32']) {
+      const exe = path.join(root, 'Epic Games', 'Launcher', 'Portal', 'Binaries', arch, 'EpicGamesLauncher.exe');
+      if (exists(exe)) return exe;
+    }
   return null;
 }
 

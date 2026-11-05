@@ -15,6 +15,8 @@ export function findEpicGames(text: string | null, wanted: true | readonly (stri
   const found: PcInstall[] = [];
   for (const i of text ? launcherInstallations(text) : []) {
     if (!APP.test(i.appName) || /^\.+$/.test(i.appName) || /^UE_\d/.test(i.appName)) continue;
+    // Engines and what the launcher puts into one (the Fab plugin lists the engine's folder) are unreal.ts's.
+    if (i.ids?.namespaceId.toLowerCase() === 'ue' || /^UE_\d/i.test(path.win32.basename(i.installLocation))) continue;
     if (names && !names.has(i.appName.toLowerCase())) continue;
     if (found.some((f) => f.id.toLowerCase() === i.appName.toLowerCase())) continue;
     found.push({

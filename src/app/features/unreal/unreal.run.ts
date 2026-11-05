@@ -39,7 +39,11 @@ import {
 
 const win = path.win32;
 /** The launcher the sandbox installs (the 64-bit one of launcher 17 and later). */
-const GUEST_LAUNCHER = 'C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe';
+/** Where the launcher installs in the sandbox: Program Files for newer launchers, (x86) for older ones. */
+const GUEST_LAUNCHERS = [
+  'C:\\Program Files\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe',
+  'C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe',
+] as const;
 const MAX_PACKS_SHOWN = 40;
 
 const s = (text: string): string => safeText(text);
@@ -235,14 +239,19 @@ export const openEpicLauncherRun = implement(openEpicLauncher, async (ctx, _inpu
     fail('No sandbox is running.', 'Start one for a project with a .uproject; the launcher opens in its window.');
   const status = new RunDir(ctx.dataPath).readSandboxStatus();
   if (status?.phase !== 'ready') fail('The sandbox is not ready yet.', 'Try again in a moment.');
-  if (!readStatus(ctx.dataPath)?.launcher.installed)
+  const launcher = readStatus(ctx.dataPath)?.launcher;
+  if (!launcher?.installed)
     fail(
       'The Epic Games Launcher is not installed in this sandbox.',
       'It is installed when the sandbox is set up for Unreal with the licence accepted (Unreal set-up settings).',
     );
   io.progress('Opening the Epic Games Launcher in the sandbox…');
   const result = await new SandboxChannel(ctx.dataPath).exec(
-    ['C:\\Windows\\explorer.exe', GUEST_LAUNCHER],
+    // The guest's status only picks one of the known paths.
+    [
+      'C:\\Windows\\explorer.exe',
+      GUEST_LAUNCHERS.find((p) => p.toLowerCase() === launcher.exe?.toLowerCase()) ?? GUEST_LAUNCHERS[0],
+    ],
     status.guestWorkspace ?? 'C:\\',
     30,
   );

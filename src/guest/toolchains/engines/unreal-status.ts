@@ -20,7 +20,7 @@ const EMPTY: UnrealStatus = {
   updatedAt: '',
   engines: [],
   projects: [],
-  launcher: { installed: false, installLocation: null, problem: null, freeBytes: null, needBytes: 0 },
+  launcher: { installed: false, exe: null, installLocation: null, problem: null, freeBytes: null, needBytes: 0 },
   visualStudio: { version: '', path: '', how: '', check: '', ok: false },
   debugger: null,
   ddc: { mode: 'local', dir: null },

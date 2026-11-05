@@ -21,12 +21,13 @@ export type PcInstalls = Config['pcInstalls'];
 /** At most this many installs are mapped (each one is a mapping in the .wsb). */
 export const MAX_PC_INSTALLS = 40;
 
+// Engines first: a folder is mapped once, as the first source that finds it.
 export const PC_INSTALL_SOURCES: readonly PcInstallSource[] = [
-  steamInstalls,
-  epicInstalls,
   unrealFolders,
   unrealInstalls,
   unrealVault,
+  steamInstalls,
+  epicInstalls,
   unityInstalls,
   unityAssets,
 ];

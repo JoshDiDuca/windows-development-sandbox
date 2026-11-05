@@ -22,7 +22,7 @@ function statusWith(version: string): UnrealStatus {
       },
     ],
     projects: [{ workspace: PROJECT.workspace, engine: 'C:\\E', reason: 'test' }],
-    launcher: { installed: false, installLocation: null, problem: null, freeBytes: null, needBytes: 1 },
+    launcher: { installed: false, exe: null, installLocation: null, problem: null, freeBytes: null, needBytes: 1 },
     visualStudio: { version: '17.14', path: 'C:/VS', how: 'kept', check: 'ok', ok: true },
     debugger: null,
     ddc: { mode: 'persisted', dir: null },

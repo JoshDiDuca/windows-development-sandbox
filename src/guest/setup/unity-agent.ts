@@ -18,7 +18,10 @@ export interface UnityAgentInput {
 async function syncSkills(unityExe: string, agent: 'claude' | 'codex'): Promise<boolean> {
   const home = agent === 'claude' ? { CLAUDE_CONFIG_DIR: claudeDir } : { CODEX_HOME: path.join(stateDir, 'codex') };
   try {
-    await execAsync(unityExe, ['skill', 'sync', agent], { env: { ...process.env, ...UNITY_CLI_ENV, ...home } });
+    // The Unity CLI's client names: claude-code, codex.
+    await execAsync(unityExe, ['skill', 'sync', agent === 'claude' ? 'claude-code' : 'codex'], {
+      env: { ...process.env, ...UNITY_CLI_ENV, ...home },
+    });
     return true;
   } catch (e) {
     warn('Unity skills for ' + agent + ' were not synced: ' + (e instanceof Error ? e.message : String(e)));

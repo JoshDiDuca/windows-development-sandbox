@@ -1,4 +1,5 @@
-// Unity editors of this PC (pcInstalls.unityEditors): Unity Hub's default folder (<Program Files>\Unity\Hub\Editor),
+// Unity editors of this PC (pcInstalls.unityEditors): Unity Hub's default folder on every drive
+// (<drive>\Program Files\Unity\Hub\Editor, <drive>\Unity\Hub\Editor),
 // the folder named by %APPDATA%\UnityHub\secondaryInstallPath.json and the editors in editors-v2.json. An editor counts
 // only with Editor\Unity.exe; its folder is mapped read-only at C:\PcInstalls\unity\<version>. Every file is read
 // bounded and every name is checked: what Hub wrote is data, never trusted.
@@ -26,6 +27,8 @@ export interface UnityPcFiles {
   list(dir: string): string[];
   readonly appData: string;
   readonly programFiles: string;
+  /** Hub's folder on every other drive (D:\Program Files\Unity\Hub\Editor, D:\Unity\Hub\Editor ...). */
+  readonly otherHubFolders?: readonly string[];
 }
 
 const EditorsFileSchema = z.union([
@@ -88,10 +91,12 @@ function listedEditors(files: UnityPcFiles): Candidate[] {
 /** The editors of this PC: all of them (true) or the listed versions. Each version once, each folder once. */
 export function findUnityEditorsOnPc(files: UnityPcFiles, wanted: true | readonly string[]): PcInstall[] {
   const candidates: Candidate[] = [];
-  const hubFolders = [win.join(files.programFiles, 'Unity', 'Hub', 'Editor'), secondaryRoot(files)].filter(
-    (d): d is string => d !== null,
-  );
-  for (const folder of hubFolders)
+  const hubFolders = [
+    win.join(files.programFiles, 'Unity', 'Hub', 'Editor'),
+    secondaryRoot(files),
+    ...(files.otherHubFolders ?? []),
+  ].filter((d): d is string => d !== null);
+  for (const folder of new Set(hubFolders.map((d) => win.resolve(d))))
     for (const name of files.list(folder).slice(0, MAX_LISTED).sort())
       if (UNITY_VERSION.test(name)) candidates.push({ version: name, root: win.join(folder, name) });
   candidates.push(...listedEditors(files));
@@ -144,6 +149,10 @@ export function unityPcFiles(pc: PcEnv): UnityPcFiles {
     list: listDir,
     appData: pc.appData,
     programFiles: pc.programFiles ?? 'C:\\Program Files',
+    otherHubFolders: (pc.drives?.() ?? []).flatMap((d) => [
+      win.join(d, 'Program Files', 'Unity', 'Hub', 'Editor'),
+      win.join(d, 'Unity', 'Hub', 'Editor'),
+    ]),
   };
 }
 

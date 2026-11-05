@@ -45,6 +45,11 @@ the Unity sign-in to sandboxes with Unity, the keystore to sandboxes that build 
 `.sandbox-config.json` can turn sharing off for itself, never on. When a sandbox starts with several projects and one of
 them turns it off, the sandbox does not get it.
 
+**Turning sharing on is enough for the ones on your PC.** When a shared service has nothing saved yet, the next launch
+takes your PC's own sign-in and saves it, as `import` would: the Epic Games Launcher's, Unity's licence file, SteamCMD's
+login and your `PERPLEXITY_API_KEY`. Comet and the Perplexity desktop app can't be copied from your PC: sign in once in
+a sandbox.
+
 **The agent in the sandbox can use every sign-in it gets.** Share only what you would let the agent use.
 
 ## One sandbox at a time

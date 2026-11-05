@@ -119,6 +119,7 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], _c
     ...s,
     launcher: {
       installed: launcher !== null,
+      exe: launcher,
       installLocation: place.installLocation,
       problem: place.problem,
       freeBytes: place.freeBytes,

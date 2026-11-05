@@ -10,7 +10,7 @@ import { installedCometExe } from '../browser/comet.js';
 import { execAsync } from '../runtime/process.js';
 import { heavy } from '../../shared/concurrency/index.js';
 import { mkdirp } from '../runtime/fs.js';
-import { signedBy } from '../toolchains/signature.js';
+import { signedByAsync } from '../toolchains/signature.js';
 
 /** The archives inside, last stage first: the first one found is opened next. */
 const INNER: readonly RegExp[] = [
@@ -125,7 +125,7 @@ export async function installFromKept(dest: string, signer: AppSigner, what: str
   if (!installer) return null;
   const installed = installedCometExe();
   if (fs.existsSync(installed)) return installed;
-  if (!signedBy(installer, signer)) {
+  if (!(await signedByAsync(installer, signer))) {
     fs.rmSync(path.join(dest, '.agent-sandbox-app'), { force: true });
     fs.rmSync(installer, { force: true });
     throw new Error(what + "'s installer is not signed by its vendor; deleted it (it is downloaded again next boot)");

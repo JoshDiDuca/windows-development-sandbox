@@ -41,13 +41,16 @@ export function extractArchive(archive: string, destination: string, members: st
 
 async function extract(archive: string, destination: string, members: string[]): Promise<void> {
   fs.mkdirSync(destination, { recursive: true });
-  let status = await spawnAsync(SYSTEM.tar(), ['-xf', archive, '-C', destination, ...members]);
+  let status = await spawnAsync(SYSTEM.tar(), ['-xf', archive, '-C', destination, ...members], {
+    lowPriority: true,
+  });
   if (status !== 0 && /\.(zip|nupkg)$/i.test(archive)) {
     const zip = archive.endsWith('.zip') ? archive : archive + '.zip';
     if (zip !== archive) fs.copyFileSync(archive, zip);
     status = await spawnAsync(
       SYSTEM.powershell(),
       scriptArgs('expand-archive.ps1', ['-Archive', zip, '-Destination', destination]),
+      { lowPriority: true },
     );
   }
   if (status !== 0) throw new Error('Could not extract ' + archive);

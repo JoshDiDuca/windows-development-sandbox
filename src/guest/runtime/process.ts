@@ -1,8 +1,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync, type SpawnOptions, type SpawnSyncOptions } from 'node:child_process';
-import { moveIntoPlace, spawnAsync, stagingFolder } from '../../shared/download/index.js';
+import { spawn, spawnSync, type SpawnSyncOptions } from 'node:child_process';
+import {
+  lowerPriority,
+  moveIntoPlace,
+  spawnAsync,
+  stagingFolder,
+  type SpawnAsyncOptions,
+} from '../../shared/download/index.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
 import { robocopyErrors, robocopyFailed, robocopyMeaning } from '../../shared/io/robocopy-result.js';
 import { SYSTEM } from '../../shared/system.js';
@@ -67,16 +73,18 @@ export function exec(file: string, args: string[], options: SpawnSyncOptions = {
 }
 
 /** exec without blocking: other toolchains keep downloading while this one runs an installer. */
-export async function execAsync(file: string, args: string[], options: SpawnOptions = {}): Promise<void> {
+export async function execAsync(file: string, args: string[], options: SpawnAsyncOptions = {}): Promise<void> {
+  const { lowPriority, ...spawnOptions } = options;
   const code = captureOutput()
     ? await new Promise<number>((resolve, reject) => {
-        const child = spawn(file, args, { stdio: ['inherit', 'pipe', 'pipe'], windowsHide: true, ...options });
+        const child = spawn(file, args, { stdio: ['inherit', 'pipe', 'pipe'], windowsHide: true, ...spawnOptions });
+        if (lowPriority) lowerPriority(child.pid);
         logLines(child.stdout);
         logLines(child.stderr);
         child.once('error', reject);
         child.once('close', (c) => resolve(c ?? -1));
       })
-    : await spawnAsync(file, args, { stdio: 'inherit', ...options });
+    : await spawnAsync(file, args, { stdio: 'inherit', ...spawnOptions, ...(lowPriority ? { lowPriority } : {}) });
   if (code !== 0)
     throw new Error(path.basename(file) + ' ' + args.slice(0, 3).join(' ') + ' failed with exit code ' + code);
 }
@@ -138,6 +146,23 @@ export function runScriptAsync(name: string, args: readonly string[] = []): Prom
 /** runScript for what it prints ('' when it fails). */
 export function scriptOutput(name: string, args: readonly string[] = [], options: SpawnSyncOptions = {}): string {
   return execOutput(SYSTEM.powershell(), scriptArgs(name, args), options);
+}
+
+/** scriptOutput without blocking the event loop ('' when the script fails). */
+export function scriptOutputAsync(name: string, args: readonly string[] = []): Promise<string> {
+  return new Promise((resolve) => {
+    const child = spawn(SYSTEM.powershell(), scriptArgs(name, args), {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    });
+    let out = '';
+    child.stdout?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk: string) => {
+      if (out.length < CAPTURE_BYTES) out += chunk;
+    });
+    child.once('error', () => resolve(''));
+    child.once('close', (code) => resolve(code === 0 ? out.trim() : ''));
+  });
 }
 
 /** Runs sandbox\scripts\<name> with a JSON file (-<param> path) holding `data`, removed afterwards. */

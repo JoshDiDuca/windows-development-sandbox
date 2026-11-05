@@ -6,15 +6,15 @@ import { downloader } from '../../shared/download/index.js';
 import { exists, mkdirp } from '../runtime/fs.js';
 import { log } from '../runtime/log.js';
 import { SIGNERS, type AppSigner } from '../../shared/signer.js';
-import { signedBy } from './signature.js';
+import { signedBy, signedByAsync } from './signature.js';
 
 export { SIGNERS };
-export { signedBy };
+export { signedBy, signedByAsync };
 
 /** A downloader `verify` hook: refuses a file not signed by `signer` (it counts as integrity for requireChecksum). */
-export function signatureCheck(signer: AppSigner, what: string): (file: string) => void {
-  return (file) => {
-    if (!signedBy(file, signer)) throw new Error(what + ' is not signed by its vendor');
+export function signatureCheck(signer: AppSigner, what: string): (file: string) => Promise<void> {
+  return async (file) => {
+    if (!(await signedByAsync(file, signer))) throw new Error(what + ' is not signed by its vendor');
   };
 }
 
@@ -31,7 +31,7 @@ export async function signedInstaller(
     mkdirp(path.dirname(file));
     await downloader.file(url, file, { sha256, verify: signatureCheck(signer, path.basename(file)) });
   }
-  if (!signedBy(file, signer)) {
+  if (!(await signedByAsync(file, signer))) {
     fs.rmSync(file, { force: true });
     throw new Error(
       path.basename(file) + ' is not signed by its vendor; deleted it (it is downloaded again next boot)',

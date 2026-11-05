@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Config, GitAccess } from '../../core/types.js';
 import { appsToInstall, previewGuideLine, type AppEntry } from '../../shared/apps/index.js';
+import { asBackground } from '../../shared/concurrency/index.js';
 import { downloader, moveIntoPlace, stagingFolder } from '../../shared/download/index.js';
 import { safeRemove } from '../../shared/io/safe-remove.js';
 import { dryRun, launchDir } from '../runtime/paths.js';
@@ -38,8 +39,8 @@ const MARKER = '.agent-sandbox-app';
 function prefetchedFile(entry: AppEntry, fileName: string): string {
   return path.join(tool('apps', ...entry.id.split('/')) + '.download', fileName.replace(/[\\/:*?"<>|]/g, '_'));
 }
-/** How many apps download and unpack at once (they are big: a few at a time keeps the disk and network busy). */
-const PARALLEL = 3;
+/** How many apps unpack at once (as many as the heavy pool holds: more would only queue up behind it). */
+const PARALLEL = 2;
 
 export class AppInstaller {
   private readonly gui: Shortcut[] = [];
@@ -66,20 +67,23 @@ export class AppInstaller {
         e.id !== '7zip' &&
         (this.options.refresh || !exists(path.join(tool('apps', ...e.id.split('/')), MARKER))),
     );
-    await Promise.all(
-      todo.map(async (entry) => {
-        try {
-          const d = await resolve(entry);
-          const file = prefetchedFile(entry, d.fileName);
-          if (exists(file)) return;
-          await downloader.file(d.url, file, {
-            sha256: d.sha256 ?? null,
-            ...(entry.signer ? { verify: signatureCheck(entry.signer, d.fileName) } : {}),
-          });
-        } catch {
-          /* the install resolves and downloads again, and reports the reason if it fails too */
-        }
-      }),
+    // Behind the downloads other steps need now (the runtimes, Visual Studio): these only save time for the install.
+    await asBackground(() =>
+      Promise.all(
+        todo.map(async (entry) => {
+          try {
+            const d = await resolve(entry);
+            const file = prefetchedFile(entry, d.fileName);
+            if (exists(file)) return;
+            await downloader.file(d.url, file, {
+              sha256: d.sha256 ?? null,
+              ...(entry.signer ? { verify: signatureCheck(entry.signer, d.fileName) } : {}),
+            });
+          } catch {
+            /* the install resolves and downloads again, and reports the reason if it fails too */
+          }
+        }),
+      ),
     );
   }
 

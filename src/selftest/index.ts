@@ -22,6 +22,7 @@ import { unitySuite } from './unity.test.js';
 import { unitySetupSuite } from './unity-setup.test.js';
 import { unityAccountsSuite } from './unity-accounts.test.js';
 import { unityPageSuite } from './unity-page.test.js';
+import { unityAgentSuite } from './unity-agent.test.js';
 import { fivemSuite } from './fivem.test.js';
 import { androidSuite } from './android.test.js';
 import { mobileSuite } from './mobile.test.js';
@@ -150,6 +151,7 @@ export const SUITES: Suite[] = [
   unitySetupSuite,
   unityAccountsSuite,
   unityPageSuite,
+  unityAgentSuite,
   fivemSuite,
   androidSuite,
   mobileSuite,

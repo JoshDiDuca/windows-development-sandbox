@@ -1,0 +1,7 @@
+{
+  "name": "sandbox-addon-openupm-cli",
+  "private": true,
+  "dependencies": {
+    "openupm-cli": "4.5.3"
+  }
+}

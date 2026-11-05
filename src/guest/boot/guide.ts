@@ -10,6 +10,9 @@ import { projectFolderLines, toolLines, type GuideProject, type MappedFolder } f
 import { sandboxScriptsDir } from '../../shared/scripts.js';
 import { findUproject, unrealGuideLines } from '../../shared/unreal/index.js';
 import { DISK } from '../toolchains/engines/unreal-engines.js';
+import { readValid } from '../../shared/io/json.js';
+import { UNITY_STATUS_FILE, UnityStatusSchema, unityGuideLines } from '../../shared/unity/index.js';
+import { tool } from '../toolchains/tool-env.js';
 import { readUnrealStatus } from '../toolchains/engines/unreal-status.js';
 
 const BEGIN = '<!-- agent-sandbox:begin (generated every boot, do not edit) -->';
@@ -57,6 +60,22 @@ function unrealLines(projects: readonly GuideProject[]): string[] {
   );
 }
 
+/** The Unity lines (editor per project, build/test/import commands) when the sandbox is set up for Unity. */
+function unityLines(projects: readonly GuideProject[]): string[] {
+  const any = session.toolchains.unity.enabled === true || projects.some((p) => p.tools?.some((t) => /^unity/.test(t)));
+  if (!any) return [];
+  const status = readValid(UnityStatusSchema, path.join(tool('unity'), UNITY_STATUS_FILE));
+  if (!status?.updatedAt) return [];
+  const folders = [workspace, ...projects.map((p) => p.guest)];
+  return unityGuideLines(
+    status,
+    folders
+      .filter((f, i) => folders.findIndex((g) => g.toLowerCase() === f.toLowerCase()) === i)
+      .filter((f) => status.projects.some((p) => p.workspace.toLowerCase() === f.toLowerCase()))
+      .map((f) => ({ workspace: f })),
+  );
+}
+
 /** Deliberately tiny: it is loaded into every conversation. */
 export function sandboxGuide(
   toolSummary: string[],
@@ -83,6 +102,7 @@ export function sandboxGuide(
     ...mirrorLine(),
     ...toolLines(session.project, toolSummary, projects),
     ...unrealLines(projects),
+    ...unityLines(projects),
     // Agent add-ons that change how the agent works (rtk, Headroom, MCP servers, ccusage).
     ...addons,
     '- Persistent installs: `npm i -g` (per nvm version), `pip`, `cargo install`, `dotnet tool -g`, `uv tool`, `bun add -g`. Real installers must re-run each boot via a hook (ask the user).',

@@ -103,6 +103,7 @@ const NAMES: Record<string, string> = {
   appstore: 'App Store Connect',
   perplexity: 'Perplexity API key',
   comet: 'Comet (Perplexity browser)',
+  perplexityapp: 'Perplexity desktop app',
   hooks: 'Hooks',
   personalization: 'Desktop look',
   projects: 'Projects',

@@ -88,7 +88,9 @@ export type AppSource =
   | { npm: string }
   | { locked: 'npm' | 'uv'; package: string; version: string }
   /** Nothing to download: a remote MCP server (AddonMcp.url). */
-  | { remote: true };
+  | { remote: true }
+  /** A Microsoft Store app: this PC fetches the package with its own Store tooling; the sandbox installs it. */
+  | { store: { productId: string; packageName: string; family: string } };
 
 /**
  * An MCP server an add-on adds to the sandbox's Claude Code (and Codex, with `codex`): `node <its folder>\<script>

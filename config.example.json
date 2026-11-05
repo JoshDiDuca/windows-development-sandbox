@@ -106,6 +106,9 @@
     },
     "comet": {
       "share": false
+    },
+    "perplexityapp": {
+      "share": false
     }
   },
   "pcInstalls": {

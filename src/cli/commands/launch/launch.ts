@@ -24,6 +24,8 @@ import { RepoGuardStore } from '../../../host/guard/index.js';
 import { hostPublicIp, prepareVpn, readVpnLine, vpnNotes } from '../../../host/vpn/index.js';
 import { prepareGithubToken } from '../../../host/github/index.js';
 import { prepareServiceAccounts } from '../../../host/accounts/index.js';
+import { prepareStorePackages } from '../../../host/apps/index.js';
+import { storeApps } from '../../../shared/apps/index.js';
 import { discoverPcInstalls } from '../../../host/pc-installs/index.js';
 import { clearSecrets } from '../../../host/secrets/index.js';
 import {
@@ -254,6 +256,13 @@ class Launcher {
           // A new launch needs no sandbox running, so a lease held elsewhere is from one that stopped.
           isRunning: () => isSandboxRunning(),
         });
+    // Store apps (apps.install): their packages are fetched with this PC's own Store tooling.
+    const store = generateOnly
+      ? null
+      : await prepareStorePackages(storeApps(config.apps.install), {
+          storageRoot: ctx.storageRoot,
+          dataPath: run.dataPath,
+        });
     // pcInstalls: this PC's games, engines and editors, read-only (yours only: never from a project file). The
     // engines ("auto") come along whenever this launch sets the sandbox up for Unreal.
     const pcInstalls = discoverPcInstalls(ctx.loaded.config.pcInstalls, {
@@ -295,6 +304,7 @@ class Launcher {
     for (const line of vpnNotes(config.vpn)) console.log(c.yellow(line));
     for (const line of github?.notes ?? []) console.log(c.yellow(line));
     for (const line of accounts?.notes ?? []) console.log(c.yellow(line));
+    for (const line of store?.notes ?? []) console.log(c.yellow(line));
     for (const line of pcInstalls.notes) console.log(c.yellow(line));
     table(launchSummary(run, generated, prepared));
     if (generateOnly) return 0;

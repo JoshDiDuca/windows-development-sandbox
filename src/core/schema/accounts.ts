@@ -34,5 +34,9 @@ export const AccountsSchema = z
     appstore: share('appstore', 'import the AuthKey.p8 file in Accounts'),
     perplexity: share('perplexity', 'type the API key in Accounts, or import it from a .env file'),
     comet: share('comet', 'sign in to Comet once in a sandbox: it cannot be taken from this PC'),
+    perplexityapp: share(
+      'perplexityapp',
+      'sign in to the Perplexity app once in a sandbox: it cannot be taken from this PC',
+    ),
   })
   .describe('Service sign-ins for sandboxes (game stores, engines, app signing, Perplexity). Manage them in Accounts.');

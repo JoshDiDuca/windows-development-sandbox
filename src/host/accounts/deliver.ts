@@ -49,6 +49,8 @@ function howToSave(spec: ServiceSpec): string {
     return "sign in to the Epic Games Launcher in this sandbox once, or take this PC's: sandbox account import epic";
   if (spec.kind === 'steam') return 'sign in once in this sandbox with sbx-steam login';
   if (spec.kind === 'comet') return 'sign in to Comet once in this sandbox, and it is kept for the next ones';
+  if (spec.kind === 'perplexityapp')
+    return 'sign in to the Perplexity app once in this sandbox, and it is kept for the next ones';
   if (spec.returns) return 'sign in once in this sandbox, or: sandbox account import ' + spec.kind;
   return spec.sources.includes('typed')
     ? 'save one: sandbox account login ' + spec.kind

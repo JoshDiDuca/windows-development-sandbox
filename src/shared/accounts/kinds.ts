@@ -14,6 +14,7 @@ export const SERVICE_KINDS = [
   'appstore',
   'perplexity',
   'comet',
+  'perplexityapp',
 ] as const;
 export type ServiceKind = (typeof SERVICE_KINDS)[number];
 
@@ -21,7 +22,7 @@ export type ServiceKind = (typeof SERVICE_KINDS)[number];
 export type ToolchainUser =
   'unreal' | 'steam' | 'unity' | 'fivem' | 'android' | 'flutter' | 'reactNative' | 'godot' | 'dotnet';
 /** The apps a sign-in can serve: on when one of APP_USERS' apps is in apps.install. */
-export type AppUser = 'perplexity' | 'comet';
+export type AppUser = 'perplexity' | 'comet' | 'perplexityapp';
 /** What a sign-in serves (it is handed over only when one of them is on for the boot). */
 export type UsedBy = ToolchainUser | AppUser;
 /** The toolchains a sign-in can serve. */
@@ -40,6 +41,7 @@ export const USED_BY: readonly ToolchainUser[] = [
 export const APP_USERS: { readonly [U in AppUser]: readonly string[] } = {
   perplexity: ['perplexity-mcp'],
   comet: ['comet'],
+  perplexityapp: ['perplexity-desktop'],
 };
 
 /** Where a saved sign-in came from: this PC's program, a file you gave, values you typed, or a sandbox. */
@@ -252,6 +254,23 @@ export const SERVICE_SPECS: { readonly [K in ServiceKind]: ServiceSpec<K> } = {
     ],
     fields: [],
   },
+  perplexityapp: {
+    kind: 'perplexityapp',
+    label: 'Perplexity desktop app',
+    usedBy: ['perplexityapp'],
+    sources: ['sandbox'],
+    singleHolder: false,
+    returns: true,
+    maxBytes: 256 * 1024,
+    warnings: [
+      AGENT_CAN_USE +
+        ' It can act as you in the Perplexity app and spend your Perplexity Computer credits; the app acts on the pages it reads, which can try to steer it.',
+      "Your sign-in in the Perplexity app can't be copied from this PC: Windows locks it to your PC account. Sign in once inside a sandbox and it is kept for the next ones.",
+      'Only the perplexity.ai sign-in cookies are kept: never saved passwords, other sites, localStorage or history.',
+      'Several sandboxes can use it at once: the sign-in the last one hands back is kept.',
+    ],
+    fields: [],
+  },
 };
 
 /** Where a sandbox leaves a renewed sign-in, under the data folder: state\accounts\<kind>.json. */
@@ -268,6 +287,7 @@ export function isServiceKind(value: string): value is ServiceKind {
 const APP_USER_TEXT: { readonly [U in AppUser]: string } = {
   perplexity: 'the Perplexity MCP app',
   comet: 'the Comet app',
+  perplexityapp: 'the Perplexity desktop app',
 };
 
 /** What a sign-in serves, for a sentence: "unreal", "reactNative or flutter", "the Comet app". */

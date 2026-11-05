@@ -14,10 +14,13 @@ import { errMsg } from '../../core/util/errors.js';
 import { emptyEnv, tool, type ToolEnv } from '../toolchains/tool-env.js';
 import { uvVars } from '../toolchains/runtimes.js';
 import { COMET_MCP_PORT, cometShortcutArgs } from '../browser/comet.js';
+import { perplexityAppShortcutArgs } from '../browser/perplexity-app.js';
 import { afterInstall } from './after-install.js';
 import { installFromKept } from './comet-unpack.js';
 import { findExe } from './find-exe.js';
+import { installStoreApp } from './store-app.js';
 import { shortcuts, type Shortcut } from './shortcuts.js';
+import { SYSTEM } from '../../shared/system.js';
 import { signatureCheck } from '../toolchains/installers.js';
 import { resolve } from './sources.js';
 import { unpack } from './unpack.js';
@@ -58,6 +61,7 @@ export class AppInstaller {
       (e) =>
         !('remote' in e.source) &&
         !('locked' in e.source) &&
+        !('store' in e.source) &&
         !('npm' in e.source) &&
         e.id !== '7zip' &&
         (this.options.refresh || !exists(path.join(tool('apps', ...e.id.split('/')), MARKER))),
@@ -113,6 +117,23 @@ export class AppInstaller {
             JSON.stringify({ id: entry.id, at: new Date().toISOString() }),
           );
         this.installed.push(entry.name);
+        return;
+      }
+      if ('store' in entry.source) {
+        // A Store app: Windows in the sandbox is new on every boot, so it is installed again from the PC's package.
+        log('Installing ' + entry.name + ' (Microsoft Store package) ...');
+        await installStoreApp(entry.id, entry.source.store.packageName);
+        fs.writeFileSync(
+          path.join(mkdirp(dest), MARKER),
+          JSON.stringify({ id: entry.id, at: new Date().toISOString() }),
+        );
+        this.gui.push({
+          name: entry.name,
+          exe: SYSTEM.powershell(),
+          args: perplexityAppShortcutArgs(path.join(launchDir, 'sandbox', 'scripts', 'start-store-app.ps1')),
+        });
+        this.installed.push(entry.name);
+        this.installedIds.push(entry.id);
         return;
       }
       if (!exists(path.join(dest, MARKER)) || this.options.refresh) await this.download(entry, dest);

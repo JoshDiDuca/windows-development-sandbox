@@ -39,7 +39,8 @@ export function ghExePath(): string {
  * gh keeps its token in Windows Credential Manager unless told otherwise, and that is wiped with the sandbox: only a
  * login made with --insecure-storage (the token in GH_CONFIG_DIR, which persists) is still there next time.
  */
-const GH_NOTE = ' (log in once with: gh auth login --web --insecure-storage; it is kept between sandboxes)';
+const GH_NOTE =
+  ' (signed in on your PC? turn on github.usePcLogin and the login comes from there; otherwise log in once with: gh auth login --web --insecure-storage, which is kept between sandboxes)';
 
 /** A saved gh account whose token was in Credential Manager (gone now): say how to log in so that it lasts. */
 function warnKeyringLogin(): void {
@@ -47,7 +48,7 @@ function warnKeyringLogin(): void {
     const hosts = fs.readFileSync(path.join(ghConfigDir(), 'hosts.yml'), 'utf8');
     if (/^\s*user:/m.test(hosts) && !/oauth_token:/.test(hosts))
       warn(
-        'gh: the GitHub login from an earlier sandbox was kept in Windows Credential Manager, which is wiped with each sandbox. Log in again with: gh auth login --web --insecure-storage (then it lasts).',
+        'gh: the GitHub login from an earlier sandbox was kept in Windows Credential Manager, which is wiped with each sandbox. Log in again with: gh auth login --web --insecure-storage (then it lasts), or sign gh in on your PC and turn on github.usePcLogin.',
       );
   } catch {
     // No saved login: nothing to say.

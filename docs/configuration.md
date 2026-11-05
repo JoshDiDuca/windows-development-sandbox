@@ -161,7 +161,7 @@ can never choose a VPN, server, profile or login.
 
 ## GitHub token
 
-Off by default. Sandboxes never get your PC's GitHub login. To make `gh` and https `git` work inside without logging in
+Off by default. To make `gh` and https `git` work inside without logging in
 each time, save a token made only for sandboxes:
 
 1. Run `sandbox github login` (or Settings > Security & privacy > Set GitHub token…, or Settings > GitHub in the web
@@ -171,6 +171,11 @@ each time, save a token made only for sandboxes:
    hidden, kept encrypted for your Windows user, and never printed. A classic token (`ghp_`) gets a warning. An OAuth
    token (`gho_`, from `gh auth token`) is refused, because it reaches everything your account can.
 2. Run `sandbox config set github.shareToken true`.
+
+**Or use the login from your PC.** If `gh` is signed in on this PC, `sandbox config set github.usePcLogin true` hands
+that login to sandboxes instead, so nobody runs `gh auth login` in each one. A token saved above wins when both are
+on; with no gh login on the PC nothing happens. It is the same OAuth token as on your PC and reaches everything your
+account can: a fine-grained token is safer. Only github.com is copied.
 
 The token is given only to sandboxes whose git access is `full`; otherwise the launch says why not. **The agent can read
 the token** and use it for everything it allows. `sandbox github logout` deletes it from this PC; revoke it on GitHub

@@ -24,7 +24,9 @@ import {
   checkGithubToken,
   GithubToken,
   githubTokenAllowed,
+  parseHostsYml,
   prepareGithubToken,
+  readPcGhLogin,
   verifyGithubToken,
   type GithubVerdict,
 } from '../host/github/index.js';
@@ -466,6 +468,111 @@ export const githubSuite: Suite = {
         ).notes.some((n) => n.includes('expires')),
       'a launch mentions a token that ends within 7 days, and only then',
     );
+
+    t.section('the gh login on this PC (github.usePcLogin)');
+    const PC_TOKEN = 'gho_' + 'a'.repeat(36);
+    const KEYRING_TOKEN = 'gho_' + 'b'.repeat(36);
+    const hosts = (token: string | null): string =>
+      [
+        'github.com:',
+        '    users:',
+        '        other:',
+        '            oauth_token: gho_' + 'z'.repeat(36),
+        '        josh:',
+        ...(token ? ['            oauth_token: ' + token] : []),
+        '    git_protocol: https',
+        '    user: josh',
+        '',
+      ].join('\r\n');
+    t.equal(parseHostsYml(hosts(PC_TOKEN)), { signedIn: true, token: PC_TOKEN }, 'hosts.yml: the active user token');
+    t.equal(
+      parseHostsYml('github.com:\n    oauth_token: ' + PC_TOKEN + '\n    user: josh\n'),
+      { signedIn: true, token: PC_TOKEN },
+      'hosts.yml: an older file with the token under the host',
+    );
+    t.equal(
+      parseHostsYml('ghe.corp:\n    oauth_token: ' + PC_TOKEN + '\n'),
+      { signedIn: false, token: null },
+      'hosts.yml: other hosts are not read',
+    );
+    t.equal(
+      parseHostsYml(hosts(null)),
+      { signedIn: true, token: null },
+      'hosts.yml: a login kept in Credential Manager',
+    );
+    t.equal(parseHostsYml(''), { signedIn: false, token: null }, 'hosts.yml: empty');
+
+    const pcDir = t.dir('github-pc');
+    const pcEnv = { GH_CONFIG_DIR: pcDir, GH_TOKEN: 'x'.repeat(30) };
+    t.check(readPcGhLogin({ env: pcEnv, run: () => 'never' }) === null, 'no hosts.yml: no login, quietly');
+    fs.writeFileSync(path.join(pcDir, 'hosts.yml'), hosts(PC_TOKEN));
+    t.check(readPcGhLogin({ env: pcEnv, run: () => 'never' }) === PC_TOKEN, 'the token is read from hosts.yml');
+    fs.writeFileSync(path.join(pcDir, 'hosts.yml'), hosts(null));
+    t.check(
+      readPcGhLogin({ env: pcEnv, run: () => KEYRING_TOKEN }) === null,
+      'a keyring login with no gh.exe found: none',
+    );
+    const exeDir = t.dir('github-pc-programs');
+    fs.mkdirSync(path.join(exeDir, 'GitHub CLI'), { recursive: true });
+    fs.writeFileSync(path.join(exeDir, 'GitHub CLI', 'gh.exe'), '');
+    const seen: string[] = [];
+    const keyring = readPcGhLogin({
+      env: { ...pcEnv, ProgramFiles: exeDir },
+      run: (exe) => (seen.push(exe), KEYRING_TOKEN + '\n'),
+    });
+    t.check(
+      keyring === KEYRING_TOKEN && seen.length === 1 && path.isAbsolute(seen[0] ?? ''),
+      'a keyring login is read with the PC gh.exe, by absolute path',
+      JSON.stringify([keyring, seen]),
+    );
+    t.check(
+      readPcGhLogin({ env: { ...pcEnv, ProgramFiles: exeDir }, run: () => 'not a token' }) === null,
+      'whatever gh prints must look like a token',
+    );
+
+    const pcConfig = f.makeConfig();
+    pcConfig.github.usePcLogin = true;
+    const pcStore = new GithubToken(pcConfig.storage.root, SecretStore.memory());
+    const pcNoLogin = prepareGithubToken(pcConfig, pcConfig.storage.root, pcStore, [], 0, {
+      env: { GH_CONFIG_DIR: t.dir('github-pc-empty') },
+    });
+    t.equal(pcNoLogin, { notes: [] }, 'on, but the PC has no gh login: nothing is delivered, nothing is said');
+    fs.writeFileSync(path.join(pcDir, 'hosts.yml'), hosts(PC_TOKEN));
+    const pcEnvOnly = { env: { GH_CONFIG_DIR: pcDir } };
+    const pcOn = prepareGithubToken(pcConfig, pcConfig.storage.root, pcStore, [], 0, pcEnvOnly);
+    t.check(
+      pcOn.token === PC_TOKEN && pcOn.notes.length === 1 && !JSON.stringify(pcOn.notes).includes(PC_TOKEN),
+      'on with a gh login: delivered, and the notes never hold it',
+    );
+    pcConfig.github.usePcLogin = false;
+    t.equal(
+      prepareGithubToken(pcConfig, pcConfig.storage.root, pcStore, [], 0, pcEnvOnly),
+      { notes: [] },
+      'off: the PC login is not even read',
+    );
+    pcConfig.github.usePcLogin = true;
+    pcConfig.github.shareToken = true;
+    pcStore.save(FINE);
+    t.check(
+      prepareGithubToken(pcConfig, pcConfig.storage.root, pcStore, [], 0, pcEnvOnly).token === FINE,
+      'a token saved for sandboxes wins over the PC login',
+    );
+    pcStore.remove();
+    t.check(
+      prepareGithubToken(pcConfig, pcConfig.storage.root, pcStore, [], 0, pcEnvOnly).token === PC_TOKEN,
+      'with none saved, the PC login is used',
+    );
+    pcConfig.provisioning.git.access = 'readonly';
+    const pcStrict = prepareGithubToken(pcConfig, pcConfig.storage.root, pcStore, [], 0, pcEnvOnly);
+    t.check(
+      pcStrict.token === undefined &&
+        !githubTokenAllowed(pcConfig) &&
+        pcStrict.notes.some((n) => n.includes('"readonly"')),
+      'git access readonly: the PC login is not handed over',
+    );
+    const pcSecrets = SecretsFileSchema.safeParse({ githubToken: PC_TOKEN });
+    t.check(pcSecrets.success, 'an OAuth token from the PC passes the secrets file limits');
+    t.check(DEFAULTS.github.usePcLogin === false, 'the PC login is off by default');
 
     t.section('errors with an action');
     const fixable = new UserError('Broke.', 'Do it.', { op: 'sandbox.stop', label: 'Stop it', cli: 'sandbox stop' });

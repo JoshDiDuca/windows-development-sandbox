@@ -1,6 +1,6 @@
-// The GitHub token the host handed over (github.shareToken, only with git access "full"): gh logs in with it in a
-// folder on the sandbox's own disk (gone with the sandbox, never in the persistent state), and https git asks gh. The
-// token goes to gh on stdin, never in an argument, a file of ours or a log line.
+// The GitHub token the host handed over (github.shareToken or github.usePcLogin, only with git access "full"): gh logs
+// in with it in a folder on the sandbox's own disk (gone with the sandbox, never in the persistent state), and https
+// git asks gh. The token goes to gh on stdin, never in an argument, a file of ours or a log line.
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { ghLoginCommand, ghOutputText, ghSetupGitCommand, type GhCommand } from '../../shared/github/index.js';
@@ -64,5 +64,7 @@ export function loginGithub(token: string, env: NodeJS.ProcessEnv): void {
     addMachineEnvironment({ GH_CONFIG_DIR: env.GH_CONFIG_DIR }, []);
     throw e;
   }
-  log('gh and https git to github.com use the GitHub token from your PC (github.shareToken); the agent can read it.');
+  log(
+    'gh and https git to github.com use the GitHub login from your PC (github.shareToken or github.usePcLogin); the agent can read it.',
+  );
 }

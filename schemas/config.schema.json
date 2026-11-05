@@ -407,6 +407,10 @@
         "shareToken": {
           "type": "boolean",
           "description": "Give each sandbox the GitHub token you saved in Accounts (best a fine-grained token limited to some repositories and permissions), so gh and https git work there without logging in. Only with provisioning.git.access \"full\". The agent in the sandbox can read the token and use it for whatever it allows. A project file (.sandbox-config.json) cannot turn this on."
+        },
+        "usePcLogin": {
+          "type": "boolean",
+          "description": "Give each sandbox the GitHub CLI (gh) login from this PC, when there is one, so gh and https git work there without logging in. Used when no token saved for sandboxes is handed over. Only with provisioning.git.access \"full\". Without a gh login on the PC nothing happens. The login reaches everything your account can, and the agent in the sandbox can read it. A project file (.sandbox-config.json) cannot turn this on."
         }
       },
       "additionalProperties": false
@@ -1483,7 +1487,7 @@
                   "const": "auto"
                 }
               ],
-              "description": "GitHub CLI (gh). Only with provisioning.git.access \"full\": gh can push and merge through the GitHub API, past a read-only git. Your PC's gh login is never copied; `gh auth login` inside persists (GH_CONFIG_DIR), unless a token you saved for sandboxes is handed over (github.shareToken). \"auto\" = when the project has a .github folder."
+              "description": "GitHub CLI (gh). Only with provisioning.git.access \"full\": gh can push and merge through the GitHub API, past a read-only git. Your PC's gh login is copied only with github.usePcLogin (or a token you saved for sandboxes with github.shareToken); otherwise `gh auth login` inside persists (GH_CONFIG_DIR). \"auto\" = when the project has a .github folder."
             },
             "zstd": {
               "anyOf": [

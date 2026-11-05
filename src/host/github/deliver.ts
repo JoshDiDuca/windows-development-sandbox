@@ -5,6 +5,7 @@
 import type { BootWant } from '../../core/local-config/index.js';
 import type { Config } from '../../core/types.js';
 import { GithubToken } from './token.js';
+import { readPcGhLogin, type PcLoginOptions } from './pc-login.js';
 
 /** The first project (the launch's own, then the others at boot) whose git access is not "full", or null. */
 function stricterProject(config: Config, others: readonly BootWant[]): { name: string; access: string } | null {
@@ -13,9 +14,9 @@ function stricterProject(config: Config, others: readonly BootWant[]): { name: s
   return other ? { name: other.name, access: other.config.provisioning.git.access } : null;
 }
 
-/** github.shareToken is on and git access is "full" for every project this sandbox boots with. */
+/** github.shareToken or github.usePcLogin is on and git access is "full" for every project this sandbox boots with. */
 export function githubTokenAllowed(config: Config, others: readonly BootWant[] = []): boolean {
-  return config.github.shareToken && stricterProject(config, others) === null;
+  return (config.github.shareToken || config.github.usePcLogin) && stricterProject(config, others) === null;
 }
 
 export interface GithubDelivery {
@@ -42,47 +43,63 @@ function expiryNotes(tokens: GithubToken, now: number = Date.now()): string[] {
   ];
 }
 
-/** What this launch hands over. Never throws: a token that cannot be read is a note, and the launch goes on. */
+const PC_LOGIN_NOTE =
+  'Your gh login on this PC is handed to this sandbox (github.usePcLogin): the agent can read it and use it for everything your account can.';
+
+/**
+ * What this launch hands over. Never throws: a token that cannot be read is a note, and the launch goes on. A token
+ * saved for sandboxes (github.shareToken) comes first; then this PC's own gh login (github.usePcLogin), which says
+ * nothing when the PC has none.
+ */
 export function prepareGithubToken(
   config: Config,
   storageRoot: string,
   store?: GithubToken,
   others: readonly BootWant[] = [],
   now: number = Date.now(),
+  pc: PcLoginOptions = {},
 ): GithubDelivery {
-  if (!config.github.shareToken) return { notes: [] };
+  const { shareToken, usePcLogin } = config.github;
+  if (!shareToken && !usePcLogin) return { notes: [] };
   const stricter = stricterProject(config, others);
   if (stricter)
     return {
       notes: [
-        'github.shareToken is on, but git access is "' +
+        'github.' +
+          (shareToken ? 'shareToken' : 'usePcLogin') +
+          ' is on, but git access is "' +
           stricter.access +
           '"' +
           (stricter.name ? ' for ' + stricter.name + ' (also in this sandbox)' : ' in this sandbox') +
-          ', so your GitHub token was not handed over (it needs provisioning.git.access "full").',
+          ', so your GitHub login was not handed over (it needs provisioning.git.access "full").',
       ],
     };
-  const tokens = store ?? new GithubToken(storageRoot);
-  let token: string | null;
-  try {
-    token = tokens.read();
-  } catch {
-    // The reason may come from DPAPI or a damaged file; a fixed text is enough (and can never hold the token).
-    return {
-      notes: [
+  const notes: string[] = [];
+  if (shareToken) {
+    const tokens = store ?? new GithubToken(storageRoot);
+    let token: string | null = null;
+    try {
+      token = tokens.read();
+    } catch {
+      // The reason may come from DPAPI or a damaged file; a fixed text is enough (and can never hold the token).
+      notes.push(
         'Your saved GitHub token could not be read (only the Windows user that saved it can), so it was not handed over. Save it again: sandbox github login',
-      ],
-    };
+      );
+    }
+    if (token)
+      return {
+        token,
+        notes: [
+          'Your GitHub token is handed to this sandbox (github.shareToken): the agent can read it and use it for whatever it allows.',
+          ...expiryNotes(tokens, now),
+        ],
+      };
+    if (!usePcLogin && !notes.length)
+      notes.push('github.shareToken is on, but no GitHub token is saved. Save one: sandbox github login');
   }
-  if (!token)
-    return {
-      notes: ['github.shareToken is on, but no GitHub token is saved. Save one: sandbox github login'],
-    };
-  return {
-    token,
-    notes: [
-      'Your GitHub token is handed to this sandbox (github.shareToken): the agent can read it and use it for whatever it allows.',
-      ...expiryNotes(tokens, now),
-    ],
-  };
+  if (usePcLogin) {
+    const login = readPcGhLogin(pc);
+    if (login) return { token: login, notes: [...notes, PC_LOGIN_NOTE] };
+  }
+  return { notes };
 }

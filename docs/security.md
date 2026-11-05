@@ -121,7 +121,7 @@ never off. The installer checks its own package the same way ([install](install.
 
 ## GitHub CLI
 
-`gh` never gets your PC's login (`GH_TOKEN` and `GITHUB_TOKEN` are stripped). It is installed only with git access
+`gh` gets your PC's login only with `github.usePcLogin` (below); `GH_TOKEN` and `GITHUB_TOKEN` are always stripped. It is installed only with git access
 `full`, because it can push and merge through the GitHub API. A `gh auth login` made inside is kept in
 `C:\AgentData\state\gh`.
 
@@ -136,6 +136,13 @@ turn on `github.shareToken` ([how](configuration.md#github-token)):
   mapped at boot has `readonly` or `none` (the token would let the agent push past the git guard). A project file cannot
   set `github`. It travels only in the one-shot secrets file: never in `session.json`, the launch folder, `run\`, logs or
   process arguments.
+- **Your PC's gh login (`github.usePcLogin`, off by default).** When on, git access is `full`, and no token saved for
+  sandboxes is handed over, the launch reads the token of your PC's `gh` login for github.com: from `hosts.yml` in gh's
+  config folder (`GH_CONFIG_DIR`, `XDG_CONFIG_HOME\gh` or `%APPDATA%\GitHub CLI`), or, when gh keeps it in Windows
+  Credential Manager, from your PC's own `gh.exe auth token` (found in `Program Files\GitHub CLI` or
+  `%LOCALAPPDATA%\Programs\GitHub CLI`, never by name). It travels the same way as the saved token. Nothing happens, and
+  nothing is said, when the PC has no gh login. This is an OAuth token that reaches everything your account can, so
+  prefer a fine-grained token above. Only github.com is copied, not GitHub Enterprise hosts.
 - Inside, `gh auth login --with-token` reads it into a gh folder on the sandbox's own disk (wiped with the sandbox), and
   `gh auth setup-git` makes https git use it.
 - **The agent can read it** (`gh auth token`) and use it for everything it allows. Revoke it on GitHub when you no longer

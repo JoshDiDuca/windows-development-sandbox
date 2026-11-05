@@ -6,3 +6,4 @@ export * from './copy-tree.js';
 export * from './bounded.js';
 export * from './text.js';
 export * from './disk.js';
+export * from './rotate-log.js';

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { rotateLog } from '../../shared/io/index.js';
 import { HEADROOM_PORT, headroomArgs, headroomEnv, headroomUrl } from '../../shared/apps/index.js';
 import { logsDir } from '../runtime/paths.js';
 import { portOpen, waitForPort } from '../runtime/ports.js';
@@ -13,6 +14,9 @@ import { installedAddon } from './agent-addons.js';
 
 /** The proxy's log (it redacts keys and tokens in what it logs). */
 export const HEADROOM_LOG = path.join(logsDir, 'headroom.log');
+
+/** The proxy logs every request and the file lives on the data disk: past this it is kept as headroom.log.1. */
+const HEADROOM_LOG_LIMIT = 20 * 1024 * 1024;
 
 /** Whether Headroom's own health check answers on the port (not some other program that took it). */
 function answersAsHeadroom(port: number): Promise<boolean> {
@@ -55,6 +59,7 @@ async function startProxy(env: NodeJS.ProcessEnv): Promise<boolean> {
   const exe = usable(env);
   if (!exe) return false;
   if (await portOpen(HEADROOM_PORT)) return true;
+  rotateLog(HEADROOM_LOG, HEADROOM_LOG_LIMIT);
   const out = fs.openSync(HEADROOM_LOG, 'a');
   try {
     spawn(exe, headroomArgs(HEADROOM_PORT), {

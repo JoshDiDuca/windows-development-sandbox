@@ -8,7 +8,7 @@ import { assertSafeMapping } from '../core/safe-paths.js';
 import { safeText } from '../core/util/index.js';
 import { isSafeFileName } from '../shared/paths/index.js';
 import { removeRefusal, safeRemove } from '../shared/io/index.js';
-import { writeJsonAtomic } from '../shared/io/index.js';
+import { rotateLog, writeJsonAtomic } from '../shared/io/index.js';
 import type { Suite } from './support/suite.js';
 
 export const hostileInputSuite: Suite = {
@@ -113,5 +113,19 @@ export const hostileInputSuite: Suite = {
       'a .sandbox-config.json over 1 MB is refused before it is parsed',
     );
     fs.rmSync(path.join(repoDir, '.sandbox-config.json'));
+
+    t.section('a log that grows for ever (Headroom appends to one on the data disk)');
+    const logFile = t.at('rotate', 'proxy.log');
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    t.check(!rotateLog(logFile, 10), 'no log yet: nothing to rotate');
+    fs.writeFileSync(logFile, 'x'.repeat(10));
+    t.check(!rotateLog(logFile, 10) && fs.existsSync(logFile), 'a log at the limit stays');
+    fs.writeFileSync(logFile + '.1', 'old');
+    fs.writeFileSync(logFile, 'y'.repeat(11));
+    t.check(rotateLog(logFile, 10), 'a log over the limit is rotated');
+    t.check(
+      !fs.existsSync(logFile) && fs.readFileSync(logFile + '.1', 'utf8') === 'y'.repeat(11),
+      'it replaces the older copy',
+    );
   },
 };

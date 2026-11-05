@@ -17,6 +17,7 @@ import { persistedInstallsSuite } from './persisted-installs.test.js';
 import { pcInstallsSuite } from './pc-installs.test.js';
 import { steamSuite } from './steam.test.js';
 import { enginesSuite } from './engines.test.js';
+import { mixamoSuite } from './mixamo.test.js';
 import { unitySuite } from './unity.test.js';
 import { fivemSuite } from './fivem.test.js';
 import { androidSuite } from './android.test.js';
@@ -141,6 +142,7 @@ export const SUITES: Suite[] = [
   persistedInstallsSuite,
   steamSuite,
   enginesSuite,
+  mixamoSuite,
   unitySuite,
   fivemSuite,
   androidSuite,

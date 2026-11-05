@@ -4,6 +4,7 @@
 import path from 'node:path';
 import type { UnrealStatus } from './status.js';
 import { ORIGIN_LABELS } from './engines.js';
+import { mixamoGuideLines } from './mixamo.js';
 
 const win = path.win32;
 
@@ -14,8 +15,23 @@ export interface UnrealGuideProject {
   readonly uproject: string | null;
 }
 
+/** Optional extra guide sections. */
+export interface UnrealGuideExtras {
+  /** The Mixamo lines (where downloads land, the import script when one ships). */
+  readonly mixamo?: { readonly downloads: string; readonly script: string | null };
+}
+
+/** UE4 engines name their programs UE4Editor.exe; UE5 engines UnrealEditor.exe. */
+function editorName(engine: { readonly version: string } | undefined): string {
+  return engine && Number.parseInt(engine.version, 10) < 5 ? 'UE4Editor' : 'UnrealEditor';
+}
+
 /** The guide's Unreal lines for these projects (none when Unreal is not set up). */
-export function unrealGuideLines(status: UnrealStatus, projects: readonly UnrealGuideProject[]): string[] {
+export function unrealGuideLines(
+  status: UnrealStatus,
+  projects: readonly UnrealGuideProject[],
+  extras: UnrealGuideExtras = {},
+): string[] {
   const lines: string[] = [];
   const several = projects.length > 1;
   for (const p of projects) {
@@ -38,7 +54,11 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
           ORIGIN_LABELS[engine.origin] +
           '; ' +
           (choice?.reason ?? '') +
-          '). `UE_ROOT` is set; Build.bat, RunUAT.bat, UnrealEditor.exe and UnrealEditor-Cmd.exe are on PATH.' +
+          '). `UE_ROOT` is set; Build.bat, RunUAT.bat, ' +
+          editorName(engine) +
+          '.exe and ' +
+          editorName(engine) +
+          '-Cmd.exe are on PATH.' +
           (engine.writable
             ? ''
             : " Read-only: never install plugins into it; put them in the project's Plugins folder."),
@@ -67,6 +87,13 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
   const uproject = projects.find((p) => p.uproject)?.uproject ?? '<Project>.uproject';
   const project = win.basename(uproject, '.uproject');
   const q = '"' + uproject + '"';
+  const forProject = projects.find((p) => p.uproject)?.workspace ?? projects[0]?.workspace ?? '';
+  const chosen = status.projects.find((s) => s.workspace.toLowerCase() === forProject.toLowerCase())?.engine;
+  const editor = editorName(
+    status.engines.find(
+      (e) => chosen !== undefined && chosen !== null && e.dir.toLowerCase() === chosen.toLowerCase(),
+    ) ?? status.engines[0],
+  );
   lines.push(
     '- Unreal commands: build `Build.bat ' +
       project +
@@ -76,7 +103,9 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
       project +
       ' Win64 Development`); project files `Build.bat -projectfiles -project=' +
       q +
-      ' -game -progress`; tests `UnrealEditor-Cmd.exe ' +
+      ' -game -progress`; tests `' +
+      editor +
+      '-Cmd.exe ' +
       q +
       ' -ExecCmds="Automation RunTests <filter>;Quit" -TestExit="Automation Test Queue Empty" -unattended -nullrhi -nosplash -nop4 -log`; package `RunUAT.bat BuildCookRun -project=' +
       q +
@@ -88,6 +117,7 @@ export function unrealGuideLines(status: UnrealStatus, projects: readonly Unreal
       '. The editor needs a GPU (vGPU); builds, -nullrhi tests and cooking do not.' +
       (status.ddc.dir ? ' Derived data cache: `' + status.ddc.dir + '` (kept).' : ''),
   );
+  if (extras.mixamo) lines.push(...mixamoGuideLines(extras.mixamo));
   if (status.mcpUrl)
     lines.push(
       '- Unreal editor MCP: `sbx-unreal-editor` (' +

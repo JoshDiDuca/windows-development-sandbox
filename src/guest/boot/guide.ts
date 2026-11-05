@@ -7,6 +7,7 @@ import { dataDir, launchDir, logsDir, toolsDir } from '../runtime/paths.js';
 import { addonGuideLine, APPS, headroomGuideLine, RTK_GUIDE_LINE } from '../../shared/apps/index.js';
 import { installedAddon, installedRtk } from '../setup/agent-addons.js';
 import { projectFolderLines, toolLines, type GuideProject, type MappedFolder } from './guide-lines.js';
+import { sandboxScriptsDir } from '../../shared/scripts.js';
 import { findUproject, unrealGuideLines } from '../../shared/unreal/index.js';
 import { DISK } from '../toolchains/engines/unreal-engines.js';
 import { readUnrealStatus } from '../toolchains/engines/unreal-status.js';
@@ -32,6 +33,12 @@ const mirrorLine = (): string[] => {
 const mappedFolders = (): MappedFolder[] =>
   session.mappedProjects ?? (session.roots ?? []).map((guest) => ({ host: 'a folder on the PC', guest }));
 
+/** The Mixamo import template, when this version ships one. */
+function mixamoScript(): string | null {
+  const file = path.join(sandboxScriptsDir(), 'templates', 'unreal', 'import_mixamo.py');
+  return fs.existsSync(file) ? file : null;
+}
+
 /** The Unreal lines (engine per project, build/test/package/debug commands) when the sandbox is set up for Unreal. */
 function unrealLines(projects: readonly GuideProject[]): string[] {
   const any =
@@ -46,6 +53,7 @@ function unrealLines(projects: readonly GuideProject[]): string[] {
       .filter((f, i) => folders.findIndex((g) => g.toLowerCase() === f.toLowerCase()) === i)
       .filter((f) => status.projects.some((p) => p.workspace.toLowerCase() === f.toLowerCase()))
       .map((f) => ({ workspace: f, uproject: findUproject(f, DISK) })),
+    { mixamo: { downloads: path.join(dataDir, 'downloads'), script: mixamoScript() } },
   );
 }
 

@@ -1,6 +1,6 @@
-// The Epic Games Launcher's vault cache: the Fab and Marketplace packs it downloaded but has not added to a project yet,
-// one folder per pack (<VaultCache>\<Pack>\data\Content\..., or data\<Plugin>.uplugin for a code plugin). Where it is
-// comes from the launcher's GameUserSettings.ini (VaultCacheDirectories in launcher 20.3; older files may say
+// The Epic Games Launcher's vault cache: the Fab and Marketplace packs it downloaded but has not added to a project
+// yet, one folder per pack (<VaultCache>\<Pack>\data\Content\..., or data\<Plugin>.uplugin for a code plugin). Where
+// it is comes from the launcher's GameUserSettings.ini (VaultCacheDirectories in launcher 20.3; older files may say
 // VaultCacheLocation), else its default %ProgramData%\Epic\EpicGamesLauncher\VaultCache. Pure apart from the
 // EngineFs-style reads it is given; every walk is bounded.
 import path from 'node:path';

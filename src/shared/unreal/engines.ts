@@ -110,7 +110,6 @@ export function isInstalledBuild(dir: string, fs: EngineFs): boolean {
   return fs.exists(win.join(dir, 'Engine', 'Build', 'InstalledBuild.txt'));
 }
 
-// eslint-disable-next-line no-control-regex -- control characters are what a registered name must not hold
 const BUILD_ID = /^[^\x00-\x1f"\\/]{1,64}$/;
 
 /** Whether a name can be a source build's registered name (UnrealVersionSelector writes a {GUID}). */
@@ -179,7 +178,7 @@ const MAX_LOOK = 200;
 /** At most this many engines are used. */
 export const MAX_ENGINES = 16;
 
-/** Every engine the sandbox can use, in a fixed order (this PC's, the data disk's, the project roots'), each folder once. */
+/** Every engine the sandbox can use, in a fixed order (this PC's, the data disk's, the project roots'), once each. */
 export function findEngines(s: EngineSources, fs: EngineFs): UnrealEngine[] {
   const found: UnrealEngine[] = [];
   const add = (e: UnrealEngine | null): void => {
@@ -249,7 +248,7 @@ export function findUproject(workspace: string, fs: EngineFs): string | null {
   return null;
 }
 
-/** Writable before read-only (the editor writes into a project's engine plugins and caches), installed before source. */
+/** Writable before read-only (the editor writes into a project's engine plugins), installed before source. */
 const preference = (e: UnrealEngine): number => (e.writable ? 0 : 2) + (e.build === 'installed' ? 0 : 1);
 
 export interface EngineChoice {

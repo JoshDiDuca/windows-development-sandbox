@@ -28,7 +28,7 @@ export const MAX_LAUNCHER_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_ITEM_BYTES = 1024 * 1024;
 const MAX_ENTRIES = 2000;
 
-const stripBom = (text: string): string => text.replace(/^﻿/, '');
+const stripBom = (text: string): string => text.replace(/^\uFEFF/, '');
 
 /** %ProgramData%\Epic\UnrealEngineLauncher\LauncherInstalled.dat */
 export function launcherInstalledFile(programData: string): string {

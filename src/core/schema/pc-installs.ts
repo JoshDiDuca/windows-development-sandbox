@@ -38,7 +38,7 @@ export const PcInstallsSchema = z
     unrealAssets: z
       .union([z.literal('auto'), z.boolean()])
       .describe(
-        "The Epic Games Launcher's vault cache of this PC (the Fab and Marketplace packs you downloaded), read-only in the sandbox at C:\\PcInstalls\\unreal\\Vault: what you download on your PC is there for the agents at once. \"auto\" = whenever the sandbox is set up for Unreal, true = always, false = never.",
+        'The Epic Games Launcher\'s vault cache of this PC (the Fab and Marketplace packs you downloaded), read-only in the sandbox at C:\\PcInstalls\\unreal\\Vault: what you download on your PC is there for the agents at once. "auto" = whenever the sandbox is set up for Unreal, true = always, false = never.',
       ),
     unityEditors: pick(
       z.string().regex(/^\d+\.\d+\.\d+[abfp]\d+$/),

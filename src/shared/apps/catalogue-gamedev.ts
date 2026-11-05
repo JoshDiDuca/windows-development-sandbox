@@ -9,7 +9,8 @@ export const GAMEDEV_APPS: readonly AppEntry[] = [
     id: 'krita',
     name: 'Krita',
     category: 'gamedev',
-    about: 'Painting and texture editor (PSD, layers, brushes), checked against the SHA-256 download.kde.org publishes.',
+    about:
+      'Painting and texture editor (PSD, layers, brushes), checked against the SHA-256 download.kde.org publishes.',
     size: '450 MB',
     source: { resolve: 'krita' },
     exe: 'krita.exe',

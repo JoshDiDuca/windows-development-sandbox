@@ -1,8 +1,8 @@
-// The Epic Games Launcher in the sandbox: installed every boot from its MSI (downloaded once into tools\unreal, run only
-// when Epic's signature checks out; a sandbox loses Program Files), pointed at the data disk for engines
-// (GameUserSettings.ini [Launcher] DefaultAppInstallLocation, in the encoding the file has), and given back what it knew
-// about the engines it installed there: their .item manifests and LauncherInstalled.dat entries are saved on the data
-// disk while the sandbox runs (the daemon calls saveLauncherState) and put back at the next boot.
+// The Epic Games Launcher in the sandbox: installed every boot from its MSI (downloaded once into tools\unreal, run
+// only when Epic's signature checks out; a sandbox loses Program Files), pointed at the data disk for engines
+// (GameUserSettings.ini [Launcher] DefaultAppInstallLocation, in the encoding the file has), and given back what it
+// knew about the engines it installed there: their .item manifests and LauncherInstalled.dat entries are saved on the
+// data disk while the sandbox runs (the daemon calls saveLauncherState) and put back at the next boot.
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';

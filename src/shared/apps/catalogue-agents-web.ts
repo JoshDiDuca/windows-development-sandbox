@@ -23,6 +23,13 @@ export const COMET_SIGNER: AppSigner = {
   subject: ['(^|, )CN="?PERPLEXITY AI, INC\\.?"?(,|$)', '(^|, )O="?PERPLEXITY AI, INC\\.?"?(,|$)'],
   issuer: ['^CN=GlobalSign GCC R45 EV CodeSigning CA 2020(,|$)'],
 };
+/**
+ * The Perplexity desktop app is Store-only (its old installer is gone): product 9P9XG917PWCJ, an MSIX of about 300 MB.
+ * The package is fetched on this PC with your own Store tooling and installed in the sandbox with Add-AppxPackage.
+ */
+export const PERPLEXITY_DESKTOP_PRODUCT_ID = '9P9XG917PWCJ';
+export const PERPLEXITY_DESKTOP_PACKAGE = 'PerplexityAI.PerplexityApp';
+export const PERPLEXITY_DESKTOP_FAMILY = 'PerplexityAI.PerplexityApp_3jh4kjrg4dzr2';
 /** Microsoft Edge, already in every sandbox: the browser Chrome DevTools MCP starts. */
 const EDGE_EXE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 
@@ -74,6 +81,23 @@ export const AGENTS_WEB_APPS: readonly AppEntry[] = [
     exe: 'comet.exe',
     needs: ['7zip'],
     signer: COMET_SIGNER,
+    userOnly: true,
+  },
+  {
+    id: 'perplexity-desktop',
+    name: 'Perplexity (desktop app)',
+    category: 'agents',
+    about:
+      "Perplexity's desktop app, with Perplexity Computer, from the Microsoft Store. The package comes from this PC (winget with your own Microsoft Store access) and is kept on the data disk; the sandbox installs it on every boot. With accounts.perplexityapp.share on, your sign-in made in a sandbox is kept for the next ones (it cannot be copied from this PC). It acts on what it reads: use it only on what you would let it act on.",
+    size: '300 MB',
+    source: {
+      store: {
+        productId: PERPLEXITY_DESKTOP_PRODUCT_ID,
+        packageName: PERPLEXITY_DESKTOP_PACKAGE,
+        family: PERPLEXITY_DESKTOP_FAMILY,
+      },
+    },
+    exe: '',
     userOnly: true,
   },
   {

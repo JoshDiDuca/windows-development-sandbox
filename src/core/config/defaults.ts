@@ -59,6 +59,7 @@ export const DEFAULTS: Config = {
     appstore: { share: false },
     perplexity: { share: false },
     comet: { share: false },
+    perplexityapp: { share: false },
   },
   pcInstalls: {
     steamGames: false,

@@ -790,6 +790,7 @@ export const agentsWebSuite: Suite = {
       'perplexity-mcp',
       'perplexity-computer-mcp',
       'comet',
+      'perplexity-desktop',
       'comet-mcp',
       'chrome-devtools-mcp',
       'browser-use-mcp',
@@ -797,7 +798,7 @@ export const agentsWebSuite: Suite = {
     t.equal(
       AGENTS_WEB_APPS.map((a) => a.id),
       ids,
-      'the six entries',
+      'the seven entries',
     );
     for (const entry of AGENTS_WEB_APPS) {
       t.check(

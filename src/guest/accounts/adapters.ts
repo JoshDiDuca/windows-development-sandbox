@@ -8,6 +8,7 @@ import { epicAdapter } from './kinds/epic.js';
 import { expoAdapter } from './kinds/expo.js';
 import { keystoreAdapter } from './kinds/keystore.js';
 import { perplexityAdapter } from './kinds/perplexity.js';
+import { perplexityAppAdapter } from './kinds/perplexityapp.js';
 import { playAdapter } from './kinds/play.js';
 import { steamAdapter } from './kinds/steam.js';
 import { unityAdapter } from './kinds/unity.js';
@@ -23,4 +24,5 @@ export const ADAPTERS: { readonly [K in ServiceKind]: GuestAdapter<K> } = {
   appstore: appstoreAdapter,
   perplexity: perplexityAdapter,
   comet: cometAdapter,
+  perplexityapp: perplexityAppAdapter,
 };

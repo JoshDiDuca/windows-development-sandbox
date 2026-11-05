@@ -9,7 +9,8 @@ import { defineOperation, defineQuery } from '../../kernel/index.js';
 import { setSetting } from '../settings/settings.def.js';
 
 /** The kinds, as the help says them (the self-test checks this against shared/accounts SERVICE_KINDS). */
-export const SERVICE_NAMES_TEXT = 'epic, steam, unity, cfx, keystore, play, expo, appstore, perplexity or comet';
+export const SERVICE_NAMES_TEXT =
+  'epic, steam, unity, cfx, keystore, play, expo, appstore, perplexity, comet or perplexityapp';
 
 const KindSchema = z
   .string()

@@ -9,6 +9,7 @@ Perplexity sign-ins live in **Accounts**, like every other [service sign-in](acc
 | Perplexity Computer MCP (`perplexity-computer-mcp`) | Hands tasks to Perplexity Computer, Perplexity's cloud agent, from Claude Code and Codex        | your Perplexity account (OAuth), kept with the agent login |
 | Perplexity MCP (`perplexity-mcp`)                 | Web search, answers, deep research and reasoning from Perplexity's API                            | a Perplexity API key (`accounts.perplexity`)     |
 | Comet (`comet`)                                   | Perplexity's agentic browser (Chromium), portable                                                 | your perplexity.ai sign-in (`accounts.comet`)    |
+| Perplexity desktop app (`perplexity-desktop`)     | Perplexity's Windows app with Perplexity Computer, from the Microsoft Store                      | your perplexity.ai sign-in (`accounts.perplexityapp`) |
 | Comet MCP (`comet-mcp`)                           | Lets the agents hand web tasks to Comet's own assistant and read its answers                      | through Comet                                    |
 | Chrome DevTools MCP (`chrome-devtools-mcp`)       | Drives and inspects a browser with DevTools (console, network, performance traces), with Edge     | none                                             |
 | Browser Use MCP (`browser-use-mcp`)               | Browser automation from Browser Use; its own task agent needs an OpenAI or Anthropic API key      | none (an LLM key for its agent)                  |
@@ -74,6 +75,42 @@ ones. With `accounts.comet.share` on:
 - The next sandbox gets them back: they are written into Comet's profile over DevTools once Comet is ready.
 - Several sandboxes can use it at once; the sign-in the last one hands back is kept.
 
+## Perplexity desktop app (Microsoft Store)
+
+Turn on **Perplexity (desktop app)** (`perplexity-desktop`, about 300 MB). The app exists only in the Microsoft Store
+(product `9P9XG917PWCJ`, package family `PerplexityAI.PerplexityApp_3jh4kjrg4dzr2`; the old installer gives a 404), and
+Windows Sandbox has no Store. So **this PC** fetches the package and the sandbox installs it:
+
+1. At every launch with the app on, your PC runs `winget download --id 9P9XG917PWCJ --source msstore` (script
+   `native\scripts\get-store-package.ps1`), with **your own** Windows and Microsoft Store access. No account token is
+   held, asked for or hard-coded anywhere. The original signed `.msix` and its frameworks (VCLibs ...) are kept in
+   `<storage>\store-packages\9P9XG917PWCJ` and looked for again after 30 days (a failed look keeps the old copy). To
+   fetch again now, delete that folder.
+2. The files are hashed on your PC and copied into the data folder (`toolspps\perplexity-desktop.package`, with
+   `store-package.json`). Nothing is repacked, so the publisher's signature stays and Windows checks it as it would
+   any Store package.
+3. In the sandbox, every boot (its Windows is new each time), the files are checked against the hashes and installed
+   with `Add-AppxPackage` (`sandbox\scripts\install-store-package.ps1`), frameworks first. The shortcut (desktop and
+   **Start > Sandbox apps**) starts the app through `start-store-app.ps1` with its own profile
+   (`%LOCALAPPDATA%\AgentSandbox\perplexity-app-profile`) and a DevTools port on `127.0.0.1`.
+
+If winget or the Store is not available on your PC, the launch goes on: it prints what failed and the sandbox skips the
+app. Windows does not let the signed package be exported from an already installed app, so the winget download is the
+one route used; the fallback of copying the installed folder would lose the signature.
+
+**Your sign-in.** The app is an Electron program: its cookies are encrypted with a key that Windows (DPAPI) seals to your
+PC account, so they cannot open in a sandbox, and reading them would be what password stealers do. So, as for Comet,
+nothing is taken from this PC. Sign in once inside a sandbox and it is kept for the next ones. With
+`accounts.perplexityapp.share` on, the sandbox asks the running app every 30 seconds for the cookies of `perplexity.ai`
+only (the persistent, HttpOnly ones) and your PC seals them into its store; the next sandbox writes them back over
+DevTools once the app is running (reload its window if it was already showing the sign-in page). The same rules as
+Comet's apply: several sandboxes at once, the last hand-back wins, and nothing but those cookies travels.
+
+**What is checked where.** The catalogue, the sign-in kind, the manifest, the fetch and staging (with a fake Store
+tool), the hash check and the command lines are in the self-test (`npm test store-app`). Not tested on a machine
+without the Store: the real `winget download` (needs your PC), the app starting with the DevTools port, and the cookie
+round trip with the real app.
+
 ## Comet MCP, Chrome DevTools MCP, Browser Use MCP
 
 - **Comet MCP** (`comet-mcp` 2.3.0, [hanzili/comet-mcp](https://github.com/hanzili/comet-mcp)) talks to Comet on
@@ -95,8 +132,6 @@ ones. With `accounts.comet.share` on:
 
 ## Not offered, and why
 
-- **The Perplexity desktop app ("Personal Computer")**: it is only in the Microsoft Store (MSIX), Windows Sandbox has
-  no Store, and it would be a 767 MB reinstall every boot. Perplexity Computer MCP gives the agents the same.
 - **ChatGPT Atlas**: macOS only, and discontinued.
 - **Claude desktop's Cowork**: needs the Virtual Machine Platform, which Windows Sandbox does not have.
 - **Edge Copilot Mode, Gemini in Chrome**: tied to Microsoft or Google sign-in brokers, and US previews.

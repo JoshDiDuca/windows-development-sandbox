@@ -17,9 +17,10 @@ own.
 | `appstore` | an App Store Connect API key (`.p8`, issuer ID, key ID)                       | `import appstore --from AuthKey.p8`            | React Native, Flutter                    |
 | `perplexity` | a Perplexity API key (`PERPLEXITY_API_KEY`, `pplx-...`)                   | `import perplexity` (this PC's variable), `--from .env`, or `login` | the Perplexity MCP app |
 | `comet`    | the perplexity.ai sign-in cookies of the Comet browser                        | sign in to Comet once in a sandbox (it can't be copied from this PC: Windows locks it to your PC account) | the Comet app |
+| `perplexityapp` | the perplexity.ai sign-in cookies of the Perplexity desktop app | sign in to the app once in a sandbox (it can't be copied from this PC: Windows locks it to your PC account) | the Perplexity desktop app |
 
 Unity, the Android keys, Expo and App Store Connect come in a later version: their rows are there, and
-saving one says so for now. Perplexity and Comet work now: see [agents-web.md](agents-web.md).
+saving one says so for now. Perplexity, Comet and the Perplexity desktop app work now: see [agents-web.md](agents-web.md).
 
 ## Commands
 

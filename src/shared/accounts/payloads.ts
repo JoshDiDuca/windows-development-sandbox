@@ -146,6 +146,9 @@ export const CometPayloadSchema = z.strictObject({
   cookies: z.array(CometCookieSchema).min(1).max(MAX_COMET_COOKIES),
 });
 
+/** The Perplexity desktop app's sign-in: the same perplexity.ai cookies as Comet's. */
+export const PerplexityAppPayloadSchema = CometPayloadSchema;
+
 export const PAYLOADS = {
   epic: EpicPayloadSchema,
   steam: SteamPayloadSchema,
@@ -157,6 +160,7 @@ export const PAYLOADS = {
   appstore: AppstorePayloadSchema,
   perplexity: PerplexityPayloadSchema,
   comet: CometPayloadSchema,
+  perplexityapp: PerplexityAppPayloadSchema,
 } as const satisfies { readonly [K in ServiceKind]: z.ZodType };
 
 export type Payload<K extends ServiceKind> = z.output<(typeof PAYLOADS)[K]>;
@@ -175,6 +179,7 @@ export const ServiceAccountsSchema = z.strictObject({
   appstore: AppstorePayloadSchema.optional(),
   perplexity: PerplexityPayloadSchema.optional(),
   comet: CometPayloadSchema.optional(),
+  perplexityapp: PerplexityAppPayloadSchema.optional(),
 });
 export type ServiceAccounts = z.output<typeof ServiceAccountsSchema>;
 

@@ -1,7 +1,17 @@
 // What reaches the sandbox from this PC's Claude files, and what is stripped first: API keys, cloud credentials, tokens
 // in MCP server definitions. Also the secret-looking files in a workspace that the launch warns about.
 import path from 'node:path';
-import { findSecretFiles, sandboxGlobalState, stripMcpServers, stripSettings } from '../host/profile/index.js';
+import fs from 'node:fs';
+import { DEFAULTS } from '../core/config/index.js';
+import {
+  findSecretFiles,
+  pluginFilter,
+  pluginTrimLevel,
+  sandboxGlobalState,
+  stageClaudeProfile,
+  stripMcpServers,
+  stripSettings,
+} from '../host/profile/index.js';
 import type { Suite } from './support/suite.js';
 
 const REMOVED = '[removed by agent-sandbox]';
@@ -163,6 +173,52 @@ export const secretsSuite: Suite = {
       findSecretFiles(workspace).sort(),
       ['.env', 'api\\credentials.json', 'server.pem'],
       'secret-looking workspace files are found for the launch warning (templates and dependencies ignored)',
+    );
+
+    t.section('plugins staged from this PC');
+    const hostClaude = t.at('plugins-host');
+    const plugins = path.join(hostClaude, 'plugins');
+    t.write(path.join(plugins, 'installed_plugins.json'), '{"version":2,"plugins":{}}');
+    t.write(path.join(plugins, 'known_marketplaces.json'), '{}');
+    t.write(path.join(plugins, 'cache', 'm', 'p', '1.0', 'plugin.json'), '{}');
+    t.write(path.join(plugins, 'cache', 'm', 'p', '1.0', 'node_modules', 'dep', 'index.js'), 'x');
+    t.write(path.join(plugins, 'cache', 'temp_git_1_abc', 'junk.txt'), 'x');
+    t.write(path.join(plugins, 'marketplaces', 'm', 'marketplace.json'), '{}');
+    t.write(path.join(plugins, 'marketplaces', 'm', '.git', 'HEAD'), 'ref');
+    t.write(path.join(plugins, 'marketplaces', 'm.backup', 'old.txt'), 'x');
+    t.write(path.join(plugins, 'marketplaces', 'temp_subdir_2.clone', 'junk.txt'), 'x');
+    t.write(path.join(hostClaude, 'settings.json'), '{"enabledPlugins":{"p@m":true}}');
+    const launch = t.at('plugins-launch');
+    const profile = { ...DEFAULTS.claudeProfile, hostDir: hostClaude, globalStateFile: '' };
+    const staged = stageClaudeProfile(profile, launch, 'D:\Code\app', DEFAULTS.secrets);
+    const out = path.join(launch, 'claude-profile', 'plugins');
+    t.check(staged.staged.includes('plugins'), 'plugins are staged');
+    t.check(
+      fs.existsSync(path.join(out, 'cache', 'm', 'p', '1.0', 'plugin.json')) &&
+        fs.existsSync(path.join(out, 'marketplaces', 'm', 'marketplace.json')) &&
+        fs.existsSync(path.join(out, 'marketplaces', 'm', '.git', 'HEAD')) &&
+        fs.existsSync(path.join(out, 'cache', 'm', 'p', '1.0', 'node_modules', 'dep', 'index.js')),
+      'the plugin cache, marketplaces and (when they fit) their git folders and dependencies are copied',
+    );
+    t.check(
+      !fs.existsSync(path.join(out, 'cache', 'temp_git_1_abc')) &&
+        !fs.existsSync(path.join(out, 'marketplaces', 'm.backup')) &&
+        !fs.existsSync(path.join(out, 'marketplaces', 'temp_subdir_2.clone')),
+      'interrupted clones, backups and staging folders of plugins are left out',
+    );
+    t.check(pluginTrimLevel(plugins) === 0, 'a plugins folder under the cap is not trimmed');
+    const git = path.join(plugins, 'marketplaces', 'm', '.git');
+    const deps = path.join(plugins, 'cache', 'm', 'p', '1.0', 'node_modules');
+    t.check(
+      pluginFilter(plugins, 0)(git) &&
+        !pluginFilter(plugins, 1)(git) &&
+        pluginFilter(plugins, 1)(deps) &&
+        !pluginFilter(plugins, 2)(deps),
+      'a plugins folder over the cap loses git history first, then node_modules',
+    );
+    t.check(
+      fs.readFileSync(path.join(launch, 'claude-profile', 'settings.json'), 'utf8').includes('p@m'),
+      'enabledPlugins reach the sandbox',
     );
   },
 };

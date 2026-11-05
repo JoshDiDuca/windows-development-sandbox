@@ -377,6 +377,11 @@ want to use this API key?". It also takes the subscription out of the sandbox, b
 over a key. Switching back to a subscription takes the key out again. An `ANTHROPIC_API_KEY` you set in the agent's
 `environment` comes before any saved account (Claude asks once whether to use it).
 
+Your PC's plugins (`plugins` in `claudeProfile.include`) are copied at launch, with their paths rewritten to the
+sandbox's Claude folder. The copy is limited to 250 MB. Leftovers Claude never reads (`temp_*` folders from interrupted
+clones, `*.backup` and `*.staging` marketplaces) are always left out; if the rest is still over the limit, git history
+(`.git`) is left out, then `node_modules`. Only when it still does not fit is `plugins` skipped, and the launch says so.
+
 Plugins installed in the sandbox stay when you switch accounts, because all accounts of a data set share one Claude
 folder. They do not reach another data set. Set `claudeProfile.sharePluginsAcrossAccounts: true` to copy them into a
 data set that has none yet (the plugins folder and the plugin entries of `settings.json`; logins are not touched). The

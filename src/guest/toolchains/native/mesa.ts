@@ -1,12 +1,12 @@
 // Mesa for running OpenGL and Vulkan programs without a GPU (llvmpipe, lavapipe).
 import path from 'node:path';
 import type { Toolchains } from '../../../core/types.js';
-import { downloader } from '../../../shared/download/index.js';
+import { downloader, fetchJson } from '../../../shared/download/index.js';
 import { SYSTEM } from '../../../shared/system.js';
 import { dryRun } from '../../runtime/paths.js';
 import { execAsync, scriptOutput } from '../../runtime/process.js';
 import { exists } from '../../runtime/fs.js';
-import { log, warn } from '../../runtime/log.js';
+import { log } from '../../runtime/log.js';
 import { errMsg } from '../../../core/util/errors.js';
 import { arch, tool, type ToolEnv } from '../tool-env.js';
 import { installFromGithub } from '../install.js';
@@ -37,9 +37,28 @@ export async function setupMesa(env: ToolEnv, config: Toolchains['mesa']): Promi
   if (config.vulkan) await setupLavapipe(env, dir);
 }
 
-const VULKAN_RUNTIME = 'https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-runtime-components.zip';
-/** Used when "latest" is not published yet (LunarG announces a version before its runtime zip is up: a 404). */
-const VULKAN_RUNTIME_PINNED = 'https://sdk.lunarg.com/sdk/download/1.4.350.0/windows/vulkan-runtime-components.zip';
+/** LunarG's newest SDK version per platform ({"windows": "1.4.363.1", ...}). */
+const VULKAN_LATEST = 'https://vulkan.lunarg.com/sdk/latest.json';
+const runtimeUrl = (version: string): string =>
+  'https://sdk.lunarg.com/sdk/download/' + version + '/windows/vulkan-runtime-components.zip';
+/** Known to have the runtime zip: used when LunarG cannot be asked, or none of its versions has one. */
+const VULKAN_PINNED = '1.4.363.0';
+
+/**
+ * The versions to try for the runtime zip, newest first: LunarG's latest, its x.y.z.0 (a point release such as
+ * 1.4.363.1 reissues the SDK without the runtime zip), then the pinned one.
+ */
+async function runtimeVersions(): Promise<string[]> {
+  let latest: string | null = null;
+  try {
+    const value = (await fetchJson<Record<string, unknown>>(VULKAN_LATEST)).windows;
+    if (typeof value === 'string' && /^\d{1,2}\.\d{1,2}\.\d{1,4}\.\d{1,3}$/.test(value)) latest = value;
+  } catch {
+    // LunarG not reachable: the pinned version.
+  }
+  const found = latest ? [latest, latest.replace(/\.\d+$/, '.0')] : [];
+  return [...new Set([...found, VULKAN_PINNED])];
+}
 
 /**
  * Software Vulkan: Mesa's lavapipe plus the Khronos loader (vulkan-1.dll, from LunarG's runtime components; Windows
@@ -57,11 +76,15 @@ const setupLavapipe = async (env: ToolEnv, mesaDir: string): Promise<void> => {
     // The zip has x86 and x64 folders: only the 64-bit loader (and vulkaninfo) is extracted.
     const fetchRuntime = (url: string): Promise<void> =>
       downloader.archive(url, dir, { locate: 'vulkan-1.dll', fileName: 'vulkan-runtime.zip', members: ['*/x64/*'] });
-    try {
-      await fetchRuntime(VULKAN_RUNTIME);
-    } catch (e) {
-      warn('The latest Vulkan runtime could not be downloaded (' + errMsg(e) + '); using version 1.4.350.0.');
-      await fetchRuntime(VULKAN_RUNTIME_PINNED);
+    const versions = await runtimeVersions();
+    for (const [n, version] of versions.entries()) {
+      try {
+        await fetchRuntime(runtimeUrl(version));
+        log('Vulkan loader ' + version + ' installed');
+        break;
+      } catch (e) {
+        if (n === versions.length - 1) throw new Error('the Vulkan loader could not be downloaded (' + errMsg(e) + ')');
+      }
     }
   }
   const register = (file: string): Promise<void> =>

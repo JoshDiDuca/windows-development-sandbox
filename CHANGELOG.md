@@ -7,6 +7,21 @@ Some older names stay on purpose so that existing installs keep working: the `~/
 environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
 `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.27.1
+
+- **Your Unreal Engine is mapped again.** The Fab plugin's launcher entry points at the engine's folder, so the engine
+  was mapped as an Epic game (`C:\PcInstalls\epic\FabPlugin_5.8`) and Unreal found no engine. Engines are now found
+  first, at `C:\PcInstalls\unreal\UE_5.8`, and on every drive (`<drive>\Program Files\Epic Games`, `<drive>\Epic Games`,
+  and next to what the launcher lists). Unity editors are looked for on every drive too.
+- **Sign-ins come from this PC on their own.** With `accounts.<service>.share` on and nothing saved yet, the launch
+  takes your PC's own sign-in and saves it: the Epic Games Launcher's, Unity's licence, SteamCMD's login and your
+  `PERPLEXITY_API_KEY`. No `sandbox account import` first.
+- The Epic Games Launcher no longer reports a failed install: newer launchers install into Program Files, not
+  Program Files (x86). Opening it from the Unreal page uses where it really is.
+- Unity's skills reach Claude Code (the Unity CLI calls it `claude-code`).
+- The Vulkan loader follows LunarG's real latest version (from its `latest.json`; a point release such as 1.4.363.1
+  has no runtime zip, so its 1.4.363.0 is used), instead of a "latest" link that answered 404 and a warning.
+
 ## 1.27.0
 
 - **Unity for agents.** Editors install once to the data disk (`tools\unity\editors\<version>`) or come read-only from

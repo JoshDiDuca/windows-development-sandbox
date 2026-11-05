@@ -115,6 +115,7 @@ export const agentPathsSuite: Suite = {
         'C:\\AgentData\\state\\codex\\.sandbox\\setup_marker.json',
         'C:\\AgentData\\state\\codex\\.sandbox\\deny_read_acl_state.json',
         'C:\\AgentData\\state\\codex\\tmp\\arg0',
+        'C:\\AgentData\\state\\codex\\tmp\\arg0-windows',
       ],
       "codex's DPAPI-sealed sandbox users and setup marker are removed at boot (CryptUnprotectData otherwise)",
     );

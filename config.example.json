@@ -438,7 +438,8 @@
         ".sandbox-secrets",
         ".sandbox\\setup_marker.json",
         ".sandbox\\deny_read_acl_state.json",
-        "tmp\\arg0"
+        "tmp\\arg0",
+        "tmp\\arg0-windows"
       ],
       "resumeArguments": [
         "resume",

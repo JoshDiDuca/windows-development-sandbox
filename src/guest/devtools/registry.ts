@@ -4,9 +4,8 @@ import { androidTool } from './android.js';
 import type { DevTool } from './devtool.js';
 import { fivemTool } from './fivem.js';
 import { steamTool } from './steam.js';
-import { unityTool } from './unity.js';
 
-export const DEVTOOLS: readonly DevTool[] = [steamTool, fivemTool, unityTool, androidTool];
+export const DEVTOOLS: readonly DevTool[] = [steamTool, fivemTool, androidTool];
 
 /** The helpers for the toolchains that are on (resolved by the host; "auto" counts as off here). */
 export function devToolsFor(t: Toolchains): DevTool[] {

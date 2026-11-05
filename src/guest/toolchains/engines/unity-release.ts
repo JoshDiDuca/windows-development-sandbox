@@ -1,22 +1,21 @@
-// Unity's release API (services.api.unity.com/unity/editor/release/v1/releases): the editor installer and module
-// downloads of one version, each with its SRI integrity hash. Not available yet.
+// Unity's release API (services.api.unity.com): the editor installer, its changeset and its modules for one version.
+// The answer is read with a size limit and checked by shared/unity/release.ts.
+import { fetchBounded } from '../../../shared/download/index.js';
+import { pickRelease, releaseUrl, type UnityRelease } from '../../../shared/unity/index.js';
 
-export interface UnityDownload {
-  /** "editor", or a module id (android, webgl, windows-il2cpp, ios). */
-  readonly id: string;
-  readonly url: string;
-  /** The SRI hash (sha384-... or sha256-...). */
-  readonly integrity: string | null;
-  readonly sizeBytes: number | null;
-}
+export type { UnityRelease };
 
-export interface UnityRelease {
-  readonly version: string;
-  readonly changeset: string | null;
-  readonly downloads: readonly UnityDownload[];
-}
+const MAX_ANSWER_BYTES = 2 * 1024 * 1024;
 
-/** The release of one editor version (6000.0.32f1), or null when Unity does not list it. */
-export async function findUnityRelease(_version: string): Promise<UnityRelease | null> {
-  return null;
+/** The release of one editor version (6000.0.58f2), or null when Unity does not list it or answers oddly. */
+export async function findUnityRelease(version: string): Promise<UnityRelease | null> {
+  const text = await fetchBounded(releaseUrl(version), MAX_ANSWER_BYTES);
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return null; // Not JSON: no release.
+  }
+  const release = pickRelease(json);
+  return release && release.version === version ? release : null;
 }

@@ -17,10 +17,11 @@ const INNER: readonly RegExp[] = [
   /^chrome\.7z$/i,
   /^chrome\.packed\.7z$/i,
   /^mini_installer\.exe$/i,
-  /^updater\.packed\.7z$/i,
+  /^updater\.(packed\.)?7z$/i,
 ];
 const MAX_LEVELS = 6;
-const MAX_DEPTH = 4;
+/** Comet's installer nests mini_installer.exe five folders down (bin\Offline\{id}\{id}). */
+const MAX_DEPTH = 7;
 const MAX_ENTRIES = 20000;
 /** Where the installer is kept when it could not be unpacked (below the app's folder). */
 export const KEPT_INSTALLER_DIR = 'installer';

@@ -15,9 +15,12 @@ export const BROWSER_USE_VERSION = '0.13.14';
 export const PERPLEXITY_COMPUTER_MCP_URL = 'https://www.perplexity.ai/rest/computer/mcp';
 /** Comet's Windows installer: a redirect to the current release (no checksum is published; its signer is checked). */
 export const COMET_DOWNLOAD_URL = 'https://www.perplexity.ai/rest/browser/download?platform=win_x64&channel=stable';
-/** Who signs Comet: Perplexity AI, Inc., with an EV code-signing certificate from GlobalSign. */
+/**
+ * Who signs Comet: Perplexity AI, Inc., with an EV code-signing certificate from GlobalSign. Windows reports the
+ * subject with E=<contact address> first (E=..., CN="PERPLEXITY AI, INC.", O=...), so CN is not at the start.
+ */
 export const COMET_SIGNER: AppSigner = {
-  subject: ['^CN="?PERPLEXITY AI, INC\\.?"?(,|$)', '(^|, )O="?PERPLEXITY AI, INC\\.?"?(,|$)'],
+  subject: ['(^|, )CN="?PERPLEXITY AI, INC\\.?"?(,|$)', '(^|, )O="?PERPLEXITY AI, INC\\.?"?(,|$)'],
   issuer: ['^CN=GlobalSign GCC R45 EV CodeSigning CA 2020(,|$)'],
 };
 /** Microsoft Edge, already in every sandbox: the browser Chrome DevTools MCP starts. */

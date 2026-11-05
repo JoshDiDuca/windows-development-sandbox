@@ -19,7 +19,7 @@ interface ManifestJson {
 
 function parseManifest(text: string): ManifestJson {
   if (Buffer.byteLength(text) > MAX_MANIFEST_BYTES) throw new Error('Packages/manifest.json is over 1 MB');
-  const json: unknown = JSON.parse(text.replace(/^﻿/, ''));
+  const json: unknown = JSON.parse(text.replace(/^\uFEFF/, ''));
   if (typeof json !== 'object' || json === null || Array.isArray(json))
     throw new Error('Packages/manifest.json is not an object');
   const m = json as ManifestJson;

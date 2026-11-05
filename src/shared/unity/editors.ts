@@ -27,7 +27,7 @@ export const ORIGIN_LABELS = {
   data: 'the data disk, kept between sandboxes',
 } as const satisfies Record<UnityEditor['origin'], string>;
 
-/** Folders under Editor\Data\PlaybackEngines that tell a module is installed (windows-il2cpp: verify on a real editor). */
+/** Folders under Editor\Data\PlaybackEngines that show a module is installed (windows-il2cpp: verify on an editor). */
 const MODULE_FOLDERS: Readonly<Record<string, readonly string[]>> = {
   android: ['AndroidPlayer'],
   webgl: ['WebGLSupport'],

@@ -38,7 +38,7 @@ export interface CliBinary {
   readonly size: number;
 }
 
-/** The Windows build for this CPU, or null when the manifest has none or its file name or hash is not what we expect. */
+/** The Windows build for this CPU, or null when the manifest has none or its file name or hash is unexpected. */
 export function pickCliBinary(m: CliManifest, arch: 'x64' | 'arm64'): CliBinary | null {
   const b = m.binaries['win32-' + arch];
   if (!b) return null;
@@ -83,12 +83,12 @@ export function installModulesArgs(version: string, modules: readonly string[], 
   return ['install-modules', '-e', version, '-m', ...modules, '--cm', '--download-directory', dir];
 }
 
-/** Where the CLI installs editors. `--set` is not in the docs (it only says "run install-path --help"): from the plan. */
+/** Where the CLI installs editors. `--set` is not in the docs (they say "run install-path --help"): from the plan. */
 export function installPathArgs(dir: string): string[] {
   return ['install-path', '--set', dir];
 }
 
-/** `unity editors add <path...>` registers editors installed outside the Hub (the docs' example passes their folders). */
+/** `unity editors add <path...>` registers editors installed outside the Hub (the docs pass their folders). */
 export function editorsAddArgs(exes: readonly string[]): string[] {
   return ['editors', 'add', ...exes];
 }

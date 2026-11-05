@@ -84,7 +84,7 @@ function flatten(m: RawModule, depth = 0): RawModule[] {
   return (m.subModules ?? []).flatMap((s) => [s, ...flatten(s, depth + 1)]);
 }
 
-/** The first release an API answer holds (the EXE installer), or null when it holds none or is not the expected shape. */
+/** The first release an API answer holds (the EXE installer), or null when it holds none or has another shape. */
 export function pickRelease(json: unknown): UnityRelease | null {
   const parsed = ReleaseResponseSchema.safeParse(json);
   if (!parsed.success) return null;

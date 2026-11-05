@@ -55,7 +55,7 @@ export function parseProjectVersion(text: string): ProjectVersion | null {
   let changeset: string | null = null;
   const lines = text.slice(0, MAX_PROJECT_VERSION_BYTES).split('\n', MAX_PROJECT_VERSION_LINES);
   for (const raw of lines) {
-    const line = raw.replace(/^﻿/, '').trim();
+    const line = raw.replace(/^\uFEFF/, '').trim();
     if (line.startsWith('m_EditorVersionWithRevision:')) {
       const rest = line.slice('m_EditorVersionWithRevision:'.length).trim();
       const open = rest.indexOf('(');

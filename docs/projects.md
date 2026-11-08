@@ -79,10 +79,10 @@ If the project's own settings are stricter than the running sandbox's (for examp
 command. A sandbox that starts with several projects boots with what each of them wants and you allowed. A device
 turned on that way is on for every project in it (the launch says so).
 
-**Stricter protections.** Machine-wide protections (git access, network, the LAN block, clipboard and the other `.wsb`
-settings, read-only) are fixed at start. A project that needs a stricter one than the running sandbox has cannot join
-it, and says which setting. A project that asks for a looser one just gets the sandbox's stricter value. Nothing is
-ever loosened.
+**Stricter protections.** Machine-wide protections (git access, network, the LAN block, clipboard mode and direction,
+and the other `.wsb` settings, read-only) are fixed at start. A project that needs a stricter one than the running
+sandbox has cannot join it, and says which setting. A project that asks for a looser one just gets the sandbox's
+stricter value. Nothing is ever loosened.
 
 **Folders outside the project.** A project's `.sandbox-config.json` may map folders outside the project only as
 `projects.allowOutsideMappings` allows ([project settings](configuration.md#project-settings)).

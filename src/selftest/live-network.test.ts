@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { hostToolsSources } from '../host/native.js';
 import { startPortForwards } from '../host/network/index.js';
 import { PROXY_PORT, relayPort } from '../shared/network/index.js';
 import { CSC } from './support/live.js';
@@ -150,7 +151,7 @@ export const liveNetworkSuite: Suite = {
     const hostTools = path.join(t.dir('host-tools'), 'HostTools.exe');
     const builtHost = spawnSync(
       CSC,
-      ['/nologo', '/optimize', '/out:' + hostTools, ...csharp(t.packageRoot, 'native', 'csharp', 'HostTools')],
+      ['/nologo', '/optimize', '/out:' + hostTools, ...hostToolsSources(t.packageRoot)],
       { encoding: 'utf8' },
     );
     t.check(builtHost.status === 0, 'HostTools compiles (C# 5)', builtHost.stdout + builtHost.stderr);

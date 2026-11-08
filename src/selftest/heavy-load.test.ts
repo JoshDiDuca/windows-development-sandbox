@@ -6,6 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { DEFAULTS } from '../core/config/index.js';
 import { isWin } from '../core/util/index.js';
+import { hostToolsSources } from '../host/native.js';
 import { SYSTEM } from '../shared/system.js';
 import { GuestRequestSchema, PressureStatusSchema } from '../shared/channel/index.js';
 import {
@@ -1160,16 +1161,10 @@ export const heavyLoadSuite: Suite = {
     };
     const sandboxCs = (n: string): string => path.join(t.packageRoot, 'sandbox', 'csharp', n);
     build('ptyhost', [sandboxCs('PtyHost.cs')]);
-    build('clipboardwatch', [sandboxCs('ClipboardWatch.cs')], 'library');
+    build('clipboardwatch', [sandboxCs('ClipboardText.cs'), sandboxCs('ClipboardWatch.cs')], 'library');
+    const clipboardBridge = build('clipboardbridge', [sandboxCs('ClipboardBridge.cs'), sandboxCs('ClipboardText.cs')]);
     const memgov = build('memgov', [sandboxCs('MemGov.cs')]);
-    const hostDir = path.join(t.packageRoot, 'native', 'csharp', 'HostTools');
-    const tools = build(
-      'HostTools',
-      fs
-        .readdirSync(hostDir)
-        .filter((n) => n.endsWith('.cs'))
-        .map((n) => path.join(hostDir, n)),
-    );
+    const tools = build('HostTools', hostToolsSources(t.packageRoot));
     const status = spawnSync(tools, ['memory-status'], { encoding: 'utf8', windowsHide: true });
     const parsed = parseHostMemory(status.stdout);
     t.check(
@@ -1177,6 +1172,21 @@ export const heavyLoadSuite: Suite = {
       'HostTools memory-status answers with valid JSON',
       status.stdout,
     );
+    const bridgeUsage = spawnSync(clipboardBridge, [], { encoding: 'utf8', windowsHide: true });
+    t.check(bridgeUsage.status === 2, 'clipboardbridge without a command is a usage error');
+    const hostBridge = spawnSync(tools, ['clipboard-bridge', '--max-bytes', '1024'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      input: '',
+      timeout: 15000,
+    });
+    t.check(
+      /^fg [01]$/.test((hostBridge.stdout ?? '').split(/\r?\n/)[0] ?? '') && hostBridge.status === 0,
+      'HostTools clipboard-bridge prints the window state first and ends when its input closes',
+      hostBridge.stdout,
+    );
+    const hostBridgeUsage = spawnSync(tools, ['clipboard-bridge'], { encoding: 'utf8', windowsHide: true });
+    t.check(hostBridgeUsage.status === 2, 'HostTools clipboard-bridge without --max-bytes is a usage error');
     const usage = spawnSync(memgov, [], { encoding: 'utf8', windowsHide: true });
     t.check(usage.status === 2, 'memgov without a command is a usage error (it starts nothing)');
     const served = spawnSync(memgov, ['serve', '--interval', '1'], {

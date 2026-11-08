@@ -1,4 +1,4 @@
-// Reports each change of the clipboard on stdout until a parent process ends. Loaded by scripts\watch-clipboard.ps1 (Add-Type). C# 5.
+// Reports each change of the clipboard on stdout until a parent process ends. Loaded by scripts\watch-clipboard.ps1 (Add-Type, with ClipboardText.cs). Changes the clipboard bridge made (marker format) are not reported: they are not your copy. C# 5.
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -19,9 +19,6 @@ public static class SbxClipboardWatch
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CloseHandle(IntPtr handle);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern uint GetClipboardSequenceNumber();
     }
 
     /// <summary>
@@ -37,15 +34,18 @@ public static class SbxClipboardWatch
         }
         try
         {
-            uint last = NativeMethods.GetClipboardSequenceNumber();
+            uint last = SbxClipboardText.Sequence();
             while (NativeMethods.WaitForSingleObject(parent, 0) != WaitObject0)
             {
-                uint now = NativeMethods.GetClipboardSequenceNumber();
+                uint now = SbxClipboardText.Sequence();
                 if (now != last)
                 {
                     last = now;
-                    Console.Out.WriteLine("changed");
-                    Console.Out.Flush();
+                    if (!SbxClipboardText.HasMarker())
+                    {
+                        Console.Out.WriteLine("changed");
+                        Console.Out.Flush();
+                    }
                 }
                 Thread.Sleep(PollMs);
             }

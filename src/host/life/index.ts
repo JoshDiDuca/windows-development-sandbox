@@ -8,3 +8,4 @@ export * from './last-end.js';
 export * from './session-ledger.js';
 export * from './host-memory.js';
 export * from './watchdog.js';
+export * from './crash-evidence.js';

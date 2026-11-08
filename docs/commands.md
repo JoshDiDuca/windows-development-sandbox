@@ -96,6 +96,7 @@ path cannot contain `|`).
 | `sandbox stop [--yes]`                                    | shut down (history syncs back). Asks first when other projects' sessions would end                                                                           |
 | `sandbox show` / `hide`                                   | show or hide the window. Hidden, it keeps running                                                                              |
 | `sandbox cleanup [--service] [--yes]` | close the Windows Sandbox programs a dead sandbox left behind (Windows then says the sandbox was signed out, or that one is already running); `--service` also restarts the Windows Sandbox service (administrator permission). Asks first; never touches a working sandbox |
+| `sandbox vm-dumps [on|off|status]` | keep a crash dump of the program that runs the sandbox's VM (`vmwp.exe`) so the next crash says which part of Windows failed. `on` and `off` need administrator permission (Windows asks); `status` is the default ([what the report shows](troubleshooting.md#the-sandbox-was-gone-in-the-morning)) |
 
 Any number of terminals can show a session, in the sandbox and on your PC at once. Closing a tab or terminal never
 stops a session; only the agent (or shell) exiting does, or `sandbox close`.

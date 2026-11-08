@@ -201,7 +201,12 @@ const HINT_EVERY_MS = 24 * 60 * 60 * 1000;
 
 /** Whether the page file hint may be shown now (once a day at most); records that it was. */
 export function takePageFileHint(storageRoot: string, now: Date = new Date()): boolean {
-  const file = path.join(storageRoot, 'run', 'pagefile-hint.txt');
+  return takeDailyHint(storageRoot, 'pagefile-hint.txt', now);
+}
+
+/** Whether the hint kept in <storage>\run\<name> may be shown now (once a day at most); records that it was. */
+export function takeDailyHint(storageRoot: string, name: string, now: Date = new Date()): boolean {
+  const file = path.join(storageRoot, 'run', name);
   try {
     const last = Number(fs.readFileSync(file, 'utf8'));
     if (Number.isFinite(last) && now.getTime() - last < HINT_EVERY_MS) return false;

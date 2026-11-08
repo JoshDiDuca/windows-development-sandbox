@@ -10,6 +10,7 @@
 //   web-helper --pipe P --server-pid N   Windows sign-in for the web UI (WebHelper.cs), until stdin closes
 //   door-client --owner USER   another user's side of that sign-in: prints the answer
 //   clipboard-bridge --max-bytes N   the sandbox window in front (fg 1/0) and this PC's clipboard text, until stdin closes
+//   minidump <file>            the exception, faulting module and stack modules of a crash dump, as JSON (MiniDump.cs)
 //   protect | unprotect        DPAPI for the current user (Protect.cs): base64 on stdin, base64 on stdout
 using System;
 using System.Collections.Generic;
@@ -135,6 +136,21 @@ static class Program
                     return Usage();
                 }
                 return AgentSandbox.HostClipboard.Serve(maxBytes);
+            case "minidump":
+                if (args.Length != 2)
+                {
+                    return Usage();
+                }
+                try
+                {
+                    Console.Out.Write(AgentSandbox.MiniDump.Json(args[1]));
+                    return 0;
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e.Message);
+                    return 1;
+                }
             case "protect":
                 return AgentSandbox.Protect.Run(true);
             case "unprotect":
@@ -146,7 +162,7 @@ static class Program
 
     static int Usage()
     {
-        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove|--has <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | clipboard-bridge --max-bytes N | protect | unprotect");
+        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove|--has <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | clipboard-bridge --max-bytes N | minidump <file> | protect | unprotect");
         return 2;
     }
 

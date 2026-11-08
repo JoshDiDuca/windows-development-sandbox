@@ -68,6 +68,7 @@ import {
   sandboxStatusRun,
   showWindowRun,
   stopSandboxRun,
+  vmDumpsRun,
 } from './features/sandbox/index.js';
 import { listLogsRun, tailLogRun } from './features/logs/index.js';
 import { listAuditRun } from './features/audit/index.js';
@@ -114,6 +115,7 @@ export const IMPLEMENTATIONS: readonly Implementation<AnyDefinition, AppContext>
   hideWindowRun,
   stopSandboxRun,
   cleanUpSandboxRun,
+  vmDumpsRun,
   listSessionsRun,
   restartSessionsRun,
   startShellRun,

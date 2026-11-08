@@ -7,6 +7,21 @@ import { vgpuWarning } from '../launch/risk-notes.js';
 import { hostMemoryLine, readHostMemory } from './host-memory.js';
 import { hostDataFolder, hostDataRoot } from '../storage/index.js';
 import { heartbeatLine, readHeartbeat } from './last-end.js';
+import {
+  readWindowsVersion,
+  windowsServicing,
+  windowsVersionText,
+  type WindowsVersion,
+} from '../health/windows-release.js';
+import { vmDumpFolder } from '../sandbox/vm-dumps.js';
+import {
+  adapterLine,
+  dumpLines,
+  isVmwpCrash,
+  newestVmwpDump,
+  readGraphicsAdapters,
+  readMiniDump,
+} from './crash-evidence.js';
 import { bugcheckCode, explainStop, readStopEvents, type StopCause, type StopEvent } from './stop-events.js';
 
 const KEEP_REPORTS = 20;
@@ -30,6 +45,12 @@ export interface CrashExtra {
   readonly vgpu?: boolean;
   /** The sandbox's last heartbeat as a line (see heartbeatLine): what it was doing inside. */
   readonly lastInside?: string;
+  /** This PC's Windows (build, edition) as the OS reports it: the release decides whether a VM crash can be fixed. */
+  readonly windows?: WindowsVersion;
+  /** The graphics adapters and drivers as lines (given when vGPU was on). */
+  readonly graphics?: readonly string[];
+  /** What the crash dump of vmwp.exe shows (dumpLines), when one was kept. */
+  readonly dumpShows?: readonly string[];
 }
 
 /** The ends that get a crash report (not updates, restarts and sleep: those are plain). */
@@ -218,11 +239,21 @@ export function crashReportText(
   const meaning = findingLines(unique);
   const fine = memoryWasFineLine(extra.hostMemoryLog ?? '');
   const dumps = extra.dumps ?? [];
-  const vgpu = extra.vgpu ? ['vGPU was on for this sandbox. ' + vgpuWarning('its launch settings'), ''] : [];
+  const vgpu = extra.vgpu
+    ? [
+        'vGPU was on for this sandbox. ' + vgpuWarning('its launch settings'),
+        ...(extra.graphics ?? []).map((g) => 'Graphics adapter: ' + g),
+        '',
+      ]
+    : [];
+  const servicing =
+    extra.windows && isVmwpCrash(cause) ? windowsServicing(extra.windows.build, extra.windows.edition) : null;
   return [
     'Sandbox crash report, written ' + new Date().toISOString(),
     'What happened: ' + cause.text + ' at ' + cause.at + ' (the sandbox was last seen running at ' + lastSeen + ').',
     ...(freeze ? [freeze] : []),
+    ...(extra.windows ? ['This PC runs ' + windowsVersionText(extra.windows) + '.'] : []),
+    ...(servicing?.line ? [servicing.line] : []),
     '',
     'Windows events around then:',
     ...eventLines,
@@ -234,6 +265,12 @@ export function crashReportText(
     '',
     'Crash dumps Windows left (C:\\Windows\\Minidump, MEMORY.DMP):',
     ...(dumps.length ? dumps.map((d) => '  ' + d.name + '  ' + d.at) : ['  (none from that time)']),
+    ...(extra.dumpShows ?? []).map((l) => '  ' + l),
+    ...(isVmwpCrash(cause) && !extra.dumpShows?.length
+      ? [
+          '  No crash dump of vmwp.exe was kept. Turn it on (sandbox vm-dumps on) so the next crash says which part of Windows failed.',
+        ]
+      : []),
     '',
     "This PC's memory while the sandbox ran (host-memory log):",
     ...(hostLines.length ? hostLines : ['  (none: the background sync was not running)']),
@@ -311,13 +348,23 @@ export function saveCrashReport(
   const windir = process.env.SystemRoot ?? 'C:\\Windows';
   const memoryNow = readHostMemory(storageRoot);
   const heartbeat = readHeartbeat(dataPath);
+  const vgpu = launchHadVgpu(storageRoot, lastSeen);
+  const dumps = findDumps([path.join(windir, 'Minidump'), windir, vmDumpFolder()], since);
+  const windows = readWindowsVersion();
+  const graphics = vgpu ? readGraphicsAdapters().map(adapterLine) : [];
+  const vmwpDump = isVmwpCrash(cause) ? newestVmwpDump(dumps) : null;
+  const info = vmwpDump ? readMiniDump(storageRoot, vmwpDump) : null;
+  const dumpShows = info ? dumpLines(info) : [];
   fs.writeFileSync(
     file,
     crashReportText(cause, events, memoryLogTail(dataPath), lastSeen, {
       hostMemoryLog: hostMemoryTail(storageRoot, dataPath),
-      vgpu: launchHadVgpu(storageRoot, lastSeen),
+      vgpu,
       ...(heartbeat ? { lastInside: heartbeatLine(heartbeat) } : {}),
-      dumps: findDumps([path.join(windir, 'Minidump'), windir], since),
+      dumps,
+      ...(windows ? { windows } : {}),
+      ...(graphics.length ? { graphics } : {}),
+      ...(dumpShows.length ? { dumpShows } : {}),
       ...(memoryNow ? { hostMemoryNow: hostMemoryLine(memoryNow) } : {}),
     }),
   );

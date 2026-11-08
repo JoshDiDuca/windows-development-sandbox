@@ -8,7 +8,16 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useComputedColorScheme } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  CTRL_C_CONFIRM_MS,
+  CTRL_C_COPY_HINT,
+  CTRL_C_HINT,
+  CtrlCDecider,
+  classifyInput,
+  hasClipboardWrite,
+} from '../../../src/shared/web/index';
 import { TerminalConnection, type ConnectionState } from './connection';
 
 const DARK = {
@@ -50,6 +59,12 @@ interface TerminalViewProps {
   readonly onState: (state: ConnectionState, detail?: string) => void;
   /** Called with a function that ends the connection (detach). */
   readonly onReady: (detach: () => void) => void;
+}
+
+/** Tells the user why a Ctrl+C was not sent; one notice at a time. */
+function showHint(message: string): void {
+  notifications.hide('ctrl-c');
+  notifications.show({ id: 'ctrl-c', message, autoClose: CTRL_C_CONFIRM_MS });
 }
 
 function openLink(_event: MouseEvent, uri: string): void {
@@ -110,14 +125,27 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = '11';
     term.open(element);
-    // Ctrl+C with text selected copies it, as everywhere else; without a selection it reaches the program.
+    // Ctrl+C with text selected copies it, as everywhere else. Without one, CtrlCDecider decides: after a selection made
+    // inside the program it is "copy" and not sent; otherwise a lone Ctrl+C is held and a second one soon after sent.
+    const decider = new CtrlCDecider(true);
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown' || !e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'c') return true;
-      if (!term.hasSelection()) return true;
-      void navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined);
-      term.clearSelection();
+      if (term.hasSelection()) {
+        void navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined);
+        term.clearSelection();
+        return false;
+      }
+      const action = decider.ctrlC(Date.now());
+      if (action === 'send') return true;
+      showHint(action === 'copy' ? CTRL_C_COPY_HINT : CTRL_C_HINT);
       return false;
     });
+    // What the program sees decides whether the next Ctrl+C is "copy": see CtrlCDecider.
+    const watchInput = (text: string): void => {
+      const c = classifyInput(text);
+      if (c.keys || c.mouse === 'click') decider.otherInput();
+      else if (c.mouse === 'drag') decider.selection();
+    };
     terminal.current = term;
     search.current = finder;
     fit.current = fitter;
@@ -125,13 +153,23 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
 
     const connection = new TerminalConnection(sessionId, {
       state: onState,
-      output: (bytes) => term.write(bytes),
+      output: (bytes) => {
+        if (hasClipboardWrite(latin1.decode(bytes))) decider.selection();
+        term.write(bytes);
+      },
       reset: () => term.reset(),
     });
     const encoder = new TextEncoder();
+    const latin1 = new TextDecoder('latin1');
     send.current = (text) => connection.send(encoder.encode(text));
-    term.onData((text) => connection.send(encoder.encode(text)));
-    term.onBinary((text) => connection.send(Uint8Array.from(text, (ch) => ch.charCodeAt(0))));
+    term.onData((text) => {
+      watchInput(text);
+      connection.send(encoder.encode(text));
+    });
+    term.onBinary((text) => {
+      watchInput(text);
+      connection.send(Uint8Array.from(text, (ch) => ch.charCodeAt(0)));
+    });
     term.onResize(({ cols, rows }) => connection.resize(cols, rows));
     // Layout settles in bursts (fonts loading, a toolbar wrapping, the find bar): fit once it has settled, and only
     // when the size in cells really changes. Fitting on every notification sent a stream of resizes, and each one

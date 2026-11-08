@@ -26,6 +26,9 @@ const SETTINGS = {
   theme: 'dark',
   firstWindowPreference: 'defaultProfile',
   confirmCloseAllTabs: false,
+  // Copied the moment the mouse is released, so an agent's redraw cannot clear the selection first.
+  copyOnSelect: true,
+  copyFormatting: 'none',
   // New tabs pick up the PATH and variables the runner writes machine-wide after the window opened.
   compatibility: { reloadEnvironmentVariables: true },
   warning: { confirmCloseAllTabs: false, largePaste: false, multiLinePaste: false },
@@ -83,10 +86,19 @@ export function withReloadEnvironment(
   return { ...settings, compatibility: { ...compatibility, reloadEnvironmentVariables: true } };
 }
 
+/** settings.json that copies on select; null when the user already chose (true or false). Pure. */
+export function withCopyOnSelect(
+  settings: z.output<typeof TerminalSettingsSchema>,
+): z.output<typeof TerminalSettingsSchema> | null {
+  if ('copyOnSelect' in settings) return null;
+  return { ...settings, copyOnSelect: true };
+}
+
 /**
  * Shows the PowerShell 7 profile once pwsh is installed in this data folder (and `allowed`, i.e. toolchains.pwsh is
  * not off), hides it otherwise. settings.json is written by the sandbox too: read with a size cap, through no links,
- * shape-checked, only rewritten when the profile changes; a file that does not parse is left alone.
+ * shape-checked, only rewritten when the profile changes or a default switch is missing (reload the environment,
+ * copy on select; a value the user set stays); a file that does not parse is left alone.
  */
 export function syncPwshProfile(dataPath: string, allowed: boolean): void {
   const file = path.join(terminalDir(dataPath), 'settings', 'settings.json');
@@ -105,16 +117,19 @@ export function syncPwshProfile(dataPath: string, allowed: boolean): void {
   }
   const withProfile = withPwshProfile(parsed, visible);
   if (withProfile) {
-    writeJson(file, withReloadEnvironment(withProfile) ?? withProfile);
+    const reloaded = withReloadEnvironment(withProfile) ?? withProfile;
+    writeJson(file, withCopyOnSelect(reloaded) ?? reloaded);
     return;
   }
-  // Only the reload switch is missing: set that one value in the text, so comments and the layout stay.
-  if (withReloadEnvironment(parsed)) {
-    const edits = modify(text, ['compatibility', 'reloadEnvironmentVariables'], true, {
-      formattingOptions: { insertSpaces: true, tabSize: 4 },
-    });
-    writeFileAtomic(file, applyEdits(text, edits));
-  }
+  // Only default switches are missing: set those values in the text, so comments and the layout stay.
+  const missing: [string[], boolean][] = [];
+  if (withReloadEnvironment(parsed)) missing.push([['compatibility', 'reloadEnvironmentVariables'], true]);
+  if (withCopyOnSelect(parsed)) missing.push([['copyOnSelect'], true]);
+  if (missing.length === 0) return;
+  let edited = text;
+  for (const [at, value] of missing)
+    edited = applyEdits(edited, modify(edited, at, value, { formattingOptions: { insertSpaces: true, tabSize: 4 } }));
+  writeFileAtomic(file, edited);
 }
 
 export async function ensureTerminal(

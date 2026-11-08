@@ -9,6 +9,7 @@ import {
   helloFrame,
 } from './protocol.js';
 import { OutputFilter } from './output-filter.js';
+import { watchClipboard } from './clipboard-watch.js';
 import { enableVtInput } from './console-input.js';
 import { InputJoiner, JOIN_MS } from './input-joiner.js';
 import { CTRL_C_CONFIRM_MS, CtrlCGuard } from './ctrl-c.js';
@@ -59,7 +60,7 @@ export function runTerminalClient(
   socket: net.Socket,
   token: string,
   /** clipboardWrites: the agent's "copy" (OSC 52) reaches the clipboard; see OutputFilterOptions. */
-  /** confirmCtrlC: a lone Ctrl+C is held back until it is pressed again (CtrlCGuard, attach.confirmCtrlC). */
+  /** confirmCtrlC (default true): a lone Ctrl+C is held back until pressed again; after a selection it is "copy". */
   options: { detachKey?: number; clipboardWrites?: boolean; confirmCtrlC?: boolean } = {},
 ): Promise<ClientResult> {
   const stdin = process.stdin;
@@ -94,6 +95,7 @@ export function runTerminalClient(
       clearTimeout(joinTimer);
       clearTimeout(hintTimer);
       clearTimeout(vtTimer);
+      clipboard.stop();
       socket.destroy();
       // The agent's mouse tracking ends with it: your terminal's wheel scrolls again (and clicks select text). Reports
       // the terminal sent before it read that are dropped here, or they would reach your shell as text.
@@ -115,23 +117,23 @@ export function runTerminalClient(
     };
     // Mouse reports the agent has not asked for (motion without 1002/1003 ...) are dropped: see MouseModes.
     const sendInput = (data: Buffer): void => write(keys.push(passthrough ? mouse.filter(data) : data));
-    const guard = options.confirmCtrlC ? new CtrlCGuard() : null;
+    const guard = new CtrlCGuard({ confirm: options.confirmCtrlC !== false });
     let hintTimer: NodeJS.Timeout | undefined;
+    // Copying in your terminal (select) changes the clipboard: the Ctrl+C that follows is "copy", not an interrupt.
+    const clipboard = watchClipboard(() => guard.clipboardChanged());
     const onInput = (chunk: Buffer): void => {
       if (options.detachKey !== undefined && chunk.includes(options.detachKey)) {
         finish({ reason: 'detach' });
         return;
       }
-      if (guard) {
-        const decided = guard.push(chunk, Date.now());
-        clearTimeout(hintTimer);
-        if (decided.held) {
-          stdout.write(guard.hintTitle());
-          hintTimer = setTimeout(() => stdout.write(guard.restoreTitle()), CTRL_C_CONFIRM_MS);
-          return;
-        }
-        if (decided.send.length === 1 && decided.send[0] === 0x03) stdout.write(guard.restoreTitle());
+      const decided = guard.push(chunk, Date.now());
+      clearTimeout(hintTimer);
+      if (decided.held || decided.copied) {
+        stdout.write(guard.hintTitle(decided.copied ? 'copy' : 'hold'));
+        hintTimer = setTimeout(() => stdout.write(guard.restoreTitle()), CTRL_C_CONFIRM_MS);
+        return;
       }
+      if (decided.send.length === 1 && decided.send[0] === 0x03) stdout.write(guard.restoreTitle());
       clearTimeout(joinTimer);
       sendInput(joiner.push(chunk));
       // A lone Esc key press is a "sequence" that never completes: send it after a moment.
@@ -171,9 +173,10 @@ export function runTerminalClient(
       }
       for (const frame of frames) {
         if (frame.type === FrameType.Output) {
+          guard.watchClipboard(frame.payload.toString('latin1'));
           const out = filter.push(frame.payload);
           mouse.watch(out);
-          guard?.watchOutput(out.toString('latin1'));
+          guard.watchOutput(out.toString('latin1'));
           stdout.write(out);
         } else if (frame.type === FrameType.Console) passthrough = frame.payload.toString('latin1') === 'conpty.dll';
         else if (frame.type === FrameType.Restarting) {

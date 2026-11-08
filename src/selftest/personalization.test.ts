@@ -74,8 +74,9 @@ export const personalizationSuite: Suite = {
     t.check(
       untouched.startsWith('// edited') &&
         /"guid": "\{x\}",\s*\}/.test(untouched) &&
-        /"reloadEnvironmentVariables":\s*true/.test(untouched),
-      'until pwsh is installed only the reload switch is added (comments and trailing commas survive)',
+        /"reloadEnvironmentVariables":\s*true/.test(untouched) &&
+        /"copyOnSelect":\s*true/.test(untouched),
+      'until pwsh is installed only the default switches are added (comments and trailing commas survive)',
     );
     t.write(path.join(data, 'tools', 'pwsh', 'pwsh.exe'), 'MZ');
     syncPwshProfile(data, true);

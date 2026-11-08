@@ -1011,6 +1011,7 @@ export const heavyLoadSuite: Suite = {
     };
     const sandboxCs = (n: string): string => path.join(t.packageRoot, 'sandbox', 'csharp', n);
     build('ptyhost', [sandboxCs('PtyHost.cs')]);
+    build('clipboardwatch', [sandboxCs('ClipboardWatch.cs')], 'library');
     const memgov = build('memgov', [sandboxCs('MemGov.cs')]);
     const hostDir = path.join(t.packageRoot, 'native', 'csharp', 'HostTools');
     const tools = build(

@@ -19,6 +19,7 @@ import {
   MouseModes,
   OutputFilter,
 } from '../shared/pty/index.js';
+import { classifyInput } from '../shared/web/index.js';
 import { bootSilent, FIRST_STATUS_MS } from '../host/channel/index.js';
 import type { Suite } from './support/suite.js';
 
@@ -354,6 +355,51 @@ export const channelSuite: Suite = {
     t.check(
       g.hintTitle().includes(CTRL_C_HINT) && g.restoreTitle() === '\x1b]0;evil\x07',
       "the hint shows in the title, and the program's last title comes back without control characters",
+    );
+
+    const drag = Buffer.from('\x1b[<32;10;5M');
+    const release = Buffer.from('\x1b[<0;12;5m');
+    const copyG = new CtrlCGuard();
+    copyG.push(drag, 0);
+    copyG.push(release, 10);
+    const copies = [100, 200, 300].map((at) => copyG.push(ctrlC, at));
+    t.check(
+      copies.every((c) => c.send.length === 0 && c.copied && !c.held),
+      'after a mouse drag in the program every Ctrl+C is copied and never sent, however often it is pressed',
+    );
+    copyG.push(Buffer.from('x'), 400);
+    t.check(copyG.push(ctrlC, 500).held, 'after another key a lone Ctrl+C is held back again');
+    const clickG = new CtrlCGuard();
+    clickG.push(drag, 0);
+    clickG.push(Buffer.from('\x1b[<0;3;3M'), 10);
+    t.check(clickG.push(ctrlC, 20).held, 'a mouse click after a drag ends copy mode');
+    const quietG = new CtrlCGuard();
+    quietG.push(Buffer.from('\x1b[<64;3;3M'), 0);
+    quietG.push(Buffer.from('\x1b[<35;3;3M'), 1);
+    t.check(quietG.push(ctrlC, 2).held, 'mouse wheel and hover reports do not start copy mode');
+    const clipG = new CtrlCGuard();
+    clipG.watchClipboard('\x1b]52;c;aGk=');
+    t.check(clipG.push(ctrlC, 0).copied, 'the program writing the clipboard (OSC 52) starts copy mode');
+    const copiedG = new CtrlCGuard();
+    copiedG.clipboardChanged();
+    const afterCopy = copiedG.push(ctrlC, 0);
+    copiedG.push(Buffer.from('x'), 1);
+    t.check(
+      afterCopy.copied && !afterCopy.held && afterCopy.send.length === 0 && copiedG.push(ctrlC, 2).held,
+      'after the clipboard changed a lone Ctrl+C is copied (not sent, not held) until another key is pressed',
+    );
+    const noConfirm = new CtrlCGuard({ confirm: false });
+    const sentAtOnce = noConfirm.push(ctrlC, 0);
+    noConfirm.push(drag, 1);
+    t.check(
+      sentAtOnce.send.equals(ctrlC) && noConfirm.push(ctrlC, 2).copied,
+      'without confirmation a lone Ctrl+C is sent at once, but after a drag it is still copied',
+    );
+    const x10 = classifyInput('\x1b[M' + String.fromCharCode(32 + 32) + '!!');
+    const arrow = classifyInput('\x1b[A');
+    t.check(
+      x10.mouse === 'drag' && !x10.keys && arrow.mouse === null && arrow.keys,
+      'an X10 drag is a drag without keys, and an arrow key is a key without a mouse report',
     );
 
     t.section('typed input keeps escape sequences whole');

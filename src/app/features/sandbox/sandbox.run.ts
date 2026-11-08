@@ -1,11 +1,18 @@
 // The sandbox feature's work: its status (from the services, as this user may see it), its window and stopping it.
 // Talks only through `io`; another user's sandbox follows the sharing rules (cli/commands/shared-use.ts).
 import path from 'node:path';
-import { safeText } from '../../../core/util/index.js';
+import { fail, safeText } from '../../../core/util/index.js';
 import { SandboxChannel } from '../../../host/channel/index.js';
 import { readSandboxFacts } from '../../../host/health/index.js';
 import { LifeRecord, readLastEnd } from '../../../host/life/index.js';
-import { cleanUpLeftovers, endSandboxPrograms, restartSandboxService } from '../../../host/sandbox/index.js';
+import {
+  cleanUpLeftovers,
+  endSandboxPrograms,
+  readVmDumps,
+  restartSandboxService,
+  setVmDumps,
+  vmDumpFolder,
+} from '../../../host/sandbox/index.js';
 import { judgeSandbox } from '../../../host/health/index.js';
 import { runningOwner } from '../../../host/sharing/index.js';
 import { requireOnPc, requireRunning } from '../../../cli/commands/context.js';
@@ -20,6 +27,7 @@ import {
   sandboxStatus,
   showWindow,
   stopSandbox,
+  vmDumps,
   type SandboxStatus,
 } from './sandbox.def.js';
 
@@ -111,6 +119,35 @@ export const cleanUpSandboxRun = implement(cleanUpSandbox, async (ctx, input, io
     failed: 'The Windows Sandbox service could not be restarted.',
   }[outcome];
   return { outcome, message };
+});
+
+/** Keeping a crash dump of vmwp.exe: Windows asks for administrator permission to turn it on or off. */
+export const vmDumpsRun = implement(vmDumps, async (_ctx, input, io) => {
+  requireOnPc('vm-dumps');
+  const before = readVmDumps();
+  if (input.action === 'status' || (before && before.on === (input.action === 'on'))) {
+    const state = before ?? { on: false, folder: vmDumpFolder() };
+    return {
+      ...state,
+      message: state.on
+        ? 'VM crash dumps are on: the next crash of vmwp.exe leaves a dump in ' + state.folder + '.'
+        : 'VM crash dumps are off. Turn them on so the next crash says which part of Windows failed.',
+    };
+  }
+  io.progress('Windows asks for administrator permission');
+  const after = setVmDumps(input.action);
+  const wanted = input.action === 'on';
+  if (!after || after.on !== wanted)
+    fail(
+      'The crash dump setting was not changed.',
+      'Windows needs administrator permission for it: try again and say yes when Windows asks.',
+    );
+  return {
+    ...after,
+    message: wanted
+      ? 'VM crash dumps are on: the next crash of vmwp.exe leaves a dump in ' + after.folder + '.'
+      : 'VM crash dumps are off (dumps already written stay in ' + after.folder + ').',
+  };
 });
 
 /**

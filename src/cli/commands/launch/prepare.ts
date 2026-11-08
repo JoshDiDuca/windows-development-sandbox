@@ -15,6 +15,7 @@ import { errMsg } from '../../../core/util/index.js';
 import { c, working } from '../../output/index.js';
 import { type Context } from '../context.js';
 import { firstStartNotice, pendingDownloads } from './first-start.js';
+import { offerVmDumps } from './vm-dump-offer.js';
 import { LifeRecord, UPDATE_RESTART_WARNING, updateRestartPending } from '../../../host/life/index.js';
 
 /** Nothing has been installed into this data set yet: the first start downloads every toolchain once. */
@@ -144,8 +145,11 @@ export async function prepare(ctx: Context, run: ResolvedRun): Promise<Prepared>
           ' change(s) the last sandbox made that could run code on this PC (see sandbox status).',
       ),
     );
-  const stopped = new LifeRecord(storageRoot, dataPath).lastStopWarning(watcherRunning(dataPath));
+  const life = new LifeRecord(storageRoot, dataPath);
+  const lastCause = life.read()?.ended?.cause ?? null;
+  const stopped = life.lastStopWarning(watcherRunning(dataPath));
   if (stopped) console.warn(c.yellow(stopped));
+  await offerVmDumps(ctx, lastCause);
   if (updateRestartPending()) console.warn(c.yellow(UPDATE_RESTART_WARNING));
   new SandboxChannel(dataPath).reset();
   const filter = await prepareWorkspaceView(ctx, run);

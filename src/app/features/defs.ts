@@ -31,6 +31,7 @@ import {
 } from './storage/storage.def.js';
 import {
   cleanUpSandbox,
+  vmDumps,
   hideWindow,
   sandboxStatus,
   sandboxView,
@@ -114,6 +115,7 @@ export const OPERATIONS = [
   hideWindow,
   stopSandbox,
   cleanUpSandbox,
+  vmDumps,
   restartSessions,
   startShell,
   closeSession,

@@ -1,6 +1,7 @@
 // This PC: Windows itself, what Windows Sandbox needs of it, and whether Windows wants a restart. The hardware and
 // edition answers come from the same look `sandbox setup` takes (once per run).
 import { isWin } from '../../../../core/util/index.js';
+import { readWindowsVersion, windowsServicing, windowsVersionText } from '../../../../host/health/index.js';
 import { pageFileRisk, readHostMemory, updateRestartPending } from '../../../../host/life/index.js';
 import { decideMemory } from '../../../../host/launch/index.js';
 import { buildChecks, type CheckStatus } from '../../setup/checks.js';
@@ -38,6 +39,23 @@ export const PC_CHECKS: Check[] = [
             means: 'Windows Sandbox only runs on Windows.',
             fix: 'Run sandbox on a Windows 10/11 Pro, Enterprise or Education PC.',
           },
+  },
+  {
+    id: 'pc-windows-release',
+    group: 'This PC',
+    name: 'Windows release',
+    run: (): Finding => {
+      const version = readWindowsVersion();
+      if (!version) return { status: 'skipped', detail: 'the Windows build could not be read' };
+      const text = windowsVersionText(version);
+      const servicing = windowsServicing(version.build, version.edition);
+      if (!servicing?.line) return ok(text);
+      return {
+        status: 'warn',
+        detail: text + (servicing.state === 'out' ? ': no more fixes' : ': fixes end soon'),
+        means: servicing.line,
+      };
+    },
   },
   fromFacts('pc-edition', 'This PC', 'Windows edition', 'Windows edition'),
   fromFacts('pc-virtualization', 'This PC', 'CPU virtualization', 'CPU virtualization'),

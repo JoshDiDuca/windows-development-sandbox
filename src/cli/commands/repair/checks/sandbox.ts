@@ -16,7 +16,13 @@ import {
 } from '../../../../host/health/index.js';
 import { vgpuSource, vgpuWarning } from '../../../../host/launch/index.js';
 import { hostToolsExe } from '../../../../host/native.js';
-import { endSandboxPrograms, sandboxFeatureInstalled } from '../../../../host/sandbox/index.js';
+import { isVmwpCrash, LifeRecord } from '../../../../host/life/index.js';
+import {
+  endSandboxPrograms,
+  readVmDumps,
+  sandboxFeatureInstalled,
+  setVmDumps,
+} from '../../../../host/sandbox/index.js';
 import { assertTestWritable, refuseInSelfTest } from '../../../../host/test-guard.js';
 import { conptyDir, terminalDir, terminalExe } from '../../../../host/tools/index.js';
 import { RunDir } from '../../../../shared/channel/index.js';
@@ -60,6 +66,31 @@ export const SANDBOX_CHECKS: Check[] = [
             fix: 'Run: sandbox config set sandbox.vGpu false',
           }
         : ok('off'),
+  },
+  {
+    id: 'sandbox-vm-dumps',
+    group: 'Sandbox',
+    name: 'VM crash dumps',
+    run: (env: RepairEnv): Finding => {
+      const state = readVmDumps();
+      if (!state) return { status: 'skipped', detail: 'could not be read' };
+      if (state.on) return ok('on (dumps go to ' + state.folder + ')');
+      const crashed = isVmwpCrash(new LifeRecord(env.storageRoot, env.dataPath).read()?.ended?.cause ?? null);
+      if (!crashed) return ok("off (sandbox vm-dumps on keeps a dump if the sandbox's VM crashes)");
+      return {
+        status: 'warn',
+        detail: 'off',
+        means:
+          "The sandbox's VM (vmwp.exe) crashed last time. Turn this on so the next crash says which part of Windows failed.",
+        plan: "turn on crash dumps for the sandbox's VM (Windows asks for administrator permission)",
+      };
+    },
+    fix: (): FixOutcome => {
+      const after = setVmDumps('on');
+      return after?.on
+        ? { done: "crash dumps of the sandbox's VM go to " + after.folder }
+        : { done: 'crash dumps were not turned on (the permission was declined, or Windows refused)' };
+    },
   },
   {
     id: 'sandbox-pagefile',

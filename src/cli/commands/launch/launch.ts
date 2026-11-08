@@ -80,6 +80,8 @@ import { maybeAddRoot } from './add-root.js';
 import { prepare, firstBootNotice } from './prepare.js';
 import { bootWantsFor } from './boot-wants.js';
 import { launchSummary, type GeneratedSandbox } from './summary.js';
+import { windowsReleaseHint } from './windows-hint.js';
+import { readWindowsVersion } from '../../../host/health/index.js';
 
 /** A restart that adds a project: map these too, start no session at boot (restart.ts opens them), wait until ready. */
 export interface LaunchExtras {
@@ -302,6 +304,8 @@ class Launcher {
       console.log(c.yellow(vgpuWarning(vgpuSource(ctx.loaded.config.sandbox.vGpu))));
     const risk = hostMemory ? pageFileRisk(hostMemory, generated.memoryMb) : null;
     if (risk && takePageFileHint(ctx.storageRoot)) console.log(c.yellow(risk.text));
+    const windowsHint = generateOnly ? null : windowsReleaseHint(ctx.storageRoot, readWindowsVersion());
+    if (windowsHint) console.log(c.yellow(windowsHint));
     this.warnSecretFiles(run);
     for (const line of vpnNotes(config.vpn)) console.log(c.yellow(line));
     for (const line of github?.notes ?? []) console.log(c.yellow(line));

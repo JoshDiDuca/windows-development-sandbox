@@ -161,6 +161,23 @@ export const cleanUpSandbox = defineOperation({
   cli: { name: 'cleanup', group: 'Sessions' },
 });
 
+export const vmDumps = defineOperation({
+  id: 'sandbox.vmDumps',
+  title: "Keep a crash dump of the sandbox's VM…",
+  summary:
+    "keep a crash dump of the program that runs the sandbox's VM (vmwp.exe), so the next crash says which part of Windows failed (Windows asks for administrator permission)",
+  input: z.object({
+    action: z.enum(['on', 'off', 'status']).default('status').describe('on, off, or status (the default)'),
+  }),
+  output: z.object({
+    on: z.boolean().describe('Crash dumps of vmwp.exe are kept'),
+    folder: z.string().describe('Where the dumps go'),
+    message: z.string(),
+  }),
+  text: (o) => o.message,
+  cli: { name: 'vm-dumps', group: 'Sessions', positional: ['action'], json: true },
+});
+
 export const stopSandbox = defineOperation({
   id: 'sandbox.stop',
   access: 'control',
@@ -300,6 +317,7 @@ export function sandboxPage(o: SandboxStatus): Page {
                 verb: 'show',
                 importance: 2,
               }),
+              action(vmDumps, { action: 'on' }, { key: 'd', verb: 'keep a VM crash dump', importance: 3 }),
             ]
           : []),
     ],
@@ -330,6 +348,6 @@ export const sandboxView = defineView({
   title: 'Sandbox',
   summary: 'Status, projects and controls of the running sandbox.',
   queries: { status: sandboxStatus },
-  operations: [showWindow, hideWindow, stopSandbox, cleanUpSandbox],
+  operations: [showWindow, hideWindow, stopSandbox, cleanUpSandbox, vmDumps],
   build: ({ status }) => sandboxPage(status),
 });

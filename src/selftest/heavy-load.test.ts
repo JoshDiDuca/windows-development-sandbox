@@ -1153,7 +1153,11 @@ export const heavyLoadSuite: Suite = {
     const sandboxCs = (n: string): string => path.join(t.packageRoot, 'sandbox', 'csharp', n);
     build('ptyhost', [sandboxCs('PtyHost.cs')]);
     build('clipboardwatch', [sandboxCs('ClipboardText.cs'), sandboxCs('ClipboardWatch.cs')], 'library');
-    const clipboardBridge = build('clipboardbridge', [sandboxCs('ClipboardBridge.cs'), sandboxCs('ClipboardText.cs')]);
+    const clipboardBridge = build('clipboardbridge', [
+      sandboxCs('ClipboardBridge.cs'),
+      sandboxCs('ClipboardText.cs'),
+      sandboxCs('ClipboardWatch.cs'),
+    ]);
     const memgov = build('memgov', [sandboxCs('MemGov.cs')]);
     const tools = build('HostTools', hostToolsSources(t.packageRoot));
     const status = spawnSync(tools, ['memory-status'], { encoding: 'utf8', windowsHide: true });

@@ -62,19 +62,36 @@ export const clipboardLiveSuite: Suite = {
       t.check(true, 'skipped: needs Windows and its C# compiler');
       return;
     }
+    const csharp = (n: string): string => path.join(t.packageRoot, 'sandbox', 'csharp', n);
+    const exe = path.join(t.dir('clipboard-live'), 'ClipboardBridge.exe');
+    const built = spawnSync(
+      CSC,
+      ['/nologo', '/out:' + exe, csharp('ClipboardBridge.cs'), csharp('ClipboardText.cs'), csharp('ClipboardWatch.cs')],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    t.check(built.status === 0, 'ClipboardBridge compiles with ClipboardText (C# 5)', built.stdout);
+    if (built.status !== 0) return;
+
+    // `watch` (the viewer's Ctrl+C guard): nothing here writes the clipboard.
+    const usage = spawnSync(exe, ['watch'], { encoding: 'utf8', windowsHide: true });
+    t.check(usage.status === 2, 'watch without --parent is a usage error', String(usage.status));
+    const gone = spawnSync(exe, ['watch', '--parent', '4294967295'], { encoding: 'utf8', windowsHide: true });
+    t.check(gone.status === 2, 'watch of a process that cannot be opened exits 2', String(gone.status));
+    const parent = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 2500)'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    const started = Date.now();
+    const ended = spawnSync(exe, ['watch', '--parent', String(parent.pid)], { encoding: 'utf8', windowsHide: true });
+    parent.kill();
+    t.check(ended.status === 0 && (ended.stdout ?? '').trim() === '', 'watch ends with 0 when its parent ends');
+    t.check(Date.now() - started < 10000, 'and it ends soon after the parent does');
+
     const tasks = spawnSync(SYSTEM.tasklist(), ['/fi', 'imagename eq rdpclip.exe', '/nh'], { encoding: 'utf8' });
     if (/rdpclip\.exe/i.test(tasks.stdout ?? '')) {
       t.check(true, 'skipped: rdpclip.exe runs, so this clipboard may be shared with a real PC (nothing is written)');
       return;
     }
-    const csharp = (n: string): string => path.join(t.packageRoot, 'sandbox', 'csharp', n);
-    const exe = path.join(t.dir('clipboard-live'), 'ClipboardBridge.exe');
-    const built = spawnSync(CSC, ['/nologo', '/out:' + exe, csharp('ClipboardBridge.cs'), csharp('ClipboardText.cs')], {
-      encoding: 'utf8',
-      windowsHide: true,
-    });
-    t.check(built.status === 0, 'ClipboardBridge compiles with ClipboardText (C# 5)', built.stdout);
-    if (built.status !== 0) return;
 
     const child = spawn(exe, ['serve', '--max-bytes', '1048576'], {
       stdio: ['pipe', 'pipe', 'ignore'],
@@ -82,6 +99,7 @@ export const clipboardLiveSuite: Suite = {
     });
     const helper = new Helper(child);
     let watcher: ReturnType<typeof spawn> | null = null;
+    let exeWatcher: ReturnType<typeof spawn> | null = null;
     let saved: string | null = null;
     let touched = false;
     try {
@@ -114,6 +132,13 @@ export const clipboardLiveSuite: Suite = {
       watcher.stdout?.on('data', (d: Buffer) => (watched += d.toString('utf8')));
       // The watch has no "ready" line: give powershell time to compile and start polling before the write.
       await new Promise((resolve) => setTimeout(resolve, 8000));
+      exeWatcher = spawn(exe, ['watch', '--parent', String(process.pid)], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: true,
+      });
+      let exeWatched = '';
+      exeWatcher.stdout?.on('data', (d: Buffer) => (exeWatched += d.toString('utf8')));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const value = 'selftest-' + crypto.randomBytes(8).toString('hex');
       touched = true;
@@ -129,12 +154,20 @@ export const clipboardLiveSuite: Suite = {
       );
       t.check(!/changed/.test(watched), "the clipboard watch does not report the bridge's write", watched);
       t.check(watcher.exitCode === null, 'the clipboard watch was running during the write');
+      t.check(!/changed/.test(exeWatched), "the exe watch does not report the bridge's write either", exeWatched);
+      t.check(exeWatcher.exitCode === null, 'the exe watch was running during the write');
+      // clip.exe writes plain text without the marker: a copy by someone else, which both watches report.
+      spawnSync(SYSTEM.clip(), [], { input: 'selftest-copy', windowsHide: true });
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      t.check(/changed/.test(exeWatched), 'the exe watch reports a normal copy', exeWatched);
+      t.check(/changed/.test(watched), 'the script watch reports a normal copy', watched);
 
       helper.send('set !!!not-base64');
       const bad = await helper.next(t);
       t.check(bad === 'set-failed', 'a set that is not base64 is refused', String(bad));
     } finally {
       if (watcher) watcher.kill();
+      if (exeWatcher) exeWatcher.kill();
       if (touched && saved !== null) {
         helper.send('set ' + saved);
         await helper.next(t);

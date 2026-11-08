@@ -61,7 +61,8 @@ export function runTerminalClient(
   token: string,
   /** clipboardWrites: the agent's "copy" (OSC 52) reaches the clipboard; see OutputFilterOptions. */
   /** confirmCtrlC (default true): a lone Ctrl+C is held back until pressed again; after a selection it is "copy". */
-  options: { detachKey?: number; clipboardWrites?: boolean; confirmCtrlC?: boolean } = {},
+  /** clipboardWatchExe: a compiled ClipboardBridge.exe that watches the clipboard (default: the PowerShell script). */
+  options: { detachKey?: number; clipboardWrites?: boolean; confirmCtrlC?: boolean; clipboardWatchExe?: string } = {},
 ): Promise<ClientResult> {
   const stdin = process.stdin;
   const stdout = process.stdout;
@@ -120,7 +121,7 @@ export function runTerminalClient(
     const guard = new CtrlCGuard({ confirm: options.confirmCtrlC !== false });
     let hintTimer: NodeJS.Timeout | undefined;
     // Copying in your terminal (select) changes the clipboard: the Ctrl+C that follows is "copy", not an interrupt.
-    const clipboard = watchClipboard(() => guard.clipboardChanged());
+    const clipboard = watchClipboard(() => guard.clipboardChanged(), options.clipboardWatchExe);
     const onInput = (chunk: Buffer): void => {
       if (options.detachKey !== undefined && chunk.includes(options.detachKey)) {
         finish({ reason: 'detach' });

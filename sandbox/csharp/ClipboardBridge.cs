@@ -1,4 +1,4 @@
-// The clipboard bridge's guest helper: ClipboardBridge serve --max-bytes N. Reads commands on stdin (set <base64 UTF-8>, get) and reports on stdout (ready, changed <base64>, changed-other, set-ok, set-failed, got <base64>, got-none, got-too-big, get-failed). Compiled with ClipboardText.cs. Exit 0 when stdin closes, 2 on a usage error. C# 5.
+// The clipboard bridge's guest helper: ClipboardBridge serve --max-bytes N. Reads commands on stdin (set <base64 UTF-8>, get) and reports on stdout (ready, changed <base64>, changed-other, set-ok, set-failed, got <base64>, got-none, got-too-big, get-failed). Also `ClipboardBridge watch --parent PID`: prints "changed" per change the bridge did not make, until PID ends (the terminal viewer's Ctrl+C guard; SbxClipboardWatch.Run). Compiled with ClipboardText.cs and ClipboardWatch.cs. Exit 0 when stdin closes, 2 on a usage error. C# 5.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -149,12 +149,18 @@ public static class SbxClipboardBridge
 
     public static int Main(string[] args)
     {
+        uint parentPid;
+        if (args.Length == 3 && args[0] == "watch" && args[1] == "--parent"
+            && uint.TryParse(args[2], NumberStyles.None, CultureInfo.InvariantCulture, out parentPid))
+        {
+            return SbxClipboardWatch.Run(parentPid);
+        }
         int maxBytes;
         if (args.Length != 3 || args[0] != "serve" || args[1] != "--max-bytes"
             || !int.TryParse(args[2], NumberStyles.None, CultureInfo.InvariantCulture, out maxBytes)
             || maxBytes < 1 || maxBytes > MaxBytesLimit)
         {
-            Console.Error.WriteLine("Usage: ClipboardBridge serve --max-bytes N");
+            Console.Error.WriteLine("Usage: ClipboardBridge serve --max-bytes N | watch --parent PID");
             return ExitUsage;
         }
         Thread reader = new Thread(ReadStdin);

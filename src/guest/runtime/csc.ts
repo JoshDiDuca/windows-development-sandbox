@@ -24,7 +24,7 @@ const SOURCES = {
   pathsync: ['PathSync.cs'],
   memgov: ['MemGov.cs'],
   bindmount: ['BindMount.cs'],
-  clipboardbridge: ['ClipboardBridge.cs', 'ClipboardText.cs'],
+  clipboardbridge: ['ClipboardBridge.cs', 'ClipboardText.cs', 'ClipboardWatch.cs'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type Helper = keyof typeof SOURCES;

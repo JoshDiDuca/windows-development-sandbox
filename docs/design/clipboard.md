@@ -392,6 +392,8 @@ Public API:
 - Add to its header: `Changes the clipboard bridge made (marker format) are not reported: they are not your copy.`
 - The .ps1 becomes `Add-Type -Path @((Join-Path $PSScriptRoot '..\csharp\ClipboardText.cs'), (Join-Path $PSScriptRoot '..\csharp\ClipboardWatch.cs'))`.
 
+In the sandbox the terminal viewer does not start the .ps1 (about 2 s of PowerShell start and Add-Type, 72 MB): it starts `ClipboardBridge.exe watch --parent <pid>` (compiled with ClipboardText.cs and ClipboardWatch.cs, `Main` calls `SbxClipboardWatch.Run`; about 0.08 s, 15 MB, same 150 ms poll). `viewer.ts` passes the exe path to `runTerminalClient` (`clipboardWatchExe`); without it (the PC's `sandbox attach`, no compiler) the .ps1 runs.
+
 ### 6.4 HostTools
 - **`native/csharp/HostTools/Window.cs`:** add `public static bool SandboxInFront()`:
   - `GetForegroundWindow`, then `GetAncestor(h, GaRootOwner = 3)`, then `GetWindowThreadProcessId`.

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { machineRoot } from '../core/config/index.js';
 import { isWin } from '../core/util/index.js';
-import { nativeFile, nativeScript } from '../host/native.js';
+import { hostToolsSources, nativeFile, nativeScript } from '../host/native.js';
 import { SYSTEM } from '../shared/system.js';
 import { parseWindowsVersion, WINDOWS_RELEASES, windowsServicing, windowsVersionText } from '../host/health/index.js';
 import {
@@ -370,10 +370,7 @@ export const vmCrashSuite: Suite = {
       return;
     }
     const dir = t.dir('minidump');
-    const sources = fs
-      .readdirSync(nativeFile('csharp', 'HostTools'))
-      .filter((n) => n.endsWith('.cs'))
-      .map((n) => nativeFile('csharp', 'HostTools', n));
+    const sources = hostToolsSources(t.packageRoot);
     const exe = path.join(dir, 'HostTools.exe');
     const build = spawnSync(SYSTEM.csc(), ['/nologo', '/out:' + exe, ...sources], {
       encoding: 'utf8',

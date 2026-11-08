@@ -1,9 +1,8 @@
 // Unreal Engine development, machine-wide (toolchains.unreal, once per boot): the DirectX End-User Runtime the engine
 // lists and the Epic Games Launcher (real installers: they run every boot), the launcher pointed at the data disk for
-// engines and given back the engines it installed there, the Windows SDK debuggers for crash dumps, a check that
-// UnrealBuildTool finds Visual Studio the way it looks (the Setup Configuration API), and its parallel compiles capped.
-// Visual Studio itself is its own step (visual-studio.ts), which the plan runs first; each project's engine is set up
-// by engines/unreal-engines.ts.
+// engines and given back the engines it installed there, the Windows SDK debuggers for crash dumps, and a check that
+// UnrealBuildTool finds Visual Studio the way it looks (the Setup Configuration API). Visual Studio itself is its own
+// step (visual-studio.ts), which the plan runs first; each project's engine is set up by engines/unreal-engines.ts.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,14 +10,12 @@ import type { Toolchains } from '../../../core/types.js';
 import { errMsg } from '../../../core/util/errors.js';
 import { readValid } from '../../../shared/io/json.js';
 import { safeRemove } from '../../../shared/io/safe-remove.js';
-import { buildJobs, ubtBuildConfiguration, usableCpus } from '../../../shared/memory/index.js';
 import { VsSetupReportSchema, vsVerdict, type VsVerdict } from '../../../shared/unreal/index.js';
 import { runInstaller } from '../../runtime/pools.js';
 import { dryRun } from '../../runtime/paths.js';
 import { exists, mkdirp } from '../../runtime/fs.js';
 import { log, warn } from '../../runtime/log.js';
 import { runScriptAsync } from '../../runtime/process.js';
-import { session } from '../../runtime/session.js';
 import { ensureLauncher, fetchLauncher, placeEngines, restoreLauncherItems } from '../engines/epic-launcher.js';
 import { resetUnrealStatus, updateUnrealStatus } from '../engines/unreal-status.js';
 import { SIGNERS, signedInstaller } from '../installers.js';
@@ -82,19 +79,6 @@ async function checkVisualStudio(): Promise<VsVerdict> {
   }
 }
 
-/**
- * UnrealBuildTool's per-user BuildConfiguration.xml (%APPDATA%, wiped with the sandbox): compiles at once from the
- * sandbox's build budget, so a build start cannot outrun the memory Windows backs the sandbox with. Returns the cap.
- */
-function capUnrealBuilds(): number {
-  const cpus = usableCpus(os.cpus().length, session.cpuLimitPercent ?? null);
-  const jobs = buildJobs(cpus, os.totalmem() / 1024 ** 3);
-  const appData = process.env.APPDATA ?? 'C:\\Users\\WDAGUtilityAccount\\AppData\\Roaming';
-  const dir = mkdirp(path.join(appData, 'Unreal Engine', 'UnrealBuildTool'));
-  fs.writeFileSync(path.join(dir, 'BuildConfiguration.xml'), ubtBuildConfiguration(jobs), 'utf8');
-  return jobs;
-}
-
 /** Runs one part, warning (not failing the step) when it does not work. */
 async function part<T>(what: string, work: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -115,8 +99,6 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], _c
     return;
   }
   resetUnrealStatus();
-  const jobs = await part('capping parallel compiles', async () => capUnrealBuilds(), 0);
-  if (jobs) log('Unreal: UnrealBuildTool runs at most ' + jobs + ' compiles at once (the build budget)');
   await part('the DirectX End-User Runtime', installDirectX, undefined);
   const launcher = await part('the Epic Games Launcher', ensureLauncher, null);
   // Before anyone opens the launcher: engines go to the data disk, and it knows the ones it installed there before.
@@ -159,7 +141,6 @@ export async function setupUnreal(env: ToolEnv, config: Toolchains['unreal'], _c
           vs.version +
           (check.ok ? ' (UnrealBuildTool finds it)' : ' (UnrealBuildTool would NOT find it)')
         : 'no Visual Studio') +
-      (jobs ? ', at most ' + jobs + ' compiles at once' : '') +
       ', DirectX End-User Runtime' +
       (launcher ? ', Epic Games Launcher' : '') +
       (debuggers ? ', cdb/windbg' : ''),

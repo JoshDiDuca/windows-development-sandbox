@@ -151,7 +151,7 @@
         },
         "headless": {
           "type": "boolean",
-          "description": "Hide the sandbox window (sbx-show brings it back). A headless sandbox shuts down when its last session ends."
+          "description": "Hide the sandbox window (\"Show the window\" brings it back). A headless sandbox shuts down when its last session ends."
         },
         "keepAwake": {
           "type": "boolean",

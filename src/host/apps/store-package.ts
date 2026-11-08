@@ -14,7 +14,8 @@ import {
   isStorePackageFile,
   STORE_PACKAGE_MANIFEST,
   StorePackageManifestSchema,
-  storePackageRole,
+  assignStoreRoles,
+  storePackageFitsX64,
   type StorePackageFile,
   type StorePackageManifest,
 } from '../../shared/apps/index.js';
@@ -33,6 +34,8 @@ const ScriptResultSchema = z.object({
   ok: z.boolean(),
   message: z.string().max(2000),
   files: z.array(z.string().max(300)).max(64),
+  /** The files that came from winget's Dependencies folder (the frameworks); the rest is the app. */
+  dependencies: z.array(z.string().max(300)).max(64).default([]),
 });
 
 export interface ScriptRun {
@@ -61,6 +64,8 @@ export const spawnStoreRunner: StoreRunner = (exe, args, timeoutMs) =>
 /** What an app needs fetched (catalogue source.store). */
 export interface StoreApp {
   readonly id: string;
+  /** The name the notes use (the catalogue's); the id when not given. */
+  readonly name?: string;
   readonly productId: string;
   readonly packageName: string;
 }
@@ -156,17 +161,21 @@ export class StorePackages {
       throw new Error('the Store tooling gave no answer' + (out.stderr ? ': ' + out.stderr.trim().slice(0, 200) : ''));
     }
     if (!parsed.ok) throw new Error(parsed.message);
-    const files: StorePackageFile[] = parsed.files
-      .filter((n) => isStorePackageFile(n) && n === path.basename(n) && fs.existsSync(path.join(work, n)))
-      .map((name) => {
+    const frameworks = new Set(parsed.dependencies.map((n) => n.toLowerCase()));
+    // Only the builds that run on this sandbox (64-bit): the 32-bit and ARM frameworks winget may add are left out.
+    const names = parsed.files.filter(
+      (n) =>
+        isStorePackageFile(n) &&
+        n === path.basename(n) &&
+        fs.existsSync(path.join(work, n)) &&
+        !(frameworks.has(n.toLowerCase()) && !storePackageFitsX64(n)),
+    );
+    const files: StorePackageFile[] = assignStoreRoles(names, app.packageName, parsed.dependencies).map(
+      ({ name, role }) => {
         const full = path.join(work, name);
-        return {
-          name,
-          role: storePackageRole(name, app.packageName),
-          sha256: sha256Of(full),
-          bytes: fs.statSync(full).size,
-        };
-      });
+        return { name, role, sha256: sha256Of(full), bytes: fs.statSync(full).size };
+      },
+    );
     const manifest = StorePackageManifestSchema.parse({
       productId: app.productId,
       fetchedAt: new Date(this.o.now?.() ?? Date.now()).toISOString(),
@@ -237,12 +246,12 @@ export async function prepareStorePackages(
       notes.push(app.id + ': package ' + note + ' (' + manifest.files.length + ' files)');
     } catch (e) {
       notes.push(
-        app.id +
-          ' is not prepared: ' +
-          errMsg(e) +
-          ' Fix: sign in to the Microsoft Store on this PC and check that winget works (winget download --id ' +
+        (app.name ?? app.id) +
+          ': NOT installed in this sandbox. ' +
+          errMsg(e).replace(/\.$/, '') +
+          '. Fix: sign in to the Microsoft Store on this PC and check that winget works (winget download --id ' +
           app.productId +
-          ' --source msstore), then launch again.',
+          ' --source msstore --architecture x64 --download-directory <an empty folder>), then launch again.',
       );
     }
   }

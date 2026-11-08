@@ -101,7 +101,7 @@ export const SandboxSchema = z.strictObject({
   headless: z
     .boolean()
     .describe(
-      'Hide the sandbox window (sbx-show brings it back). A headless sandbox shuts down when its last session ends.',
+      'Hide the sandbox window ("Show the window" brings it back). A headless sandbox shuts down when its last session ends.',
     ),
   keepAwake: z
     .boolean()

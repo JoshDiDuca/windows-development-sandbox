@@ -1,6 +1,6 @@
 {
   "name": "windows-development-sandbox",
-  "version": "1.28.0",
+  "version": "1.29.0",
   "description": "A disposable Windows Sandbox for development, with or without an AI agent (Claude Code, Codex, Gemini, opencode, ...): the folder you run it from is the workspace, toolchains and databases for your project install themselves, and nothing else on your PC is reachable.",
   "type": "module",
   "license": "MIT",
@@ -12,17 +12,7 @@
   },
   "bin": {
     "sandbox": "dist/bin/sandbox.js",
-    "windows-development-sandbox": "dist/bin/sandbox.js",
-    "agent-sandbox": "dist/bin/agent-sandbox.js",
-    "claude-sbx": "dist/bin/claude-sbx.js",
-    "claude-sandbox": "dist/bin/claude-sbx.js",
-    "codex-sbx": "dist/bin/codex-sbx.js",
-    "codex-sandbox": "dist/bin/codex-sbx.js",
-    "gemini-sbx": "dist/bin/gemini-sbx.js",
-    "gemini-sandbox": "dist/bin/gemini-sbx.js",
-    "claude-host": "dist/bin/claude-host.js",
-    "sbx-show": "dist/bin/sbx-show.js",
-    "sbx-hide": "dist/bin/sbx-hide.js"
+    "windows-development-sandbox": "dist/bin/sandbox.js"
   },
   "exports": {
     ".": {
@@ -45,7 +35,7 @@
     "build": "tsc -p tsconfig.json && tsc -p web/tsconfig.json --noEmit && node scripts/bundle.mjs && node scripts/bundle-web.mjs && node scripts/schemas.mjs",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "rebuild": "npm run clean && npm run build",
-    "test": "npm run build && node dist/bin/agent-sandbox.js self-test",
+    "test": "npm run build && node dist/bin/sandbox.js self-test",
     "prepare": "npm run build",
     "prepack": "npm run rebuild",
     "release:patch": "npm version patch && git push --follow-tags",
@@ -53,7 +43,7 @@
     "release:major": "npm version major && git push --follow-tags",
     "install:global": "node scripts/install-global.mjs",
     "publish:npm": "node scripts/publish-npm.mjs",
-    "doctor": "node dist/bin/agent-sandbox.js doctor",
+    "doctor": "node dist/bin/sandbox.js doctor",
     "lint": "eslint src scripts web",
     "format": "prettier --write src scripts web",
     "format:check": "prettier --check src scripts web",

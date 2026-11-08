@@ -1,4 +1,4 @@
-// The Windows Sandbox client window: hidden for a headless sandbox (the VM keeps running), shown again by sbx-show.
+// The Windows Sandbox client window: hidden for a headless sandbox (the VM keeps running), shown again by sandbox show.
 // HostTools hide-window / show-window, or Add-Type from scripts\*-window.ps1 when HostTools cannot be built. C# 5.
 using System;
 using System.Collections.Generic;

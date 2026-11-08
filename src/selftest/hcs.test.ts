@@ -769,7 +769,7 @@ export const hcsSuite: Suite = {
 
     t.section('sandbox engine check hcs');
     const out = await f.runBin(
-      'agent-sandbox',
+      'sandbox',
       ['engine', 'check', 'hcs', '--config', t.writeJson(t.at('hcs-config.json'), {})],
       {
         cwd: f.workA,

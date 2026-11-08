@@ -98,6 +98,14 @@ If winget or the Store is not available on your PC, the launch goes on: it print
 app. Windows does not let the signed package be exported from an already installed app, so the winget download is the
 one route used; the fallback of copying the installed folder would lose the signature.
 
+The fetch asks winget for the 64-bit build (`--architecture x64`) and keeps the app plus its frameworks (VCLibs,
+WindowsAppRuntime ...) from winget's `Dependencies` folder; 32-bit and ARM frameworks are dropped. The sandbox hands the
+frameworks to `Add-AppxPackage -DependencyPath`. When the app is not installed, you are told twice: the launch prints
+`Perplexity (desktop app): NOT installed in this sandbox. <reason>. Fix: ...` in yellow, and the sandbox's boot summary
+and log say `not installed - <reason>`. If **Perplexity app** is shared in Accounts (`accounts.perplexityapp.share`) but
+the app itself is not ticked in Apps, the launch also says so: sharing a sign-in does not install the app. To check the
+fetch by hand: `winget download --id 9P9XG917PWCJ --source msstore --architecture x64 --download-directory <empty folder>`.
+
 **Your sign-in.** The app is an Electron program: its cookies are encrypted with a key that Windows (DPAPI) seals to your
 PC account, so they cannot open in a sandbox, and reading them would be what password stealers do. So, as for Comet,
 nothing is taken from this PC. Sign in once inside a sandbox and it is kept for the next ones. With

@@ -134,7 +134,10 @@ export class SandboxService {
 
   async hideWindow(): Promise<void> {
     if (!(await hideSandboxWindow(this.ctx.storageRoot, 5)))
-      fail('Could not find a visible Windows Sandbox window.', 'It may already be hidden (sbx-show brings it back).');
+      fail(
+        'Could not find a visible Windows Sandbox window.',
+        'It may already be hidden (sandbox show brings it back).',
+      );
   }
 
   /** What stopping ends. Fails when this sandbox was not started by this tool. */

@@ -40,7 +40,7 @@ works too. More: [install options, upgrading, uninstall](docs/install.md).
 cd C:\code\my-app
 
 sandbox            # the menu: agents, sessions, apps, settings, health ...
-sandbox claude     # Claude Code in a sandbox for this folder (or: claude-sandbox)
+sandbox claude     # Claude Code in a sandbox for this folder
 sandbox claude -t  # ... in this terminal (Ctrl+] detaches; the session keeps running)
 sandbox start      # the sandbox, no agent
 sandbox opencode   # any supported agent by name
@@ -49,8 +49,9 @@ sandbox web open   # (Beta) the web UI in your browser, signed in
 
 The first start downloads what the project needs (a few minutes, once). Later starts take seconds.
 
-> The old names `claude-sbx`, `codex-sbx`, `gemini-sbx` and `agent-sandbox` still work for now. Use `sandbox <agent>`
-> (or `claude-sandbox`) and `sandbox` instead.
+> The command is `sandbox` (also `windows-development-sandbox`). Older versions also installed `agent-sandbox`,
+> `claude-sbx`, `codex-sbx`, `gemini-sbx` and a few more; the installer and updater remove those. Use `sandbox <agent>`
+> (for example `sandbox claude`) instead.
 
 ## What you get
 
@@ -94,7 +95,7 @@ Details: [heavy load](docs/troubleshooting.md#the-sandbox-closes-under-heavy-loa
 | Command                                  |                                                                                   |
 | ---------------------------------------- | --------------------------------------------------------------------------------- |
 | `sandbox`                                | the menu: start agents, attach to sessions, pick apps, change any setting, search |
-| `sandbox <agent>`, `claude-sandbox`      | start an agent; `-t` for this terminal, `--headless` for no window                |
+| `sandbox <agent>`                        | start an agent; `-t` for this terminal, `--headless` for no window                |
 | `sandbox start`                          | the sandbox without an agent                                                      |
 | `sandbox attach` / `sessions` / `status` | work with a running sandbox (this folder's project first)                         |
 | `sandbox shell` / `close <id>`           | open PowerShell or cmd in a project as a session; end a session                   |

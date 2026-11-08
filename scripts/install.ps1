@@ -661,6 +661,16 @@ param(
       Write-AsciiAtomic (Join-Path $binFolder $command) (Get-ShimText 'sh' $command $bins[$command])
     }
     foreach ($wrapper in $legacyWrappers) { if (-not $bins.ContainsKey([IO.Path]::GetFileNameWithoutExtension($wrapper.Name))) { Remove-Item -LiteralPath $wrapper.FullName -Force -ErrorAction SilentlyContinue } }
+    # Commands earlier versions had and this one does not: their shims go, but only when the file is exactly ours.
+    $removedCommands = @{ 'agent-sandbox' = 'agent-sandbox'; 'claude-sbx' = 'claude-sbx'; 'claude-sandbox' = 'claude-sbx'; 'codex-sbx' = 'codex-sbx'; 'codex-sandbox' = 'codex-sbx'; 'gemini-sbx' = 'gemini-sbx'; 'gemini-sandbox' = 'gemini-sbx'; 'claude-host' = 'claude-host'; 'sbx-show' = 'sbx-show'; 'sbx-hide' = 'sbx-hide' }
+    foreach ($command in $removedCommands.Keys) {
+      if ($bins.ContainsKey($command)) { continue }
+      $staleTarget = 'dist/bin/' + $removedCommands[$command] + '.js'
+      foreach ($pair in @(@("$command.cmd", 'cmd'), @($command, 'sh'))) {
+        $staleFile = Join-Path $binFolder $pair[0]
+        try { if ([IO.File]::ReadAllText($staleFile) -ceq (Get-ShimText $pair[1] $command $staleTarget)) { Remove-Item -LiteralPath $staleFile -Force -ErrorAction SilentlyContinue } } catch { }
+      }
+    }
     $activated = $true
     Write-Pointer (Join-Path $toolFolder 'active-node') $nodeVersion '^v\d+\.\d+\.\d+$'
     Write-Pointer (Join-Path $toolFolder 'active-version') $newVersion '^\d+\.\d+\.\d+$'
@@ -922,6 +932,6 @@ param(
   Write-Host ''
   Write-Host 'What next:' -ForegroundColor Cyan
   Write-Host '  1. Open a new terminal and cd into a project folder.'
-  Write-Host '  2. Run sandbox for the menu, claude-sbx for Claude Code, or sandbox start for a sandbox with no agent.'
+  Write-Host '  2. Run sandbox for the menu, sandbox claude for Claude Code, or sandbox start for a sandbox with no agent.'
   Write-Host '  3. Run sandbox setup or sandbox doctor any time to check this PC again; sandbox update to get a newer version.'
 }

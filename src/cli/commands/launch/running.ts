@@ -175,7 +175,7 @@ export async function openSession(
       session.id +
       ' opened in a new tab inside the sandbox. Attach here with: sandbox attach ' +
       session.id +
-      (ready.headless ? '   (headless: sbx-show opens the window)' : ''),
+      (ready.headless ? '   (headless: sandbox show opens the window)' : ''),
   );
   return 0;
 }
@@ -239,7 +239,7 @@ async function openSessions(ctx: Context, ready: SandboxStatus, list: readonly J
   if (!first) return 1;
   console.log(
     'Each has its own tab inside the sandbox' +
-      (ready.headless ? ' (headless: sbx-show opens the window)' : '') +
+      (ready.headless ? ' (headless: sandbox show opens the window)' : '') +
       '. Attach to any of them, from any terminal: sandbox attach',
   );
   return results.every((r) => r.status === 'fulfilled') ? 0 : 1;

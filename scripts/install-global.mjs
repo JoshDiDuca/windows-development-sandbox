@@ -1,6 +1,6 @@
 // `npm run install:global`: installs this checkout globally as a COPY (packed tarball), not a link.
 // That is what makes it safe to develop agent-sandbox inside its own sandbox: the agent edits this repository, but the
-// claude-sbx you run is a frozen copy, and the agent's changes only reach your PC when you run this script again.
+// sandbox command you run is a frozen copy, and the agent's changes only reach your PC when you run this script again.
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

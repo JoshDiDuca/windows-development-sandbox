@@ -2,21 +2,34 @@
 
 What shipped in each version, newest first. Planned work is in [docs/roadmap.md](docs/roadmap.md).
 
-The command is `sandbox`. The old names `agent-sandbox`, `claude-sbx`, `codex-sbx` and `gemini-sbx` still work.
-Some older names stay on purpose so that existing installs keep working: the `~/.agent-sandbox` folder, the
-environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and `AGENT_SANDBOX_WORKSPACE`, the
-`agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
+The command is `sandbox`. Some older names stay on purpose so that existing installs keep working: the
+`~/.agent-sandbox` folder, the environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and
+`AGENT_SANDBOX_WORKSPACE`, the `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
+
+## 1.29.0
+
+- **One command: `sandbox`.** The old commands are gone: `agent-sandbox`, `claude-sbx`, `codex-sbx`, `gemini-sbx`,
+  `claude-sandbox`, `codex-sandbox`, `gemini-sandbox`, `claude-host`, `sbx-show` and `sbx-hide`. Use `sandbox` (the
+  menu), `sandbox claude` / `sandbox codex` / `sandbox gemini`, `sandbox host claude`, `sandbox show` and
+  `sandbox hide`. Install and update remove the old commands' shims from your PC.
+- **The Perplexity desktop app gets installed.** Its Store package is fetched for x64 with its own dependencies (32-bit
+  and ARM ones are left out), any file name winget gives it is accepted, and every reason it is not installed is said:
+  at launch, in the sandbox's boot summary, and when its sign-in is shared while the app itself is not turned on in
+  Apps.
+- **Your PC's crash logs, inside sandboxes of this repo.** A sandbox for the sandbox's own source code gets the PC's
+  newest crash reports and the tails of its memory and sync logs in `C:\AgentLaunch\pc-logs` (read-only, gone with the
+  sandbox, outside the repo so they never reach git). Sandboxes of other projects never see them.
+- **Builds run at full speed.** UnrealBuildTool is no longer held to a few compiles at once (that only slowed full
+  rebuilds down); the memory gate smooths only the first seconds of a build.
 
 ## 1.28.0
 
 - **Heavy builds no longer set off the sandbox's crash.** The sandbox's VM worker on your PC (`vmwp.exe`) crashed
-  seconds after a build started about 20 compilers at once, while the PC still had plenty of memory free. Two things
-  now stop that burst:
-  - A **memory gate**: when the programs the agents started grow faster than 4 GB in 3 seconds (3 GB with vGPU),
-    Windows reports it at once and new compilers, linkers and Unreal shader workers wait at start, then go on one at a
-    time (every 1.5 s, never longer than 30 s, never killed). Agents, editors and build tools are never held.
-  - **UnrealBuildTool** runs at most the sandbox's build budget of compiles at once (`MaxParallelActions`, written at
-    boot); it used to start one per core.
+  seconds after a build started about 20 compilers at once, while the PC still had plenty of memory free. A **memory
+  gate** now smooths that burst without slowing builds down: when the programs the agents started grow faster than
+  4 GB in 3 seconds (3 GB with vGPU), Windows reports it at once and new compilers, linkers and Unreal shader workers
+  wait at start, then go on one at a time (every 1.5 s, never longer than 30 s, never killed). Builds then run at full
+  parallelism; agents, editors and build tools are never held.
 - **The crash report says what crashed.** A crash of `vmwp.exe` is named as a fault in Windows or a driver (with vGPU,
   usually the graphics driver), and the report says when your PC still had plenty of memory, so it is not mistaken for
   running out.

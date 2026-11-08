@@ -69,7 +69,7 @@ jobs:
         id: selftest
         shell: pwsh
         run: |
-          node dist/bin/agent-sandbox.js self-test hcs,engine 2>&1 | Tee-Object -FilePath "$env:LOGS\selftest.txt"
+          node dist/bin/sandbox.js self-test hcs,engine 2>&1 | Tee-Object -FilePath "$env:LOGS\selftest.txt"
           # Gate on the printed text, not the exit code (CLAUDE.md).
           if (-not (Select-String -Path "$env:LOGS\selftest.txt" -Pattern 'ALL TESTS PASSED' -Quiet)) { exit 1 }
           exit 0
@@ -86,9 +86,9 @@ jobs:
         shell: pwsh
         run: |
           # `engine check` exits 1 when the PC cannot run the engine: that is a result, not an error.
-          node dist/bin/agent-sandbox.js engine check hcs 2>&1 | Tee-Object -FilePath "$env:LOGS\engine-check.txt"
-          node dist/bin/agent-sandbox.js engine check hcs --json 2>&1 | Out-File -Encoding utf8 "$env:LOGS\engine-check.json"
-          node dist/bin/agent-sandbox.js engine --json 2>&1 | Out-File -Encoding utf8 "$env:LOGS\engine.json"
+          node dist/bin/sandbox.js engine check hcs 2>&1 | Tee-Object -FilePath "$env:LOGS\engine-check.txt"
+          node dist/bin/sandbox.js engine check hcs --json 2>&1 | Out-File -Encoding utf8 "$env:LOGS\engine-check.json"
+          node dist/bin/sandbox.js engine --json 2>&1 | Out-File -Encoding utf8 "$env:LOGS\engine.json"
           if (-not (Test-Path "$env:LOGS\engine.json") -or (Get-Item "$env:LOGS\engine.json").Length -lt 10) { exit 1 }
           exit 0
 

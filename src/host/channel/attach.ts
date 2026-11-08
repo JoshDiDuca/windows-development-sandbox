@@ -90,7 +90,7 @@ export async function attachTerminal(
       "Refusing to connect: the sandbox reported no address on this PC's Hyper-V (vEthernet) network (" +
         session.attach.addresses.join(', ') +
         ').',
-      'Use the sandbox window instead (sbx-show); if this keeps happening, run sandbox doctor.',
+      'Use the sandbox window instead (sandbox show); if this keeps happening, run sandbox doctor.',
     );
   const socket = await connect(endpoint);
   console.log(

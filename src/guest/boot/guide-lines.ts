@@ -73,3 +73,11 @@ export function toolLines(
     "- Tools by project: each project gets the tools its own files ask for; python and rust already installed here are on every project's PATH.",
   ];
 }
+
+/** The PC logs line, only when the launch folder has them (a launch of the sandbox's own source repo). */
+export function pcLogsGuideLine(launchDir: string, exists: (dir: string) => boolean): string[] {
+  const dir = path.win32.join(launchDir, 'pc-logs');
+  return exists(dir)
+    ? ['- PC crash reports and logs (this project only, read-only, never commit them): `' + dir + '`']
+    : [];
+}

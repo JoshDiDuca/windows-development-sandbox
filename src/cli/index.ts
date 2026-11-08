@@ -18,7 +18,7 @@ import { HANDLERS } from './commands/index.js';
 import { definitionHandler, operationHandler } from './operations/index.js';
 import { runUpdate } from '../app/features/updates/index.js';
 
-const entry = path.join(PACKAGE_ROOT, 'dist', 'bin', 'agent-sandbox.js');
+const entry = path.join(PACKAGE_ROOT, 'dist', 'bin', 'sandbox.js');
 
 export interface Preset {
   harness?: string;

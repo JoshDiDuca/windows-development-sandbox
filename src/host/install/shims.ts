@@ -1,6 +1,7 @@
 // The commands on PATH. Each one is a tiny script that reads the two pointer files and runs the version they name, so
 // an update never has to rewrite a shim: it only moves the pointers. A .cmd for cmd.exe and PowerShell, and a POSIX
 // script (same name, no extension) for Git Bash.
+import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { fail } from '../../core/util/index.js';
@@ -49,10 +50,46 @@ export function readBins(packageJson: unknown): Record<string, string> {
   return bins;
 }
 
-/** Writes <bin>.cmd and <bin> for every command in `bins` (name -> program path inside the package). */
+/** Commands earlier versions installed (name -> program they ran). Their shims go when nothing declares them. */
+export const REMOVED_COMMANDS: Readonly<Record<string, string>> = {
+  'agent-sandbox': 'dist/bin/agent-sandbox.js',
+  'claude-sbx': 'dist/bin/claude-sbx.js',
+  'claude-sandbox': 'dist/bin/claude-sbx.js',
+  'codex-sbx': 'dist/bin/codex-sbx.js',
+  'codex-sandbox': 'dist/bin/codex-sbx.js',
+  'gemini-sbx': 'dist/bin/gemini-sbx.js',
+  'gemini-sandbox': 'dist/bin/gemini-sbx.js',
+  'claude-host': 'dist/bin/claude-host.js',
+  'sbx-show': 'dist/bin/sbx-show.js',
+  'sbx-hide': 'dist/bin/sbx-hide.js',
+};
+
+/** Deletes the shim of a removed command, only when the file is exactly the text we wrote for it. */
+export function removeStaleShims(layout: InstallLayout, keep: Readonly<Record<string, string>> = {}): void {
+  for (const [name, target] of Object.entries(REMOVED_COMMANDS)) {
+    if (name in keep) continue;
+    for (const [file, kind] of [
+      [name + '.cmd', 'cmd'],
+      [name, 'sh'],
+    ] as const) {
+      const full = path.join(layout.binDir, file);
+      try {
+        if (fs.readFileSync(full, 'utf8') === shimText(name, kind, target)) fs.rmSync(full, { force: true });
+      } catch {
+        // Not there, or not readable: nothing of ours to remove.
+      }
+    }
+  }
+}
+
+/**
+ * Writes <bin>.cmd and <bin> for every command in `bins` (name -> program path inside the package), and removes the
+ * shims of commands that no longer exist.
+ */
 export function writeShims(layout: InstallLayout, bins: Record<string, string>): void {
   for (const [name, target] of Object.entries(bins)) {
     writeFileAtomic(path.join(layout.binDir, name + '.cmd'), shimText(name, 'cmd', target));
     writeFileAtomic(path.join(layout.binDir, name), shimText(name, 'sh', target));
   }
+  removeStaleShims(layout, bins);
 }

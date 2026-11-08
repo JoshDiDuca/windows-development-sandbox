@@ -42,9 +42,9 @@ interface Command {
   after?: string[];
 }
 
-const sandbox = (label: string, ...args: string[]): Command => ({ bin: 'agent-sandbox', label, args, config: true });
+const sandbox = (label: string, ...args: string[]): Command => ({ bin: 'sandbox', label, args, config: true });
 const COMMANDS: Command[] = [
-  { bin: 'agent-sandbox', label: '--help', args: ['--help'] },
+  { bin: 'sandbox', label: '--help', args: ['--help'] },
   sandbox('status', 'status'),
   sandbox('status --json', 'status', '--json'),
   sandbox('sessions', 'sessions'),
@@ -53,26 +53,25 @@ const COMMANDS: Command[] = [
   sandbox('vpn status', 'vpn', 'status'),
   sandbox('vpn status --json', 'vpn', 'status', '--json'),
   sandbox('account use nobody', 'account', 'use', 'nobody'),
-  { bin: 'agent-sandbox', label: 'config path', args: ['config', 'path'] },
+  { bin: 'sandbox', label: 'config path', args: ['config', 'path'] },
   sandbox('config show', 'config', 'show'),
-  { bin: 'agent-sandbox', label: 'config schema', args: ['config', 'schema'] },
+  { bin: 'sandbox', label: 'config schema', args: ['config', 'schema'] },
   sandbox('clean', 'clean'),
   sandbox('sync', 'sync'),
   sandbox('logs', 'logs'),
   sandbox('attach', 'attach'),
-  { bin: 'agent-sandbox', label: 'exec', args: ['exec'], after: ['--', 'echo', 'hi'], config: true },
+  { bin: 'sandbox', label: 'exec', args: ['exec'], after: ['--', 'echo', 'hi'], config: true },
   sandbox('restart', 'restart'),
   sandbox('stop', 'stop'),
   sandbox('show', 'show'),
   sandbox('hide', 'hide'),
   sandbox('generate', 'generate'),
   sandbox('launch', 'launch'),
-  { bin: 'agent-sandbox', label: 'unknown command', args: ['frobnicate'] },
-  { bin: 'claude-sbx', label: 'claude-sbx --headless --continue', args: ['--headless', '--continue'], config: true },
-  { bin: 'codex-sbx', label: 'codex-sbx', args: [], config: true },
-  { bin: 'gemini-sbx', label: 'gemini-sbx', args: [], config: true },
-  { bin: 'sbx-show', label: 'sbx-show', args: [], config: true },
-  { bin: 'claude-host', label: 'claude-host --version', args: ['--version'] },
+  { bin: 'sandbox', label: 'unknown command', args: ['frobnicate'] },
+  { bin: 'sandbox', label: 'claude --headless --continue', args: ['claude', '--headless', '--continue'], config: true },
+  { bin: 'sandbox', label: 'codex', args: ['codex'], config: true },
+  { bin: 'sandbox', label: 'gemini', args: ['gemini'], config: true },
+  { bin: 'sandbox', label: 'host claude --version', args: ['host', 'claude', '--', '--version'] },
 ];
 
 export const hostSimSuite: Suite = {
@@ -111,7 +110,8 @@ export const hostSimSuite: Suite = {
       const r = await f.runBin(command.bin, args, { cwd: project, env: envFor(pc.home), timeoutMs: 120000 });
       const crashed =
         r.status === null || r.status > 1 || /Unexpected error|node:internal|^\s+at .+:\d+:\d+\)?$/m.test(r.out);
-      const unexplained = r.status === 1 && !/(^|\n)(Error: |error: )/.test(r.out) && command.bin !== 'claude-host';
+      const unexplained =
+        r.status === 1 && !/(^|\n)(Error: |error: )/.test(r.out) && !command.label.startsWith('host ');
       if (crashed || unexplained)
         broken.push(
           command.label +
@@ -130,8 +130,8 @@ export const hostSimSuite: Suite = {
       for (let next = queue.shift(); next; next = queue.shift()) await runOne(next.command, next.index);
     });
     const initRuns = (async () => {
-      await runOne({ bin: 'agent-sandbox', label: 'config init', args: ['config', 'init'] }, 1000, initPc);
-      await runOne({ bin: 'agent-sandbox', label: 'config init (again)', args: ['config', 'init'] }, 1001, initPc);
+      await runOne({ bin: 'sandbox', label: 'config init', args: ['config', 'init'] }, 1000, initPc);
+      await runOne({ bin: 'sandbox', label: 'config init (again)', args: ['config', 'init'] }, 1001, initPc);
     })();
     await Promise.all([...workers, initRuns]);
 

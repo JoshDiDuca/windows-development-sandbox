@@ -17,6 +17,7 @@ import { folderAttachment } from '../storage/providers/index.js';
 import { assertTestWritable } from '../test-guard.js';
 import { writeLoadSettings } from '../life/watchdog.js';
 import { loadProfileOf } from './risk-notes.js';
+import { launchHasSandboxSource, stagePcLogs } from './pc-logs.js';
 import { planBootProjects } from './boot-projects.js';
 import { planDatabases } from './database-plan.js';
 import { collectMappings } from './mappings.js';
@@ -163,6 +164,9 @@ export function generateSandbox(
   fs.writeFileSync(path.join(launchPath, 'env.cmd'), logonEnv(session.workspace), 'utf8');
   copyRuntime(o.packageRoot, launchPath);
   stageHooks(o.packageRoot, launchPath, o.run.scripts);
+  // Developing the sandbox inside a sandbox: this PC's recent crash reports and logs (never for other projects).
+  if (launchHasSandboxSource([workspaceHost, ...boot.projects.map((p) => p.host)], o.packageRoot))
+    stagePcLogs(storageRoot, dataPath, launchPath);
 
   const enginePlan = engine.plan(
     buildLaunchPlan({

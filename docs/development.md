@@ -110,6 +110,15 @@ plus `needs: [hcs]` on the job that publishes. It is not added yet on purpose.
 Project scripts can check `AGENT_SANDBOX=1` to know they run in the sandbox, and `AGENT_SANDBOX_WORKSPACE` for the
 project's path there (for example to skip installers or GPU checks).
 
+### Developing the sandbox inside a sandbox
+
+When a launch includes this source repo (the folder's `package.json` has the package name and the same repository url
+as the installed copy; git worktrees count), the PC's recent crash reports and logs are copied into the launch folder,
+so they show up read-only at `C:\AgentLaunch\pc-logs`: the newest 10 `crash-*.txt` reports and the last 256 KB of the
+PC memory log, the host watcher log and the live-folders log, with a `README.txt`. They live only in that launch's
+folder (gone when the sandbox closes), are never copied into a workspace, and so never enter git. Launches of other
+projects get nothing, and the sandbox guide mentions the folder only when it exists.
+
 ## Releases
 
 Releases are automatic. Bump `version` in `package.json` and push to master, and CI tags `v<version>` and publishes

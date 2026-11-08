@@ -3,7 +3,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LocalOverridesSchema } from '../core/schema/index.js';
-import { buildWsb, gitIdentity, logonEnv, resolveMemoryMb } from '../host/launch/index.js';
+import {
+  buildWsb,
+  gitIdentity,
+  isSandboxSourceRepo,
+  launchHasSandboxSource,
+  logonEnv,
+  resolveMemoryMb,
+  stagePcLogs,
+} from '../host/launch/index.js';
+import { pcLogsGuideLine } from '../guest/boot/guide-lines.js';
 import type { Suite } from './support/suite.js';
 
 export const generateSuite: Suite = {
@@ -139,6 +148,102 @@ export const generateSuite: Suite = {
       () => resolveMemoryMb(auto, 9000 * MB, pcRam),
       'Not enough free RAM',
       "memory 'auto' refuses when too little RAM is free",
+    );
+
+    t.section('PC logs for developing the sandbox');
+    const root = path.join(t.temp, 'pc-logs');
+    const URL = 'git+https://github.com/JoshDiDuca/windows-development-sandbox.git';
+    const project = (name: string, pkg: string): string => {
+      t.write(path.join(root, name, 'package.json'), pkg);
+      return path.join(root, name);
+    };
+    const own = project(
+      'own',
+      JSON.stringify({ name: 'windows-development-sandbox', repository: { type: 'git', url: URL } }),
+    );
+    const pkgOf = (url: string, name = 'windows-development-sandbox'): string =>
+      JSON.stringify({ name, repository: { url } });
+    const variants = [
+      project('v-https', pkgOf('https://github.com/joshdiduca/windows-development-sandbox')),
+      project('v-dotgit', pkgOf('https://github.com/JoshDiDuca/windows-development-sandbox.git')),
+      project('v-string', JSON.stringify({ name: 'windows-development-sandbox', repository: URL })),
+    ];
+    t.equal(
+      [isSandboxSourceRepo(own, own), ...variants.map((v) => isSandboxSourceRepo(v, own))],
+      [true, true, true, true],
+      'a folder with the sandbox name and repository url is its source (git+, .git and case variants too)',
+    );
+    const big = project('big', pkgOf(URL) + ' '.repeat(300 * 1024));
+    const link = path.join(root, 'linked');
+    let linked = false;
+    try {
+      fs.symlinkSync(path.join(root, 'own'), link, 'junction');
+      linked = true;
+    } catch {
+      // No permission for links here: that case is skipped.
+    }
+    t.equal(
+      [
+        isSandboxSourceRepo(project('wrong-url', pkgOf('https://github.com/someone/windows-development-sandbox')), own),
+        isSandboxSourceRepo(project('wrong-name', pkgOf(URL, 'other')), own),
+        isSandboxSourceRepo(project('invalid', '{ nope'), own),
+        isSandboxSourceRepo(path.join(root, 'missing'), own),
+        isSandboxSourceRepo(big, own),
+        linked ? isSandboxSourceRepo(link, own) : false,
+      ],
+      [false, false, false, false, false, false],
+      'a wrong url or name, a missing, oversized or invalid package.json and a link are not the sandbox source',
+    );
+    t.check(
+      launchHasSandboxSource([f.workA, own], own) && !launchHasSandboxSource([f.workA, f.workB], own),
+      'any project of the launch can be the source; a launch without it has none',
+    );
+    t.check(!fs.existsSync(path.join(gen.launchPath, 'pc-logs')), 'a launch of another project gets no pc-logs');
+
+    const storage = path.join(root, 'storage');
+    const dataPath = path.join(root, 'data-x');
+    for (let i = 0; i < 12; i++)
+      t.write(path.join(storage, 'logs', 'crashes', 'crash-2026-01-' + String(10 + i) + '.txt'), 'report ' + i);
+    t.write(path.join(storage, 'logs', 'host-memory-data-x.log'), 'start\n' + 'm'.repeat(600 * 1024) + 'END');
+    t.write(path.join(storage, 'logs', 'host-sync-data-x.log'), 'small');
+    t.write(path.join(storage, 'state', 'live-folders.log'), 'live');
+    t.write(path.join(storage, 'state', 'logins.json'), 'SECRET');
+    t.write(path.join(storage, 'secrets', 'x.json'), 'SECRET');
+    const launch = path.join(root, 'launch');
+    const out = stagePcLogs(storage, dataPath, launch);
+    const listing = (dir: string): string[] =>
+      fs
+        .readdirSync(dir, { recursive: true, withFileTypes: true })
+        .flatMap((e) =>
+          e.isFile() ? [path.relative(out, path.join(e.parentPath, e.name)).replaceAll('\\', '/')] : [],
+        );
+    const copied = listing(out).sort();
+    const reports = copied.filter((n) => n.startsWith('crashes/'));
+    const memory = fs.readFileSync(path.join(out, 'host-memory.log'), 'utf8');
+    t.check(
+      reports.length === 10 &&
+        reports.includes('crashes/crash-2026-01-21.txt') &&
+        !reports.includes('crashes/crash-2026-01-11.txt') &&
+        fs.statSync(path.join(out, 'host-memory.log')).size <= 256 * 1024 &&
+        memory.endsWith('END') &&
+        fs.readFileSync(path.join(out, 'README.txt'), 'utf8').includes('never commit'),
+      'the newest 10 crash reports, the last 256 KB of the memory log and a README are copied',
+      copied.join(', '),
+    );
+    t.equal(
+      copied.filter((n) => !n.startsWith('crashes/')),
+      ['README.txt', 'host-memory.log', 'host-sync.log', 'live-folders.log'],
+      'nothing else from the storage folder is copied (no state, logins or secrets)',
+    );
+
+    t.section('the guide line for the PC logs');
+    t.equal(
+      [pcLogsGuideLine('C:\\AgentLaunch', () => false), pcLogsGuideLine('C:\\AgentLaunch', () => true)],
+      [
+        [],
+        ['- PC crash reports and logs (this project only, read-only, never commit them): `C:\\AgentLaunch\\pc-logs`'],
+      ],
+      'the guide mentions the PC logs only when the folder exists',
     );
   },
 };

@@ -6,7 +6,7 @@ import { claudeDir, session, stateDir, workspace } from '../runtime/session.js';
 import { dataDir, launchDir, logsDir, toolsDir } from '../runtime/paths.js';
 import { addonGuideLine, APPS, headroomGuideLine, RTK_GUIDE_LINE } from '../../shared/apps/index.js';
 import { installedAddon, installedRtk } from '../setup/agent-addons.js';
-import { projectFolderLines, toolLines, type GuideProject, type MappedFolder } from './guide-lines.js';
+import { pcLogsGuideLine, projectFolderLines, toolLines, type GuideProject, type MappedFolder } from './guide-lines.js';
 import { sandboxScriptsDir } from '../../shared/scripts.js';
 import { findUproject, unrealGuideLines } from '../../shared/unreal/index.js';
 import { DISK } from '../toolchains/engines/unreal-engines.js';
@@ -100,6 +100,7 @@ export function sandboxGuide(
       '`',
     '- RO: `' + launchDir + "` (this boot's scripts) · lost on close: everything else, incl. `C:\\nvm` (Node symlink)",
     ...mirrorLine(),
+    ...pcLogsGuideLine(launchDir, fs.existsSync),
     ...toolLines(session.project, toolSummary, projects),
     ...unrealLines(projects),
     ...unityLines(projects),

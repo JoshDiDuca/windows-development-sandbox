@@ -18,3 +18,4 @@ export { msvcHint, projectEntries, readProjectFiles, uvHint } from './project-sc
 export { hostDatabases, pcLanguages } from './pc-scan.js';
 export { collectMappings } from './mappings.js';
 export { RUNTIME_FILES, copyRuntime, gitIdentity, stageGitIdentity, stageHooks, stageScripts } from './stage.js';
+export { isSandboxSourceRepo, launchHasSandboxSource, stagePcLogs } from './pc-logs.js';

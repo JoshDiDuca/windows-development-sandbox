@@ -489,7 +489,7 @@ class Launcher {
     if (hidden)
       console.log(
         (await hidden)
-          ? 'Sandbox running headless. Open the window: sbx-show   Attach here: sandbox claude -t'
+          ? 'Sandbox running headless. Open the window: sandbox show   Attach here: sandbox claude -t'
           : 'Could not find the sandbox window to hide (it may still be starting); run sandbox hide in a moment.',
       );
     else

@@ -204,7 +204,7 @@ export function agentsOptions(m: AgentsModel, cwd: string = process.cwd()): List
         category: 'options',
         section: 'This start',
         hint: WINDOW_TEXT[m.window],
-        description: 'Hide or show the Windows Sandbox window (sbx-show brings a hidden one back).',
+        description: 'Hide or show the Windows Sandbox window (sandbox show brings a hidden one back).',
       },
       {
         value: 'opt:folder',

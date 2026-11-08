@@ -24,8 +24,8 @@ the live tests create files, links and processes. `sandbox self-test` is the sam
 
 ```powershell
 npm test -- config                                    # one suite (builds first)
-node dist/bin/agent-sandbox.js self-test cli,sync     # several, without building
-node dist/bin/agent-sandbox.js self-test nope         # prints the list of suite names
+node dist/bin/sandbox.js self-test cli,sync     # several, without building
+node dist/bin/sandbox.js self-test nope         # prints the list of suite names
 ```
 
 - One file per area in `src/selftest/`, named `<area>.test.ts`, exporting a `Suite` (`support/suite.ts`). `index.ts`

@@ -306,7 +306,7 @@ export const credentialsSuite: Suite = {
       ['vpn', 'status', '--json'],
       ['status', '--json'],
     ]) {
-      const out = await f.runBin('agent-sandbox', [...args, '--config', cliConfig], { cwd: f.workA, env });
+      const out = await f.runBin('sandbox', [...args, '--config', cliConfig], { cwd: f.workA, env });
       t.check(
         !out.out.includes(API_KEY) && (args[0] !== 'config' || out.out.includes('***')),
         'sandbox ' + args.join(' ') + ' never prints the planted key' + (args[0] === 'config' ? ' (it shows ***)' : ''),

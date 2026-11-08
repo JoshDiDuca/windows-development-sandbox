@@ -1,11 +1,11 @@
-// Every copy of the sandbox commands on the PATH (sandbox, agent-sandbox, claude-sbx), in the order Windows finds them:
+// Every copy of the sandbox commands on the PATH (sandbox), in the order Windows finds them:
 // the machine PATH, then yours, and in each folder PATHEXT order. Read only: nothing is run, and a file is only checked
 // for existing. Used by doctor to say which copy runs and how to remove each of the others.
 import fs from 'node:fs';
 import path from 'node:path';
 import { expandVariables } from '../../core/util/index.js';
 
-export const COMMAND_NAMES = ['sandbox', 'agent-sandbox', 'claude-sbx'] as const;
+export const COMMAND_NAMES = ['sandbox'] as const;
 
 export type CopyKind = 'managed-machine' | 'managed-user' | 'npm' | 'old-scripts' | 'other';
 

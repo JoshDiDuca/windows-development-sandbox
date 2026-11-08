@@ -63,7 +63,7 @@ export class SandboxChannel {
         );
       await sleep(500);
     }
-    fail(timeoutMessage, 'Check what the sandbox is doing with sandbox logs -f (or sbx-show to see its window).');
+    fail(timeoutMessage, 'Check what the sandbox is doing with sandbox logs -f (or sandbox show to see its window).');
   }
 
   /** Deletes an answer once read; a planted link means the answer is read and nothing is deleted. */
@@ -95,7 +95,7 @@ export class SandboxChannel {
           if (bootSilent(Date.now() - started, seen))
             fail(
               'The sandbox has not reported anything for ' + Math.round(FIRST_STATUS_MS / 60000) + ' minutes.',
-              'It may still be starting, or it cannot reach its folders. Look at its window (sbx-show), the run folder ' +
+              'It may still be starting, or it cannot reach its folders. Look at its window (sandbox show), the run folder ' +
                 this.run.root +
                 ' and the data folder ' +
                 this.dataPath +
@@ -112,7 +112,7 @@ export class SandboxChannel {
         if (status.phase === 'failed')
           fail(
             'The sandbox failed to start: ' + status.message,
-            'See sandbox logs for details; the sandbox window shows the error too (sbx-show if headless).',
+            'See sandbox logs for details; the sandbox window shows the error too (sandbox show if headless).',
           );
         return status.phase === 'ready' ? status : null;
       },

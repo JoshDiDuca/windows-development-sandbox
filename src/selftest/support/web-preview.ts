@@ -596,7 +596,7 @@ export function sampleAuditLog(dir: string): AuditLog {
     proc(94, 'C:\\AgentData\\tools\\uv\\uv.exe', 'uv tool install aider-chat', {}),
     { t: at(90), k: 'session', a: 'start', p: 'claude', w: SESSIONS[0].cwd, c: claude.s, ...claude, sv: undefined },
     proc(88, git, 'git status --short', claude),
-    proc(87, node, 'node dist/bin/agent-sandbox.js self-test audit', claude, 2),
+    proc(87, node, 'node dist/bin/sandbox.js self-test audit', claude, 2),
     file(80, 'src/host/audit/collect.ts', ws, claude),
     file(79, 'src/app/features/audit/audit.def.ts', ws, claude),
     proc(70, 'C:\\nvm\\nodejs\\npm.cmd', 'npm run build', claude),
@@ -646,7 +646,7 @@ export function sampleAuditLog(dir: string): AuditLog {
       ...codex,
       sv: undefined,
     },
-    proc(5, node, 'node dist/bin/agent-sandbox.js self-test app', claude),
+    proc(5, node, 'node dist/bin/sandbox.js self-test app', claude),
     { t: at(4), k: 'remote', p: 'sessions.restart', a: 'ok', au: "device Josh's iPhone" },
     { t: at(3), k: 'remote', p: 'settings.set', a: 'refused', au: 'Windows user DESKTOP-JOSH\\sam' },
   ]);

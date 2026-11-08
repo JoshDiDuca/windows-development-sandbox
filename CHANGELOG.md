@@ -8,6 +8,19 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
 
 ## 1.31.0
 
+- **Copy and paste between the sandbox and your PC works.** It was blocked: Protected Client (on by default) filters
+  Windows Sandbox's own shared clipboard, so text never reached the PC. `sandbox.clipboard` is now a mode:
+  - `"text"` (the default): the sandbox's own text bridge. It keeps Protected Client on, and copies only while the
+    sandbox window is in front: a copy in the sandbox reaches your PC when you made it there, and your PC's clipboard
+    goes in when you switch to the sandbox. Text only, up to 1 MB, never logged or kept.
+  - `"shared"`: Windows Sandbox's own clipboard (text, images, files). That sandbox runs without Protected Client, and
+    the launch says so.
+  - `"off"`: no clipboard at all.
+  - `sandbox.clipboardDirection` (`both`, `toPc`, `toSandbox`) limits the text bridge to one way. A project file may
+    only narrow both settings. Old `true` / `false` values become `"text"` / `"off"`. The launch summary and doctor say
+    which clipboard is in effect.
+- **The sandbox window's Ctrl+C guard starts at once:** it watches the clipboard with a small built-in helper instead
+  of PowerShell (0.1 s instead of 2 s, a tenth of the memory).
 - **opencode and Kilo logins copy over from this PC.** `sandbox account save <name> --from-host --agent opencode` (and
   the Accounts page) saves this PC's login even though it sits at another place than in the sandbox
   (`home.hostFiles`). The accounts list shows which providers a login holds (`anthropic, openai`), never a token.

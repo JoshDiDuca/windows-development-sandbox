@@ -6,6 +6,16 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
 `~/.agent-sandbox` folder, the environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and
 `AGENT_SANDBOX_WORKSPACE`, the `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.30.0
+
+- **The next VM crash says which part of Windows failed.** `sandbox vm-dumps on` (also offered once after a crash of
+  the sandbox's VM, and in doctor and repair) has Windows keep a crash dump of its VM worker, `vmwp.exe`: Windows asks
+  for permission once. The crash report reads that dump without a debugger and names the failing module and what it
+  usually means. It also gives the PC's Windows release and graphics driver, and says so in one line when that Windows
+  release no longer gets fixes. Nothing about how the sandbox runs changes.
+- **The PC's crash logs also reach this repo when it joins a running sandbox**, not only when a sandbox is started for
+  it.
+
 ## 1.29.0
 
 - **One command: `sandbox`.** The old commands are gone: `agent-sandbox`, `claude-sbx`, `codex-sbx`, `gemini-sbx`,

@@ -22,6 +22,7 @@ import { parseWsbBoot, ProjectRegistry, runningRegistry } from '../host/projects
 import { RepoGuardStore } from '../host/guard/index.js';
 import { findWsb, parseCommands, parseIp, parseList, parseVersion } from '../host/sandbox/index.js';
 import { baseEnvFor } from '../guest/boot/project-env.js';
+import { pcLogsGuideLine } from '../guest/boot/guide-lines.js';
 import {
   guestDirFor,
   hostDirFor,
@@ -756,6 +757,59 @@ export const projectsSuite: Suite = {
         (await joinGames('continue')).missing?.settings.join() === 'sandbox.vGpu',
       '"Restart with them" hands the restart offer what is missing, "Cancel" stops with a short line (neither registers the project), "Continue anyway" joins and says what is missing',
       cancelled,
+    );
+
+    // The sandbox's own source repo joining a running sandbox gets the PC's crash logs; another project does not.
+    const pclStorage = t.dir('proj-pcl-storage');
+    const pclData = t.dir('proj-pcl-storage', 'data', 'testdata');
+    const pclLaunch = '1700000000003-abc123';
+    const pclPath = path.join(pclStorage, 'launches', pclLaunch);
+    t.write(path.join(pclPath, 'session.json'), JSON.stringify({ launchId: pclLaunch }));
+    t.write(path.join(pclStorage, 'logs', 'crashes', 'crash-2026-01-10.txt'), 'report');
+    t.write(
+      path.join(pclData, 'run', 'sandbox.json'),
+      JSON.stringify({
+        launchId: pclLaunch,
+        phase: 'ready',
+        message: 'ready',
+        updatedAt: new Date().toISOString(),
+        workspaceHost: f.workA,
+        guestWorkspace: 'C:\\Workspace\\work-a',
+        headless: false,
+      }),
+    );
+    const pclRoot = t.dir('proj-pcl-root');
+    new ProjectRegistry(pclStorage).start({
+      launchId: pclLaunch,
+      protections: protectionsOf(launchedRun.config),
+      primary: { host: f.workA, guest: 'C:\\Workspace\\work-a' },
+      roots: [{ host: pclRoot, guest: 'C:\\Projects\\proj-pcl-root' }],
+      boot: [],
+      atBoot: { ...runningBoot, widened: {} },
+    });
+    const PCL_URL = 'https://github.com/JoshDiDuca/windows-development-sandbox';
+    const pclPkg = JSON.stringify({ name: 'windows-development-sandbox', repository: { url: PCL_URL } });
+    const pclInstall = t.dir('proj-pcl-install');
+    t.write(path.join(pclInstall, 'package.json'), pclPkg);
+    const pclSource = t.dir('proj-pcl-root', 'source');
+    t.write(path.join(pclSource, 'package.json'), pclPkg);
+    const pclOther = t.dir('proj-pcl-root', 'other');
+    const joinPcl = (hostDir: string) =>
+      joinRunning({
+        storageRoot: pclStorage,
+        dataPath: pclData,
+        packageRoot: pclInstall,
+        hostDir,
+        wsbShare: false,
+        resolve: resolveFor(gamesRun),
+      });
+    await joinPcl(pclOther);
+    t.check(!fs.existsSync(path.join(pclPath, 'pc-logs')), 'another project joining a running sandbox gets no pc-logs');
+    await joinPcl(pclSource);
+    t.check(
+      fs.existsSync(path.join(pclPath, 'pc-logs', 'crashes', 'crash-2026-01-10.txt')) &&
+        pcLogsGuideLine(pclPath, fs.existsSync).length === 1,
+      "the sandbox's own source repo joining a running sandbox gets the PC's crash logs in the launch folder, and the guide names them",
     );
 
     // The restart that adds it (and any launch with it mapped at boot) boots with the union.

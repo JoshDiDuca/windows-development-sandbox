@@ -19,7 +19,13 @@ import { resolveToolchains } from '../../core/detect/index.js';
 import { assertNoLinks, dirExists, fail } from '../../core/util/index.js';
 import { IdSchema, RunDir, type ProjectSpec } from '../../shared/channel/index.js';
 import { syncProjectIn } from '../../sync/index.js';
-import { decideProjectToolchains, planDatabases, stageScripts } from '../launch/index.js';
+import {
+  decideProjectToolchains,
+  isSandboxSourceRepo,
+  planDatabases,
+  stageScripts,
+  stagePcLogs,
+} from '../launch/index.js';
 import { RepoGuardStore } from '../guard/index.js';
 import { ProjectRegistry, type Registry, type RegistryEntry } from './registry.js';
 import { NeedsRestart, projectMapper, type ProjectMapper } from './mapper.js';
@@ -164,6 +170,16 @@ export async function joinRunning(o: {
   // A live folder (HCS alpha) is always read-only until the real-PC test shows whose rights the share uses.
   const entry = await mapper.register(root, { readOnly: true, onNote: o.onNote });
   new KnownProjects(o.storageRoot).remember(entry.host);
+  // The sandbox's own source repo gets the PC's crash logs, as at a launch. The launch folder is on the PC, so this
+  // side can add them while the sandbox runs (the guest sees them at once and its guide names them when it sets the
+  // project up).
+  if (launchPath && isSandboxSourceRepo(root, o.packageRoot)) {
+    try {
+      stagePcLogs(o.storageRoot, o.dataPath, launchPath);
+    } catch {
+      /* logs are a convenience; never block the join */
+    }
+  }
   // Your hooks in ~/.agent-sandbox/hooks ran at boot (once per sandbox); the project's own scripts ("scripts" in its
   // .sandbox-config.json, --script) run before its first agent. The launch folder is read-only for the sandbox, but
   // this side can still add them to it.

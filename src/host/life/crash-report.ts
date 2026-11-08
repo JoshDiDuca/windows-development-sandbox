@@ -85,7 +85,12 @@ export function findingLines(events: readonly StopEvent[]): string[] {
     );
   if (has((e) => lower(e).startsWith('hyper-v')))
     lines.push("Hyper-V events: the sandbox's virtual machine (or the service that runs it) reported a problem.");
-  if (has((e) => /^(application error|windows error reporting)$/i.test(e.provider)))
+  const isAppCrash = (e: StopEvent): boolean => /^(application error|windows error reporting)$/i.test(e.provider);
+  if (has((e) => isAppCrash(e) && /vmwp\.exe/i.test(e.process)))
+    lines.push(
+      "vmwp.exe, the Windows program that runs the sandbox's VM, crashed. That is a fault in Windows' Hyper-V code or a driver it uses (with vGPU on, usually the graphics driver), not a program inside the sandbox running out of memory.",
+    );
+  else if (has(isAppCrash))
     lines.push("A crash report names vmwp.exe or vmmem, the programs that hold the sandbox's VM.");
   return lines;
 }
@@ -151,6 +156,30 @@ function hostMemoryTail(storageRoot: string, dataPath: string): string {
 }
 
 /**
+ * "This PC still had ..." from the last line of its memory log, when RAM and commit were both 4 GB or more free (pure).
+ */
+export function memoryWasFineLine(hostMemoryLog: string): string | null {
+  const last = hostMemoryLog
+    .split(/\r?\n/)
+    .filter((l) => l.trim() !== '')
+    .pop();
+  if (!last) return null;
+  const ram = /RAM free\/total MB (\d{1,9})\/(\d{1,9})/.exec(last);
+  const commit = /commit free\/limit MB (\d{1,9})\/(\d{1,9})/.exec(last);
+  if (!ram || !commit) return null;
+  const freeRam = Number(ram[1]);
+  const freeCommit = Number(commit[1]);
+  if (freeRam < 4096 || freeCommit < 4096) return null;
+  return (
+    'This PC still had ' +
+    Math.floor(freeRam / 1024) +
+    ' GB of RAM and ' +
+    Math.floor(freeCommit / 1024) +
+    ' GB of memory (RAM plus paging file) free just before, so it did not run out of memory.'
+  );
+}
+
+/**
  * The report text (pure): what happened (the sandbox's or this PC's stop code, where the dump is) and the memory log's
  * last lines. `memoryLog` is the sandbox's own file, so it is shown through safeText.
  */
@@ -187,6 +216,7 @@ export function crashReportText(
     .map((l) => '  ' + safeText(l));
   const freeze = freezeLine(cause, lastSeen);
   const meaning = findingLines(unique);
+  const fine = memoryWasFineLine(extra.hostMemoryLog ?? '');
   const dumps = extra.dumps ?? [];
   const vgpu = extra.vgpu ? ['vGPU was on for this sandbox. ' + vgpuWarning('its launch settings'), ''] : [];
   return [
@@ -200,6 +230,7 @@ export function crashReportText(
     ...vgpu,
     'What that usually means:',
     ...(meaning.length ? meaning.map((l) => '  ' + l) : ['  (no memory, blue screen or hardware event was logged)']),
+    ...(fine ? ['  ' + fine] : []),
     '',
     'Crash dumps Windows left (C:\\Windows\\Minidump, MEMORY.DMP):',
     ...(dumps.length ? dumps.map((d) => '  ' + d.name + '  ' + d.at) : ['  (none from that time)']),

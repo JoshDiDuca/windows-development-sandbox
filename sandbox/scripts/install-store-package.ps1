@@ -16,11 +16,18 @@ if ($list.dependencies) { $dependencies = @($list.dependencies | ForEach-Object 
 
 $existing = Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $existing) {
-    if ($dependencies.Count -gt 0) {
-        Add-AppxPackage -Path $list.main -DependencyPath $dependencies
+    # The frameworks (VCLibs, WindowsAppRuntime ...) are handed over with the app: Windows installs the ones it lacks first.
+    try {
+        if ($dependencies.Count -gt 0) {
+            Add-AppxPackage -Path $list.main -DependencyPath $dependencies
+        }
+        else {
+            Add-AppxPackage -Path $list.main
+        }
     }
-    else {
-        Add-AppxPackage -Path $list.main
+    catch {
+        $names = ($dependencies | ForEach-Object { Split-Path -Leaf $_ }) -join ', '
+        throw ('Add-AppxPackage refused ' + (Split-Path -Leaf $list.main) + ' (with ' + $dependencies.Count + ' frameworks: ' + $names + '): ' + $_.Exception.Message)
     }
     $existing = Get-AppxPackage -Name $PackageName -ErrorAction Stop | Select-Object -First 1
 }

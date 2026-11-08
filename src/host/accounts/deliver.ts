@@ -8,6 +8,7 @@
 import type { BootWant } from '../../core/local-config/index.js';
 import type { Config } from '../../core/types.js';
 import {
+  appsNeededFor,
   fingerprint,
   SERVICE_KINDS,
   SERVICE_SPECS,
@@ -16,6 +17,7 @@ import {
   type ServiceKind,
   type ServiceSpec,
   type UsedBy,
+  usedByText,
 } from '../../shared/accounts/index.js';
 import { setNameOf } from '../storage/index.js';
 import { takeHandoffs } from './handoff.js';
@@ -100,7 +102,23 @@ export function prepareServiceAccounts(i: DeliveryInput): AccountDelivery {
   }
   for (const kind of SERVICE_KINDS) {
     const spec: ServiceSpec = SERVICE_SPECS[kind];
-    if (!i.config.accounts[kind].share || !serviceWanted(kind, i.on)) continue;
+    if (!i.config.accounts[kind].share) continue;
+    if (!serviceWanted(kind, i.on)) {
+      const apps = appsNeededFor(kind);
+      if (apps.length)
+        notes.push(
+          'Your ' +
+            spec.label +
+            ' sign-in is on (accounts.' +
+            kind +
+            '.share) but ' +
+            usedByText(spec.usedBy) +
+            ' is not installed, so there is nothing to hand it to. Fix: turn the app on in Apps (apps.install: ' +
+            apps.join(', ') +
+            ').',
+        );
+      continue;
+    }
     const off = i.others.find((o) => !o.config.accounts[kind].share);
     if (off) {
       notes.push(

@@ -56,6 +56,8 @@ export {
   StorePackageFileSchema,
   StorePackageManifestSchema,
   storePackageRole,
+  storePackageFitsX64,
+  assignStoreRoles,
   type StorePackageFile,
   type StorePackageManifest,
 } from './store-package.js';

@@ -308,3 +308,12 @@ export function serviceWanted(kind: ServiceKind, on: ReadonlySet<UsedBy>): boole
   if (spec.usedBy.some((u) => on.has(u))) return true;
   return spec.usedBy.includes('android') && ANDROID_USERS.some((u) => on.has(u));
 }
+
+/**
+ * For a sign-in that only apps use (Perplexity API, Comet, the Perplexity app): the apps.install ids to turn on for it
+ * to be handed over; empty for a kind a toolchain uses. A sign-in shared with its app off would otherwise do nothing.
+ */
+export function appsNeededFor(kind: ServiceKind): string[] {
+  const { usedBy } = SERVICE_SPECS[kind];
+  return usedBy.every((u) => u in APP_USERS) ? usedBy.flatMap((u) => [...APP_USERS[u as AppUser]]) : [];
+}

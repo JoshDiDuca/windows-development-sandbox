@@ -158,3 +158,20 @@ export function maxCompilers(cpus: number, profile: LoadProfile): number | null 
 export function cargoLinkerVar(host: string): string {
   return 'CARGO_TARGET_' + host.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_LINKER';
 }
+
+/** The memory gate in memgov: new build programs wait when the agents' programs grow faster than this. */
+export interface BurstGate {
+  /** Growth (MB of committed memory) that counts as a burst... */
+  readonly growthMb: number;
+  /** ...within this many ms. */
+  readonly windowMs: number;
+  /** Held programs go on one at a time, this far apart (oldest first). */
+  readonly releaseMs: number;
+  /** No program waits longer than this (memgov's own cap is 30000); never killed. */
+  readonly maxHoldMs: number;
+}
+
+export const BURST_GATE: Readonly<Record<LoadProfile, BurstGate>> = {
+  normal: { growthMb: 4096, windowMs: 3000, releaseMs: 1500, maxHoldMs: 30000 },
+  gentle: { growthMb: 3072, windowMs: 3000, releaseMs: 2000, maxHoldMs: 30000 },
+};

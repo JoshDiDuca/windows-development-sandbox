@@ -1,6 +1,7 @@
 // The memory governor: samples the sandbox's memory every 2 seconds (memgov.exe, sandbox/csharp/MemGov.cs) and turns
 // a dial as it fills: the build programs the agents started get lower priority, lower memory priority, less CPU, and
-// take turns (decide.ts). Builds slow down; nothing fails. What it does goes to the memory log and run\pressure.json.
+// take turns (decide.ts). A memory gate in memgov also holds new compilers when memory grows faster than a few GB in
+// seconds. Builds slow down; nothing fails. What it does goes to the memory log and run\pressure.json.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,14 +9,21 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { z } from 'zod';
 import { writeJsonAtomic } from '../../shared/io/json.js';
-import { DIAL_STEPS, maxCompilers, type LoadProfile } from '../../shared/memory/index.js';
+import { BURST_GATE, DIAL_STEPS, maxCompilers, type LoadProfile } from '../../shared/memory/index.js';
 import { ensureCompiled } from '../runtime/csc.js';
 import { dataDir } from '../runtime/paths.js';
 import { warn } from '../runtime/log.js';
 import { run } from '../runtime/paths.js';
 import { session } from '../runtime/session.js';
 import { errMsg } from '../../core/util/errors.js';
-import { GovernorCore, type GovernorPort, type GovernorSnapshot } from './core.js';
+import {
+  GateEventSchema,
+  GovernorCore,
+  memgovArgs,
+  type GateEvent,
+  type GovernorPort,
+  type GovernorSnapshot,
+} from './core.js';
 import type { MemSample } from './decide.js';
 
 const SampleSchema = z.object({
@@ -33,26 +41,34 @@ const SampleSchema = z.object({
       }),
     )
     .max(1024),
+  gateHeld: z.number().int().min(0).max(1024).optional().catch(undefined),
 });
 
 /** memgov.exe as a child process: samples come out of its stdout, commands go into its stdin. */
 class MemGovProcess implements GovernorPort {
   private child: ChildProcess | null = null;
 
-  constructor(private readonly onSample: (s: MemSample) => void) {}
+  constructor(
+    private readonly args: readonly string[],
+    private readonly onSample: (s: MemSample) => void,
+    private readonly onGate: (e: GateEvent) => void,
+  ) {}
 
   start(): void {
     try {
-      const child = spawn(ensureCompiled('memgov'), ['serve', '--interval', '2'], {
+      const child = spawn(ensureCompiled('memgov'), [...this.args], {
         stdio: ['pipe', 'pipe', 'ignore'],
         windowsHide: true,
       });
       this.child = child;
       createInterface({ input: child.stdout! }).on('line', (line) => {
         try {
-          this.onSample(SampleSchema.parse(JSON.parse(line)));
+          const raw: unknown = JSON.parse(line);
+          if (typeof raw === 'object' && raw !== null && (raw as { event?: unknown }).event === 'gate')
+            this.onGate(GateEventSchema.parse(raw));
+          else this.onSample(SampleSchema.parse(raw));
         } catch (e) {
-          warn('governor: bad sample: ' + errMsg(e));
+          warn('governor: bad line from memgov: ' + errMsg(e));
         }
       });
       child.stdin!.on('error', () => undefined);
@@ -131,13 +147,21 @@ export class Governor {
           first.availablePercent +
           '% free RAM or ' +
           first.commitPercent +
-          '% commit, in steps';
+          '% commit, in steps; holds new compilers when memory grows faster than ' +
+          BURST_GATE[profile].growthMb +
+          ' MB in ' +
+          BURST_GATE[profile].windowMs / 1000 +
+          ' s';
   }
 
   start(): void {
     if (session.pressureResponse === false) return;
     const profile: LoadProfile = session.loadProfile === 'gentle' ? 'gentle' : 'normal';
-    const proc = new MemGovProcess((s) => this.core?.onSample(s));
+    const proc = new MemGovProcess(
+      memgovArgs(profile),
+      (s) => this.core?.onSample(s),
+      (e) => this.core?.onGate(e),
+    );
     this.core = new GovernorCore({
       port: proc,
       profile,

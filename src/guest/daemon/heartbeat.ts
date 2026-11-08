@@ -35,6 +35,7 @@ export function buildHeartbeat(
     ...(snapshot?.diskQueue !== null && snapshot?.diskQueue !== undefined
       ? { diskQueueReported: snapshot.diskQueue }
       : {}),
+    ...(snapshot && snapshot.held > 0 ? { held: Math.min(1024, snapshot.held) } : {}),
     phase: ending ? 'ending' : sessionCount > 0 ? 'working' : 'ready',
   };
 }

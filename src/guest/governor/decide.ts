@@ -31,6 +31,8 @@ export interface MemSample {
   readonly commitAvailMb: number;
   /** Only the processes in the agents' job. */
   readonly procs: readonly ProcSample[];
+  /** Build programs the memory gate holds now (memgov). */
+  readonly gateHeld?: number;
 }
 
 /** Programs that compile or link: they may be slowed down and, as the last resort, paused for a few seconds. */
@@ -141,6 +143,8 @@ export function linkerSlots(totalMb: number, cpus: number): number {
 }
 export const isHeavyCompiler = (name: string): boolean => !isNeverTouched(name) && HEAVY.has(key(name));
 export const canPause = (name: string): boolean => !isNeverTouched(name) && COMPILERS.has(key(name));
+/** What the memory gate in memgov may freeze (compilers, linkers, Unreal's shader workers); passed as --gate-names. */
+export const GATE_NAMES: readonly string[] = [...COMPILERS, 'shadercompileworker'].filter((n) => !NEVER.has(n)).sort();
 
 export type Level = 'ok' | 'throttled' | 'suspending';
 

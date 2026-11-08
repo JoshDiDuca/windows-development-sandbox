@@ -4,6 +4,11 @@
 //   stdout, a JSON line every --interval seconds (default 2):
 //     {"ramTotalMb":..,"ramAvailMb":..,"commitLimitMb":..,"commitAvailMb":..,"procs":[{"pid":..,"name":"rustc","mb":..,"prio":"normal"}]}
 //     procs = the processes in the agents' job (the job ptyhost makes for everything the agents start), nothing else.
+//     gateHeld = the build programs the memory gate holds right now (0 without a gate).
+//   serve [--interval s] [--gate growthMb:windowMs:releaseMs:maxHoldMs --gate-names a,b,c]
+//     With --gate, the memory gate (see GateLoop) also writes event lines on stdout:
+//     {"event":"gate","kind":"ready|off|trip|hold|release","at":<ms since 1970 UTC>, ...}
+//     Without --gate it never touches the job's completion port and writes no event.
 //   stdin, one command per line:
 //     priority <pid> <idle|below|normal>   lowers (or restores) the priority of a process in that job
 //     iopriority <pid> <verylow|low|normal>  the disk queue priority of a process in that job
@@ -51,6 +56,89 @@ static class MemGov
     private const int IoPriorityVeryLow = 0;
     private const int IoPriorityLow = 1;
     private const int IoPriorityNormal = 2;
+    // The memory gate: a notification limit on the agents' job, reported through a completion port.
+    private const uint JobObjectSetAttributes = 0x0002;
+    private const int JobObjectAssociateCompletionPortInformation = 7;
+    private const int JobObjectNotificationLimitInformation = 12;
+    private const int JobObjectLimitViolationInformation = 13;
+    private const uint JobObjectLimitJobMemory = 0x00000200;
+    private const uint JobMsgNewProcess = 6;
+    private const uint JobMsgExitProcess = 7;
+    private const uint JobMsgAbnormalExitProcess = 8;
+    private const uint JobMsgNotificationLimit = 11;
+    private const uint GatePollMs = 100;
+    private const int GateTickMs = 500;
+    private const int GateRearmStepMb = 64;
+    private const int ErrorAccessDenied = 5;
+    private const int MaxTripList = 64;
+    private const int MaxGateNames = 64;
+    private static readonly IntPtr InvalidHandleValue = new IntPtr(-1);
+    private static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    // JOBOBJECT_ASSOCIATE_COMPLETION_PORT.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CompletionPortLink
+    {
+        public IntPtr CompletionKey;
+        public IntPtr CompletionPort;
+    }
+
+    // JOBOBJECT_NOTIFICATION_LIMIT_INFORMATION (48 bytes on x64).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NotificationLimit
+    {
+        public ulong IoReadBytesLimit;
+        public ulong IoWriteBytesLimit;
+        public long PerJobUserTimeLimit;
+        public ulong JobMemoryLimit;
+        public int RateControlTolerance;
+        public int RateControlToleranceInterval;
+        public uint LimitFlags;
+    }
+
+    // JOBOBJECT_LIMIT_VIOLATION_INFORMATION (80 bytes on x64).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LimitViolation
+    {
+        public uint LimitFlags;
+        public uint ViolationLimitFlags;
+        public ulong IoReadBytes;
+        public ulong IoReadBytesLimit;
+        public ulong IoWriteBytes;
+        public ulong IoWriteBytesLimit;
+        public long PerJobUserTime;
+        public long PerJobUserTimeLimit;
+        public ulong JobMemory;
+        public ulong JobMemoryLimit;
+        public int RateControlTolerance;
+        public int RateControlToleranceLimit;
+    }
+
+    private sealed class GateSettings
+    {
+        public int GrowthMb;
+        public int WindowMs;
+        public int ReleaseMs;
+        public int MaxHoldMs;
+        public HashSet<string> Names;
+    }
+
+    /// <summary>A process the gate watches (or holds); the handle stays open while it is in Young or GateHeld.</summary>
+    private sealed class Tracked
+    {
+        public IntPtr Handle;
+        public string Name;
+        public DateTime Started;
+        public DateTime HeldAt;
+    }
+
+    private sealed class Released
+    {
+        public int Pid;
+        public string Name;
+        public long HeldMs;
+        public bool Forced;
+    }
 
     // JOBOBJECT_CPU_RATE_CONTROL_INFORMATION (CpuRate in hundredths of a percent).
     [StructLayout(LayoutKind.Sequential)]
@@ -102,6 +190,21 @@ static class MemGov
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool QueryInformationJobObject(IntPtr job, int infoClass, IntPtr info, int length, IntPtr returnLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool QueryInformationJobObject(IntPtr job, int infoClass, ref LimitViolation info, int length, IntPtr returnLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr CreateIoCompletionPort(IntPtr file, IntPtr existing, UIntPtr key, uint threads);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetQueuedCompletionStatus(IntPtr port, out uint bytes, out UIntPtr key, out IntPtr overlapped, uint ms);
+
+        [DllImport("kernel32.dll", EntryPoint = "SetInformationJobObject", SetLastError = true)]
+        public static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref CompletionPortLink info, int length);
+
+        [DllImport("kernel32.dll", EntryPoint = "SetInformationJobObject", SetLastError = true)]
+        public static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref NotificationLimit info, int length);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
@@ -162,19 +265,40 @@ static class MemGov
     private static IntPtr throttleJob = IntPtr.Zero;
     private static volatile bool stop;
 
+    // The memory gate (null gate = off). Young, GateHeld and the ledger Paused are guarded by Gate; the rest belongs to GateLoop.
+    private static readonly object OutLock = new object();
+    private static GateSettings gate = null;
+    private static readonly Dictionary<int, Tracked> Young = new Dictionary<int, Tracked>();
+    private static readonly Dictionary<int, Tracked> GateHeld = new Dictionary<int, Tracked>();
+    private static List<KeyValuePair<DateTime, long>> window = new List<KeyValuePair<DateTime, long>>();
+    private static DateTime lastTrip = DateTime.MinValue;
+    private static DateTime lastRelease = DateTime.MinValue;
+    private static long armedMb = -1;
+    private static HashSet<int> seenPids = new HashSet<int>();
+
     static int Main(string[] args)
     {
         if (args.Length == 0 || args[0] != "serve")
         {
-            Console.Error.WriteLine("usage: memgov serve [--interval seconds]");
+            Console.Error.WriteLine("usage: memgov serve [--interval seconds] [--gate growthMb:windowMs:releaseMs:maxHoldMs --gate-names a,b,c]");
             return 2;
         }
         int interval = 2;
+        string gateSpec = null;
+        string gateNames = null;
         for (int i = 1; i + 1 < args.Length; i++)
         {
             if (args[i] == "--interval")
             {
                 int.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out interval);
+            }
+            else if (args[i] == "--gate")
+            {
+                gateSpec = args[i + 1];
+            }
+            else if (args[i] == "--gate-names")
+            {
+                gateNames = args[i + 1];
             }
         }
         if (interval < 1)
@@ -183,6 +307,21 @@ static class MemGov
         }
         // A memgov that ended without resuming (killed, crashed) left its pauses in the file: undo them first.
         RecoverHeld();
+        Thread gateThread = null;
+        if (gateSpec != null)
+        {
+            gate = ParseGate(gateSpec, gateNames);
+            if (gate == null)
+            {
+                EmitOff("bad --gate");
+            }
+            else
+            {
+                gateThread = new Thread(GateLoop);
+                gateThread.IsBackground = true;
+                gateThread.Start();
+            }
+        }
         // A memgov that ended while compilers were capped left the cap: lift it before anything else.
         SetCpuRate(100);
         Thread commands = new Thread(ReadCommands);
@@ -195,8 +334,7 @@ static class MemGov
         {
             try
             {
-                Console.Out.WriteLine(Sample());
-                Console.Out.Flush();
+                Emit(Sample());
             }
             catch (Exception)
             {
@@ -207,9 +345,24 @@ static class MemGov
                 Thread.Sleep(100);
             }
         }
+        if (gateThread != null)
+        {
+            // The gate lifts its limit and closes its port when it sees stop; give it a moment.
+            gateThread.Join(3000);
+        }
         ResumeAll();
         SetCpuRate(100);
         return 0;
+    }
+
+    /// <summary>One line on stdout; the sample loop and the gate both write, so one at a time.</summary>
+    private static void Emit(string json)
+    {
+        lock (OutLock)
+        {
+            Console.Out.WriteLine(json);
+            Console.Out.Flush();
+        }
     }
 
     /// <summary>The self-test's own job (MEMGOV_JOB_NAME, a name in the agents' job family), or null.</summary>
@@ -269,7 +422,12 @@ static class MemGov
             first = false;
             sb.Append(entry);
         }
-        return sb.Append("]}").ToString();
+        int heldNow;
+        lock (Gate)
+        {
+            heldNow = GateHeld.Count;
+        }
+        return sb.Append("],\"gateHeld\":").Append(heldNow.ToString(CultureInfo.InvariantCulture)).Append('}').ToString();
     }
 
     private static readonly int SelfId = Process.GetCurrentProcess().Id;
@@ -567,7 +725,7 @@ static class MemGov
     {
         lock (Gate)
         {
-            if (Paused.ContainsKey(pid))
+            if (Paused.ContainsKey(pid) || GateHeld.ContainsKey(pid))
             {
                 return;
             }
@@ -638,16 +796,27 @@ static class MemGov
                 Resume(pid);
             }
             Paused.Clear();
+            foreach (Tracked t in GateHeld.Values)
+            {
+                NativeMethods.NtResumeProcess(t.Handle);
+                NativeMethods.CloseHandle(t.Handle);
+            }
+            GateHeld.Clear();
+            foreach (Tracked t in Young.Values)
+            {
+                NativeMethods.CloseHandle(t.Handle);
+            }
+            Young.Clear();
             SaveHeld();
         }
     }
 
-    /// <summary>The processes paused right now, one id per line (empty: the file goes). Called with Gate held.</summary>
+    /// <summary>The processes paused or held by the gate right now, one id per line (empty: the file goes). Called with Gate held.</summary>
     private static void SaveHeld()
     {
         try
         {
-            if (Paused.Count == 0)
+            if (Paused.Count == 0 && GateHeld.Count == 0)
             {
                 File.Delete(HeldFile);
                 return;
@@ -656,6 +825,13 @@ static class MemGov
             foreach (int pid in Paused.Keys)
             {
                 lines.Add(pid.ToString(CultureInfo.InvariantCulture));
+            }
+            foreach (int pid in GateHeld.Keys)
+            {
+                if (!Paused.ContainsKey(pid))
+                {
+                    lines.Add(pid.ToString(CultureInfo.InvariantCulture));
+                }
             }
             File.WriteAllLines(HeldFile, lines.ToArray());
         }
@@ -696,6 +872,575 @@ static class MemGov
         {
             // Same as above.
         }
+    }
+
+    // ---- The memory gate -------------------------------------------------------------------------------------------
+    // When the agents' programs gain committed memory faster than GrowthMb per WindowMs, build programs that start
+    // (or just started) are frozen and let go one at a time, oldest first, never longer than MaxHoldMs. Windows tells
+    // us through a notification limit on the job (a completion port); nothing is ever killed.
+
+    /// <summary>growthMb:windowMs:releaseMs:maxHoldMs and the names the gate may freeze; null when either is invalid.</summary>
+    private static GateSettings ParseGate(string spec, string names)
+    {
+        string[] parts = spec.Split(':');
+        if (parts.Length != 4 || names == null)
+        {
+            return null;
+        }
+        int[] v = new int[4];
+        for (int i = 0; i < 4; i++)
+        {
+            if (!int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out v[i]))
+            {
+                return null;
+            }
+        }
+        if (v[0] < 64 || v[1] < 500 || v[1] > 60000 || v[2] < 100 || v[2] > 60000 || v[3] < 1000 || v[3] > MaxSuspendMs)
+        {
+            return null;
+        }
+        HashSet<string> set = new HashSet<string>();
+        foreach (string raw in names.Split(','))
+        {
+            string name = raw.Trim().ToLowerInvariant();
+            if (name.Length > 0)
+            {
+                set.Add(name);
+            }
+        }
+        if (set.Count == 0 || set.Count > MaxGateNames)
+        {
+            return null;
+        }
+        GateSettings g = new GateSettings();
+        g.GrowthMb = v[0];
+        g.WindowMs = v[1];
+        g.ReleaseMs = v[2];
+        g.MaxHoldMs = v[3];
+        g.Names = set;
+        return g;
+    }
+
+    private static string EventStart(string kind)
+    {
+        long at = (long)(DateTime.UtcNow - Epoch).TotalMilliseconds;
+        return "{\"event\":\"gate\",\"kind\":\"" + kind + "\",\"at\":" + Num(at);
+    }
+
+    private static string Num(long value)
+    {
+        return value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static void EmitOff(string reason)
+    {
+        if (reason.Length > 150)
+        {
+            reason = reason.Substring(0, 150);
+        }
+        Emit(EventStart("off") + ",\"reason\":" + Json(reason) + "}");
+    }
+
+    /// <summary>Opens the job, joins its completion port, then reacts to births, exits and notifications until stop.</summary>
+    private static void GateLoop()
+    {
+        IntPtr h = IntPtr.Zero;
+        IntPtr port = IntPtr.Zero;
+        try
+        {
+            // The job does not exist until the first ptyhost makes it.
+            while (!stop)
+            {
+                h = NativeMethods.OpenJobObjectW(JobObjectQuery | JobObjectSetAttributes, false, JobName());
+                if (h != IntPtr.Zero)
+                {
+                    break;
+                }
+                if (Marshal.GetLastWin32Error() == ErrorAccessDenied)
+                {
+                    EmitOff("cannot open the agents' job (access denied)");
+                    return;
+                }
+                Thread.Sleep(500);
+            }
+            if (h == IntPtr.Zero)
+            {
+                return;
+            }
+            bool notify = true;
+            port = NativeMethods.CreateIoCompletionPort(InvalidHandleValue, IntPtr.Zero, UIntPtr.Zero, 1);
+            if (port == IntPtr.Zero)
+            {
+                notify = false;
+            }
+            else
+            {
+                // First drop a dead memgov's port (one port per job), then take the job over.
+                SetPortLink(h, IntPtr.Zero, IntPtr.Zero);
+                if (!SetPortLink(h, new IntPtr(1), port))
+                {
+                    NativeMethods.CloseHandle(port);
+                    port = IntPtr.Zero;
+                    notify = false;
+                }
+            }
+            DateTime now = DateTime.UtcNow;
+            long jobMb = JobCommitMb();
+            window = new List<KeyValuePair<DateTime, long>>();
+            window.Add(new KeyValuePair<DateTime, long>(now, jobMb));
+            if (notify && !SetLimit(h, jobMb + gate.GrowthMb))
+            {
+                notify = false;
+            }
+            if (!notify)
+            {
+                seenPids = new HashSet<int>(JobProcessIds());
+            }
+            Emit(EventStart("ready") + ",\"mode\":\"" + (notify ? "notify" : "poll") + "\",\"growthMb\":" + Num(gate.GrowthMb)
+                + ",\"windowMs\":" + Num(gate.WindowMs) + "}");
+            DateTime lastTick = DateTime.UtcNow;
+            while (!stop)
+            {
+                if (notify)
+                {
+                    uint msg;
+                    UIntPtr key;
+                    IntPtr overlapped;
+                    if (NativeMethods.GetQueuedCompletionStatus(port, out msg, out key, out overlapped, GatePollMs))
+                    {
+                        int pid = (int)overlapped.ToInt64();
+                        if (msg == JobMsgNewProcess)
+                        {
+                            OnBirth(pid);
+                        }
+                        else if (msg == JobMsgExitProcess || msg == JobMsgAbnormalExitProcess)
+                        {
+                            OnExit(pid);
+                        }
+                        else if (msg == JobMsgNotificationLimit)
+                        {
+                            OnNotified(h, pid);
+                        }
+                    }
+                }
+                else
+                {
+                    Thread.Sleep((int)GatePollMs);
+                }
+                if ((DateTime.UtcNow - lastTick).TotalMilliseconds >= GateTickMs)
+                {
+                    lastTick = DateTime.UtcNow;
+                    Tick(h, notify);
+                }
+                ReleaseDue();
+            }
+        }
+        catch (Exception e)
+        {
+            EmitOff(e.Message);
+        }
+        finally
+        {
+            if (h != IntPtr.Zero)
+            {
+                SetLimit(h, 0);
+                SetPortLink(h, IntPtr.Zero, IntPtr.Zero);
+                NativeMethods.CloseHandle(h);
+            }
+            if (port != IntPtr.Zero)
+            {
+                NativeMethods.CloseHandle(port);
+            }
+        }
+    }
+
+    private static bool SetPortLink(IntPtr h, IntPtr completionKey, IntPtr completionPort)
+    {
+        CompletionPortLink link = new CompletionPortLink();
+        link.CompletionKey = completionKey;
+        link.CompletionPort = completionPort;
+        return NativeMethods.SetInformationJobObject(h, JobObjectAssociateCompletionPortInformation, ref link, Marshal.SizeOf(typeof(CompletionPortLink)));
+    }
+
+    /// <summary>The notification mark in MB of job commit (0 removes it).</summary>
+    private static bool SetLimit(IntPtr h, long mb)
+    {
+        NotificationLimit limit = new NotificationLimit();
+        limit.LimitFlags = mb > 0 ? JobObjectLimitJobMemory : 0;
+        limit.JobMemoryLimit = mb > 0 ? (ulong)(mb * BytesPerMb) : 0;
+        bool ok = NativeMethods.SetInformationJobObject(h, JobObjectNotificationLimitInformation, ref limit, Marshal.SizeOf(typeof(NotificationLimit)));
+        if (ok)
+        {
+            armedMb = mb;
+        }
+        return ok;
+    }
+
+    /// <summary>What the job's processes (not this one) hold in private memory, in MB.</summary>
+    private static long JobCommitMb()
+    {
+        ulong total = 0;
+        int self = SelfId;
+        foreach (int pid in JobProcessIds())
+        {
+            if (pid == self)
+            {
+                continue;
+            }
+            IntPtr process = NativeMethods.OpenProcess(ProcessQueryLimited, false, pid);
+            if (process == IntPtr.Zero)
+            {
+                continue;
+            }
+            try
+            {
+                MemoryCounters counters = new MemoryCounters();
+                counters.Size = (uint)Marshal.SizeOf(typeof(MemoryCounters));
+                if (NativeMethods.GetProcessMemoryInfo(process, ref counters, counters.Size))
+                {
+                    total += counters.PrivateUsage.ToUInt64();
+                }
+            }
+            finally
+            {
+                NativeMethods.CloseHandle(process);
+            }
+        }
+        return (long)(total / (ulong)BytesPerMb);
+    }
+
+    /// <summary>The lower-case program name (no folder, no .exe) of an open process, or null.</summary>
+    private static string ImageName(IntPtr process)
+    {
+        StringBuilder path = new StringBuilder(1024);
+        uint size = (uint)path.Capacity;
+        if (!NativeMethods.QueryFullProcessImageNameW(process, 0, path, ref size))
+        {
+            return null;
+        }
+        return Path.GetFileNameWithoutExtension(path.ToString(0, (int)size)).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Starts watching a process if the gate may freeze it by name; returns its name, or null when it is not one of
+    /// those (or is already watched or held).
+    /// </summary>
+    private static string Track(int pid)
+    {
+        if (pid <= 0 || pid == SelfId)
+        {
+            return null;
+        }
+        IntPtr process = NativeMethods.OpenProcess(ProcessQueryLimited | ProcessSuspendResume, false, pid);
+        if (process == IntPtr.Zero)
+        {
+            return null;
+        }
+        bool kept = false;
+        try
+        {
+            string name = ImageName(process);
+            if (name == null || !gate.Names.Contains(name))
+            {
+                return null;
+            }
+            lock (Gate)
+            {
+                if (Young.ContainsKey(pid) || GateHeld.ContainsKey(pid))
+                {
+                    return null;
+                }
+                Tracked t = new Tracked();
+                t.Handle = process;
+                t.Name = name;
+                t.Started = DateTime.UtcNow;
+                Young[pid] = t;
+            }
+            kept = true;
+            return name;
+        }
+        finally
+        {
+            if (!kept)
+            {
+                NativeMethods.CloseHandle(process);
+            }
+        }
+    }
+
+    private static void OnBirth(int pid)
+    {
+        string name = Track(pid);
+        if (name != null && BurstActive(DateTime.UtcNow) && Hold(pid))
+        {
+            Emit(EventStart("hold") + ",\"pid\":" + Num(pid) + ",\"name\":" + Json(name) + "}");
+        }
+    }
+
+    private static void OnExit(int pid)
+    {
+        lock (Gate)
+        {
+            Tracked t;
+            if (Young.TryGetValue(pid, out t))
+            {
+                NativeMethods.CloseHandle(t.Handle);
+                Young.Remove(pid);
+            }
+            if (GateHeld.TryGetValue(pid, out t))
+            {
+                NativeMethods.CloseHandle(t.Handle);
+                GateHeld.Remove(pid);
+                SaveHeld();
+            }
+        }
+    }
+
+    /// <summary>The job crossed its mark. The query re-arms the notification, so it comes first and always.</summary>
+    private static void OnNotified(IntPtr h, int pid)
+    {
+        LimitViolation v = new LimitViolation();
+        bool queried = NativeMethods.QueryInformationJobObject(h, JobObjectLimitViolationInformation, ref v, Marshal.SizeOf(typeof(LimitViolation)), IntPtr.Zero);
+        long jobMb;
+        if (queried && (v.ViolationLimitFlags & JobObjectLimitJobMemory) != 0)
+        {
+            jobMb = (long)(v.JobMemory / (ulong)BytesPerMb);
+        }
+        else
+        {
+            jobMb = JobCommitMb();
+        }
+        Trip(h, true, pid, jobMb);
+    }
+
+    /// <summary>The lowest job commit in the window and when it was.</summary>
+    private static long WindowMin(out DateTime at)
+    {
+        long min = long.MaxValue;
+        at = DateTime.UtcNow;
+        foreach (KeyValuePair<DateTime, long> entry in window)
+        {
+            if (entry.Value < min)
+            {
+                min = entry.Value;
+                at = entry.Key;
+            }
+        }
+        return min;
+    }
+
+    /// <summary>Every GateTickMs: the window, young entries, births in poll mode, the software trip and the moving mark.</summary>
+    private static void Tick(IntPtr h, bool notify)
+    {
+        DateTime now = DateTime.UtcNow;
+        long jobMb = JobCommitMb();
+        window.Add(new KeyValuePair<DateTime, long>(now, jobMb));
+        window.RemoveAll(delegate(KeyValuePair<DateTime, long> e) { return (now - e.Key).TotalMilliseconds > gate.WindowMs; });
+        DateTime minAt;
+        long min = WindowMin(out minAt);
+        lock (Gate)
+        {
+            List<int> old = new List<int>();
+            foreach (KeyValuePair<int, Tracked> p in Young)
+            {
+                if ((now - p.Value.Started).TotalMilliseconds > gate.WindowMs)
+                {
+                    old.Add(p.Key);
+                }
+            }
+            foreach (int pid in old)
+            {
+                NativeMethods.CloseHandle(Young[pid].Handle);
+                Young.Remove(pid);
+            }
+        }
+        if (!notify)
+        {
+            List<int> current = JobProcessIds();
+            foreach (int pid in current)
+            {
+                if (!seenPids.Contains(pid))
+                {
+                    OnBirth(pid);
+                }
+            }
+            seenPids = new HashSet<int>(current);
+        }
+        if (jobMb - min >= gate.GrowthMb)
+        {
+            Trip(h, notify, 0, jobMb);
+            return;
+        }
+        if (notify)
+        {
+            long target = min + gate.GrowthMb;
+            if (Math.Abs(target - armedMb) >= GateRearmStepMb)
+            {
+                SetLimit(h, target);
+            }
+        }
+    }
+
+    /// <summary>A burst: freeze the young build programs (and the one that caused it), then move the mark up.</summary>
+    private static void Trip(IntPtr h, bool notify, int causePid, long jobMb)
+    {
+        DateTime now = DateTime.UtcNow;
+        long grew = 0;
+        long ms = 0;
+        if (window.Count > 0)
+        {
+            DateTime minAt;
+            long min = WindowMin(out minAt);
+            grew = Math.Max(0, jobMb - min);
+            ms = Math.Max(0, (long)(now - minAt).TotalMilliseconds);
+        }
+        lastTrip = now;
+        if (causePid > 0)
+        {
+            // The program that caused the notification, even if it is old (a no-op unless the gate may freeze its name).
+            Track(causePid);
+        }
+        List<KeyValuePair<int, Tracked>> victims = new List<KeyValuePair<int, Tracked>>();
+        lock (Gate)
+        {
+            foreach (KeyValuePair<int, Tracked> p in Young)
+            {
+                if (p.Key == causePid || (now - p.Value.Started).TotalMilliseconds < gate.WindowMs)
+                {
+                    victims.Add(p);
+                }
+            }
+        }
+        victims.Sort(delegate(KeyValuePair<int, Tracked> a, KeyValuePair<int, Tracked> b) { return a.Value.Started.CompareTo(b.Value.Started); });
+        StringBuilder held = new StringBuilder();
+        int count = 0;
+        foreach (KeyValuePair<int, Tracked> victim in victims)
+        {
+            string name = victim.Value.Name;
+            if (!Hold(victim.Key) || count >= MaxTripList)
+            {
+                continue;
+            }
+            if (count > 0)
+            {
+                held.Append(',');
+            }
+            held.Append("{\"pid\":").Append(Num(victim.Key)).Append(",\"name\":").Append(Json(name)).Append('}');
+            count++;
+        }
+        Emit(EventStart("trip") + ",\"grewMb\":" + Num(grew) + ",\"ms\":" + Num(ms) + ",\"jobMb\":" + Num(jobMb)
+            + ",\"held\":[" + held.ToString() + "]}");
+        window = new List<KeyValuePair<DateTime, long>>();
+        window.Add(new KeyValuePair<DateTime, long>(now, jobMb));
+        if (notify)
+        {
+            SetLimit(h, jobMb + gate.GrowthMb);
+        }
+    }
+
+    /// <summary>
+    /// A burst went through less than WindowMs ago. Not "something is held": with fast compiles the queue would never
+    /// empty, and every later program would start one per ReleaseMs while memory is calm.
+    /// </summary>
+    private static bool BurstActive(DateTime now)
+    {
+        lock (Gate)
+        {
+            return (now - lastTrip).TotalMilliseconds < gate.WindowMs;
+        }
+    }
+
+    /// <summary>Freezes a watched process (unless the governor's timed pause has it); false when it was not frozen.</summary>
+    private static bool Hold(int pid)
+    {
+        lock (Gate)
+        {
+            Tracked t;
+            if (Paused.ContainsKey(pid) || GateHeld.ContainsKey(pid) || !Young.TryGetValue(pid, out t))
+            {
+                return false;
+            }
+            Young.Remove(pid);
+            t.HeldAt = DateTime.UtcNow;
+            GateHeld[pid] = t;
+            // Recorded before the freeze, like the governor's pauses: a memgov that dies right after is undone by the next.
+            SaveHeld();
+            int status = NativeMethods.NtSuspendProcess(t.Handle);
+            if (status != 0)
+            {
+                GateHeld.Remove(pid);
+                NativeMethods.CloseHandle(t.Handle);
+                SaveHeld();
+                return false;
+            }
+            return true;
+        }
+    }
+
+    /// <summary>Lets go what is due: anything held MaxHoldMs, and one process (the oldest) every ReleaseMs after a calm moment.</summary>
+    private static void ReleaseDue()
+    {
+        List<Released> done = new List<Released>();
+        lock (Gate)
+        {
+            if (GateHeld.Count == 0)
+            {
+                return;
+            }
+            DateTime now = DateTime.UtcNow;
+            List<int> forced = new List<int>();
+            foreach (KeyValuePair<int, Tracked> p in GateHeld)
+            {
+                if ((now - p.Value.HeldAt).TotalMilliseconds >= gate.MaxHoldMs)
+                {
+                    forced.Add(p.Key);
+                }
+            }
+            foreach (int pid in forced)
+            {
+                done.Add(ReleaseOne(pid, now, true));
+            }
+            if (GateHeld.Count > 0 && (now - lastTrip).TotalMilliseconds >= gate.ReleaseMs
+                && (now - lastRelease).TotalMilliseconds >= gate.ReleaseMs)
+            {
+                int oldest = 0;
+                DateTime oldestAt = DateTime.MaxValue;
+                foreach (KeyValuePair<int, Tracked> p in GateHeld)
+                {
+                    if (p.Value.HeldAt < oldestAt || (p.Value.HeldAt == oldestAt && p.Key < oldest))
+                    {
+                        oldest = p.Key;
+                        oldestAt = p.Value.HeldAt;
+                    }
+                }
+                done.Add(ReleaseOne(oldest, now, false));
+                lastRelease = now;
+            }
+            if (done.Count > 0)
+            {
+                SaveHeld();
+            }
+        }
+        foreach (Released r in done)
+        {
+            Emit(EventStart("release") + ",\"pid\":" + Num(r.Pid) + ",\"name\":" + Json(r.Name) + ",\"heldMs\":" + Num(r.HeldMs)
+                + ",\"forced\":" + (r.Forced ? "true" : "false") + "}");
+        }
+    }
+
+    /// <summary>Resumes and forgets one held process. Called with Gate held.</summary>
+    private static Released ReleaseOne(int pid, DateTime now, bool forced)
+    {
+        Tracked t = GateHeld[pid];
+        NativeMethods.NtResumeProcess(t.Handle);
+        NativeMethods.CloseHandle(t.Handle);
+        GateHeld.Remove(pid);
+        Released r = new Released();
+        r.Pid = pid;
+        r.Name = t.Name;
+        r.HeldMs = (long)(now - t.HeldAt).TotalMilliseconds;
+        r.Forced = forced;
+        return r;
     }
 
     private static string Mb(ulong bytes)

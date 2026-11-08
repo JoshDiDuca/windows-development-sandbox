@@ -9,6 +9,7 @@ import { isWin } from '../core/util/index.js';
 import { SYSTEM } from '../shared/system.js';
 import { GuestRequestSchema, PressureStatusSchema } from '../shared/channel/index.js';
 import {
+  BURST_GATE,
   compilersAllowed,
   DIAL_CALM_SAMPLES,
   DIAL_STEPS,
@@ -61,15 +62,17 @@ import {
   canLower,
   canPause,
   decide,
+  GATE_NAMES,
   INITIAL_STATE,
   isLinker,
+  isNeverTouched,
   linkerSlots,
   ROTATE_MS,
   type Action,
   type MemSample,
   type ProcSample,
 } from '../guest/governor/decide.js';
-import { GovernorCore, type GovernorPort } from '../guest/governor/core.js';
+import { GateEventSchema, GovernorCore, memgovArgs, type GovernorPort } from '../guest/governor/core.js';
 import type { Suite } from './support/suite.js';
 
 const GB = 1024;
@@ -685,6 +688,136 @@ export const heavyLoadSuite: Suite = {
     );
     t.check(core.current.hostUntil === clock + 60000, 'a host request is remembered for its seconds');
 
+    t.section('the memory gate (rate of growth)');
+    t.check(
+      ['cl', 'link', 'rustc', 'clang-cl', 'lld-link', 'shadercompileworker'].every((n) => GATE_NAMES.includes(n)),
+      'the gate may freeze compilers, linkers and Unreal shader workers',
+      GATE_NAMES.join(','),
+    );
+    t.check(
+      [
+        'node',
+        'claude',
+        'codex',
+        'opencode',
+        'cmd',
+        'pwsh',
+        'powershell',
+        'msbuild',
+        'dotnet',
+        'cargo',
+        'ninja',
+        'unrealbuildtool',
+        'ubahost',
+        'unrealeditor',
+        'unrealeditor-cmd',
+        'mspdbsrv',
+        'ptyhost',
+        'memgov',
+      ].every((n) => !GATE_NAMES.includes(n)) &&
+        GATE_NAMES.every((n) => (canPause(n) || n === 'shadercompileworker') && !isNeverTouched(n)),
+      'agents, shells, build coordinators, the editor and the tools themselves are never frozen',
+    );
+    t.check(
+      JSON.stringify(memgovArgs('normal')) ===
+        JSON.stringify([
+          'serve',
+          '--interval',
+          '2',
+          '--gate',
+          '4096:3000:1500:30000',
+          '--gate-names',
+          GATE_NAMES.join(','),
+        ]) && memgovArgs('gentle').includes('3072:3000:2000:30000'),
+      'memgov starts with the gate for the profile',
+      memgovArgs('gentle').join(' '),
+    );
+    t.check(
+      (['normal', 'gentle'] as const).every((p) => {
+        const g = BURST_GATE[p];
+        return g.growthMb >= 1024 && g.maxHoldMs <= 30000 && g.releaseMs < g.maxHoldMs && g.windowMs >= 1000;
+      }) && BURST_GATE.gentle.growthMb <= BURST_GATE.normal.growthMb,
+      'the gate is sane: a real burst size, every hold ends within 30 s, vGPU is not looser',
+    );
+    const gateExamples: unknown[] = [
+      { event: 'gate', at: 1, kind: 'ready', mode: 'notify', growthMb: 4096, windowMs: 3000 },
+      { event: 'gate', at: 1, kind: 'off', reason: 'bad --gate' },
+      { event: 'gate', at: 1, kind: 'trip', grewMb: 4210, ms: 1800, jobMb: 23456, held: [{ pid: 101, name: 'cl' }] },
+      { event: 'gate', at: 1, kind: 'hold', pid: 101, name: 'cl' },
+      { event: 'gate', at: 1, kind: 'release', pid: 101, name: 'cl', heldMs: 1500, forced: false },
+    ];
+    const heldOf = (n: number): unknown[] => Array.from({ length: n }, (_, i) => ({ pid: i, name: 'cl' }));
+    t.check(
+      gateExamples.every((e) => GateEventSchema.safeParse(e).success) &&
+        !GateEventSchema.safeParse({ event: 'gate', at: 1, kind: 'hold', pid: 1, name: 'x'.repeat(129) }).success &&
+        !GateEventSchema.safeParse({ event: 'gate', at: 1, kind: 'trip', grewMb: 1, ms: 1, jobMb: 1, held: heldOf(65) })
+          .success &&
+        !GateEventSchema.safeParse({ event: 'gate', at: 1, kind: 'boom' }).success &&
+        !GateEventSchema.safeParse({ at: 1, kind: 'hold', pid: 1, name: 'cl' }).success,
+      'gate events from memgov are checked: one of each kind passes; a long name, 65 held, a bad kind or no event fail',
+    );
+    {
+      const gateLogs: string[] = [];
+      const gateCore = new GovernorCore({
+        port,
+        profile: 'normal',
+        now: () => 0,
+        logLine: (l) => gateLogs.push(l),
+        saveStatus: () => undefined,
+        warn: (line) => gateLogs.push(line),
+      });
+      gateCore.onGate({
+        event: 'gate',
+        at: 1,
+        kind: 'trip',
+        grewMb: 4210,
+        ms: 1800,
+        jobMb: 23456,
+        held: [{ pid: 101, name: 'cl' }],
+      });
+      gateCore.onGate({
+        event: 'gate',
+        at: 2,
+        kind: 'release',
+        pid: 101,
+        name: 'cl',
+        heldMs: 30000,
+        forced: true,
+      });
+      t.check(
+        gateLogs.some((l) =>
+          l.includes("governor: gate: the agents' programs grew 4210 MB in 1.8 s (now 23456 MB); holding 1: cl (101)"),
+        ) &&
+          gateLogs.some((l) => l.endsWith('(the longest it may wait)')) &&
+          gateCore.current.step === 0,
+        'gate events go to the memory log and leave the dial alone',
+        gateLogs.join('\n'),
+      );
+      const heldStatuses: unknown[] = [];
+      const heldCore = new GovernorCore({
+        port,
+        profile: 'normal',
+        now: () => 0,
+        logLine: () => undefined,
+        saveStatus: (s) => heldStatuses.push(s),
+        warn: () => undefined,
+      });
+      heldCore.onSample({ ...sample(60, 40, procs), gateHeld: 3 });
+      const heldStatus = heldStatuses[heldStatuses.length - 1];
+      t.check(
+        PressureStatusSchema.safeParse(heldStatus).success &&
+          (heldStatus as { held?: number }).held === 3 &&
+          heldCore.snapshot?.held === 3,
+        'the number of held builds reaches the status file and the snapshot',
+        JSON.stringify(heldStatus),
+      );
+      t.check(
+        HeartbeatSchema.safeParse({ ...beat, held: 3 }).success &&
+          heartbeatLine({ ...beat, held: 3 }).includes('3 builds held by the memory gate'),
+        'the heartbeat carries the held builds into the crash report line',
+      );
+    }
+
     t.section("the PC's watchdog");
     const input = (
       memory: HostMemory | null,
@@ -1051,6 +1184,10 @@ export const heavyLoadSuite: Suite = {
       sampleOk && served.status === 0,
       'memgov serve prints a well-formed sample and ends when its input closes',
       firstLine,
+    );
+    t.check(
+      !(served.stdout ?? '').split(/\r?\n/).some((l) => l.includes('"event":"gate"')),
+      'a memgov started without --gate never takes the job port (no gate events)',
     );
     for (const script of ['memory-status.ps1', 'stop-events.ps1']) {
       const text = fs.readFileSync(path.join(t.packageRoot, 'native', 'scripts', script), 'utf8');

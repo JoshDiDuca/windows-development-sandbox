@@ -483,7 +483,7 @@ only.
 | `sandbox.maxMemoryPercent`      | `80`     | the most of your RAM the sandbox may get                                                                                                                                           |
 | `sandbox.maxMemoryMb`           | `32768`  | the most RAM the sandbox may get, in MB                                                                                                                                            |
 | `sandbox.pageFileMb`            | `16384`  | the sandbox's paging file, made at full size at start so it never grows under load (`0` = Windows' own ~1 GB, which parallel builds run out of)                                    |
-| `sandbox.pressureResponse`      | `true`   | slow the heaviest builds down when memory runs low (the governor)                                                                                                                  |
+| `sandbox.pressureResponse`      | `true`   | slow the heaviest builds down when memory runs low (the governor), and hold new compilers for a moment when memory grows very fast (the memory gate)                                                                                                                  |
 | `sandbox.agentMemoryHeadroomMb` | `"auto"` | the last-resort backstop: how far below the sandbox's commit limit the agents' programs are stopped from taking more (`"auto"` = the larger of 1536 MB and 3 %; `"none"` = off)    |
 | `sandbox.vGpu`                  | `false`  | the GPU, on or off                                                                                                                                                                 |
 

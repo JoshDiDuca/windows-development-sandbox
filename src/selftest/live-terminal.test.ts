@@ -11,6 +11,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { encodeFrame, FrameType } from '../shared/pty/index.js';
 import { SYSTEM } from '../shared/system.js';
+import { GateEventSchema, type GateEvent } from '../guest/governor/core.js';
 import { CSC, openViewer, tail, WAIT, type Viewer } from './support/live.js';
 import type { Suite } from './support/suite.js';
 
@@ -312,6 +313,130 @@ export const liveTerminalSuite: Suite = {
         read('job-second.log'),
       );
     }
+    t.section('the memory gate: a burst is held at once and let go in turn');
+    {
+      // A job of the test's own (never the agents' real one) for both ptyhosts and memgov.
+      const jobName = 'Local\\AgentSandboxAgentsJobTest' + process.pid + '-gate-' + Date.now();
+      const memgovExe = t.at('memgov-gate.exe');
+      const burstExe = t.at('MemoryBurst.exe');
+      const gateErrors =
+        compile(path.join(t.packageRoot, 'sandbox', 'csharp', 'MemGov.cs'), memgovExe) ||
+        compile(path.join(t.packageRoot, 'src', 'selftest', 'fixtures', 'memory-burst', 'MemoryBurst.cs'), burstExe);
+      t.check(!gateErrors, 'memgov and the memory burst program compile', gateErrors);
+      if (!gateErrors) {
+        const ping = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE');
+        const holder = '"' + SYSTEM.cmd() + '" /c "' + ping + '" -n 60 127.0.0.1 >nul';
+        const progress = t.at('burst-progress.txt');
+        const startHost = async (command: string, log: string): Promise<ChildProcess> =>
+          spawn(ptyhost, [String(await freePort()), 'tok', '80', '24', t.at(log), command], {
+            env: { ...process.env, PTYHOST_BIND: 'loopback', PTYHOST_BACKSTOP_MB: 'none', PTYHOST_JOB_NAME: jobName },
+            stdio: 'ignore',
+            windowsHide: true,
+          });
+        const read = (file: string): string => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '');
+        const hosts: ChildProcess[] = [];
+        let memgov: ChildProcess | null = null;
+        try {
+          hosts.push(await startHost(holder, 'gate-a.log'));
+          await t.waitFor(() => read(t.at('gate-a.log')).includes('agent job:'), WAIT.screen);
+
+          memgov = spawn(
+            memgovExe,
+            ['serve', '--interval', '1', '--gate', '512:3000:800:4000', '--gate-names', 'memoryburst'],
+            {
+              env: { ...process.env, MEMGOV_JOB_NAME: jobName },
+              stdio: ['pipe', 'pipe', 'ignore'],
+              windowsHide: true,
+            },
+          );
+          let text = '';
+          memgov.stdout!.on('data', (chunk: Buffer) => (text += chunk.toString('utf8')));
+          const events = (): GateEvent[] =>
+            text
+              .split(/\r?\n/)
+              .filter((l) => l.includes('"event":"gate"'))
+              .flatMap((l) => {
+                try {
+                  const parsed = GateEventSchema.safeParse(JSON.parse(l));
+                  return parsed.success ? [parsed.data] : [];
+                } catch {
+                  return [];
+                }
+              });
+          const ready = await t.waitFor(() => events().some((e) => e.kind === 'ready'), WAIT.screen);
+          const readyEvent = events().find((e) => e.kind === 'ready');
+          t.check(
+            Boolean(ready) && readyEvent?.kind === 'ready' && readyEvent.mode === 'notify',
+            "the gate listens to the job's notifications (no polling)",
+            text.slice(-400),
+          );
+
+          hosts.push(await startHost('"' + burstExe + '" 1536 "' + progress + '"', 'gate-b.log'));
+          const finished = await t.waitFor(() => read(progress).includes('done'), 15000);
+          const marks = read(progress)
+            .split(/\r?\n/)
+            .flatMap((l) => {
+              const m = /^(\d+) \d+$/.exec(l.trim());
+              return m ? [Number(m[1])] : [];
+            });
+          const all = events();
+          const trips = all.flatMap((e) => (e.kind === 'trip' ? [e] : []));
+          const releases = all.flatMap((e) => (e.kind === 'release' ? [e] : []));
+          const evidence = text.slice(-1200) + '\nprogress: ' + marks.length + ' lines';
+          const firstTrip = trips[0];
+          t.check(
+            trips.some((e) => e.held.some((h) => h.name === 'memoryburst')) &&
+              firstTrip !== undefined &&
+              firstTrip.grewMb >= 512 &&
+              firstTrip.grewMb <= 1024,
+            'a burst past the gate is held at once',
+            evidence,
+          );
+          const stalls: string[] = [];
+          for (const trip of trips) {
+            if (!trip.held.some((h) => h.name === 'memoryburst')) continue;
+            const release = releases.find((r) => r.at >= trip.at && r.name === 'memoryburst');
+            const until = release ? release.at : Infinity;
+            if (marks.some((m) => m > trip.at + 200 && m < until)) stalls.push('trip at ' + trip.at);
+          }
+          t.check(
+            stalls.length === 0,
+            'the held program made no progress more than 200 ms after the trip until it was let go',
+            stalls.join(', ') + '\n' + evidence,
+          );
+          t.check(
+            releases.length > 0 && releases.every((r) => r.heldMs <= 4500) && releases.some((r) => !r.forced),
+            'held programs go on in turn, never longer than the most allowed',
+            evidence,
+          );
+          t.check(
+            Boolean(finished) && trips.length >= 2,
+            'the burst program reached its end after at least 2 trips',
+            evidence,
+          );
+        } finally {
+          if (memgov) {
+            memgov.stdin!.end();
+            const ended = memgov;
+            await t.waitFor(() => ended.exitCode !== null, 5000);
+            t.check(ended.exitCode === 0, 'memgov with the gate ends cleanly when its input closes');
+            try {
+              if (ended.exitCode === null) ended.kill();
+            } catch {
+              /* it ended between the check and the kill: nothing left to stop */
+            }
+          }
+          for (const c of hosts) {
+            try {
+              if (c.exitCode === null) c.kill();
+            } catch {
+              /* it ended between the check and the kill: nothing left to stop */
+            }
+          }
+        }
+      }
+    }
+
     const client = t.at('client.mjs');
     fs.writeFileSync(
       client,

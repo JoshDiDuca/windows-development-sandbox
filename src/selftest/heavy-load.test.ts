@@ -47,6 +47,7 @@ import {
   freezeLine,
   hostPressure,
   lowReason,
+  memoryWasFineLine,
   severeHost,
   pageFileRisk,
   parseHostMemory,
@@ -961,6 +962,21 @@ export const heavyLoadSuite: Suite = {
         meaning.includes('vmwp.exe'),
       'what each finding usually means, in plain words',
       meaning,
+    );
+    t.check(
+      findingLines([ev(1000, 'Application Error', '2026-10-15T19:41:12Z', 'Faulting application name: vmwp.exe')])
+        .join('\n')
+        .includes('not a program inside the sandbox running out of memory'),
+      'a crash of vmwp.exe is named as a fault in Windows or a driver, not memory',
+    );
+    t.check(
+      memoryWasFineLine(
+        'x\n2026-11-08T15:30:05.411Z | RAM free/total MB 42325/63170 | commit free/limit MB 52051/75458 | page file auto\n',
+      )?.includes('still had 41 GB of RAM and 50 GB') === true &&
+        memoryWasFineLine('2026-10-15T19:40:50Z | RAM free/total MB 900/32768 | commit free/limit MB 9000/40000') ===
+          null &&
+        memoryWasFineLine('') === null,
+      'the report says when this PC still had plenty of memory, and says nothing when it was low',
     );
     const dumps = path.join(t.at('crash-dumps'), 'Minidump');
     fs.mkdirSync(dumps, { recursive: true });

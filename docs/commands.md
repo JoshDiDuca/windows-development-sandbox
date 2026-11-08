@@ -1,8 +1,7 @@
 # Commands
 
-The command is `sandbox` (also `windows-development-sandbox`). `sandbox <agent>` starts any configured agent, and
-`claude-sandbox`, `codex-sandbox` and `gemini-sandbox` are shortcuts. The old names `agent-sandbox`, `claude-sbx`,
-`codex-sbx` and `gemini-sbx` still work for now.
+The command is `sandbox` (also `windows-development-sandbox`). `sandbox <agent>` starts any configured agent, for
+example `sandbox claude`, `sandbox codex` or `sandbox gemini`.
 
 - `sandbox --help` lists the commands in groups. `sandbox <command> --help` shows that command's options and examples.
 - A mistyped command suggests the right one (`Did you mean: sandbox status?`). A mistyped action lists the valid ones.
@@ -46,7 +45,7 @@ output stays until you press a key. Commands that take over the terminal (`-t`, 
 
 |                  |                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------ |
-| `sandbox claude` | start Claude in a sandbox for this folder, in a terminal inside it (also `claude-sandbox`) |
+| `sandbox claude` | start Claude in a sandbox for this folder, in a terminal inside it                         |
 | `sandbox start`  | the sandbox without an agent                                                               |
 | `sandbox launch` | the same, with any `--agent`                                                               |
 
@@ -95,7 +94,7 @@ path cannot contain `|`).
 | `sandbox restart [--all]`                                 | restart this project's agents in place; they continue their conversations. `--all`: every project's                                                          |
 | `sandbox resume`                                          | reopen the sessions from the last sandbox, each in its own conversation. Starts the sandbox if none runs ([settings](configuration.md#reopening-sessions))   |
 | `sandbox stop [--yes]`                                    | shut down (history syncs back). Asks first when other projects' sessions would end                                                                           |
-| `sandbox show` / `hide`                                   | show or hide the window (also `sbx-show`, `sbx-hide`). Hidden, it keeps running                                                                              |
+| `sandbox show` / `hide`                                   | show or hide the window. Hidden, it keeps running                                                                              |
 | `sandbox cleanup [--service] [--yes]` | close the Windows Sandbox programs a dead sandbox left behind (Windows then says the sandbox was signed out, or that one is already running); `--service` also restarts the Windows Sandbox service (administrator permission). Asks first; never touches a working sandbox |
 
 Any number of terminals can show a session, in the sandbox and on your PC at once. Closing a tab or terminal never
@@ -232,7 +231,7 @@ same on its Activity page.
 | `sandbox vpn [status\|login\|logout]`                                | **(Alpha)** the VPN login and status ([vpn](vpn.md))                                                                                |
 | `sandbox agent-commands [status\|on\|off]`                           | make `claude`, `codex` ... on this PC start in a hidden sandbox ([agent commands](configuration.md#agent-commands)) |
 | `sandbox host <agent> [-- arguments]`                                | run an agent installed on this PC, **not** sandboxed (`SANDBOX_AGENT_DIRECT=1` is set for it)                                       |
-| `sandbox host claude [--personal]` (or `claude-host`)                | Claude on this PC, **not** sandboxed, with its own profile (`--personal` uses your normal one)                                      |
+| `sandbox host claude [--personal]`                | Claude on this PC, **not** sandboxed, with its own profile (`--personal` uses your normal one)                                      |
 
 ## Good to know
 

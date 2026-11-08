@@ -20,6 +20,7 @@ export const COMMANDS = new RegExp(
       // this tool's own commands (package.json "bin")
       'sandbox',
       'windows-development-sandbox',
+      // Removed commands, still blocked: a planted claude-sbx.cmd would run on a PC where nothing else has that name.
       'agent-sandbox',
       'claude-sbx',
       'claude-sandbox',

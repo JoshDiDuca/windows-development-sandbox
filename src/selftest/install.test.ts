@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { shimText } from '../host/install/index.js';
+import { REMOVED_COMMANDS, shimText } from '../host/install/index.js';
 import { nativeScript } from '../host/native.js';
 import { SYSTEM } from '../shared/system.js';
 import type { Suite } from './support/suite.js';
@@ -68,7 +68,7 @@ function installerText(t: Harness, script: string): void {
   const cases: [string, string | undefined][] = [
     ['sandbox', undefined],
     ['claude-sbx', 'dist/bin/claude-sbx.js'],
-    ['agent-sandbox', 'dist/bin/agent-sandbox.js'],
+    ['sbx-show', undefined],
   ];
   for (const [name, target] of cases)
     for (const kind of ['cmd', 'sh'] as const)
@@ -77,6 +77,18 @@ function installerText(t: Harness, script: string): void {
         shimText(name, kind, target),
         name + '.' + kind + ' is identical',
       );
+  t.section('install.ps1 and package.json: the commands');
+  const bin = (JSON.parse(fs.readFileSync(path.join(t.packageRoot, 'package.json'), 'utf8')) as { bin: object }).bin;
+  t.equal(
+    Object.keys(bin).sort(),
+    ['sandbox', 'windows-development-sandbox'],
+    'the package declares only those commands',
+  );
+  t.equal(
+    Object.keys(REMOVED_COMMANDS).filter((name) => !source.includes("'" + name + "'")),
+    [],
+    'the installer removes the shim of every removed command',
+  );
   t.includes(printedShim(script, 'cmd', 'x y'), 'exit', 'a name that is not a command name is refused');
 }
 

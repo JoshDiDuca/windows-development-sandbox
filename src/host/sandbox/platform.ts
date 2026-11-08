@@ -73,7 +73,7 @@ export function assertCanLaunch(owner?: SandboxOwner): void {
         : 'A Windows Sandbox is already running (Windows allows one at a time).',
       other
         ? 'Use it with sandbox attach if it is shared with you, or start yours after it stops.'
-        : 'Attach to it with sandbox claude -t, show it with sbx-show, or shut it down with sandbox stop.',
+        : 'Attach to it with sandbox claude -t, show it with sandbox show, or shut it down with sandbox stop.',
     );
   }
 }

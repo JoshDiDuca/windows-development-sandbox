@@ -1,5 +1,5 @@
 // Headless mode: Windows Sandbox always opens its client window, so we hide it (ShowWindow SW_HIDE) as soon as it
-// appears. The VM and the logged-in session keep running; `sbx-show` brings the window back. The work is done by
+// appears. The VM and the logged-in session keep running; `sandbox show` brings the window back. The work is done by
 // HostTools.exe (native\csharp\HostTools\Window.cs), else by native\scripts\*-window.ps1 with the same C#.
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';

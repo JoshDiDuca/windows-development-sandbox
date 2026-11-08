@@ -42,7 +42,7 @@ import {
   watcherRecords,
   type SystemProbe,
 } from '../host/health/index.js';
-import { InstallLayout, writeShims } from '../host/install/index.js';
+import { InstallLayout, REMOVED_COMMANDS, shimText, writeShims } from '../host/install/index.js';
 import { ActiveRecords } from '../host/sharing/index.js';
 import type { Harness } from './support/harness.js';
 import type { Suite } from './support/suite.js';
@@ -339,7 +339,7 @@ function installChecks(t: Harness, mode: 'pointers' | 'shims'): Promise<void> {
     t.writeJson(path.join(layout.packageDir(v), 'package.json'), { name: 'x', version: v, bin });
   };
   pkg('1.4.0', { sandbox: 'dist/bin/sandbox.js' });
-  pkg('1.5.0', { sandbox: 'dist/bin/sandbox.js', 'agent-sandbox': 'dist/bin/agent-sandbox.js' });
+  pkg('1.5.0', { sandbox: 'dist/bin/sandbox.js', 'other-tool': 'dist/bin/other-tool.js' });
   t.dir('health', 'install-' + mode, 'WindowsDevelopmentSandbox', 'versions', '1.6.0', 'staging');
   t.write(layout.nodeExe('v22.1.0'), 'x');
   t.write(layout.nodeExe('v22.11.0'), 'x');
@@ -394,15 +394,15 @@ async function pointers(t: Harness, layout: InstallLayout, env: RepairEnv): Prom
 async function shims(t: Harness, layout: InstallLayout, env: RepairEnv): Promise<void> {
   t.section('install: shims');
   layout.setActive('1.5.0', 'v22.11.0');
-  const bins = { sandbox: 'dist/bin/sandbox.js', 'agent-sandbox': 'dist/bin/agent-sandbox.js' };
+  const bins = { sandbox: 'dist/bin/sandbox.js', 'other-tool': 'dist/bin/other-tool.js' };
   writeShims(layout, bins);
   t.equal(shimProblems(layout, bins), { missing: [], different: [] }, 'freshly written shims are fine');
   fs.rmSync(path.join(layout.binDir, 'sandbox.cmd'));
-  fs.writeFileSync(path.join(layout.binDir, 'agent-sandbox'), '#!/bin/sh\necho old\n');
+  fs.writeFileSync(path.join(layout.binDir, 'other-tool'), '#!/bin/sh\necho old\n');
   const problems = shimProblems(layout, bins);
   t.equal(
     [problems.missing, problems.different],
-    [['sandbox.cmd'], ['agent-sandbox']],
+    [['sandbox.cmd'], ['other-tool']],
     'a missing and an out-of-date shim are found',
   );
   const { run, result } = await lookAt(env, 'install-shims');
@@ -412,6 +412,29 @@ async function shims(t: Harness, layout: InstallLayout, env: RepairEnv): Promise
   t.equal(shimProblems(layout, bins), { missing: [], different: [] }, 'the shims read the active version again');
   fs.writeFileSync(path.join(layout.binDir, 'extra.cmd'), 'echo mine');
   t.check(fs.existsSync(path.join(layout.binDir, 'extra.cmd')), 'a file that is not one of ours is left alone');
+
+  t.section('install: shims of removed commands');
+  for (const [name, target] of Object.entries(REMOVED_COMMANDS)) {
+    fs.writeFileSync(path.join(layout.binDir, name + '.cmd'), shimText(name, 'cmd', target));
+    fs.writeFileSync(path.join(layout.binDir, name), shimText(name, 'sh', target));
+  }
+  fs.writeFileSync(path.join(layout.binDir, 'claude-sbx.cmd'), '@echo off rem mine');
+  writeShims(layout, bins);
+  const left = Object.keys(REMOVED_COMMANDS).flatMap((name) =>
+    [name + '.cmd', name].filter((file) => fs.existsSync(path.join(layout.binDir, file))),
+  );
+  t.equal(
+    left,
+    ['claude-sbx.cmd'],
+    'writing the shims removes the shims of old commands, but not a file that is not ours',
+  );
+  const kept = { ...bins, 'claude-sbx': 'dist/bin/claude-sbx.js' };
+  writeShims(layout, kept);
+  t.check(
+    fs.readFileSync(path.join(layout.binDir, 'claude-sbx'), 'utf8') ===
+      shimText('claude-sbx', 'sh', kept['claude-sbx']),
+    'a package that still declares an old command keeps its shim (a rollback)',
+  );
 }
 
 async function copiesOnPath(t: Harness): Promise<void> {
@@ -424,9 +447,7 @@ async function copiesOnPath(t: Harness): Promise<void> {
   t.write(path.join(npmBin, 'sandbox'), '#!/bin/sh');
   t.write(path.join(npmBin, 'node_modules', 'windows-development-sandbox', 'package.json'), '{}');
   t.write(path.join(managedBin, 'sandbox.cmd'), '@echo off');
-  t.write(path.join(managedBin, 'claude-sbx.cmd'), '@echo off');
-  t.write(path.join(managedBin, 'claude-sbx.exe'), '');
-  t.write(path.join(oldBin, 'claude-sbx.cmd'), '@echo off');
+  t.write(path.join(oldBin, 'sandbox.cmd'), '@echo off');
   const machinePath = [npmBin, managedBin].join(';');
   const userPath = [oldBin, npmBin, t.dir('copies', 'empty')].join(';');
   const pathext = '.COM;.EXE;.BAT;.CMD';
@@ -442,8 +463,8 @@ async function copiesOnPath(t: Harness): Promise<void> {
     found.map((c) => [c.kind, c.files.join(',')]),
     [
       ['npm', 'sandbox.cmd'],
-      ['managed-machine', 'sandbox.cmd,claude-sbx.exe'],
-      ['old-scripts', 'claude-sbx.cmd'],
+      ['managed-machine', 'sandbox.cmd'],
+      ['old-scripts', 'sandbox.cmd'],
     ],
     'copies come in PATH order (machine first, a folder once), each command as its PATHEXT match, extensionless files ignored',
   );

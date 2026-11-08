@@ -202,7 +202,7 @@ export const engineSuite: Suite = {
 
     t.section('sandbox engine');
     const run = await f.runBin(
-      'agent-sandbox',
+      'sandbox',
       ['engine', '--json', '--config', t.writeJson(t.at('engine-config.json'), {})],
       {
         cwd: f.workA,

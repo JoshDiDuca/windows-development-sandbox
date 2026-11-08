@@ -129,7 +129,7 @@ export const configSuite: Suite = {
     const sharedFile = t.at('share', 'theirs.json');
     fs.writeFileSync(sharedFile, shared);
     const bin = (args: string[]): Promise<{ status: number | null; out: string }> =>
-      f.runBin('agent-sandbox', [...args, '--config', yours], { cwd: f.workA, env });
+      f.runBin('sandbox', [...args, '--config', yours], { cwd: f.workA, env });
     const outFile = t.at('share', 'out.json');
     const exportRun = await bin(['config', 'export', outFile]);
     const written = readJsonc<{ sandbox?: { memoryMb?: number }; storage?: unknown }>(outFile);

@@ -74,7 +74,7 @@ export const hideWindowRun = implement(hideWindow, async (ctx, _input, io) => {
   await useSharedSandbox(ctx, { kind: 'owner-only', what: 'hide the window', window: true }, typedConfirm(io));
   io.progress('Hiding the window');
   await new SandboxService(ctx).hideWindow();
-  return { message: 'Sandbox window hidden. Bring it back with: sbx-show' };
+  return { message: 'Sandbox window hidden. Bring it back with "Show the window".' };
 });
 
 /**

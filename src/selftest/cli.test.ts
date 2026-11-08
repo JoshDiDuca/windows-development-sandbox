@@ -68,17 +68,17 @@ export const cliSuite: Suite = {
       '`start` is launch without an agent; positionals, repeated lists and arguments after -- parse',
     );
 
-    t.section('parser: agent wrappers (claude-sbx ...) and agent-sandbox');
+    t.section('parser: agent mode (sandbox claude ...) and plain commands');
     const wrapped = parseCli(['--terminal', '--continue', '--headless', '--node', '20', '--', '--terminal'], true);
     t.equal(
       [wrapped.command, wrapped.terminal, wrapped.headless, wrapped.node, wrapped.passthrough],
       ['launch', true, true, '20', ['--continue', '--terminal']],
-      'claude-sbx: sandbox flags are consumed, everything else goes to the agent',
+      'agent mode: sandbox flags are consumed, everything else goes to the agent',
     );
     await t.throws(
       () => parseCli(['status', '--bogus']),
       'unknown option',
-      'agent-sandbox: unknown options are errors',
+      'plain commands: unknown options are errors',
     );
     const agentFlags = parseCli(
       ['--model', 'opus', '-p', 'fix it', '--json', '-f', 'x', '--timeout', '5', '--resume', 'abc'],
@@ -89,13 +89,13 @@ export const cliSuite: Suite = {
         !agentFlags.json &&
         !agentFlags.follow &&
         agentFlags.timeout === 600,
-      'claude-sbx: any flag that is not a launch option goes to the agent in order and sets no agent-sandbox option',
+      'agent mode: any flag that is not a launch option goes to the agent in order and sets no sandbox option',
     );
     const reserved = parseCli(['--sbx-terminal', '--terminal', '--sbx-node=18'], true);
     t.equal(
       [reserved.terminal, reserved.node, reserved.passthrough],
       [true, '18', []],
-      '--sbx-<option> always means agent-sandbox',
+      '--sbx-<option> always means the sandbox option',
     );
     await t.throws(
       () => parseCli(['--sbx-nope'], true),

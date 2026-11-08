@@ -1,6 +1,6 @@
 # windows-development-sandbox: notes for agents
 
-A CLI (`sandbox`, also `agent-sandbox`, `claude-sbx` ...) that starts a disposable Windows Sandbox for a project, with
+A CLI (`sandbox`) that starts a disposable Windows Sandbox for a project, with
 or without an AI agent. You usually develop it INSIDE a sandbox it made: only this repo and `C:\AgentData` survive the
 wipe, so put behaviour in code, never in this machine. Downloads for testing go in your scratchpad.
 User docs: README.md and docs/. Contributor summary: CONTRIBUTING.md. Releases: docs/development.md#releases.

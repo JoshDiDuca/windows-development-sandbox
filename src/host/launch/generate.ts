@@ -14,6 +14,7 @@ import { capturePersonalization, stageClaudeProfile } from '../profile/index.js'
 import { resolveClipboard } from '../../core/clipboard.js';
 import { saveClipboardSettings } from '../clipboard/index.js';
 import { clearSecrets, writeSecrets } from '../secrets/index.js';
+import { clearClipboardFiles } from '../clipboard/index.js';
 import { githubTokenAllowed } from '../github/index.js';
 import { folderAttachment } from '../storage/providers/index.js';
 import { assertTestWritable } from '../test-guard.js';
@@ -111,6 +112,7 @@ export function generateSandbox(
   // maps it read-only and it is kept for days). Leftovers of earlier launches go first.
   ensureDir(dataPath);
   clearSecrets(storageRoot, dataPath);
+  clearClipboardFiles(dataPath);
   ensureDir(launchPath);
   const mappingNotes: string[] = [];
   const mappings = collectMappings(o, launchPath, boot, mappingNotes);

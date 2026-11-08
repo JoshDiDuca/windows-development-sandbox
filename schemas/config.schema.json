@@ -221,7 +221,7 @@
             "shared",
             "off"
           ],
-          "description": "Copy and paste between this PC and the sandbox. \"text\" (default) = text only, through this tool: a copy in the sandbox reaches this PC only while the sandbox window is in front, and the text on this PC's clipboard goes in when you switch to the sandbox window; Protected Client stays on. \"shared\" = Windows Sandbox's own clipboard (text, images and files, all the time); Protected Client blocks it, so that sandbox starts with Protected Client off. \"off\" = no clipboard at all. An agent's copy in sandbox attach reaches this PC with \"text\" and \"shared\". true / false from older versions mean \"text\" / \"off\". A project file can only narrow it (shared -> text -> off)."
+          "description": "Copy and paste between this PC and the sandbox. \"text\" (default) = text only, through this tool: a copy in the sandbox reaches this PC only while the sandbox window is in front, and the text on this PC's clipboard goes in when you switch to the sandbox window; Protected Client stays on. \"shared\" = Windows Sandbox's own clipboard (text, images and files, all the time); Protected Client blocks it, so that sandbox starts with Protected Client off. \"off\" = no clipboard at all. An agent's copy in an attached terminal reaches this PC with \"text\" and \"shared\". true / false from older versions mean \"text\" / \"off\". A project file can only narrow it (shared -> text -> off)."
         },
         "clipboardDirection": {
           "type": "string",

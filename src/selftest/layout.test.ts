@@ -43,6 +43,7 @@ const PURE_GUEST = [
   'guest/governor/decide.js',
   'guest/governor/core.js',
   'guest/daemon/live-folders.js',
+  'guest/daemon/clipboard-bridge.js',
   'guest/toolchains/native/vs-request.js',
   'guest/toolchains/native/vs-persist.js',
 ];

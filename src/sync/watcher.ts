@@ -38,6 +38,12 @@ import { SandboxChannel } from '../host/channel/index.js';
 import { ProjectRegistry } from '../host/projects/registry.js';
 import { ContainedStorage, setNameOf, storageOf } from '../host/storage/index.js';
 import { clearSecrets } from '../host/secrets/index.js';
+import {
+  clearClipboardFiles,
+  HostClipboardBridge,
+  openHostClipboard,
+  readClipboardSettings,
+} from '../host/clipboard/index.js';
 import { clearLiveRecord } from '../host/engines/index.js';
 import { endSharing, sharingDeps } from '../host/sharing/index.js';
 import { PACKAGE_ROOT } from '../core/package-info.js';
@@ -122,6 +128,7 @@ export class Watcher {
   private watchdogTimer: NodeJS.Timeout | null = null;
   /** This PC's memory, read by one long-running HostTools instead of a program per sample. */
   private memoryStream: HostMemoryStream | null = null;
+  private clipboard: HostClipboardBridge | null = null;
   private watchdog: WatchdogState = WATCHDOG_START;
   private watchdogBusy = false;
   private lastCpu: os.CpuInfo[] = os.cpus();
@@ -260,6 +267,18 @@ export class Watcher {
       }
     });
     this.stops = [...viewStops, stopForwards, stopMarking];
+    // sandbox.clipboard "text": copies between this PC and the sandbox, only while its window is in front
+    // (host/clipboard).
+    const clip = readClipboardSettings(storageRoot, dataPath);
+    this.clipboard = clip?.bridge
+      ? new HostClipboardBridge({
+          dataPath,
+          settings: clip,
+          open: () => openHostClipboard(storageRoot),
+          note: (m) => this.note('clipboard: ' + m),
+        })
+      : null;
+    this.clipboard?.start();
     // Memory and CPU of this PC: when low, the sandbox is asked to slow its builds down (host/life/watchdog.ts).
     this.memoryStream = new HostMemoryStream(storageRoot, WATCHDOG_MS / 1000);
     this.memoryStream.start();
@@ -399,6 +418,7 @@ export class Watcher {
 
   /** Stops what start() started, syncs the filtered workspaces a last time and records the data folder's size. */
   private stop(): void {
+    this.clipboard?.stop();
     this.awake?.stop();
     if (this.watchdogTimer) clearInterval(this.watchdogTimer);
     this.memoryStream?.stop();
@@ -427,7 +447,10 @@ export class Watcher {
     // One-shot secrets the sandbox never read (it stopped early) and any login copy left in a launch folder.
     try {
       // Not when a new sandbox already started: its own files are there.
-      if (!isSandboxRunning()) clearSecrets(this.storageRoot, this.dataPath);
+      if (!isSandboxRunning()) {
+        clearSecrets(this.storageRoot, this.dataPath);
+        clearClipboardFiles(this.dataPath);
+      }
     } catch (e) {
       this.note('could not remove the one-shot secrets: ' + errMsg(e));
     }

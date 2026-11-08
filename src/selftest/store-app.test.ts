@@ -8,6 +8,7 @@ import { DEFAULTS } from '../core/config/index.js';
 import { OFF_IS_SAFER } from '../core/local-config/index.js';
 import { HOST_SOURCES } from '../host/accounts/index.js';
 import { prepareStorePackages, stagedPackageDir, StorePackages, type StoreRunner } from '../host/apps/index.js';
+import { prepareServiceAccounts } from '../host/accounts/index.js';
 import { checkedPackage } from '../guest/apps/store-check.js';
 import { peekPendingPerplexityApp, perplexityAppPendingFile } from '../guest/accounts/kinds/perplexityapp.js';
 import { perplexityAppShortcutArgs, restoreAppSignIn } from '../guest/browser/perplexity-app.js';
@@ -18,11 +19,14 @@ import {
   PERPLEXITY_DESKTOP_FAMILY,
   PERPLEXITY_DESKTOP_PACKAGE,
   PERPLEXITY_DESKTOP_PRODUCT_ID,
+  assignStoreRoles,
   storeApps,
   StorePackageManifestSchema,
+  storePackageFitsX64,
   storePackageRole,
 } from '../shared/apps/index.js';
 import {
+  appsNeededFor,
   appUsersOn,
   PAYLOADS,
   SERVICE_SPECS,
@@ -204,7 +208,9 @@ export const storeAppSuite: Suite = {
     });
     t.check(
       outcome.notes.length === 1 &&
-        outcome.notes[0].includes('is not prepared') &&
+        outcome.notes[0].includes('NOT installed in this sandbox') &&
+        outcome.notes[0].includes('no Store access') &&
+        outcome.notes[0].startsWith('perplexity-desktop:') &&
         outcome.notes[0].includes('winget download --id 9P9XG917PWCJ'),
       'with nothing kept the launch goes on, with a note that says what to fix',
     );
@@ -216,6 +222,86 @@ export const storeAppSuite: Suite = {
     t.check(
       good.notes[0].includes('downloaded') && fs.existsSync(path.join(stagedPackageDir(emptyData, app.id), MAIN)),
       'and a working Store stages it',
+    );
+
+    t.section('frameworks: the right builds, and the app told from them');
+    const VCLIBS_X86 = 'Microsoft.VCLibs.140.00_14.0.33519.0_x86__8wekyb3d8bbwe.appx';
+    const VCLIBS_ARM = 'Microsoft.VCLibs.140.00_14.0.33519.0_arm64__8wekyb3d8bbwe.appx';
+    t.check(
+      storePackageFitsX64(FRAMEWORK) &&
+        !storePackageFitsX64(VCLIBS_X86) &&
+        !storePackageFitsX64(VCLIBS_ARM) &&
+        storePackageFitsX64('Microsoft.WindowsAppRuntime.1.6_6000.311.0_neutral__8wekyb3d8bbwe.msix'),
+      '32-bit and ARM frameworks are left out, x64 and neutral ones stay',
+    );
+    t.equal(
+      assignStoreRoles(['Perplexity_x64.msixbundle', FRAMEWORK], PERPLEXITY_DESKTOP_PACKAGE, [FRAMEWORK]).map(
+        (f) => f.role,
+      ),
+      ['main', 'dependency'],
+      'an app winget names another way is still found: it is the file outside Dependencies',
+    );
+    t.check(
+      (() => {
+        try {
+          assignStoreRoles([FRAMEWORK], PERPLEXITY_DESKTOP_PACKAGE, [FRAMEWORK]);
+          return false;
+        } catch (e) {
+          return String(e).includes('only frameworks');
+        }
+      })(),
+      'frameworks without the app are refused with a plain reason',
+    );
+    const rich = await new StorePackages({
+      storageRoot: t.dir('pc3', 'storage'),
+      dataPath: t.dir('pc3', 'storage', 'data', 'set'),
+      run: (_exe, args) => {
+        const out = args[args.indexOf('-OutDir') + 1];
+        fs.mkdirSync(out, { recursive: true });
+        for (const n of ['Perplexity_1.2_x64.msixbundle', FRAMEWORK, VCLIBS_X86, VCLIBS_ARM])
+          fs.writeFileSync(path.join(out, n), n);
+        return Promise.resolve({
+          status: 0,
+          stdout: JSON.stringify({
+            ok: true,
+            message: 'ok',
+            files: ['Perplexity_1.2_x64.msixbundle', FRAMEWORK, VCLIBS_X86, VCLIBS_ARM],
+            dependencies: [FRAMEWORK, VCLIBS_X86, VCLIBS_ARM],
+          }),
+          stderr: '',
+        });
+      },
+    }).fetch(app);
+    t.check(
+      rich.files.map((f) => f.role).join() === 'main,dependency' &&
+        rich.files.every((f) => storePackageFitsX64(f.name)),
+      'a fetch keeps the app and only the x64 framework, with the roles the script reported',
+    );
+
+    t.section('a sign-in for an app that is not installed says so');
+    t.equal(appsNeededFor('perplexityapp'), ['perplexity-desktop'], 'the app a sign-in needs');
+    t.equal(appsNeededFor('epic'), [], 'a sign-in a toolchain uses needs no app');
+    const sharing = { ...DEFAULTS, accounts: { ...DEFAULTS.accounts, perplexityapp: { share: true } } };
+    const deliverFor = (on: UsedBy[]): ReturnType<typeof prepareServiceAccounts> =>
+      prepareServiceAccounts({
+        config: sharing,
+        others: [],
+        on: new Set<UsedBy>(on),
+        storageRoot: t.dir('pc4', 'storage'),
+        dataPath: t.dir('pc4', 'storage', 'data', 'set'),
+        launchId: 'L-1',
+        isRunning: () => false,
+      });
+    const missing = deliverFor([]);
+    t.check(
+      missing.notes.some(
+        (n) => n.includes('accounts.perplexityapp.share') && n.includes('Fix: turn the app on in Apps'),
+      ) && !missing.leased.length,
+      'share on with the app off: a launch note names the setting and the app to turn on',
+    );
+    t.check(
+      !deliverFor(['perplexityapp']).notes.some((n) => n.includes('is not installed')),
+      'with the app on there is no such note',
     );
 
     t.section('the sandbox checks the kept files');
@@ -230,7 +316,7 @@ export const storeAppSuite: Suite = {
       'a changed file stops the install',
     );
     t.check(
-      (await t.thrownMessage(() => checkedPackage(t.dir('nothing')))).includes('not handed over'),
+      (await t.thrownMessage(() => checkedPackage(t.dir('nothing')))).includes('did not hand over its package'),
       'no package says so',
     );
 

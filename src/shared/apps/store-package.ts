@@ -40,3 +40,33 @@ export function isStorePackageFile(name: string): boolean {
 export function storePackageRole(fileName: string, packageName: string): 'main' | 'dependency' {
   return fileName.toLowerCase().startsWith(packageName.toLowerCase() + '_') ? 'main' : 'dependency';
 }
+
+/**
+ * Whether a dependency package suits this sandbox (64-bit Windows): winget may also fetch the 32-bit and ARM builds
+ * of a framework, and Add-AppxPackage is only handed the builds that can run here.
+ */
+export function storePackageFitsX64(fileName: string): boolean {
+  return !/[_.-](x86|arm|arm64)(?=[_.-]|$)/i.test(fileName.replace(/\.(msix|appx|msixbundle|appxbundle)$/i, ''));
+}
+
+/**
+ * Which fetched file is the app and which are its frameworks. The app is named after its package; when winget names
+ * it otherwise, the one file that did not come from the Dependencies folder is the app. Throws when that is unclear.
+ */
+export function assignStoreRoles(
+  names: readonly string[],
+  packageName: string,
+  dependencyNames: readonly string[],
+): { name: string; role: 'main' | 'dependency' }[] {
+  const listed = new Set(dependencyNames.map((n) => n.toLowerCase()));
+  let mains = names.filter((n) => storePackageRole(n, packageName) === 'main');
+  if (mains.length === 0) mains = names.filter((n) => !listed.has(n.toLowerCase()));
+  if (mains.length > 1) mains = mains.filter(storePackageFitsX64);
+  if (mains.length !== 1)
+    throw new Error(
+      mains.length === 0
+        ? 'winget gave only frameworks, not the app itself (' + names.join(', ') + ')'
+        : 'winget gave more than one app package and it is not clear which to install (' + mains.join(', ') + ')',
+    );
+  return names.map((name) => ({ name, role: name === mains[0] ? 'main' : 'dependency' }));
+}

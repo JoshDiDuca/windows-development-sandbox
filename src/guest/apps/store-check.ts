@@ -24,10 +24,14 @@ export interface CheckedPackage {
   readonly dependencies: string[];
 }
 
+/** Why a Store app has no package here, and what to do (the PC's launch notes say what went wrong there). */
+export const MISSING_PACKAGE =
+  'this PC did not hand over its package (it could not fetch it: see the launch notes). Fix: on this PC run "winget download --id <product id> --source msstore", then launch again';
+
 /** The package in `dir` when its manifest is valid and every file is there as hashed; throws otherwise. */
 export async function checkedPackage(dir: string): Promise<CheckedPackage> {
   const manifest = readValid(StorePackageManifestSchema, path.join(dir, STORE_PACKAGE_MANIFEST));
-  if (!manifest) throw new Error('the package was not handed over (this PC could not fetch it: see the launch notes)');
+  if (!manifest) throw new Error(MISSING_PACKAGE);
   for (const f of manifest.files) {
     if ((await fileSha256(path.join(dir, f.name)).catch(() => '')) !== f.sha256)
       throw new Error(f.name + ' is missing or changed');

@@ -160,7 +160,9 @@ export class AppInstaller {
       warn(
         entry.name + ' could not be installed and is skipped; the other apps are not affected. Reason: ' + errMsg(e),
       );
-      this.env.summary.push(entry.name + ': FAILED');
+      this.env.summary.push(
+        'store' in entry.source ? entry.name + ': not installed - ' + errMsg(e).slice(0, 300) : entry.name + ': FAILED',
+      );
     }
   }
 

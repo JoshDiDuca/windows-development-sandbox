@@ -6,6 +6,13 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
 `~/.agent-sandbox` folder, the environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and
 `AGENT_SANDBOX_WORKSPACE`, the `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.31.0
+
+- **opencode and Kilo logins copy over from this PC.** `sandbox account save <name> --from-host --agent opencode` (and
+  the Accounts page) saves this PC's login even though it sits at another place than in the sandbox
+  (`home.hostFiles`). The accounts list shows which providers a login holds (`anthropic, openai`), never a token.
+  `harnesses.<agent>.home.copyPcLogin` (off by default, your settings only) copies this PC's login in at every launch.
+
 ## 1.30.0
 
 - **The next VM crash says which part of Windows failed.** `sandbox vm-dumps on` (also offered once after a crash of

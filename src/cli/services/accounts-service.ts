@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   AccountStore,
   AgentAccountStore,
+  type HostFiles,
   hostClaudeDir,
   hostGlobalStateFile,
   type Account,
@@ -25,6 +26,8 @@ export interface AgentAccounts {
   readonly kept: boolean;
   /** "Save this PC's login" works (we know where the agent keeps it on this PC). */
   readonly canSavePc: boolean;
+  /** harnesses.<agent>.home.copyPcLogin: this PC's login is copied into the sandbox at every launch. */
+  readonly copyPcLogin: boolean;
 }
 
 /** What was saved or activated. */
@@ -61,6 +64,7 @@ export class AccountsService {
       name,
       kept: name === CLAUDE || Boolean(h.home),
       canSavePc: name === CLAUDE || Boolean(h.home?.hostDir),
+      copyPcLogin: name !== CLAUDE && Boolean(h.home?.hostDir && h.home.copyPcLogin),
     }));
     return [
       ...all.filter((a) => a.name === CLAUDE),
@@ -70,7 +74,13 @@ export class AccountsService {
   }
 
   /** The store, the sandbox folder of the agent's login, and its login files (non-Claude agents). */
-  private other(agent: string): { store: AgentAccountStore; stateDir: string; hostDir: string | null } {
+  private other(agent: string): {
+    store: AgentAccountStore;
+    stateDir: string;
+    hostDir: string | null;
+    hostFiles: HostFiles | undefined;
+    providersFile: string | undefined;
+  } {
     const home =
       this.ctx.loaded.config.harnesses[agent]?.home ??
       fail(
@@ -87,11 +97,16 @@ export class AccountsService {
       store: new AgentAccountStore(this.ctx.storageRoot, agent, home.loginFiles),
       stateDir: path.join(this.ctx.dataPath, 'state', agent),
       hostDir: home.hostDir ? expandPath(home.hostDir, this.ctx.loaded.base) : null,
+      hostFiles: home.hostFiles,
+      providersFile: home.providersFile,
     };
   }
 
   list(agent = CLAUDE): AccountRow[] {
-    return agent === CLAUDE ? this.claude.list(this.ctx.dataPath) : this.other(agent).store.list(this.ctx.dataPath);
+    if (agent === CLAUDE) return this.claude.list(this.ctx.dataPath);
+    const { store, providersFile } = this.other(agent);
+    const rows = store.list(this.ctx.dataPath);
+    return providersFile ? rows.map((r) => ({ ...r, providers: store.providers(r.name, providersFile) })) : rows;
   }
 
   /** Name of the login the sandbox uses now for this agent, if any. */
@@ -115,13 +130,19 @@ export class AccountsService {
       );
       return claudeRef(saved);
     }
-    const { store, stateDir, hostDir } = this.other(agent);
+    const { store, stateDir, hostDir, hostFiles } = this.other(agent);
     if (fromHost && !hostDir)
       fail(
         "Saving this PC's " + agent + ' login is not supported.',
         'Sign in inside the sandbox, then save that login.',
       );
-    store.save(this.ctx.dataPath, name, fromHost && hostDir ? hostDir : stateDir, !fromHost);
+    store.save(
+      this.ctx.dataPath,
+      name,
+      fromHost && hostDir ? hostDir : stateDir,
+      !fromHost,
+      fromHost ? hostFiles : undefined,
+    );
     return { name, email: null };
   }
 
@@ -152,11 +173,24 @@ export class AccountsService {
    */
   ensure(agent: string, wanted: string | null): string | null {
     if (!this.agents().some((a) => a.name === agent && a.kept)) return null;
+    // This PC's own login, when you asked for it and did not name another: it replaces the saved login.
+    if (wanted === null && this.copyPcLogin(agent)) return null;
     const name = wanted ?? this.defaultName(agent);
     if (!name) return this.activeName(agent);
     if (name !== this.activeName(agent)) this.activate(name, agent);
     else if (agent === CLAUDE) this.claude.syncPlugins(this.ctx.dataPath);
     return name;
+  }
+
+  /**
+   * Copies this PC's current login of an agent that has copyPcLogin on into the sandbox's state (the same folder a
+   * saved login is switched into; never session.json or the launch folder). False when the setting is off or nobody
+   * is signed in on this PC (then the saved default login is used as usual).
+   */
+  private copyPcLogin(agent: string): boolean {
+    if (!this.agents().some((a) => a.name === agent && a.copyPcLogin)) return false;
+    const { store, stateDir, hostDir, hostFiles } = this.other(agent);
+    return hostDir !== null && store.copyFromPc(this.ctx.dataPath, hostDir, stateDir, hostFiles) > 0;
   }
 
   /** Whether a session of this agent is running that would pick up a new login on restart. */

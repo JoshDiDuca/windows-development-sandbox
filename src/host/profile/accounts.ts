@@ -57,6 +57,8 @@ export interface AccountRow {
   /** Claude accounts only. */
   readonly kind?: LoginKind;
   readonly keyHint?: string | null;
+  /** Agents with a providers file (opencode): the provider ids the login holds, never a value. */
+  readonly providers?: string[];
 }
 
 const NAME = /^[A-Za-z0-9_-]{1,40}$/;

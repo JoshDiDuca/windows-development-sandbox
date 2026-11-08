@@ -4,7 +4,14 @@ import path from 'node:path';
 import { AccountStore } from '../host/profile/index.js';
 import { SecretStore } from '../host/secrets/secret-store.js';
 import { DEFAULTS } from '../core/config/index.js';
-import { accountsPage, accountsText, agentPage, defaultAccount } from '../app/features/accounts/index.js';
+import { ConfigSchema, LocalOverridesSchema } from '../core/schema/index.js';
+import {
+  accountsPage,
+  accountsText,
+  agentPage,
+  defaultAccount,
+  type AgentAccounts,
+} from '../app/features/accounts/index.js';
 import { fakeIO } from '../app/kernel/index.js';
 import { runDefinition } from '../app/registry.js';
 import { buildProgram, parseCli } from '../cli/args.js';
@@ -147,6 +154,7 @@ export const accountsSuite: Suite = {
     );
 
     await apiKeyAccounts(t, f);
+    await opencodeAccounts(t, f);
 
     t.section('removing and refusing');
     new AccountStore(storage).setDefault('work');
@@ -450,4 +458,146 @@ async function apiKeyAccounts(t: Harness, f: Fixtures): Promise<void> {
     'command line: sandbox account save <name> --api-key [--from-host], shown in --help',
     help,
   );
+}
+
+/** opencode: this PC's login at its own place, the providers a login holds, and copying it at every launch. */
+async function opencodeAccounts(t: Harness, f: Fixtures): Promise<void> {
+  t.section('opencode: saving this PC login from its own place, providers, copy at launch');
+  const SECRET = 'oc-token-never-shown-' + Date.now();
+  const pcHome = t.at('oc', 'pc-home');
+  const pcAuth = path.join(pcHome, '.local', 'share', 'opencode', 'auth.json');
+  t.write(
+    pcAuth,
+    JSON.stringify({
+      openai: { type: 'api', key: SECRET },
+      anthropic: { type: 'oauth', refresh: SECRET },
+      'bad id!': 1,
+    }),
+  );
+  const config = structuredClone(DEFAULTS);
+  config.harnesses.opencode.home!.hostDir = pcHome;
+  const ctx = {
+    packageRoot: t.dir('oc', 'package'),
+    options: {},
+    loaded: { config, configPath: null, base: t.temp },
+    storageRoot: t.dir('oc', 'storage'),
+    dataPath: t.dir('oc', 'storage', 'data', 'o'),
+  } as unknown as AppContext;
+  const service = new AccountsService(ctx);
+  const listed = service.agents().find((a) => a.name === 'opencode');
+  t.check(
+    listed?.kept === true && listed.canSavePc === true && listed.copyPcLogin === false,
+    'opencode is kept, can save this PC login, and does not copy it at launch by default',
+  );
+  const home = DEFAULTS.harnesses.opencode.home!;
+  t.check(
+    home.hostDir === '~' && home.hostFiles?.[home.loginFiles[0]] === '.local/share/opencode/auth.json',
+    'the default maps the sandbox login file to the PC one without any user name',
+  );
+  const out = (await runDefinition(
+    'accounts.save',
+    ctx,
+    { agent: 'opencode', name: 'pc', fromHost: true },
+    fakeIO([]).io,
+  )) as { message: string };
+  t.equal(out.message, 'Saved account "pc".', 'save --from-host works for opencode');
+  // An operation reads the settings again from disk: this PC's folder is put back for the rest of the test.
+  const useFakePc = (): void => {
+    ctx.loaded.config.harnesses.opencode.home!.hostDir = pcHome;
+  };
+  useFakePc();
+  const row = service.list('opencode')[0];
+  t.equal(
+    row.providers,
+    ['anthropic', 'openai'],
+    'the providers are the keys of auth.json, sorted, invalid ids dropped',
+  );
+  t.equal(
+    filesHolding(path.join(ctx.storageRoot, 'accounts'), SECRET),
+    [],
+    'the saved login is sealed: no file holds the token',
+  );
+  const listing = JSON.stringify(await runDefinition('accounts.list', ctx, { agent: 'opencode' }, fakeIO([]).io));
+  useFakePc();
+  t.check(
+    !listing.includes(SECRET) && listing.includes('"providers":["anthropic","openai"]'),
+    'the accounts list carries provider ids, never a token',
+    listing,
+  );
+  const sealedFile = path.join(
+    ctx.storageRoot,
+    'accounts',
+    'opencode',
+    'pc',
+    'profile',
+    '.local',
+    'share',
+    'opencode',
+    'auth.json.sealed',
+  );
+  fs.writeFileSync(sealedFile, 'not a sealed value');
+  t.equal(service.list('opencode')[0].providers, [], 'an unreadable login has no providers');
+  service.save('pc', true, 'opencode');
+
+  t.section('opencode: the Accounts page, the menu and the command line');
+  const agent: AgentAccounts = {
+    name: 'opencode',
+    kept: true,
+    canSavePc: true,
+    copyPcLogin: false,
+    accounts: [{ ...row, providers: ['anthropic', 'openai'] }],
+  };
+  const page = JSON.stringify(accountsPage({ agent: 'opencode', agents: [agent], services: [] }));
+  t.check(
+    page.includes("Save this PC's login") &&
+      page.includes("Save the sandbox's login") &&
+      page.includes('anthropic, openai') &&
+      page.includes('harnesses.opencode.home.copyPcLogin') &&
+      page.includes('"value":true') &&
+      !page.includes('Save an API key'),
+    'the page offers both saves, the providers and the copy-at-launch toggle',
+  );
+  const on = JSON.stringify(
+    accountsPage({ agent: 'opencode', agents: [{ ...agent, copyPcLogin: true }], services: [] }),
+  );
+  t.check(on.includes('"value":false') && on.includes('[x]'), 'with the copy on, the toggle row turns it off');
+  const menu = menuView(agentPage(agent), { category: 'opencode', refresh: false });
+  t.check(
+    menu.actions.some((a) => a.key === 'p'),
+    'the menu has the save PC login key (p)',
+  );
+  const text = accountsText({ agent: 'opencode', agents: [agent], services: [] });
+  t.check(
+    text.includes('PROVIDERS') && text.includes('anthropic, openai') && !text.includes('KIND'),
+    'the command line table has a PROVIDERS column',
+    text,
+  );
+  const save = definitionFor('account', ['save'])!;
+  t.check(
+    JSON.stringify(cliInput(save, parseCli(['account', 'save', 'pc', '--agent', 'opencode', '--from-host']))) ===
+      JSON.stringify({ name: 'pc', agent: 'opencode', fromHost: true }),
+    'command line: sandbox account save pc --agent opencode --from-host',
+  );
+  const withCopy = structuredClone(DEFAULTS);
+  withCopy.harnesses.opencode.home!.copyPcLogin = true;
+  t.check(ConfigSchema.safeParse(withCopy).success, 'harnesses.opencode.home.copyPcLogin is a valid setting');
+
+  t.section('opencode: copy at every launch');
+  const stateAuth = path.join(ctx.dataPath, 'state', 'opencode', 'profile', '.local', 'share', 'opencode', 'auth.json');
+  t.equal(service.ensure('opencode', null), 'pc', 'off by default: the launch uses the saved default login');
+  ctx.loaded.config.harnesses.opencode.home!.copyPcLogin = true;
+  const copying = new AccountsService(ctx);
+  t.equal(copying.ensure('opencode', null), null, 'with copyPcLogin on the launch uses no saved login');
+  t.equal(
+    fs.existsSync(stateAuth) ? fs.readFileSync(stateAuth, 'utf8') : '',
+    fs.readFileSync(pcAuth, 'utf8'),
+    "this PC's auth.json is copied into the sandbox's state folder",
+  );
+  t.equal(filesHolding(ctx.packageRoot, SECRET), [], 'nothing of it lands in the launch (package) folder');
+  service.save('pc', true, 'opencode');
+  copying.ensure('opencode', 'pc');
+  t.equal(copying.activeName('opencode'), 'pc', 'naming --account uses that saved login, not the PC copy');
+  const fromProject = LocalOverridesSchema.safeParse({ harnesses: { opencode: { home: { copyPcLogin: true } } } });
+  t.check(!fromProject.success, 'a project file cannot turn the copy on (agents are not in what it may change)');
+  void f;
 }

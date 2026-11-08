@@ -191,6 +191,17 @@ too. How it is kept and handed over: [security](security.md#github-cli).
 - `home` says where an agent keeps its login, so logins can be saved and switched (`sandbox account`). An agent with no
   variable for that lists `profileDirs` (folders in the sandbox's user profile, such as `.qwen`), which are kept in the
   data set so its login survives.
+- `home.hostDir` is the agent's own folder on this PC, so `sandbox account save <name> --from-host --agent <agent>`
+  can save this PC's login (Codex, Gemini, Copilot, Continue, opencode, Kilo). When the login sits at another place on
+  this PC than in the sandbox, `home.hostFiles` maps each login file to its path below `hostDir` (opencode and Kilo:
+  `hostDir` `~`, `auth.json` at `.local/share/<agent>/auth.json`). `home.providersFile` names a login file that is a JSON
+  object keyed by provider id (opencode's `auth.json`): the accounts list shows those ids (`anthropic, openai`), never a
+  token.
+- `home.copyPcLogin` (`harnesses.<agent>.home.copyPcLogin`, default `false`; Accounts page: "Copy this PC's login at every
+  launch") puts this PC's current login for that agent into the sandbox at every launch, in place of a saved login. It
+  is the same safe path a saved login takes (the agent's state folder, never `session.json` or the launch folder), and
+  `sandbox launch --account <name>` still wins. Claude has its own, `claudeProfile.copyCredentials`. Only your own
+  settings can turn it on: a project's `.sandbox-config.json` cannot change `harnesses`.
 - `localState` is for agents that keep SQLite databases (Codex). SQLite cannot run in the shared data folder, so the
   agent runs from a copy on the sandbox's own disk, restored at start and saved after the agent exits.
 - Every configured agent is a command in every terminal tab (`claude`, `codex` ...). One that is not installed yet

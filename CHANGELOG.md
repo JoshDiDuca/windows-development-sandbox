@@ -16,6 +16,9 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
   and ARM ones are left out), any file name winget gives it is accepted, and every reason it is not installed is said:
   at launch, in the sandbox's boot summary, and when its sign-in is shared while the app itself is not turned on in
   Apps.
+- **Your PC's crash logs, inside sandboxes of this repo.** A sandbox for the sandbox's own source code gets the PC's
+  newest crash reports and the tails of its memory and sync logs in `C:\AgentLaunch\pc-logs` (read-only, gone with the
+  sandbox, outside the repo so they never reach git). Sandboxes of other projects never see them.
 - **Builds run at full speed.** UnrealBuildTool is no longer held to a few compiles at once (that only slowed full
   rebuilds down); the memory gate smooths only the first seconds of a build.
 

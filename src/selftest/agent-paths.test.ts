@@ -29,7 +29,7 @@ import {
   sessionPath,
   splitPath,
 } from '../guest/setup/path-plan.js';
-import { withReloadEnvironment } from '../host/tools/index.js';
+import { withCopyOnSelect, withReloadEnvironment } from '../host/tools/index.js';
 import { HarnessSchema } from '../core/schema/index.js';
 import type { Suite } from './support/suite.js';
 
@@ -284,6 +284,9 @@ export const agentPathsSuite: Suite = {
       { other: 1, reloadEnvironmentVariables: true },
       'set without touching the rest of compatibility',
     );
+
+    t.equal(withCopyOnSelect({ theme: 'dark' })?.copyOnSelect, true, 'copy on select is added when the key is missing');
+    t.equal(withCopyOnSelect({ copyOnSelect: false }), null, 'a copy-on-select value the user set stays');
 
     if (!isWin) return;
     t.section('shell start-up (pathsync.exe and the start-up files)');

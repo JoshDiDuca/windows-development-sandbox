@@ -17,4 +17,5 @@ export { MouseModes } from './mouse-modes.js';
 export { JOIN_MS, InputJoiner } from './input-joiner.js';
 export { CTRL_C_CONFIRM_MS, CTRL_C_HINT, CtrlCGuard } from './ctrl-c.js';
 export { type VtInput, enableVtInput } from './console-input.js';
+export { watchClipboard } from './clipboard-watch.js';
 export { OutputFilter } from './output-filter.js';

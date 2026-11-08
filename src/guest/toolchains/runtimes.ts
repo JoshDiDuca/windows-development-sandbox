@@ -57,12 +57,12 @@ export async function setupBun(env: ToolEnv): Promise<void> {
     tool('bun', 'bin'),
     { size: '35 MB' },
   );
-  // Bun cannot keep its cache or temp files on a mapped folder (EINVAL); they go to the sandbox's own disk.
-  Object.assign(env.vars, {
-    BUN_INSTALL: tool('bun'),
-    BUN_INSTALL_CACHE_DIR: path.join(localDir, 'bun-cache'),
-    BUN_TMPDIR: path.join(localDir, 'bun-tmp'),
-  });
+  // Bun cannot keep its cache or temp files on a mapped folder (EINVAL); they go to the sandbox's own disk. The temp
+  // folder must exist: programs compiled with Bun (opencode) unpack their DLLs there and fail when it is missing.
+  const cache = path.join(localDir, 'bun-cache');
+  const temp = path.join(localDir, 'bun-tmp');
+  if (!dryRun) [cache, temp].forEach((dir) => mkdirp(dir));
+  Object.assign(env.vars, { BUN_INSTALL: tool('bun'), BUN_INSTALL_CACHE_DIR: cache, BUN_TMPDIR: temp });
 }
 
 export async function setupDeno(env: ToolEnv): Promise<void> {

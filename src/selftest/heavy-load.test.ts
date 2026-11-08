@@ -22,6 +22,7 @@ import {
   maxCompilers,
   chooseTargetDir,
   cargoLinkerVar,
+  ubtBuildConfiguration,
 } from '../shared/memory/index.js';
 import { HeartbeatSchema } from '../shared/channel/index.js';
 import { heartbeatLine, lastEndOf, vanishedCause, stopWarning, type Life } from '../host/life/index.js';
@@ -199,6 +200,14 @@ export const heavyLoadSuite: Suite = {
     t.check(
       buildJobs(32, 32) === 8 && buildJobs(32, 64) === 19 && buildJobs(4, 64) === 4 && buildJobs(16, 4) === 2,
       'the build budget: 3 GB per job after 6 GB, never more than the processors, at least 2',
+    );
+    const ubt = ubtBuildConfiguration(buildJobs(20, 36));
+    t.check(
+      ubt.includes('<MaxParallelActions>10</MaxParallelActions>') &&
+        ubt.includes('xmlns="https://www.unrealengine.com/BuildConfiguration"') &&
+        ubtBuildConfiguration(0).includes('<MaxParallelActions>1</MaxParallelActions>'),
+      "UnrealBuildTool's compiles at once follow the build budget (at least 1)",
+      ubt,
     );
     t.check(
       linkSlotsFor(32) === 8 && linkSlotsFor(16) === 3 && linkSlotsFor(8) === 2 && linkSlotsFor(128) === 8,

@@ -40,6 +40,7 @@ function savedLogins(service: AccountsService, agent: string): AccountRow[] {
       isActive: r.isActive,
       savedAt: r.savedAt,
       ...(r.kind ? { kind: r.kind, keyHint: r.keyHint ?? null } : {}),
+      ...(r.providers ? { providers: r.providers.map((p) => safeText(p)) } : {}),
     }));
   } catch {
     // The menu has always shown such an agent with no logins; the command line says so too.
@@ -89,6 +90,8 @@ export const listAccountsRun = implement(listAccounts, async (ctx, input) => {
     name: a.name,
     kept: a.kept,
     canSavePc: a.canSavePc,
+    // Given only where it can be turned on: an agent whose login we know on this PC (Claude has copyCredentials).
+    ...(a.canSavePc && a.name !== 'claude' ? { copyPcLogin: a.copyPcLogin } : {}),
     accounts: a.kept ? savedLogins(service, a.name) : [],
   }));
   // An agent that keeps no login, or no such agent: the command line says why (the store's own message).

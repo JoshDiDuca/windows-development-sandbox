@@ -440,7 +440,8 @@
           "auth.json",
           ".credentials.json"
         ],
-        "hostDir": "~/.codex"
+        "hostDir": "~/.codex",
+        "copyPcLogin": false
       },
       "localState": {
         "CODEX_SQLITE_HOME": "sqlite"
@@ -470,7 +471,8 @@
           ".gemini/oauth_creds.json",
           ".gemini/google_accounts.json"
         ],
-        "hostDir": "~"
+        "hostDir": "~",
+        "copyPcLogin": false
       },
       "resumeArguments": [
         "--resume"
@@ -489,7 +491,13 @@
         ],
         "loginFiles": [
           "profile/.local/share/opencode/auth.json"
-        ]
+        ],
+        "hostDir": "~",
+        "hostFiles": {
+          "profile/.local/share/opencode/auth.json": ".local/share/opencode/auth.json"
+        },
+        "providersFile": "profile/.local/share/opencode/auth.json",
+        "copyPcLogin": false
       },
       "resumeArguments": [
         "--continue"
@@ -543,7 +551,8 @@
         "loginFiles": [
           "config.json"
         ],
-        "hostDir": "~/.copilot"
+        "hostDir": "~/.copilot",
+        "copyPcLogin": false
       },
       "resumeArguments": [
         "--continue"
@@ -563,7 +572,14 @@
         "loginFiles": [
           "profile/.local/share/kilo/auth.json",
           "profile/.config/kilo/kilo.jsonc"
-        ]
+        ],
+        "hostDir": "~",
+        "hostFiles": {
+          "profile/.local/share/kilo/auth.json": ".local/share/kilo/auth.json",
+          "profile/.config/kilo/kilo.jsonc": ".config/kilo/kilo.jsonc"
+        },
+        "providersFile": "profile/.local/share/kilo/auth.json",
+        "copyPcLogin": false
       },
       "resumeArguments": [
         "--continue"
@@ -612,7 +628,8 @@
         "loginFiles": [
           "auth.json"
         ],
-        "hostDir": "~/.continue"
+        "hostDir": "~/.continue",
+        "copyPcLogin": false
       },
       "resumeArguments": [
         "--resume"

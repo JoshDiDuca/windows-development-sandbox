@@ -28,6 +28,21 @@ export const HarnessHomeSchema = z.strictObject({
     .describe(
       "The agent's own folder on this PC (e.g. ~/.codex): loginFiles are read from it to save this PC's login.",
     ),
+  hostFiles: z
+    .record(SubfolderSchema, SubfolderSchema)
+    .optional()
+    .describe(
+      'For an agent whose login sits at another place on this PC than in the sandbox: loginFile -> its path below hostDir on this PC (e.g. profile/.local/share/opencode/auth.json -> .local/share/opencode/auth.json with hostDir ~). Login files not listed are read at the same relative path.',
+    ),
+  providersFile: SubfolderSchema.optional().describe(
+    'A login file that is a JSON object keyed by provider id (opencode: auth.json): the accounts list shows those ids (never the values).',
+  ),
+  copyPcLogin: z
+    .boolean()
+    .optional()
+    .describe(
+      "Copy this PC's login for the agent into the sandbox at every launch (instead of a saved login). Needs hostDir. Only your own settings can turn it on, never a project file.",
+    ),
 });
 
 export const HarnessSchema = z

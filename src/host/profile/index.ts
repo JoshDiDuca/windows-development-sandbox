@@ -20,5 +20,5 @@ export { capturePersonalization } from './personalize.js';
 export { toRegFile, type RegValue } from './reg-file.js';
 export { AccountStore, accountsDir, type Account, type AccountMeta, type AccountRow } from './accounts.js';
 export { PluginShare, PLUGIN_SETTING_KEYS, MAX_PLUGIN_FILES, MAX_PLUGIN_BYTES } from './plugin-share.js';
-export { AgentAccountStore } from './agent-accounts.js';
+export { AgentAccountStore, type HostFiles } from './agent-accounts.js';
 export { apiKeyProblem, maskApiKey, sandboxClaudeDir, type LoginKind } from './claude-login.js';

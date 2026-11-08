@@ -215,7 +215,12 @@ export const DEFAULTS: Config = {
       npmBin: 'codex',
       arguments: [],
       environment: {},
-      home: { env: { CODEX_HOME: 'codex' }, loginFiles: ['auth.json', '.credentials.json'], hostDir: '~/.codex' },
+      home: {
+        env: { CODEX_HOME: 'codex' },
+        loginFiles: ['auth.json', '.credentials.json'],
+        hostDir: '~/.codex',
+        copyPcLogin: false,
+      },
       localState: { CODEX_SQLITE_HOME: 'sqlite' },
       // Its own command sandbox keeps local users' passwords sealed with DPAPI: unreadable in the next sandbox
       // ("CryptUnprotectData" on every command), so it sets that sandbox up again at each boot. tmp\arg0 and
@@ -239,6 +244,7 @@ export const DEFAULTS: Config = {
         env: { GEMINI_CLI_HOME: 'gemini' },
         loginFiles: ['.gemini/oauth_creds.json', '.gemini/google_accounts.json'],
         hostDir: '~',
+        copyPcLogin: false,
       },
       resumeArguments: ['--resume'],
     },
@@ -253,6 +259,11 @@ export const DEFAULTS: Config = {
         env: {},
         profileDirs: ['.local/share/opencode', '.config/opencode'],
         loginFiles: ['profile/.local/share/opencode/auth.json'],
+        // On the PC opencode keeps it at the same XDG place (`opencode debug paths`: ~/.local/share/opencode).
+        hostDir: '~',
+        hostFiles: { 'profile/.local/share/opencode/auth.json': '.local/share/opencode/auth.json' },
+        providersFile: 'profile/.local/share/opencode/auth.json',
+        copyPcLogin: false,
       },
       resumeArguments: ['--continue'],
     },
@@ -281,7 +292,12 @@ export const DEFAULTS: Config = {
       npmBin: 'copilot',
       arguments: [],
       environment: {},
-      home: { env: { COPILOT_HOME: 'copilot' }, loginFiles: ['config.json'], hostDir: '~/.copilot' },
+      home: {
+        env: { COPILOT_HOME: 'copilot' },
+        loginFiles: ['config.json'],
+        hostDir: '~/.copilot',
+        copyPcLogin: false,
+      },
       resumeArguments: ['--continue'],
     },
     kilo: {
@@ -295,6 +311,13 @@ export const DEFAULTS: Config = {
         env: {},
         profileDirs: ['.config/kilo', '.local/share/kilo'],
         loginFiles: ['profile/.local/share/kilo/auth.json', 'profile/.config/kilo/kilo.jsonc'],
+        hostDir: '~',
+        hostFiles: {
+          'profile/.local/share/kilo/auth.json': '.local/share/kilo/auth.json',
+          'profile/.config/kilo/kilo.jsonc': '.config/kilo/kilo.jsonc',
+        },
+        providersFile: 'profile/.local/share/kilo/auth.json',
+        copyPcLogin: false,
       },
       resumeArguments: ['--continue'],
     },
@@ -324,7 +347,12 @@ export const DEFAULTS: Config = {
       npmBin: 'cn',
       arguments: [],
       environment: {},
-      home: { env: { CONTINUE_GLOBAL_DIR: 'continue' }, loginFiles: ['auth.json'], hostDir: '~/.continue' },
+      home: {
+        env: { CONTINUE_GLOBAL_DIR: 'continue' },
+        loginFiles: ['auth.json'],
+        hostDir: '~/.continue',
+        copyPcLogin: false,
+      },
       resumeArguments: ['--resume'],
     },
     kimi: {

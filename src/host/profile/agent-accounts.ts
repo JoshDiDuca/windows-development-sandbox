@@ -22,6 +22,12 @@ const IndexSchema = z.object({
   active: z.record(z.string().max(200), z.string().regex(NAME)).optional(),
 });
 type Index = z.output<typeof IndexSchema>;
+/** Login file -> its path below the PC's folder, when that differs from the sandbox's layout. */
+export type HostFiles = Readonly<Record<string, string>>;
+/** auth.json: an object keyed by provider id; the values are never looked at. */
+const ProvidersSchema = z.record(z.string().max(100), z.unknown());
+const PROVIDER_ID = /^[A-Za-z0-9._-]{1,40}$/;
+const MAX_PROVIDERS = 20;
 
 function validName(name: string): boolean {
   return NAME.test(name) && !['index', 'meta'].includes(name.toLowerCase()) && isSafeFileName(name);
@@ -110,34 +116,45 @@ export class AgentAccountStore {
       }));
   }
 
-  /** Copies the login files found in `from` into the account (an error when there are none: nobody signed in). */
-  private store(name: string, from: string): void {
-    const target = this.folder(name);
-    const found = this.loginFiles.filter((f) => {
-      const file = path.join(from, f);
+  /** Where login file `f` is below `from`: the same relative path, or the one `hostFiles` gives (this PC's layout). */
+  private source(from: string, f: string, hostFiles?: HostFiles): string {
+    const rel = hostFiles && Object.hasOwn(hostFiles, f) ? hostFiles[f] : f;
+    return path.join(from, ...rel.split(/[\\/]/));
+  }
+
+  /** The login files that exist (plain files, not links, not huge) below `from`. */
+  private found(from: string, hostFiles?: HostFiles): string[] {
+    return this.loginFiles.filter((f) => {
+      const file = this.source(from, f, hostFiles);
       return (
         fs.existsSync(file) && !isLink(file) && fs.statSync(file).isFile() && fs.statSync(file).size <= MAX_LOGIN_BYTES
       );
     });
+  }
+
+  /** Copies the login files found in `from` into the account (an error when there are none: nobody signed in). */
+  private store(name: string, from: string, hostFiles?: HostFiles): void {
+    const target = this.folder(name);
+    const found = this.found(from, hostFiles);
     if (!found.length)
       fail(
         'No saved login found for ' + this.agent + ' in ' + from + '.',
         'Sign in to ' + this.agent + ' first, then save it.',
       );
-    assertNoLinks(from, path.dirname(path.join(from, found[0])));
+    for (const f of found) assertNoLinks(from, path.dirname(this.source(from, f, hostFiles)));
     fs.rmSync(target, { recursive: true, force: true });
     for (const f of found) {
       const dest = path.join(target, ...f.split(/[\\/]/));
       ensureDir(path.dirname(dest));
-      fs.writeFileSync(dest + '.sealed', this.secrets.sealBytes(fs.readFileSync(path.join(from, f))));
+      fs.writeFileSync(dest + '.sealed', this.secrets.sealBytes(fs.readFileSync(this.source(from, f, hostFiles))));
     }
     new JsonFile(MetaSchema, path.join(target, 'meta.json')).write({ name, savedAt: new Date().toISOString() });
   }
 
   /** Saves the login found in `from` (the sandbox's state folder of the agent, or this PC's folder) under `name`. */
-  save(dataPath: string, name: string, from: string, fromSandbox: boolean): void {
+  save(dataPath: string, name: string, from: string, fromSandbox: boolean, hostFiles?: HostFiles): void {
     assertName(name);
-    this.store(name, from);
+    this.store(name, from, hostFiles);
     if (fromSandbox) this.setActive(dataPath, name);
     if (!this.defaultName()) this.setDefault(name);
   }
@@ -175,6 +192,53 @@ export class AgentAccountStore {
       else fs.rmSync(dest, { force: true });
     }
     this.setActive(dataPath, name);
+  }
+
+  /**
+   * Puts this PC's current login files (found below `from`, at the places `hostFiles` gives) into `to`, the agent's
+   * state folder in the sandbox's data, as they are. No account is saved, so the sandbox then uses no saved login.
+   * Returns how many files were copied (0: nobody is signed in on this PC).
+   */
+  copyFromPc(dataPath: string, from: string, to: string, hostFiles?: HostFiles): number {
+    const found = this.found(from, hostFiles);
+    for (const f of found) assertNoLinks(from, path.dirname(this.source(from, f, hostFiles)));
+    for (const f of found) {
+      const dest = path.join(to, ...f.split(/[\\/]/));
+      ensureDir(path.dirname(dest));
+      // The sandbox wrote this folder: never write through a link it planted.
+      assertNoLinks(to, path.dirname(dest));
+      if (isLink(dest)) fs.rmSync(dest);
+      fs.copyFileSync(this.source(from, f, hostFiles), dest);
+    }
+    if (found.length && this.activeFor(dataPath))
+      this.updateIndex((i) => ({
+        ...i,
+        active: Object.fromEntries(Object.entries(i.active ?? {}).filter(([k]) => k !== path.basename(dataPath))),
+      }));
+    return found.length;
+  }
+
+  /**
+   * The provider ids a saved login holds, read from its `providersFile`: only the keys of that JSON object, never a
+   * value. Unreadable, too big, not an object or no such file: none.
+   */
+  providers(name: string, providersFile: string): string[] {
+    if (!this.meta(name)) return [];
+    const sealed = path.join(this.folder(name), ...providersFile.split(/[\\/]/)) + '.sealed';
+    try {
+      if (!fs.existsSync(sealed) || isLink(sealed) || fs.statSync(sealed).size > MAX_LOGIN_BYTES * 2) return [];
+      const parsed = ProvidersSchema.safeParse(
+        JSON.parse(this.secrets.openBytes(fs.readFileSync(sealed, 'utf8')).toString('utf8')),
+      );
+      if (!parsed.success || Array.isArray(parsed.data)) return [];
+      return Object.keys(parsed.data)
+        .filter((k) => PROVIDER_ID.test(k))
+        .sort()
+        .slice(0, MAX_PROVIDERS);
+    } catch {
+      // Cannot be opened or is not JSON: the list shows no providers.
+      return [];
+    }
   }
 
   setDefault(name: string | null): void {

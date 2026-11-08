@@ -36,6 +36,10 @@ export const AccountRowSchema = z.object({
     .optional()
     .describe('Claude: a subscription login, a Claude Console login (its API key), or an API key you gave'),
   keyHint: z.string().nullable().optional().describe('The most of an API key ever shown: sk-ant-...abcd'),
+  providers: z
+    .array(z.string())
+    .optional()
+    .describe('opencode and kilo: the provider ids the login holds (anthropic, openai ...); never a token'),
 });
 export type AccountRow = z.output<typeof AccountRowSchema>;
 
@@ -51,6 +55,10 @@ export const AgentAccountsSchema = z.object({
   name: z.string().describe('The agent'),
   kept: z.boolean().describe('Its login can be saved and switched'),
   canSavePc: z.boolean().describe("This PC's login can be saved"),
+  copyPcLogin: z
+    .boolean()
+    .optional()
+    .describe("This PC's login is copied into the sandbox at every launch (given when the agent can do it)"),
   accounts: z.array(AccountRowSchema).describe('Its saved logins (empty when not kept)'),
 });
 export type AgentAccounts = z.output<typeof AgentAccountsSchema>;
@@ -66,6 +74,11 @@ const MessageSchema = z.object({ message: z.string().describe('What happened') }
 
 /** The name rule of a saved login: what the store accepts. */
 export const NAME_RULE = 'Use letters, digits, - and _ (up to 40).';
+
+/** "anthropic, openai"; "-" when the login names none. */
+export function providersText(r: Pick<AccountRow, 'providers'>): string {
+  return r.providers?.length ? r.providers.join(', ') : '-';
+}
 
 /** The "Services" block under `sandbox account list`: one line per service that is shared or saved. */
 function servicesBlock(o: AccountsList): string[] {
@@ -97,12 +110,15 @@ function agentText(o: AccountsList): string {
           o.agent;
   // The KIND column only for an agent whose logins have kinds (Claude).
   const kinds = rows.some((a) => a.kind);
+  // The PROVIDERS column only for an agent that says which providers a login holds (opencode, kilo).
+  const providers = rows.some((a) => a.providers);
   const table = [
-    ['', 'NAME', ...(kinds ? ['KIND'] : []), 'EMAIL', 'SAVED'],
+    ['', 'NAME', ...(kinds ? ['KIND'] : []), ...(providers ? ['PROVIDERS'] : []), 'EMAIL', 'SAVED'],
     ...rows.map((a) => [
       (a.isActive ? '*' : ' ') + (a.isDefault ? 'D' : ' '),
       a.name,
       ...(kinds ? [kindText(a) ?? '-'] : []),
+      ...(providers ? [providersText(a)] : []),
       a.email ?? '-',
       a.savedAt.slice(0, 16).replace('T', ' '),
     ]),
@@ -255,6 +271,30 @@ function saveItems(a: AgentAccounts): Item[] {
           },
         ]
       : []),
+    ...(a.copyPcLogin !== undefined && a.canSavePc && a.name !== 'claude'
+      ? [
+          {
+            id: '@copy-pc',
+            label: (a.copyPcLogin ? '[x]' : '[ ]') + " Copy this PC's login at every launch",
+            group: 'Save a login',
+            description: a.copyPcLogin
+              ? "Each launch puts this PC's " +
+                a.name +
+                ' login into the sandbox, instead of a saved login. Choose to turn it off.'
+              : "Off: the sandbox uses a saved login. Choose to copy this PC's " +
+                a.name +
+                ' login in at every launch instead.',
+            primary: action(
+              setSetting,
+              { scope: 'user', key: 'harnesses.' + a.name + '.home.copyPcLogin', value: !a.copyPcLogin },
+              {
+                verb: a.copyPcLogin ? 'stop copying' : 'copy at launch',
+                label: "Copy this PC's login at every launch",
+              },
+            ),
+          },
+        ]
+      : []),
     ...(a.name === 'claude'
       ? [
           {
@@ -277,7 +317,12 @@ function saveItems(a: AgentAccounts): Item[] {
 /** One saved login: its state in the hint and badges, Enter or a click uses it, d/r/x change it. */
 function loginItem(a: AgentAccounts, r: AgentAccounts['accounts'][number]): Item {
   const kind = kindText(r);
-  const hint = [r.kind ? KIND_LABELS[r.kind] : '', r.isActive ? 'in the sandbox' : '', r.isDefault ? 'default' : '']
+  const hint = [
+    r.kind ? KIND_LABELS[r.kind] : '',
+    r.providers?.length ? r.providers.join(', ') : '',
+    r.isActive ? 'in the sandbox' : '',
+    r.isDefault ? 'default' : '',
+  ]
     .filter(Boolean)
     .join(' · ');
   return {
@@ -295,6 +340,7 @@ function loginItem(a: AgentAccounts, r: AgentAccounts['accounts'][number]): Item
     details: [
       'Agent  ' + a.name,
       ...(kind ? ['Kind   ' + kind] : []),
+      ...(r.providers ? ['Providers  ' + providersText(r)] : []),
       'Email  ' + (r.email ?? '-'),
       'Saved  ' + r.savedAt.slice(0, 16).replace('T', ' '),
     ],

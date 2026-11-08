@@ -219,6 +219,7 @@ same on its Activity page.
 | `sandbox account default [name]`                                     | the login new sandboxes start with                                                                                                  |
 | `sandbox account rename [name] [--to <new>]` / `remove [name] [-y]`  | rename or delete a saved login                                                                                                      |
 | `sandbox account ... --agent <name>`                                 | the same for another agent (default `claude`); works for agents with a `home` in their settings                                     |
+| `sandbox account list --agent opencode`                              | opencode and Kilo also show the providers each login holds (`anthropic, openai`), never a token; `save --from-host` takes this PC's |
 | `sandbox account status [service]`                                   | service sign-ins for sandboxes (Epic, Steam, Unity ...): shared or not, saved or not ([accounts](accounts.md))                     |
 | `sandbox account import <service> [--from <path>] [-y]`              | save one from this PC's program or a file (asks first)                                                                              |
 | `sandbox account login <service>` / `logout <service> [-y]`          | type a key or token to keep / forget one everywhere                                                                                 |

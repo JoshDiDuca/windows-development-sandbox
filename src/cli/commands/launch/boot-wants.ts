@@ -4,7 +4,7 @@ import _ from 'lodash';
 import { planBootProjects } from '../../../host/launch/index.js';
 import { KnownProjects } from '../../../host/projects/index.js';
 import { isWithin } from '../../../shared/paths/index.js';
-import { BOOT_SETTINGS, LOCAL_CONFIG_NAME, type BootWant } from '../../../core/local-config/index.js';
+import { BOOT_SETTINGS, LOCAL_CONFIG_NAME, strictness, type BootWant } from '../../../core/local-config/index.js';
 import { resolveRun } from '../../../core/run/index.js';
 import type { GenerateOptions, ResolvedRun } from '../../../core/types.js';
 import { dirExists, errMsg, fileExists } from '../../../core/util/index.js';
@@ -51,6 +51,8 @@ export async function bootWantsFor(
         notes.push('What ' + path.basename(folder) + ' asks for at boot is not included: ' + errMsg(e).split('\n')[0]);
     }
   }
-  const keepOff = BOOT_SETTINGS.filter((s) => _.get(ctx.loaded.config, s) === true && _.get(run.config, s) === false);
+  const keepOff = BOOT_SETTINGS.filter(
+    (s) => strictness(s, _.get(ctx.loaded.config, s)) < strictness(s, _.get(run.config, s)),
+  );
   return { wants: { projects, keepOff }, notes };
 }

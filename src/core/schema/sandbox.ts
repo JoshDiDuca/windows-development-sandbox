@@ -2,6 +2,18 @@
 import { z } from 'zod';
 import { GitAccessSchema, GuestPathSchema, toggle } from './common.js';
 
+export const CLIPBOARD_MODES = ['text', 'shared', 'off'] as const;
+export const CLIPBOARD_DIRECTIONS = ['both', 'toPc', 'toSandbox'] as const;
+/** true / false from versions before 1.29 mean "text" / "off"; anything else is checked as it is. */
+export function clipboardFromLegacy(value: unknown): unknown {
+  return value === true ? 'text' : value === false ? 'off' : value;
+}
+
+const CLIPBOARD_TEXT =
+  'Copy and paste between this PC and the sandbox. "text" (default) = text only, through this tool: a copy in the sandbox reaches this PC only while the sandbox window is in front, and the text on this PC\'s clipboard goes in when you switch to the sandbox window; Protected Client stays on. "shared" = Windows Sandbox\'s own clipboard (text, images and files, all the time); Protected Client blocks it, so that sandbox starts with Protected Client off. "off" = no clipboard at all. An agent\'s copy in sandbox attach reaches this PC with "text" and "shared". true / false from older versions mean "text" / "off". A project file can only narrow it (shared -> text -> off).';
+const DIRECTION_TEXT =
+  'Which way sandbox.clipboard "text" copies: "both" (default), "toPc" (from the sandbox to this PC only) or "toSandbox" (from this PC into the sandbox only). Only for "text": the shared clipboard always works both ways, so another value here makes "shared" work as "text". A project file can only narrow it.';
+
 export const GuestWorkspaceSchema = z
   .union([z.literal('auto'), z.literal('mirror'), GuestPathSchema])
   .describe(
@@ -76,15 +88,16 @@ export const SandboxSchema = z.strictObject({
       "Virtual GPU. Off by default: Microsoft notes it widens the sandbox attack surface. The sandbox then uses this PC's graphics card, and with some graphics drivers heavy use can freeze the whole PC: turn it on only when a program in the sandbox needs the GPU (the mesa toolchain gives software OpenGL without it). Browsers in the sandbox never use it (they draw in software).",
     ),
   networking: z.boolean().describe('Internet access. false is the only hard network isolation Windows Sandbox offers.'),
-  clipboard: z
-    .boolean()
-    .describe(
-      "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in an attached terminal) reach this PC's clipboard.",
-    ),
+  clipboard: z.preprocess(clipboardFromLegacy, z.enum(CLIPBOARD_MODES).describe(CLIPBOARD_TEXT)),
+  clipboardDirection: z.enum(CLIPBOARD_DIRECTIONS).describe(DIRECTION_TEXT),
   audioInput: z.boolean().describe('Microphone access.'),
   videoInput: z.boolean().describe('Camera access.'),
   printerRedirection: z.boolean().describe('Printers from this PC.'),
-  protectedClient: z.boolean().describe('Run the sandbox window in Protected Client mode (recommended).'),
+  protectedClient: z
+    .boolean()
+    .describe(
+      'Run the sandbox window in Protected Client mode (recommended). It blocks Windows Sandbox\'s own clipboard, so sandbox.clipboard "shared" starts that sandbox with Protected Client off (a project file that sets this to true keeps it on and gets "text").',
+    ),
   headless: z
     .boolean()
     .describe(

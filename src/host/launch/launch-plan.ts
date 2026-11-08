@@ -22,7 +22,7 @@ export function buildLaunchPlan(input: LaunchPlanInput): LaunchPlan {
     networking: s.networking,
     devices: {
       gpu: s.vGpu,
-      clipboard: s.clipboard,
+      clipboard: s.clipboard !== 'off',
       audioInput: s.audioInput,
       videoInput: s.videoInput,
       printers: s.printerRedirection,

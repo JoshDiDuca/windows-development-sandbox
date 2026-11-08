@@ -3,7 +3,8 @@ import path from 'node:path';
 import _ from 'lodash';
 import type { Config, Overrides } from '../types.js';
 import { mergeConfig } from '../config/index.js';
-import { describeIssues, LocalOverridesSchema } from '../schema/index.js';
+import { clipboardFromLegacy, describeIssues, LocalOverridesSchema } from '../schema/index.js';
+import { asDirection, compareDirection, narrowDirection } from '../clipboard.js';
 import { expandPath, fail, fileExists, isInsideOrEqual } from '../util/index.js';
 import { SERVICE_KINDS } from '../../shared/accounts/kinds.js';
 import { LICENSED_TOOLCHAINS } from '../detect/toolchains.js';
@@ -62,7 +63,6 @@ export const ON_IS_SAFER = [
 ];
 export const OFF_IS_SAFER = [
   'sandbox.networking',
-  'sandbox.clipboard',
   'sandbox.audioInput',
   'sandbox.videoInput',
   'sandbox.printerRedirection',
@@ -79,13 +79,36 @@ export const OFF_IS_SAFER = [
   'provisioning.copyFromHost',
 ];
 export const GIT_STRICTNESS: Record<string, number> = { full: 0, readonly: 1, none: 2 };
-export const NEVER_LOOSER = [...ON_IS_SAFER, ...OFF_IS_SAFER, 'provisioning.git.access'];
+export const CLIPBOARD_STRICTNESS: Record<string, number> = { shared: 0, text: 1, off: 2 };
+/** Protections with more than two values: the higher, the stricter. */
+export const RANKED: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  'provisioning.git.access': GIT_STRICTNESS,
+  'sandbox.clipboard': CLIPBOARD_STRICTNESS,
+};
+export const DIRECTION_SETTING = 'sandbox.clipboardDirection';
+export const NEVER_LOOSER = [...ON_IS_SAFER, ...OFF_IS_SAFER, ...Object.keys(RANKED), DIRECTION_SETTING];
+
+/** How strict a value of a protection is (higher = stricter); legacy clipboard booleans count as "text" / "off". */
+export function strictness(setting: string, value: unknown): number {
+  const ranked = RANKED[setting];
+  if (ranked) return ranked[String(setting === 'sandbox.clipboard' ? clipboardFromLegacy(value) : value)] ?? 0;
+  if (ON_IS_SAFER.includes(setting)) return value ? 1 : 0;
+  if (OFF_IS_SAFER.includes(setting)) return value ? 0 : 1;
+  return 0;
+}
 
 const keepStrictest = (yours: Config, merged: Config): void => {
   ON_IS_SAFER.forEach((p) => _.set(merged, p, Boolean(_.get(yours, p)) || Boolean(_.get(merged, p))));
   OFF_IS_SAFER.forEach((p) => _.set(merged, p, Boolean(_.get(yours, p)) && Boolean(_.get(merged, p))));
-  if (GIT_STRICTNESS[yours.provisioning.git.access] > GIT_STRICTNESS[merged.provisioning.git.access])
-    merged.provisioning.git.access = yours.provisioning.git.access;
+  Object.keys(RANKED).forEach((p) => {
+    if (strictness(p, _.get(yours, p)) > strictness(p, _.get(merged, p))) _.set(merged, p, _.get(yours, p));
+  });
+  const dir = narrowDirection(yours.sandbox.clipboardDirection, merged.sandbox.clipboardDirection);
+  if (dir) merged.sandbox.clipboardDirection = dir;
+  else {
+    merged.sandbox.clipboard = 'off';
+    merged.sandbox.clipboardDirection = yours.sandbox.clipboardDirection;
+  }
 };
 
 /** What a project file asks for that would loosen one of your protections (so it is not used). */
@@ -93,9 +116,10 @@ export function loosenedRequests(config: Config, ov: Overrides): { key: string; 
   return [
     ...ON_IS_SAFER.filter((p) => _.has(ov, p) && !_.get(ov, p) && _.get(config, p)),
     ...OFF_IS_SAFER.filter((p) => _.has(ov, p) && _.get(ov, p) && !_.get(config, p)),
-    ...(_.has(ov, 'provisioning.git.access') &&
-    GIT_STRICTNESS[_.get(ov, 'provisioning.git.access') as string] < GIT_STRICTNESS[config.provisioning.git.access]
-      ? ['provisioning.git.access']
+    ...Object.keys(RANKED).filter((p) => _.has(ov, p) && strictness(p, _.get(ov, p)) < strictness(p, _.get(config, p))),
+    ...(_.has(ov, DIRECTION_SETTING) &&
+    compareDirection(config.sandbox.clipboardDirection, asDirection(_.get(ov, DIRECTION_SETTING))) < 0
+      ? [DIRECTION_SETTING]
       : []),
   ].map((key) => ({ key, wanted: _.get(ov, key), yours: _.get(config, key) }));
 }
@@ -105,6 +129,8 @@ export function applyOverrides(config: Config, ov: Overrides): Config {
   const { harness, mappings, scripts: _scripts, $schema: _schema, ...rest } = ov;
   const next = mergeConfig(config, rest);
   keepStrictest(config, next);
+  // A project asking for Protected Client keeps it: the shared clipboard (which needs it off) becomes "text".
+  if (rest.sandbox?.protectedClient === true && next.sandbox.clipboard === 'shared') next.sandbox.clipboard = 'text';
   if (harness) next.defaultHarness = harness;
   // A project adds catalogue apps to yours; it never removes the ones you chose.
   if (rest.apps?.install) next.apps.install = _.union(config.apps.install, rest.apps.install);

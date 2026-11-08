@@ -30,7 +30,7 @@ function legacyWsb(config: Config, memoryMb: number, mappings: readonly Resolved
   const devices = [
     ['vGPU', s.vGpu],
     ['Networking', s.networking],
-    ['ClipboardRedirection', s.clipboard],
+    ['ClipboardRedirection', s.clipboard !== 'off'],
     ['AudioInput', s.audioInput],
     ['VideoInput', s.videoInput],
     ['PrinterRedirection', s.printerRedirection],
@@ -129,7 +129,7 @@ export const engineSuite: Suite = {
       'Windows Sandbox: desktop and clipboard by default, no live folders without the wsb CLI, no disks, one at a time',
     );
     t.equal(
-      [caps({ vGpu: true, audioInput: true, videoInput: true, printerRedirection: true, clipboard: false }, true)].map(
+      [caps({ vGpu: true, audioInput: true, videoInput: true, printerRedirection: true, clipboard: 'off' }, true)].map(
         (c) => [c.gpu, c.audio, c.video, c.printers, c.clipboard, c.liveFolderAdd],
       ),
       [[true, true, true, true, false, true]],

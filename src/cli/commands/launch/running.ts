@@ -5,6 +5,7 @@ import { insideSandbox, hideSandboxWindow, showSandboxWindow } from '../../../ho
 import { NeedsRestart } from '../../../host/projects/index.js';
 import { RunDir } from '../../../shared/channel/index.js';
 import type { SandboxStatus, SessionStatus } from '../../../core/types.js';
+import { resolveClipboard } from '../../../core/clipboard.js';
 import { errMsg, fail, sleep } from '../../../core/util/index.js';
 import { c, follow, working, table, type Progressing } from '../../output/index.js';
 import { AccountsService } from '../../services/index.js';
@@ -45,7 +46,7 @@ export function attachHere(ctx: Context, session: Parameters<typeof attachTermin
     void hideSandboxWindow(ctx.storageRoot, 120).catch(() => false);
   // A copy in the agent reaches this PC's clipboard only when sandbox.clipboard already shares it with the sandbox.
   return attachTerminal(session, {
-    clipboardWrites: ctx.loaded.config.sandbox.clipboard,
+    clipboardWrites: resolveClipboard(ctx.loaded.config.sandbox).toPc,
     confirmCtrlC: ctx.loaded.config.attach.confirmCtrlC,
   });
 }

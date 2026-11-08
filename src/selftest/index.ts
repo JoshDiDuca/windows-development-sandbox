@@ -39,6 +39,7 @@ import { agentPathsSuite } from './agent-paths.test.js';
 import { agentSettingsSuite } from './agent-settings.test.js';
 import { cmdlineSuite } from './cmdline.test.js';
 import { configSuite } from './config.test.js';
+import { clipboardSuite } from './clipboard.test.js';
 import { migrateSuite } from './migrate.test.js';
 import { storageSuite } from './storage.test.js';
 import { updateSuite } from './update.test.js';
@@ -97,6 +98,7 @@ import { resumeSuite } from './resume.test.js';
 export const SUITES: Suite[] = [
   // settings and project files
   configSuite,
+  clipboardSuite,
   migrateSuite,
   storageSuite,
   updateSuite,

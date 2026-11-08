@@ -29,7 +29,7 @@ export function wsbText(plan: LaunchPlan): string {
     element('MemoryInMB', String(plan.memoryMb)) +
       element('vGPU', toggle(d.gpu)) +
       element('Networking', toggle(plan.networking)) +
-      element('ClipboardRedirection', toggle(d.clipboard)) +
+      element('ClipboardRedirection', toggle(d.sharedClipboard)) +
       element('AudioInput', toggle(d.audioInput)) +
       element('VideoInput', toggle(d.videoInput)) +
       element('PrinterRedirection', toggle(d.printers)) +

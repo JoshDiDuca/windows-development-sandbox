@@ -32,6 +32,8 @@ Settings > General.
 | `databases.<db>.enabled`, `.port`              | `true`, `false` or `"auto"`, and the port inside                                                                                                                        |
 | `apps.install`, `apps.custom`                  | apps from the catalogue, and programs of your own ([apps](toolchains.md#apps-and-tools))                                                                                |
 | `sandbox.memoryMb`, `.headless`, `.networking` | RAM (`"auto"`, see [CPU, RAM and GPU](#cpu-ram-and-gpu)), no window, internet on or off                                                                                 |
+| `sandbox.clipboard`                            | `"text"` (default), `"shared"` or `"off"` ([Copy and paste](#copy-and-paste)). `true` / `false` from older versions mean `"text"` / `"off"` |
+| `sandbox.clipboardDirection`                   | `"both"` (default), `"toPc"` or `"toSandbox"`; only for `"text"`                                                                          |
 | `sandbox.vGpu`                                 | give the sandbox your GPU (default off). With some graphics drivers, heavy use can freeze the whole PC: leave it off unless a program needs the GPU                     |
 | `sandbox.keepAwake`                            | keep this PC from sleeping while a sandbox runs (default on). The screen may still turn off, and closing a laptop lid still sleeps it                                   |
 | `attach.auto`                                  | starting an agent attaches this terminal (like `-t`)                                                                                                                    |
@@ -302,7 +304,8 @@ A repo can ship this file, so it is **untrusted**:
 - **You approve it** the first time and again whenever it changes. The approval prompt flags read/write folders and is
   shown without colours or escape codes, so the file cannot hide lines.
 - **It can only make protections stricter:** read-only, git `readonly`/`none`, the LAN block, protected client, and
-  turning off network, clipboard, microphone, camera, printers, vGPU, login copying, copying tools from this PC
+  narrowing the clipboard (`"shared"` -> `"text"` -> `"off"`, `sandbox.clipboardDirection`) and turning off network,
+  microphone, camera, printers, vGPU, login copying, copying tools from this PC
   (`provisioning.copyFromHost`) and history or claude-mem sync, and turning on `downloads.requireChecksum`. A looser
   value is used only if you allow it: an interactive launch asks once ("Allow these for this project?"), and the answer
   is kept on this PC for that exact file. `--trust-config` never allows one. Or set it in your own settings.
@@ -465,10 +468,27 @@ Sandbox. **Starting it is not enabled yet in this alpha**: a launch passes the c
   Administrators or Hyper-V Administrators, and a Server Core (ltsc2022) image already on this PC (for example pulled by
   Docker Desktop, or a folder named in `AGENT_SANDBOX_HCS_IMAGE`).
 - `sandbox engine check hcs` lists what is missing, with the exact commands. It changes nothing.
-- It has no desktop, GPU, clipboard, audio, camera or network yet.
+- It has no desktop, GPU, shared clipboard (text copies through attached terminals), audio, camera or network yet.
 
 How it compares with Windows Sandbox: [security](security.md#the-hcs-engine-alpha-compared-with-windows-sandbox).
 Design: [design/engines.md](design/engines.md).
+
+## Copy and paste
+
+`sandbox.clipboard` sets how text moves between your PC and the sandbox. `"off"` means no clipboard at all.
+
+- `"text"` (default): text only, through this tool, and Protected Client stays on. A copy in the sandbox reaches your PC
+  only while the sandbox window is in front (or within 2 seconds after you leave it). The text on your PC's clipboard
+  goes into the sandbox when you switch to its window, also when it first opens. Copies are text only, at most 1 MB.
+- `"shared"`: Windows Sandbox's own clipboard, for text, images and files, all the time. Protected Client blocks it, so
+  that sandbox starts with Protected Client off, and the launch says so in one line.
+
+`sandbox.clipboardDirection` (only for `"text"`) can limit copying to `"toPc"` or `"toSandbox"`. A project file can only
+narrow these: `"shared"` -> `"text"` -> `"off"`, and `both` -> one way -> `"off"`.
+
+- HCS has no shared clipboard: text copies through attached terminals.
+- A headless sandbox has no window to switch to: use `sandbox attach`. The agent's copy reaches your PC there.
+- Refused copies are counted, never logged with their text, in the watcher log `host-sync-<data>.log`.
 
 ## CPU, RAM and GPU
 

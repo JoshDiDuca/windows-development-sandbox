@@ -19,6 +19,11 @@ namespace AgentSandbox
         private const int PollMs = 200;
         // Windows re-shows the window while it connects: keep hiding for this long after the first one.
         private const int SettleSeconds = 15;
+        private const uint GaRootOwner = 3;
+        private const int FrontCacheSeconds = 5;
+        private static uint cachedPid;
+        private static bool cachedAnswer;
+        private static DateTime cachedAt = DateTime.MinValue;
 
         public delegate bool EnumProc(IntPtr hWnd, IntPtr lParam);
 
@@ -47,6 +52,12 @@ namespace AgentSandbox
 
             [DllImport("user32.dll")]
             public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetForegroundWindow();
+
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
         }
 
         /// <summary>The top-level Windows Sandbox windows (title contains "Sandbox"), visible ones only if asked.</summary>
@@ -84,6 +95,52 @@ namespace AgentSandbox
                 return true;
             }, IntPtr.Zero);
             return found;
+        }
+
+        /// <summary>True when the window in front belongs to a Windows Sandbox process (answer cached 5 s per process).</summary>
+        public static bool SandboxInFront()
+        {
+            IntPtr front = NativeMethods.GetForegroundWindow();
+            if (front == IntPtr.Zero)
+            {
+                return false;
+            }
+            IntPtr root = NativeMethods.GetAncestor(front, GaRootOwner);
+            if (root != IntPtr.Zero)
+            {
+                front = root;
+            }
+            uint pid;
+            NativeMethods.GetWindowThreadProcessId(front, out pid);
+            if (pid == 0)
+            {
+                return false;
+            }
+            DateTime now = DateTime.UtcNow;
+            if (pid == cachedPid && (now - cachedAt).TotalSeconds < FrontCacheSeconds)
+            {
+                return cachedAnswer;
+            }
+            bool answer = false;
+            try
+            {
+                using (Process p = Process.GetProcessById((int)pid))
+                {
+                    answer = p.ProcessName.StartsWith("WindowsSandbox", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch (ArgumentException)
+            {
+                answer = false;
+            }
+            catch (InvalidOperationException)
+            {
+                answer = false;
+            }
+            cachedPid = pid;
+            cachedAnswer = answer;
+            cachedAt = now;
+            return answer;
         }
 
         /// <summary>Waits up to waitSeconds for the sandbox window and hides it; returns the hidden handles.</summary>

@@ -1,7 +1,18 @@
 import { connect, runTerminalClient } from '../../shared/pty/index.js';
 import type { SessionStatus } from '../../shared/channel/schema.js';
+import { ensureCompiled } from '../runtime/csc.js';
 import { run } from '../runtime/paths.js';
 import { session as sandboxSession } from '../runtime/session.js';
+
+/** The compiled ClipboardBridge.exe (the daemon built it at boot) for the Ctrl+C guard's watch; none: the script. */
+function clipboardWatchExe(): string | undefined {
+  try {
+    return ensureCompiled('clipboardbridge');
+  } catch {
+    // No compiler: the PowerShell watch does the same, only slower to start.
+    return undefined;
+  }
+}
 
 /**
  * A session that is still being set up (its project provisioning, its agent installing): show the progress until it
@@ -33,11 +44,12 @@ export async function viewSession(id: string): Promise<number> {
     return 1;
   }
   const socket = await connect({ ...session.attach, addresses: ['127.0.0.1'] });
-  // The sandbox's own terminal: a copy in the agent reaches the sandbox's clipboard (and yours only through
-  // sandbox.clipboard, which already shares it).
+  // The sandbox's own terminal: a copy in the agent reaches the sandbox's clipboard
+  // (and yours only through sandbox.clipboard "text" or "shared").
   const result = await runTerminalClient(socket, session.attach.token, {
     clipboardWrites: true,
     confirmCtrlC: sandboxSession.attach.confirmCtrlC !== false,
+    clipboardWatchExe: clipboardWatchExe(),
   });
   if (result.reason === 'exit') console.log(session.harness + ' exited with code ' + result.exitCode + '.');
   else if (result.reason === 'error') console.log('Session error: ' + result.message);

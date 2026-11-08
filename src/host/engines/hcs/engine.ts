@@ -16,6 +16,7 @@ import { findImage } from './images.js';
 
 export const HCS_CAPABILITIES: EngineCapabilities = {
   desktop: false,
+  textClipboard: true,
   gpu: false,
   clipboard: false,
   audio: false,

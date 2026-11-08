@@ -73,7 +73,13 @@ files like `.env` or `*.pem` that the agent can read because they are in the pro
 - Text from the sandbox loses its escape sequences before it reaches your terminal. When you attach, the output passes a
   filter that drops clipboard reads (OSC 52), terminal macros and other control strings; colours, titles, links and
   progress pass. The agent's "copy" (an OSC 52 clipboard write) passes only where the sandbox can already reach your
-  clipboard: in the sandbox's own terminal, and in `sandbox attach` while `sandbox.clipboard` is on. The web UI drops it.
+  clipboard: in the sandbox's own terminal, and in `sandbox attach` while `sandbox.clipboard` is `"text"` or `"shared"`
+  and `sandbox.clipboardDirection` is not `"toSandbox"`. The web UI drops it.
+- The text bridge (`sandbox.clipboard` `"text"`) copies a sandbox copy to your PC only while the sandbox window is in
+  front (or within 2 seconds after you leave it). Its files are in `<data>\clipboard\`, next to `run\`, so other Windows
+  users cannot read or plant them. The reader deletes each file after reading it. Only text up to 1 MB is copied, and
+  nothing logs the text: refusals are counted. Text the bridge puts on your clipboard carries a marker, so the Ctrl+C
+  guard does not take it for a copy.
 - Programs and scripts (`.exe`, `.ps1`, `.bat`, `.cmd`, `.msi`, `.lnk` ...) that appear or change in your project while
   a sandbox runs get Windows' "downloaded from the internet" mark (`storage.markSandboxFiles`, on by default). SmartScreen
   then asks before one runs, and PowerShell's RemoteSigned policy refuses an unsigned marked script. Programs you build

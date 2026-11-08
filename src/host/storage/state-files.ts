@@ -5,6 +5,7 @@ import path from 'node:path';
 export type StateFileSuffix =
   | '.json'
   | '-audit.json'
+  | '-clipboard.json'
   | '-forwards.json'
   | '-life.json'
   | '-mark.json'

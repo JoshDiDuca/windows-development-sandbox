@@ -15,29 +15,28 @@ const CSC = path.join(process.env.WINDIR ?? 'C:\\Windows', 'Microsoft.NET', 'Fra
 
 /** Each helper's source in sandbox\csharp. */
 const SOURCES = {
-  ptyhost: 'PtyHost.cs',
-  gitshim: 'GitShim.cs',
-  vswhere: 'VsWhere.cs',
-  openssl: 'OpenSsl.cs',
-  cargoshim: 'CargoShim.cs',
-  linkgate: 'LinkGate.cs',
-  pathsync: 'PathSync.cs',
-  memgov: 'MemGov.cs',
-  bindmount: 'BindMount.cs',
-} as const;
+  ptyhost: ['PtyHost.cs'],
+  gitshim: ['GitShim.cs'],
+  vswhere: ['VsWhere.cs'],
+  openssl: ['OpenSsl.cs'],
+  cargoshim: ['CargoShim.cs'],
+  linkgate: ['LinkGate.cs'],
+  pathsync: ['PathSync.cs'],
+  memgov: ['MemGov.cs'],
+  bindmount: ['BindMount.cs'],
+  clipboardbridge: ['ClipboardBridge.cs', 'ClipboardText.cs', 'ClipboardWatch.cs'],
+} as const satisfies Record<string, readonly string[]>;
 
 export type Helper = keyof typeof SOURCES;
 
-function sourceOf(name: Helper): string {
-  return path.join(launchDir, 'sandbox', 'csharp', SOURCES[name]);
+function sourceOf(name: Helper): string[] {
+  return SOURCES[name].map((file) => path.join(launchDir, 'sandbox', 'csharp', file));
 }
 
 function sourceHash(name: Helper): string {
-  return crypto
-    .createHash('sha256')
-    .update(fs.readFileSync(sourceOf(name)))
-    .digest('hex')
-    .slice(0, 12);
+  const hash = crypto.createHash('sha256');
+  for (const file of sourceOf(name)) hash.update(fs.readFileSync(file));
+  return hash.digest('hex').slice(0, 12);
 }
 
 /** %TEMP%\agent-sandbox\<name>-<hash>.exe, compiled from this launch's source the first time it is needed. */
@@ -47,7 +46,7 @@ export function ensureCompiled(name: Helper): string {
   if (!exists(CSC))
     throw new Error('The .NET Framework C# compiler was not found at ' + CSC + ' (it ships with Windows 10/11).');
   mkdirp(path.dirname(exe));
-  const result = spawnSync(CSC, ['/nologo', '/optimize', '/target:exe', '/out:' + exe, sourceOf(name)], {
+  const result = spawnSync(CSC, ['/nologo', '/optimize', '/target:exe', '/out:' + exe, ...sourceOf(name)], {
     encoding: 'utf8',
     windowsHide: true,
   });

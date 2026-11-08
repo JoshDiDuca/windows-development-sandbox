@@ -3,6 +3,7 @@
 // them.
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveClipboard } from '../core/clipboard.js';
 import { DEFAULTS } from '../core/config/index.js';
 import { LocalOverridesSchema } from '../core/schema/index.js';
 import type { Config, ResolvedMapping } from '../core/types.js';
@@ -30,11 +31,11 @@ function legacyWsb(config: Config, memoryMb: number, mappings: readonly Resolved
   const devices = [
     ['vGPU', s.vGpu],
     ['Networking', s.networking],
-    ['ClipboardRedirection', s.clipboard],
+    ['ClipboardRedirection', resolveClipboard(s).sharedClipboard],
     ['AudioInput', s.audioInput],
     ['VideoInput', s.videoInput],
     ['PrinterRedirection', s.printerRedirection],
-    ['ProtectedClient', s.protectedClient],
+    ['ProtectedClient', resolveClipboard(s).protectedClient],
   ] as const;
   const folders = mappings
     .map((m) =>
@@ -116,8 +117,9 @@ export const engineSuite: Suite = {
       caps({}, false),
       {
         desktop: true,
+        textClipboard: true,
         gpu: false,
-        clipboard: true,
+        clipboard: false,
         audio: false,
         video: false,
         printers: false,
@@ -126,14 +128,26 @@ export const engineSuite: Suite = {
         multipleInstances: false,
         hvsocket: false,
       },
-      'Windows Sandbox: desktop and clipboard by default, no live folders without the wsb CLI, no disks, one at a time',
+      'Windows Sandbox: desktop and the text clipboard by default, no live folders without the wsb CLI, no disks, one at a time',
     );
     t.equal(
-      [caps({ vGpu: true, audioInput: true, videoInput: true, printerRedirection: true, clipboard: false }, true)].map(
-        (c) => [c.gpu, c.audio, c.video, c.printers, c.clipboard, c.liveFolderAdd],
+      [caps({ vGpu: true, audioInput: true, videoInput: true, printerRedirection: true, clipboard: 'off' }, true)].map(
+        (c) => [c.gpu, c.audio, c.video, c.printers, c.clipboard, c.textClipboard, c.liveFolderAdd],
       ),
-      [[true, true, true, true, false, true]],
+      [[true, true, true, true, false, false, true]],
       'capabilities follow the device settings and the wsb CLI',
+    );
+    t.equal(
+      (['off', 'text', 'shared'] as const).map((clipboard) => {
+        const c = caps({ clipboard }, false);
+        return [c.clipboard, c.textClipboard];
+      }),
+      [
+        [false, false],
+        [false, true],
+        [true, true],
+      ],
+      'the shared clipboard only for "shared", text copy and paste for "text" and "shared"',
     );
     const reports = await engineReports(f.baseConfig, NO_HCS_PC);
     t.check(

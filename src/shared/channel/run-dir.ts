@@ -74,6 +74,15 @@ export class RunDir {
   readonly treesDir: string;
   /** One-shot secrets the host hands over (see secrets.ts). Next to run, not in it: shared-use users can change run. */
   readonly secretsDir: string;
+  /**
+   * The text clipboard bridge (sandbox.clipboard "text"): next to run, not in it, so other users of a shared sandbox
+   * cannot read or plant copies.
+   */
+  readonly clipboardDir: string;
+  /** Guest writes, host reads and deletes. */
+  readonly clipboardToPcFile: string;
+  /** Host writes, guest reads and deletes. */
+  readonly clipboardToSandboxFile: string;
   /** Live folders (live.ts): signed host requests, and the daemon's replies. */
   readonly liveDir: string;
   readonly liveRepliesDir: string;
@@ -92,6 +101,9 @@ export class RunDir {
     this.auditDir = path.join(this.root, 'audit');
     this.treesDir = path.join(this.root, 'trees');
     this.secretsDir = path.join(dataDir, 'secrets');
+    this.clipboardDir = path.join(dataDir, 'clipboard');
+    this.clipboardToPcFile = path.join(this.clipboardDir, 'to-pc.json');
+    this.clipboardToSandboxFile = path.join(this.clipboardDir, 'to-sandbox.json');
     this.liveDir = path.join(this.root, 'live');
     this.liveRepliesDir = path.join(this.root, 'live-replies');
   }

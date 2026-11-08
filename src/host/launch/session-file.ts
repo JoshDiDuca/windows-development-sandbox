@@ -10,6 +10,7 @@ import type {
   ProfileResult,
   ResolvedMapping,
 } from '../../core/types.js';
+import { clipboardLine, type ClipboardPlan } from '../../core/clipboard.js';
 import { resolveToolchains } from '../../core/detect/index.js';
 import { hubName, PROJECTS_GUEST, substDrives } from '../../shared/paths/index.js';
 import { hostClaudeDir } from '../profile/index.js';
@@ -30,6 +31,8 @@ export interface SessionParts {
   readonly toolchains: Generated['toolchains'];
   /** The sandbox's memory (MB), for the agents' memory limit. */
   readonly memoryMb: number;
+  /** What sandbox.clipboard really gives this launch. */
+  readonly clipboard: ClipboardPlan;
 }
 
 /** What was found on this PC to copy instead of download. */
@@ -70,6 +73,12 @@ export function guestSession(o: GenerateOptions, parts: SessionParts): GuestSess
     persistAgentState: config.storage.persistAgentState,
     networking: config.sandbox.networking,
     headless: config.sandbox.headless,
+    clipboard: {
+      bridge: parts.clipboard.bridge,
+      toPc: parts.clipboard.toPc,
+      toSandbox: parts.clipboard.toSandbox,
+      line: clipboardLine(parts.clipboard, config.sandbox.engine),
+    },
     network: config.network,
     provisioning: config.provisioning,
     // "auto" is decided here, so the guest and the launch table agree.

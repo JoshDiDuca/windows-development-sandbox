@@ -6,6 +6,7 @@ export type EngineId = Config['sandbox']['engine'];
 
 export interface EngineCapabilities {
   readonly desktop: boolean;
+  readonly textClipboard: boolean;
   readonly gpu: boolean;
   readonly clipboard: boolean;
   readonly audio: boolean;
@@ -26,10 +27,12 @@ export interface EngineCheck {
 
 export interface LaunchDevices {
   readonly gpu: boolean;
-  readonly clipboard: boolean;
+  /** Windows Sandbox's own clipboard (ClipboardRedirection): only for sandbox.clipboard "shared". */
+  readonly sharedClipboard: boolean;
   readonly audioInput: boolean;
   readonly videoInput: boolean;
   readonly printers: boolean;
+  /** As the sandbox really starts: off for the shared clipboard. */
   readonly protectedClient: boolean;
 }
 

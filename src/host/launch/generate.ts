@@ -11,7 +11,10 @@ import { widenForProjects } from '../../core/local-config/index.js';
 import { dirExists, ensureDir, fail, writeJson } from '../../core/util/index.js';
 import { engineFor, realLiveFolders, type EnginePlan, type SandboxEngine } from '../engines/index.js';
 import { capturePersonalization, stageClaudeProfile } from '../profile/index.js';
+import { resolveClipboard } from '../../core/clipboard.js';
+import { saveClipboardSettings } from '../clipboard/index.js';
 import { clearSecrets, writeSecrets } from '../secrets/index.js';
+import { clearClipboardFiles } from '../clipboard/index.js';
 import { githubTokenAllowed } from '../github/index.js';
 import { folderAttachment } from '../storage/providers/index.js';
 import { assertTestWritable } from '../test-guard.js';
@@ -77,6 +80,7 @@ export function generateSandbox(
   const wide = widenForProjects(given.run.config, others, { keepOff: given.bootWants?.keepOff, exists: dirExists });
   const o: GenerateOptions = { ...given, run: { ...given.run, config: wide.config } };
   const { config, dataPath, workspaceHost, harnessName, storageRoot } = o.run;
+  const clipboard = resolveClipboard(config.sandbox);
   const harness =
     harnessName === 'none'
       ? null
@@ -108,6 +112,7 @@ export function generateSandbox(
   // maps it read-only and it is kept for days). Leftovers of earlier launches go first.
   ensureDir(dataPath);
   clearSecrets(storageRoot, dataPath);
+  clearClipboardFiles(dataPath);
   ensureDir(launchPath);
   const mappingNotes: string[] = [];
   const mappings = collectMappings(o, launchPath, boot, mappingNotes);
@@ -137,6 +142,7 @@ export function generateSandbox(
     databases,
     toolchains,
     memoryMb,
+    clipboard,
   });
   const sessionPath = path.join(launchPath, 'session.json');
   writeJson(sessionPath, session);
@@ -144,6 +150,7 @@ export function generateSandbox(
     profile: loadProfileOf(config),
     reserveHostMb: config.sandbox.reserveHostMb,
   });
+  saveClipboardSettings(storageRoot, dataPath, clipboard);
   // Live folders through HCS (opt-in alpha, Windows Sandbox only): a new key per launch, sealed on this side and handed
   // over in the one-shot file; without the setting, an earlier launch's record goes.
   const live = realLiveFolders(storageRoot, dataPath);
@@ -209,5 +216,6 @@ export function generateSandbox(
     toolchains,
     projects: { ...boot, notes: [...boot.notes, ...wide.notes] },
     mappingNotes,
+    clipboard,
   };
 }

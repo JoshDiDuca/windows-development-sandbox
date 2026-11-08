@@ -1,5 +1,6 @@
 // The neutral description of a launch (what the engine layer turns into its own files), built from what the launch
 // already worked out: settings, memory, folders and storage.
+import { resolveClipboard } from '../../core/clipboard.js';
 import type { Config, ResolvedMapping } from '../../core/types.js';
 import { wsbText, type LaunchPlan } from '../engines/index.js';
 import type { StorageAttachment } from '../storage/providers/index.js';
@@ -15,6 +16,7 @@ export interface LaunchPlanInput {
 
 export function buildLaunchPlan(input: LaunchPlanInput): LaunchPlan {
   const s = input.config.sandbox;
+  const clip = resolveClipboard(s);
   return {
     launchPath: input.launchPath,
     memoryMb: input.memoryMb,
@@ -22,11 +24,11 @@ export function buildLaunchPlan(input: LaunchPlanInput): LaunchPlan {
     networking: s.networking,
     devices: {
       gpu: s.vGpu,
-      clipboard: s.clipboard,
+      sharedClipboard: clip.sharedClipboard,
       audioInput: s.audioInput,
       videoInput: s.videoInput,
       printers: s.printerRedirection,
-      protectedClient: s.protectedClient,
+      protectedClient: clip.protectedClient,
     },
     mappings: input.mappings,
     logonCommand: GUEST.launch + '\\sandbox\\boot\\logon.cmd',

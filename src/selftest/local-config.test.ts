@@ -4,8 +4,21 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Downloader } from '../shared/download/index.js';
+import _ from 'lodash';
+import { DEFAULTS } from '../core/config/index.js';
 import type { Config } from '../core/types.js';
-import { allowedAnswer, allowStorePath, saveAllowed } from '../core/local-config/index.js';
+import {
+  allowedAnswer,
+  allowStorePath,
+  applyOverrides,
+  checkJoin,
+  loosenedRequests,
+  missingAtBoot,
+  normalizeOverrides,
+  protectionsOf,
+  saveAllowed,
+  widenForProjects,
+} from '../core/local-config/index.js';
 import type { Suite } from './support/suite.js';
 
 export const localConfigSuite: Suite = {
@@ -269,7 +282,7 @@ export const localConfigSuite: Suite = {
       claudeProfile: { copyCredentials: true },
       network: { blockPrivateRanges: false },
       provisioning: { git: { access: 'full' } },
-      sandbox: { vGpu: true, clipboard: true, networking: true, protectedClient: false },
+      sandbox: { vGpu: true, clipboard: 'shared', networking: true, protectedClient: false },
       readOnly: false,
     });
     await t.throws(
@@ -282,7 +295,7 @@ export const localConfigSuite: Suite = {
       readOnly: true,
       network: { ...f.baseConfig.network, blockPrivateRanges: true },
       provisioning: { ...f.baseConfig.provisioning, git: { ...f.baseConfig.provisioning.git, access: 'readonly' } },
-      sandbox: { ...f.baseConfig.sandbox, vGpu: false, clipboard: false, networking: false, protectedClient: true },
+      sandbox: { ...f.baseConfig.sandbox, vGpu: false, clipboard: 'off', networking: false, protectedClient: true },
     };
     const keptRun = await f.run({ cwd: dirC, trustConfig: true }, strictUser);
     const kept = keptRun.config;
@@ -302,7 +315,7 @@ export const localConfigSuite: Suite = {
         blockPrivateRanges: true,
         gitAccess: 'readonly',
         vGpu: false,
-        clipboard: false,
+        clipboard: 'off',
         networking: false,
         protectedClient: true,
         copyCredentials: false,
@@ -317,11 +330,11 @@ export const localConfigSuite: Suite = {
     // You allowed one request for this project (asked once at an interactive launch): only that one is let through.
     const store = allowStorePath(strictUser.storage.root);
     saveAllowed(store, path.join(dirC, '.sandbox-config.json'), 'sandbox.vGpu', true, true);
-    saveAllowed(store, path.join(dirC, '.sandbox-config.json'), 'sandbox.clipboard', true, false);
+    saveAllowed(store, path.join(dirC, '.sandbox-config.json'), 'sandbox.clipboard', 'shared', false);
     const allowedRun = await f.run({ cwd: dirC, trustConfig: true }, strictUser);
     t.check(
       allowedRun.config.sandbox.vGpu === true &&
-        allowedRun.config.sandbox.clipboard === false &&
+        allowedRun.config.sandbox.clipboard === 'off' &&
         allowedRun.config.sandbox.networking === false &&
         allowedAnswer(store, path.join(f.workB, '.sandbox-config.json'), 'sandbox.vGpu', true) === null &&
         allowedRun.notes.some((n) => n.includes('Allowed for this project: sandbox.vGpu')) &&
@@ -333,7 +346,7 @@ export const localConfigSuite: Suite = {
       readOnly: true,
       network: { blockPrivateRanges: true },
       provisioning: { git: { access: 'none' } },
-      sandbox: { networking: false, clipboard: false },
+      sandbox: { networking: false, clipboard: 'off' },
     });
     const tightened = (await f.run({ cwd: dirC, trustConfig: true })).config;
     t.equal(
@@ -343,7 +356,7 @@ export const localConfigSuite: Suite = {
         tightened.sandbox.networking,
         tightened.sandbox.clipboard,
       ],
-      [true, 'none', false, false],
+      [true, 'none', false, 'off'],
       'a project file can still make things stricter',
     );
 
@@ -374,5 +387,92 @@ export const localConfigSuite: Suite = {
       'a download with no hash is refused when checksums are required, naming it, leaving nothing behind',
     );
     fs.rmSync(path.join(dirC, '.sandbox-config.json'));
+
+    t.section('clipboard modes and directions');
+    type Sandbox = Config['sandbox'];
+    const mine = (sandbox: Partial<Sandbox>): Config => ({ ...DEFAULTS, sandbox: { ...DEFAULTS.sandbox, ...sandbox } });
+    const project = (sandbox: Record<string, unknown>): ReturnType<typeof normalizeOverrides> =>
+      normalizeOverrides({ sandbox }, os.tmpdir(), 'test');
+    const merged = (yours: Partial<Sandbox>, theirs: Record<string, unknown>): Sandbox =>
+      applyOverrides(mine(yours), project(theirs)).sandbox;
+    t.equal(
+      [
+        merged({ clipboard: 'text' }, { clipboard: 'shared' }).clipboard,
+        merged({ clipboard: 'text' }, { clipboard: 'off' }).clipboard,
+        merged({ clipboard: 'shared' }, { clipboard: 'text' }).clipboard,
+        merged({ clipboard: 'text' }, { clipboard: true }).clipboard,
+        merged({ clipboard: 'off' }, { clipboard: true }).clipboard,
+      ],
+      ['text', 'off', 'text', 'text', 'off'],
+      'a project can narrow the clipboard (shared -> text -> off) and never widen it; a legacy true counts as "text"',
+    );
+    t.equal(
+      [
+        loosenedRequests(mine({ clipboard: 'text' }), project({ clipboard: 'shared' })).map((r) => r.key),
+        loosenedRequests(mine({ clipboard: 'text' }), project({ clipboard: 'off' })).map((r) => r.key),
+      ],
+      [['sandbox.clipboard'], []],
+      'a wider clipboard is listed as a request that was not used',
+    );
+    const dirs = (yours: Sandbox['clipboardDirection'], theirs: Sandbox['clipboardDirection']): unknown =>
+      _.pick(merged({ clipboardDirection: yours }, { clipboardDirection: theirs }), [
+        'clipboard',
+        'clipboardDirection',
+      ]);
+    t.equal(
+      [dirs('both', 'toPc'), dirs('toPc', 'toSandbox'), dirs('toPc', 'both')],
+      [
+        { clipboard: 'text', clipboardDirection: 'toPc' },
+        { clipboard: 'off', clipboardDirection: 'toPc' },
+        { clipboard: 'text', clipboardDirection: 'toPc' },
+      ],
+      'directions only narrow; nothing in common turns the clipboard off',
+    );
+    t.equal(
+      loosenedRequests(mine({ clipboardDirection: 'toPc' }), project({ clipboardDirection: 'both' })).map((r) => r.key),
+      ['sandbox.clipboardDirection'],
+      'a wider direction is listed as a request that was not used',
+    );
+    t.equal(
+      merged({ clipboard: 'shared' }, { protectedClient: true }).clipboard,
+      'text',
+      'a project that asks for Protected Client turns "shared" into "text"',
+    );
+    const text = { clipboard: 'text', clipboardDirection: 'both' } as const;
+    const narrower = mine({ ...text, clipboardDirection: 'toPc' });
+    const join = checkJoin(protectionsOf(mine(text)), protectionsOf(narrower));
+    const joinOff = checkJoin(protectionsOf(mine({ clipboard: 'off' })), protectionsOf(narrower));
+    t.check(
+      join.stricter.some((s) => s.startsWith('sandbox.clipboardDirection')) &&
+        !joinOff.stricter.some((s) => s.startsWith('sandbox.clipboardDirection')) &&
+        joinOff.looser.some((s) => s.startsWith('sandbox.clipboard ')),
+      'joining: a narrower direction is refused; with no clipboard running the direction does not matter',
+      JSON.stringify([join, joinOff]),
+    );
+    t.check(
+      protectionsOf(mine({ clipboard: 'shared' }))['sandbox.protectedClient'] === false,
+      'the protections of a shared-clipboard sandbox say Protected Client is off',
+    );
+    const boot = { memoryMb: null, mappings: [] };
+    const running = protectionsOf(mine({ clipboard: 'text' }));
+    const runningLegacy = { ...running, 'sandbox.clipboard': true as unknown as string };
+    t.equal(
+      [
+        missingAtBoot(running, boot, mine({ clipboard: 'shared' })).settings.includes('sandbox.clipboard'),
+        missingAtBoot(runningLegacy, boot, mine({ clipboard: 'text' })).settings.includes('sandbox.clipboard'),
+      ],
+      [true, false],
+      'a project that wants "shared" is missing at boot on a "text" sandbox; a legacy true counts as "text"',
+    );
+    const widened = widenForProjects(mine({ clipboard: 'text' }), [
+      { name: 'other', config: mine({ clipboard: 'shared' }) },
+    ]);
+    t.check(
+      widened.config.sandbox.clipboard === 'shared' &&
+        widened.widened['sandbox.clipboard'] === 'other' &&
+        widened.widened['sandbox.protectedClient'] === 'other',
+      'booting for a project that allowed "shared" widens the clipboard and Protected Client together',
+      JSON.stringify(widened.widened),
+    );
   },
 };

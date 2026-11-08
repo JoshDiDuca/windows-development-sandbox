@@ -1,8 +1,10 @@
 // Session daemon (runs detached inside the sandbox for its whole life). It is the only thing that acts on host
-// requests: sessions, commands, restarts, pings (run\requests) and the signed live-folder requests (run\live).
+// requests: sessions, commands, restarts, pings (run\requests) and the signed live-folder requests (run\live). It
+// also runs the text clipboard bridge (sandbox.clipboard "text").
 // It must never die quietly: every iteration is guarded, and anything unexpected is written to its log.
 // The handlers live in daemon/ (session, exec); this file is the polling loop.
 import { startRelays } from '../daemon/relays.js';
+import { startClipboardBridge } from '../daemon/clipboard.js';
 import { startProcessCollector } from '../audit/process-audit.js';
 import { safely } from '../daemon/state.js';
 import { log, warn } from '../runtime/log.js';
@@ -24,6 +26,7 @@ const liveKey = adoptBootSecrets();
 log('Session daemon started (pid ' + process.pid + ').');
 safely('live folders', () => startLiveFolders(liveKey));
 safely('port forwards', startRelays);
+safely('clipboard', startClipboardBridge);
 safely('audit', () => startProcessCollector(() => sessions.roots()));
 safely('leftover processes', () => sessions.sweepLeftovers());
 safely('memory governor', () => governor.start());

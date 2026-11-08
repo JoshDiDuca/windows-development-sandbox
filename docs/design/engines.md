@@ -35,8 +35,9 @@ launch (cli) ──> LaunchPlan (neutral, pure) ──> engine.plan() ──> en
 ```
 
 - `src/host/engines/` (barrel `index.ts`):
-  - `types.ts`: `EngineId` ('windows-sandbox' | 'hcs'), `EngineCapabilities` (desktop, gpu, clipboard, audio, video,
-    printers, liveFolderAdd, attachedDisks, multipleInstances, hvsocket), `EngineCheck` ({ available, reasons[],
+  - `types.ts`: `EngineId` ('windows-sandbox' | 'hcs'), `EngineCapabilities` (desktop, gpu, clipboard (the shared
+    clipboard, Windows Sandbox only), textClipboard (copy and paste of text, both engines), audio, video, printers,
+    liveFolderAdd, attachedDisks, multipleInstances, hvsocket), `EngineCheck` ({ available, reasons[],
     fixes[] }), `LaunchPlan` (mappings: host/guest/readOnly; memoryMb; cpu; networking; devices; logon command; storage
     attachments), `EnginePlan` (engine-specific, opaque to callers), `RunningSandbox` (id, engine, started).
   - `engine.ts`: `interface SandboxEngine { id; capabilities(); check(): Promise<EngineCheck>; plan(LaunchPlan):

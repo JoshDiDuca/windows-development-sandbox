@@ -65,13 +65,25 @@ export const ENGINE_CASES: readonly EngineCase[] = [
   },
   {
     name: 'every device on',
-    config: withSandbox({ vGpu: true, clipboard: true, audioInput: true, videoInput: true, printerRedirection: true }),
+    config: withSandbox({
+      vGpu: true,
+      clipboard: 'shared',
+      audioInput: true,
+      videoInput: true,
+      printerRedirection: true,
+    }),
     memoryMb: 12288,
     mappings: BASE,
   },
   {
+    name: 'clipboard text with protectedClient off',
+    config: withSandbox({ clipboard: 'text', protectedClient: false }),
+    memoryMb: 8192,
+    mappings: BASE,
+  },
+  {
     name: 'every device off',
-    config: withSandbox({ clipboard: false, networking: false, protectedClient: false }),
+    config: withSandbox({ clipboard: 'off', networking: false, protectedClient: false }),
     memoryMb: 8192,
     mappings: [BASE[0], BASE[1]],
   },

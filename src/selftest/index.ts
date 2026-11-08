@@ -39,6 +39,7 @@ import { agentPathsSuite } from './agent-paths.test.js';
 import { agentSettingsSuite } from './agent-settings.test.js';
 import { cmdlineSuite } from './cmdline.test.js';
 import { configSuite } from './config.test.js';
+import { clipboardSuite } from './clipboard.test.js';
 import { migrateSuite } from './migrate.test.js';
 import { storageSuite } from './storage.test.js';
 import { updateSuite } from './update.test.js';
@@ -82,6 +83,7 @@ import { remoteSuite } from './remote.test.js';
 import { workspaceSuite } from './workspace.test.js';
 import { workspaceViewSuite } from './workspace-view.test.js';
 import { liveNetworkSuite } from './live-network.test.js';
+import { clipboardLiveSuite } from './clipboard-live.test.js';
 import { liveTerminalSuite } from './live-terminal.test.js';
 import { appSuite } from './app.test.js';
 import { uiTextSuite } from './ui-text.test.js';
@@ -98,6 +100,7 @@ import { resumeSuite } from './resume.test.js';
 export const SUITES: Suite[] = [
   // settings and project files
   configSuite,
+  clipboardSuite,
   migrateSuite,
   storageSuite,
   updateSuite,
@@ -184,6 +187,7 @@ export const SUITES: Suite[] = [
   liveProjectsSuite,
   liveGitSuite,
   liveNetworkSuite,
+  clipboardLiveSuite,
   liveTerminalSuite,
 ];
 

@@ -265,6 +265,30 @@ export const migrateSuite: Suite = {
       'the retired Visual Studio settings are removed (a chosen "full" stays), the file loads again, and it is idempotent',
     );
 
+    t.section('clipboard-mode');
+    const clip = MIGRATIONS.find((m) => m.id === '2026-11-clipboard-mode');
+    if (!clip) return t.check(false, 'the clipboard-mode migration exists');
+    const clipOff = t.write(t.at('clip', 'off.json'), '{ // keep\n "sandbox": { "clipboard": false } }');
+    const clipOn = t.write(t.at('clip', 'on.json'), '{ "sandbox": { "clipboard": true } }');
+    const clipText = t.write(t.at('clip', 'text.json'), '{ "sandbox": { "clipboard": "text" } }');
+    const clipNotes: string[] = [];
+    const clipApplies = [clipOff, clipOn, clipText, t.at('clip', 'missing.json')].map((file) =>
+      clip.applies(ctx(t.at('clip'), file)),
+    );
+    await clip.run(ctx(t.at('clip'), clipOff), (line) => clipNotes.push(line));
+    await clip.run(ctx(t.at('clip'), clipOn), (line) => clipNotes.push(line));
+    t.check(
+      clipApplies.join() === 'true,true,false,false' &&
+        readText(clipOff).includes('"off"') &&
+        readText(clipOff).includes('// keep') &&
+        readText(clipOn).includes('"text"') &&
+        clipNotes.length === 2 &&
+        !clip.applies(ctx(t.at('clip'), clipOff)) &&
+        MIGRATIONS[MIGRATIONS.length - 1]?.id === '2026-11-clipboard-mode',
+      'a true / false clipboard becomes "text" / "off" with the comments kept, a mode or no file needs nothing, and it is the last migration',
+      clipApplies.join() + ' ' + readText(clipOff),
+    );
+
     t.section('sandbox migrate');
     const cmdUser = t.dir('cmd-user');
     const cmdConfig = t.write(

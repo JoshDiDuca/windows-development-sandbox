@@ -6,7 +6,7 @@ export { ConfigSchema, LocalOverridesSchema } from './config.js';
 export { HarnessSchema } from './harness.js';
 export { CodexSchema } from './codex.js';
 export { describeIssues, jsonSchemas } from './json-schema.js';
-export { MappingSchema } from './sandbox.js';
+export { MappingSchema, clipboardFromLegacy, CLIPBOARD_MODES, CLIPBOARD_DIRECTIONS } from './sandbox.js';
 export { ToolchainsSchema } from './toolchains.js';
 export { GithubSchema } from './github.js';
 export { VpnSchema, VPN_PROVIDERS, type VpnProvider } from './vpn.js';

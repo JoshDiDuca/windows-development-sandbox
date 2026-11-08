@@ -466,6 +466,7 @@ const LOG_DIR = 'C:\\AgentData\\logs';
 export function sampleEngines(): unknown {
   const capabilities = {
     desktop: true,
+    textClipboard: true,
     gpu: true,
     clipboard: true,
     audio: true,
@@ -491,6 +492,7 @@ export function sampleEngines(): unknown {
         capabilities: {
           ...capabilities,
           desktop: false,
+          textClipboard: true,
           gpu: false,
           clipboard: false,
           audio: false,

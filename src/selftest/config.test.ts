@@ -2,7 +2,7 @@
 import path from 'node:path';
 import _ from 'lodash';
 import fs from 'node:fs';
-import { DEFAULTS, loadConfig } from '../core/config/index.js';
+import { DEFAULTS, loadConfig, mergeConfig, validateConfig } from '../core/config/index.js';
 import { diffText, exportSettings, planImport } from '../app/features/settings/settings-share.js';
 import { readJsonc } from '../core/util/index.js';
 import type { Suite } from './support/suite.js';
@@ -23,6 +23,24 @@ export const configSuite: Suite = {
       },
       { configPath: null, guestWorkspace: 'auto', headless: false, vGpu: false, gitAccess: 'full' },
       'with no user config the built-in defaults apply (auto guest folder, headless off, vGPU off, git full)',
+    );
+
+    t.section('sandbox.clipboard');
+    const withClipboard = (value: unknown): unknown => mergeConfig(DEFAULTS, { sandbox: { clipboard: value } });
+    t.equal(
+      [
+        validateConfig(withClipboard(true), 'x').sandbox.clipboard,
+        validateConfig(withClipboard(false), 'x').sandbox.clipboard,
+        validateConfig(withClipboard('shared'), 'x').sandbox.clipboard,
+      ],
+      ['text', 'off', 'shared'],
+      'true and false from older versions load as "text" and "off"',
+    );
+    const badClipboard = await t.thrownMessage(() => validateConfig(withClipboard('maybe'), 'x.json'));
+    t.check(
+      badClipboard.includes('x.json is not valid') && badClipboard.includes('sandbox.clipboard'),
+      'a clipboard value that is not a mode is refused with a readable message',
+      badClipboard,
     );
 
     t.section('a user config file');

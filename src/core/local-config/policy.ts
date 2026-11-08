@@ -6,13 +6,21 @@
 // Pure: the host checks it before registering a project, the tests drive it directly.
 import _ from 'lodash';
 import type { Config } from '../types.js';
-import { GIT_STRICTNESS, NEVER_LOOSER, OFF_IS_SAFER, ON_IS_SAFER } from './overrides.js';
+import { asDirection, compareDirection, resolveClipboard } from '../clipboard.js';
+import { DIRECTION_SETTING, NEVER_LOOSER, strictness } from './overrides.js';
 
 /** The protections of a running sandbox, by setting path (`sandbox.networking`, `provisioning.git.access`, ...). */
 export type Protections = Record<string, boolean | string>;
 
 export function protectionsOf(config: Config): Protections {
-  return Object.fromEntries(NEVER_LOOSER.map((p) => [p, _.get(config, p) as boolean | string]));
+  const base = Object.fromEntries(NEVER_LOOSER.map((p) => [p, _.get(config, p) as boolean | string]));
+  const plan = resolveClipboard(config.sandbox);
+  return {
+    ...base,
+    'sandbox.clipboard': plan.mode,
+    'sandbox.clipboardDirection': plan.direction,
+    'sandbox.protectedClient': plan.protectedClient,
+  };
 }
 
 /** 1 = `wanted` is stricter than `running`, -1 = looser, 0 = the same. */
@@ -21,11 +29,8 @@ const compare = (
   running: boolean | string | undefined,
   wanted: boolean | string | undefined,
 ): number => {
-  if (setting === 'provisioning.git.access')
-    return Math.sign((GIT_STRICTNESS[String(wanted)] ?? 0) - (GIT_STRICTNESS[String(running)] ?? 0));
-  if (ON_IS_SAFER.includes(setting)) return Number(Boolean(wanted)) - Number(Boolean(running));
-  if (OFF_IS_SAFER.includes(setting)) return Number(Boolean(running)) - Number(Boolean(wanted));
-  return 0;
+  if (setting === DIRECTION_SETTING) return compareDirection(asDirection(running), asDirection(wanted));
+  return Math.sign(strictness(setting, wanted) - strictness(setting, running));
 };
 
 export interface JoinCheck {
@@ -48,6 +53,8 @@ export function checkJoin(running: Protections, wanted: Protections, widened: st
   const looser: string[] = [];
   const shared: string[] = [];
   for (const setting of NEVER_LOOSER) {
+    // A sandbox with no clipboard: the direction does not matter.
+    if (setting === DIRECTION_SETTING && strictness('sandbox.clipboard', running['sandbox.clipboard']) === 2) continue;
     const result = compare(setting, setting === 'readOnly' ? false : running[setting], wanted[setting]);
     if (result > 0 && widened.includes(setting)) shared.push(setting);
     else if (result > 0)

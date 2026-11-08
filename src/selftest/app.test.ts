@@ -656,6 +656,27 @@ export const appSuite: Suite = {
         rows.every((r) => FieldSchema.safeParse(r.field).success),
       'the rows: every setting with a Field, secrets as ***, the data folder through its own row',
     );
+    const clipboardField = rows.find((r) => r.id === 'sandbox.clipboard')?.field as
+      { kind: string; choices?: { value: unknown }[] } | undefined;
+    const directionField = rows.find((r) => r.id === 'sandbox.clipboardDirection')?.field as
+      { kind: string } | undefined;
+    t.check(
+      clipboardField?.kind === 'enum' &&
+        clipboardField.choices?.map((c) => c.value).join() === 'text,shared,off' &&
+        directionField?.kind === 'enum',
+      'sandbox.clipboard and sandbox.clipboardDirection are enum fields (the legacy-boolean preprocess is looked through)',
+      JSON.stringify([clipboardField, directionField]),
+    );
+    const clipboardSchema = (
+      JSON.parse(fs.readFileSync('schemas/config.schema.json', 'utf8')) as {
+        properties: { sandbox: { properties: { clipboard: { enum?: string[]; description?: string } } } };
+      }
+    ).properties.sandbox.properties.clipboard;
+    t.check(
+      clipboardSchema.enum?.join() === 'text,shared,off' && (clipboardSchema.description ?? '').includes('"shared"'),
+      'schemas/config.schema.json has the clipboard modes as an enum with the description',
+      JSON.stringify(clipboardSchema),
+    );
     const page = settingsPage(listed as Parameters<typeof settingsPage>[0]);
     const edit = page.sections.flatMap((s) => s.items ?? []).find((i) => i.id === 'sandbox.memoryMb')?.primary;
     t.check(

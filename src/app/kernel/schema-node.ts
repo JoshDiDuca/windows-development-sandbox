@@ -58,7 +58,9 @@ export class SchemaNode {
       const def = s._zod.def;
       if (['optional', 'default', 'nullable', 'prefault', 'readonly'].includes(def.type) && def.innerType)
         s = def.innerType;
-      else if (def.type === 'pipe' && def.in) s = def.in;
+      else if (def.type === 'pipe' && def.in)
+        // z.preprocess: a transform in front of the real schema (the form edits what comes out of it).
+        s = def.in._zod.def.type === 'transform' && def.out ? def.out : def.in;
       else return s;
     }
   }

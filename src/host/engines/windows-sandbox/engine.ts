@@ -28,7 +28,7 @@ export class WindowsSandboxEngine implements SandboxEngine {
     return {
       desktop: true,
       gpu: this.sandbox.vGpu,
-      clipboard: this.sandbox.clipboard,
+      clipboard: this.sandbox.clipboard !== 'off',
       audio: this.sandbox.audioInput,
       video: this.sandbox.videoInput,
       printers: this.sandbox.printerRedirection,

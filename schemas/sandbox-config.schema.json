@@ -116,8 +116,22 @@
           "description": "Internet access. false is the only hard network isolation Windows Sandbox offers."
         },
         "clipboard": {
-          "type": "boolean",
-          "description": "Shared clipboard between this PC and the sandbox. Also lets an agent's copy (in an attached terminal) reach this PC's clipboard."
+          "type": "string",
+          "enum": [
+            "text",
+            "shared",
+            "off"
+          ],
+          "description": "Copy and paste between this PC and the sandbox. \"text\" (default) = text only, through this tool: a copy in the sandbox reaches this PC only while the sandbox window is in front, and the text on this PC's clipboard goes in when you switch to the sandbox window; Protected Client stays on. \"shared\" = Windows Sandbox's own clipboard (text, images and files, all the time); Protected Client blocks it, so that sandbox starts with Protected Client off. \"off\" = no clipboard at all. An agent's copy in sandbox attach reaches this PC with \"text\" and \"shared\". true / false from older versions mean \"text\" / \"off\". A project file can only narrow it (shared -> text -> off)."
+        },
+        "clipboardDirection": {
+          "type": "string",
+          "enum": [
+            "both",
+            "toPc",
+            "toSandbox"
+          ],
+          "description": "Which way sandbox.clipboard \"text\" copies: \"both\" (default), \"toPc\" (from the sandbox to this PC only) or \"toSandbox\" (from this PC into the sandbox only). Only for \"text\": the shared clipboard always works both ways, so another value here makes \"shared\" work as \"text\". A project file can only narrow it."
         },
         "audioInput": {
           "type": "boolean",
@@ -133,7 +147,7 @@
         },
         "protectedClient": {
           "type": "boolean",
-          "description": "Run the sandbox window in Protected Client mode (recommended)."
+          "description": "Run the sandbox window in Protected Client mode (recommended). It blocks Windows Sandbox's own clipboard, so sandbox.clipboard \"shared\" starts that sandbox with Protected Client off (a project file that sets this to true keeps it on and gets \"text\")."
         },
         "headless": {
           "type": "boolean",

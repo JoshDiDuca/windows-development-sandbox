@@ -3,7 +3,8 @@
 // several projects boots with all of their allowed wants (widenForProjects). Pure.
 import _ from 'lodash';
 import type { Config, ResolvedMapping } from '../types.js';
-import type { Protections } from './policy.js';
+import { protectionsOf, type Protections } from './policy.js';
+import { strictness } from './overrides.js';
 
 /** .wsb devices a project may want on (only when your settings or your answer for that project allow it). */
 export const BOOT_SETTINGS = [
@@ -17,7 +18,7 @@ export const BOOT_SETTINGS = [
 const LABELS: Readonly<Record<string, string>> = {
   'sandbox.vGpu': 'vGPU',
   'sandbox.networking': 'networking',
-  'sandbox.clipboard': 'the shared clipboard',
+  'sandbox.clipboard': 'a wider clipboard',
   'sandbox.audioInput': 'the microphone',
   'sandbox.videoInput': 'the camera',
   'sandbox.printerRedirection': 'printers',
@@ -73,8 +74,9 @@ export function missingAtBoot(
   exists: (folder: string) => boolean = () => true,
 ): Missing {
   const memory = config.sandbox.memoryMb;
+  const wanted = protectionsOf(config);
   return {
-    settings: BOOT_SETTINGS.filter((s) => _.get(config, s) === true && running[s] === false),
+    settings: BOOT_SETTINGS.filter((s) => strictness(s, wanted[s]) < strictness(s, running[s])),
     memoryMb: typeof memory === 'number' && boot.memoryMb !== null && memory > boot.memoryMb ? memory : null,
     mappings: config.mappings
       .filter((m) => (!m.optional || exists(m.host)) && !isMapped(boot.mappings, m))
@@ -130,8 +132,11 @@ export function widenForProjects(
   const widened: Record<string, string> = {};
   const notes: string[] = [];
   for (const setting of BOOT_SETTINGS) {
-    const by = others.find((o) => _.get(o.config, setting) === true);
-    if (!by || _.get(config, setting) === true) continue;
+    const looser = others.filter(
+      (o) => strictness(setting, _.get(o.config, setting)) < strictness(setting, _.get(config, setting)),
+    );
+    const by = _.minBy(looser, (o) => strictness(setting, _.get(o.config, setting)));
+    if (!by) continue;
     const label = LABELS[setting] ?? setting;
     if (keepOff.includes(setting)) {
       notes.push(
@@ -142,10 +147,17 @@ export function widenForProjects(
       );
       continue;
     }
-    _.set(config, setting, true);
+    const value: unknown = _.get(by.config, setting);
+    _.set(config, setting, value);
     widened[setting] = by.name;
+    if (setting === 'sandbox.clipboard' && config.sandbox.clipboard === 'shared')
+      widened['sandbox.protectedClient'] = by.name;
     notes.push(
-      label + ' is on in this sandbox (for every project in it): ' + by.name + ' asks for it and you allowed it.',
+      label +
+        (typeof value === 'string' ? ' is "' + value + '"' : ' is on') +
+        ' in this sandbox (for every project in it): ' +
+        by.name +
+        ' asks for it and you allowed it.',
     );
   }
   for (const o of others) {

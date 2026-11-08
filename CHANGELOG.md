@@ -10,13 +10,11 @@ environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDB
 ## 1.28.0
 
 - **Heavy builds no longer set off the sandbox's crash.** The sandbox's VM worker on your PC (`vmwp.exe`) crashed
-  seconds after a build started about 20 compilers at once, while the PC still had plenty of memory free. Two things
-  now stop that burst:
-  - A **memory gate**: when the programs the agents started grow faster than 4 GB in 3 seconds (3 GB with vGPU),
-    Windows reports it at once and new compilers, linkers and Unreal shader workers wait at start, then go on one at a
-    time (every 1.5 s, never longer than 30 s, never killed). Agents, editors and build tools are never held.
-  - **UnrealBuildTool** runs at most the sandbox's build budget of compiles at once (`MaxParallelActions`, written at
-    boot); it used to start one per core.
+  seconds after a build started about 20 compilers at once, while the PC still had plenty of memory free. A **memory
+  gate** now smooths that burst without slowing builds down: when the programs the agents started grow faster than
+  4 GB in 3 seconds (3 GB with vGPU), Windows reports it at once and new compilers, linkers and Unreal shader workers
+  wait at start, then go on one at a time (every 1.5 s, never longer than 30 s, never killed). Builds then run at full
+  parallelism; agents, editors and build tools are never held.
 - **The crash report says what crashed.** A crash of `vmwp.exe` is named as a fault in Windows or a driver (with vGPU,
   usually the graphics driver), and the report says when your PC still had plenty of memory, so it is not mistaken for
   running out.

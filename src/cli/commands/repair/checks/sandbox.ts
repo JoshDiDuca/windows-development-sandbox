@@ -3,6 +3,9 @@
 // on the PC.
 import fs from 'node:fs';
 import path from 'node:path';
+import { clipboardLine, resolveClipboard, sharedDirectionNote } from '../../../../core/clipboard.js';
+import type { Config } from '../../../../core/types.js';
+import { SYSTEM } from '../../../../shared/system.js';
 import { diskUsage, humanBytes } from '../../../../core/disk.js';
 import { dirExists, fileExists, isLink } from '../../../../core/util/index.js';
 import { SandboxChannel } from '../../../../host/channel/index.js';
@@ -44,6 +47,36 @@ export function pageFileFinding(pageFileMb: number, driveBytes: number): Finding
   };
 }
 
+/** The clipboard setting against what it needs (pure): shared turns Protected Client off, a direction "shared" cannot
+ * honour, no compiler for the text bridge, or fine. */
+export function clipboardFinding(sandbox: Config['sandbox'], cscFound: boolean): Finding {
+  if (sandbox.clipboard === 'shared' && sandbox.protectedClient && sandbox.engine === 'windows-sandbox')
+    return {
+      status: 'warn',
+      detail: 'the shared clipboard turns Protected Client off',
+      means:
+        'sandbox.clipboard "shared" uses Windows Sandbox\'s own clipboard, which Protected Client blocks, so every sandbox starts with Protected Client off. "text" copies text both ways and keeps it on.',
+      fix: 'Run: sandbox config set sandbox.clipboard text',
+    };
+  if (sandbox.clipboard === 'shared' && sandbox.clipboardDirection !== 'both')
+    return {
+      status: 'warn',
+      detail: 'sandbox.clipboardDirection only works with "text"',
+      means: sharedDirectionNote(sandbox.clipboardDirection),
+      fix: 'Run: sandbox config set sandbox.clipboard text (or sandbox.clipboardDirection both)',
+    };
+  const plan = resolveClipboard(sandbox);
+  if (plan.bridge && !cscFound)
+    return {
+      status: 'warn',
+      detail: 'text copy and paste needs HostTools.exe',
+      means:
+        'It is built with the C# compiler that ships with Windows, which was not found, so no text is copied between this PC and the sandbox.',
+      fix: 'Run: sandbox repair',
+    };
+  return ok(clipboardLine(plan, sandbox.engine));
+}
+
 const hiddenWindowsFile = (env: RepairEnv): string => path.join(env.storageRoot, 'run', 'hidden-windows.json');
 
 export const SANDBOX_CHECKS: Check[] = [
@@ -60,6 +93,12 @@ export const SANDBOX_CHECKS: Check[] = [
             fix: 'Run: sandbox config set sandbox.vGpu false',
           }
         : ok('off'),
+  },
+  {
+    id: 'sandbox-clipboard',
+    group: 'Sandbox',
+    name: 'Clipboard',
+    run: (env: RepairEnv): Finding => clipboardFinding(env.ctx.loaded.config.sandbox, fileExists(SYSTEM.csc())),
   },
   {
     id: 'sandbox-pagefile',

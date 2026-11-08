@@ -1,5 +1,6 @@
 // Shared types. Config and channel types come straight from the zod schemas, so each shape is defined exactly once.
 import type { z } from 'zod';
+import type { ClipboardPlan } from './clipboard.js';
 import type { AutoToolchain, ToolchainDecision } from './detect/index.js';
 import type { BootWant } from './local-config/index.js';
 import type {
@@ -188,6 +189,8 @@ export interface Generated {
   toolchains: Record<AutoToolchain, ToolchainDecision>;
   /** Where extra folders went when their own path could not be used, and the optional ones skipped. */
   mappingNotes: string[];
+  /** sandbox.clipboard as this launch really gets it. */
+  clipboard: ClipboardPlan;
 }
 /** secretsRemoved: what secrets.strip kept on this PC, e.g. "settings.json env.AWS_SECRET_ACCESS_KEY". */
 export interface ProfileResult {
@@ -235,6 +238,11 @@ export interface GuestSession {
   persistAgentState: boolean;
   networking: boolean;
   headless: boolean;
+  /**
+   * sandbox.clipboard "text": the bridge runs in the daemon (older launch folders lack it).
+   * line: the boot summary's words.
+   */
+  clipboard?: { bridge: boolean; toPc: boolean; toSandbox: boolean; line: string };
   network: Config['network'];
   provisioning: Config['provisioning'];
   toolchains: Toolchains;

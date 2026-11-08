@@ -45,7 +45,7 @@ const LAUNCH: LaunchPlan = {
   networking: true,
   devices: {
     gpu: false,
-    clipboard: true,
+    sharedClipboard: false,
     audioInput: false,
     videoInput: false,
     printers: false,
@@ -272,8 +272,8 @@ export const hcsSuite: Suite = {
     );
     t.equal(
       [docs.disks, docs.notes.length, docs.uvmId, docs.containerId],
-      [[{ image: 'C:\\S\\images\\set.vhdx', maxGb: 64, lun: 0 }], 2, 'agent-sandbox-1', 'agent-sandbox-1-c'],
-      'one agent disk to create; notes say networking and the clipboard are not there',
+      [[{ image: 'C:\\S\\images\\set.vhdx', maxGb: 64, lun: 0 }], 1, 'agent-sandbox-1', 'agent-sandbox-1-c'],
+      'one agent disk to create; the note says networking is not there',
     );
     t.equal(
       [cpuCount('none', 8), cpuCount(50, 8), cpuCount(5, 8), cpuCount(100, 2), cpuCount(10, 1)],
@@ -286,7 +286,7 @@ export const hcsSuite: Suite = {
       'layer ids are stable GUIDs',
     );
     const noDisk = buildDocuments({
-      launch: { ...LAUNCH, networking: false, storage: [], devices: { ...LAUNCH.devices, clipboard: false } },
+      launch: { ...LAUNCH, networking: false, storage: [], devices: { ...LAUNCH.devices, sharedClipboard: false } },
       image: FAKE_IMAGE,
       id: 'x',
       scratchVhdx: 'C:\\s.vhdx',
@@ -302,6 +302,7 @@ export const hcsSuite: Suite = {
       HCS_CAPABILITIES,
       {
         desktop: false,
+        textClipboard: true,
         gpu: false,
         clipboard: false,
         audio: false,

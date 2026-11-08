@@ -5,6 +5,7 @@ import { insideSandbox, hideSandboxWindow, showSandboxWindow } from '../../../ho
 import { NeedsRestart } from '../../../host/projects/index.js';
 import { RunDir } from '../../../shared/channel/index.js';
 import type { SandboxStatus, SessionStatus } from '../../../core/types.js';
+import { readClipboardSettings } from '../../../host/clipboard/index.js';
 import { resolveClipboard } from '../../../core/clipboard.js';
 import { errMsg, fail, sleep } from '../../../core/util/index.js';
 import { c, follow, working, table, type Progressing } from '../../output/index.js';
@@ -44,9 +45,11 @@ interface JoinedSession {
 export function attachHere(ctx: Context, session: Parameters<typeof attachTerminal>[0]): Promise<number> {
   if (ctx.loaded.config.attach.autoHide && !insideSandbox())
     void hideSandboxWindow(ctx.storageRoot, 120).catch(() => false);
-  // A copy in the agent reaches this PC's clipboard only when sandbox.clipboard already shares it with the sandbox.
+  // The agent's copy (OSC 52) reaches this PC only when this sandbox copies text to this PC anyway
+  // (sandbox.clipboard "text" or "shared", not "toSandbox").
   return attachTerminal(session, {
-    clipboardWrites: resolveClipboard(ctx.loaded.config.sandbox).toPc,
+    clipboardWrites:
+      readClipboardSettings(ctx.storageRoot, ctx.dataPath)?.toPc ?? resolveClipboard(ctx.loaded.config.sandbox).toPc,
     confirmCtrlC: ctx.loaded.config.attach.confirmCtrlC,
   });
 }

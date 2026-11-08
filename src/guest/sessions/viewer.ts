@@ -33,8 +33,8 @@ export async function viewSession(id: string): Promise<number> {
     return 1;
   }
   const socket = await connect({ ...session.attach, addresses: ['127.0.0.1'] });
-  // The sandbox's own terminal: a copy in the agent reaches the sandbox's clipboard (and yours only through
-  // sandbox.clipboard, which already shares it).
+  // The sandbox's own terminal: a copy in the agent reaches the sandbox's clipboard
+  // (and yours only through sandbox.clipboard "text" or "shared").
   const result = await runTerminalClient(socket, session.attach.token, {
     clipboardWrites: true,
     confirmCtrlC: sandboxSession.attach.confirmCtrlC !== false,

@@ -152,8 +152,8 @@ export function buildDocuments(input: HcsDocumentInput): HcsDocuments {
 
   if (launch.networking)
     notes.push('Networking is not available in the HCS engine yet: the sandbox has no network adapter.');
-  if (launch.devices.gpu || launch.devices.clipboard || launch.devices.audioInput || launch.devices.videoInput)
-    notes.push('GPU, clipboard, microphone and camera do not exist in the HCS engine.');
+  if (launch.devices.gpu || launch.devices.audioInput || launch.devices.videoInput)
+    notes.push('GPU, microphone and camera do not exist in the HCS engine.');
 
   const uvm: HcsDocument = {
     Owner: HCS_OWNER,

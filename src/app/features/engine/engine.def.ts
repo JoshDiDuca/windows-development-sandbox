@@ -18,8 +18,9 @@ import {
 /** The label of each capability, in the order the page and the command line show them. */
 export const CAPABILITY_NAMES = {
   desktop: 'desktop window',
+  textClipboard: 'copy and paste of text',
   gpu: 'GPU',
-  clipboard: 'clipboard',
+  clipboard: 'shared clipboard (images, files)',
   audio: 'audio',
   video: 'camera',
   printers: 'printers',
@@ -38,6 +39,7 @@ export const EngineIdSchema = z.enum(['windows-sandbox', 'hcs']).describe('The e
 
 export const CapabilitiesSchema = z.object({
   desktop: z.boolean().describe(CAPABILITY_NAMES.desktop),
+  textClipboard: z.boolean().describe(CAPABILITY_NAMES.textClipboard),
   gpu: z.boolean().describe(CAPABILITY_NAMES.gpu),
   clipboard: z.boolean().describe(CAPABILITY_NAMES.clipboard),
   audio: z.boolean().describe(CAPABILITY_NAMES.audio),

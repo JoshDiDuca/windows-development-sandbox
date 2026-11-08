@@ -15,7 +15,8 @@ const CLIPBOARD_WRITE = /^0{0,2}52;[cpqs0-7]{0,8};[A-Za-z0-9+/=]*$/;
 export interface OutputFilterOptions {
   /**
    * Let clipboard writes (OSC 52) through: the agent's "copy" reaches your clipboard. Only where the sandbox can reach
-   * that clipboard anyway (its own terminal, or sandbox.clipboard on). Clipboard reads are always dropped.
+   * that clipboard anyway (its own terminal, or sandbox.clipboard "text" / "shared" copying to this PC). Clipboard
+   * reads are always dropped.
    */
   readonly clipboardWrites?: boolean;
 }

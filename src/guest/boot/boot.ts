@@ -514,6 +514,7 @@ export class Boot {
     return [
       ...toolchainLines,
       ...networkProblems().map((p) => 'PROTECTION MISSING: ' + p),
+      ...(session.clipboard ? ['Clipboard: ' + session.clipboard.line] : []),
       ...this.allowSummary,
       ...this.vscodeSummary,
     ];

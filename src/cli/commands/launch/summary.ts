@@ -1,4 +1,5 @@
 // The table a launch (or `generate`) prints: what the sandbox gets, from the run, the generated files and prepare.
+import { clipboardLine } from '../../../core/clipboard.js';
 import type { Generated, ResolvedRun } from '../../../core/types.js';
 import type { EnginePlan } from '../../../host/engines/index.js';
 import type { Prepared } from './prepare.js';
@@ -103,6 +104,8 @@ export function launchSummary(run: ResolvedRun, generated: GeneratedSandbox, pre
   return [
     ['Workspace', run.workspaceHost + '  ->  ' + config.guestWorkspace + (config.readOnly ? '  (read-only)' : '')],
     ['Agent', agentRow(run, generated, prepared)],
+    ['Clipboard', clipboardLine(generated.clipboard, generated.bootConfig.sandbox.engine)],
+    ...(generated.clipboard.note ? [['', generated.clipboard.note]] : []),
     ['Node', versionsRow(run)],
     ...preparedRows(prepared),
     ['Toolchains', toolchainsRow(generated)],

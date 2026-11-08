@@ -1548,6 +1548,7 @@ export const appSuite: Suite = {
     // Hand-made reports: this suite never runs the real checks (sc, whoami) that a Windows sandbox could not pass.
     const caps = {
       desktop: true,
+      textClipboard: true,
       gpu: true,
       clipboard: true,
       audio: true,

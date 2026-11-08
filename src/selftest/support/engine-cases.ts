@@ -76,6 +76,12 @@ export const ENGINE_CASES: readonly EngineCase[] = [
     mappings: BASE,
   },
   {
+    name: 'clipboard text with protectedClient off',
+    config: withSandbox({ clipboard: 'text', protectedClient: false }),
+    memoryMb: 8192,
+    mappings: BASE,
+  },
+  {
     name: 'every device off',
     config: withSandbox({ clipboard: 'off', networking: false, protectedClient: false }),
     memoryMb: 8192,

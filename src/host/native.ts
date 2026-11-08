@@ -30,6 +30,23 @@ export function nativeScript(name: string, args: readonly string[] = []): string
   ];
 }
 
+/** HostTools' C# sources: native\csharp\HostTools\*.cs and the clipboard code it shares with the sandbox. */
+export function hostToolsSources(packageRoot: string = PACKAGE_ROOT): string[] {
+  const dir = path.join(packageRoot, 'native', ...HOST_TOOLS_SOURCES.slice(1));
+  try {
+    return [
+      ...fs
+        .readdirSync(dir)
+        .filter((f) => f.endsWith('.cs'))
+        .sort()
+        .map((f) => path.join(dir, f)),
+      path.join(packageRoot, 'sandbox', 'csharp', 'ClipboardText.cs'),
+    ];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * <storage>\bin\<hash of its sources>\HostTools.exe, compiled with the .NET Framework csc the first time; null when it
  * cannot be built (no csc, a compile error): the caller then runs the PowerShell fallback. A plain name and full file
@@ -37,19 +54,14 @@ export function nativeScript(name: string, args: readonly string[] = []): string
  */
 export function hostToolsExe(storageRoot: string): string | null {
   refuseInSelfTest('build HostTools.exe');
-  const dir = nativeFile(...HOST_TOOLS_SOURCES.slice(1));
-  let sources: string[];
+  const sources = hostToolsSources();
+  if (sources.length === 0) return null;
+  const hash = crypto.createHash('sha256');
   try {
-    sources = fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith('.cs'))
-      .sort()
-      .map((f) => path.join(dir, f));
+    for (const file of sources) hash.update(fs.readFileSync(file));
   } catch {
     return null;
   }
-  const hash = crypto.createHash('sha256');
-  for (const file of sources) hash.update(fs.readFileSync(file));
   const bin = path.join(storageRoot, 'bin');
   const exe = path.join(bin, hash.digest('hex').slice(0, 12), 'HostTools.exe');
   if (fs.existsSync(exe)) return exe;

@@ -72,6 +72,8 @@ export const LAUNCH_FILES_GOLDEN: readonly string[] = [
   'sandbox/csharp/AppActivation.cs',
   'sandbox/csharp/BindMount.cs',
   'sandbox/csharp/CargoShim.cs',
+  'sandbox/csharp/ClipboardBridge.cs',
+  'sandbox/csharp/ClipboardText.cs',
   'sandbox/csharp/ClipboardWatch.cs',
   'sandbox/csharp/Desktop.cs',
   'sandbox/csharp/EnvBroadcast.cs',

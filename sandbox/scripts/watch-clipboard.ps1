@@ -4,5 +4,5 @@
 param([Parameter(Mandatory = $true)][uint32]$ProcessId)
 $ErrorActionPreference = 'Stop'
 
-Add-Type -Path (Join-Path $PSScriptRoot '..\csharp\ClipboardWatch.cs')
+Add-Type -Path @((Join-Path $PSScriptRoot '..\csharp\ClipboardText.cs'), (Join-Path $PSScriptRoot '..\csharp\ClipboardWatch.cs'))
 exit [SbxClipboardWatch]::Run($ProcessId)

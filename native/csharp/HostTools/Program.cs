@@ -9,6 +9,7 @@
 //   user-path --has D  exit 0 when D is on your stored PATH, 1 when not
 //   web-helper --pipe P --server-pid N   Windows sign-in for the web UI (WebHelper.cs), until stdin closes
 //   door-client --owner USER   another user's side of that sign-in: prints the answer
+//   clipboard-bridge --max-bytes N   the sandbox window in front (fg 1/0) and this PC's clipboard text, until stdin closes
 //   protect | unprotect        DPAPI for the current user (Protect.cs): base64 on stdin, base64 on stdout
 using System;
 using System.Collections.Generic;
@@ -22,6 +23,7 @@ static class Program
     private const int MaxEventsPerQuery = 100;
     private const int MaxDetail = 390;
     private const int MaxResourceDetail = 1500;
+    private const int MaxClipboardBytes = 4194304;
 
     static int Main(string[] args)
     {
@@ -126,6 +128,13 @@ static class Program
                     return Usage();
                 }
                 return AgentSandbox.WebHelper.Client(value);
+            case "clipboard-bridge":
+                int maxBytes;
+                if (!options.TryGetValue("max-bytes", out value) || !int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out maxBytes) || maxBytes < 1 || maxBytes > MaxClipboardBytes)
+                {
+                    return Usage();
+                }
+                return AgentSandbox.HostClipboard.Serve(maxBytes);
             case "protect":
                 return AgentSandbox.Protect.Run(true);
             case "unprotect":
@@ -137,7 +146,7 @@ static class Program
 
     static int Usage()
     {
-        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove|--has <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | protect | unprotect");
+        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove|--has <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | clipboard-bridge --max-bytes N | protect | unprotect");
         return 2;
     }
 

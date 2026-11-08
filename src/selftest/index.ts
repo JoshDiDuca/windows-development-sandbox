@@ -81,6 +81,7 @@ import { remoteSuite } from './remote.test.js';
 import { workspaceSuite } from './workspace.test.js';
 import { workspaceViewSuite } from './workspace-view.test.js';
 import { liveNetworkSuite } from './live-network.test.js';
+import { clipboardLiveSuite } from './clipboard-live.test.js';
 import { liveTerminalSuite } from './live-terminal.test.js';
 import { appSuite } from './app.test.js';
 import { uiTextSuite } from './ui-text.test.js';
@@ -182,6 +183,7 @@ export const SUITES: Suite[] = [
   liveProjectsSuite,
   liveGitSuite,
   liveNetworkSuite,
+  clipboardLiveSuite,
   liveTerminalSuite,
 ];
 

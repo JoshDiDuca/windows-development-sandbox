@@ -51,6 +51,7 @@ export function heartbeatLine(hb: Heartbeat): string {
     hb.step +
     (hb.hostStep > 0 ? ' (this PC asked for step ' + hb.hostStep + ')' : '') +
     (hb.diskQueueReported !== undefined ? ', this PC disk queue ' + hb.diskQueueReported : '') +
+    (hb.held ? ', ' + hb.held + ' builds held by the memory gate' : '') +
     (top ? '; biggest: ' + top : '')
   );
 }

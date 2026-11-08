@@ -144,6 +144,8 @@ export const PressureStatusSchema = z.object({
   lowered: z.number().int().min(0).max(1024),
   /** Compilers waiting their turn right now (name, process id, seconds until they may go on). */
   paused: z.array(z.object({ name: Text(64), pid: z.number().int(), seconds: z.number().int().min(0).max(60) })).max(8),
+  /** Build programs the memory gate holds right now (let go one at a time). */
+  held: z.number().int().min(0).max(1024).optional(),
   /** The CPU share the compilers get together (percent; 100 = no cap). */
   cpuPercent: z.number().int().min(0).max(100).optional(),
   /** The PC itself asked for slowing down (its memory or CPU is low). */
@@ -170,6 +172,8 @@ export const HeartbeatSchema = z.object({
   topProcesses: z.array(z.object({ name: Text(64), privateMb: z.number().int().min(0).max(1e7) })).max(5),
   /** The disk queue this PC last reported while asking the sandbox to slow down. */
   diskQueueReported: z.number().min(0).max(100000).optional(),
+  /** Build programs the memory gate holds right now (let go one at a time). */
+  held: z.number().int().min(0).max(1024).optional(),
   /** "ending": the sandbox is shutting down in order (idle shutdown, sandbox stop, Windows shutting down). */
   phase: z.enum(['ready', 'working', 'ending']),
 });

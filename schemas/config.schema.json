@@ -204,7 +204,7 @@
         },
         "pressureResponse": {
           "type": "boolean",
-          "description": "When the sandbox (or this PC) runs low on memory, slow builds down in steps, like a PC that gets slower instead of failing: build programs get lower CPU and memory priority, then less CPU, then compilers take turns (the waiting ones briefly suspended and trimmed to the paging file). Nothing is stopped or killed, and the agents themselves are never touched. Yours only: a project file cannot change it."
+          "description": "When the sandbox (or this PC) runs low on memory, slow builds down in steps, like a PC that gets slower instead of failing: build programs get lower CPU and memory priority, then less CPU, then compilers take turns (the waiting ones briefly suspended and trimmed to the paging file). Nothing is stopped or killed, and the agents themselves are never touched. A memory gate also holds new compilers and linkers for a moment when the memory of the build programs grows faster than 4 GB in 3 seconds (3 GB with vGPU), and lets them go one at a time. Yours only: a project file cannot change it."
         },
         "vGpu": {
           "type": "boolean",

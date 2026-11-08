@@ -91,7 +91,7 @@ public static class SbxClipboardBridge
     private static void Set(string argument, int maxBytes)
     {
         string text = Decode(argument);
-        if (text == null || Encoding.UTF8.GetByteCount(text) > maxBytes)
+        if (text == null || text.IndexOf((char)0) >= 0 || Encoding.UTF8.GetByteCount(text) > maxBytes)
         {
             Say("set-failed");
             return;

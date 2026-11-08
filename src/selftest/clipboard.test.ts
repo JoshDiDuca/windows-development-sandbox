@@ -528,5 +528,19 @@ export const clipboardSuite: Suite = {
       t.check(!fs.existsSync(g.run.clipboardToSandboxFile), 'an invalid file is deleted unread');
       g.bridge.stop();
     }
+    {
+      // Found against the real helpers: a "set" holding a NUL was put on the clipboard (the TS side never sends one).
+      // Running it would write the clipboard, so the sources are checked for the refusal.
+      const sources = [
+        path.join(t.packageRoot, 'sandbox', 'csharp', 'ClipboardBridge.cs'),
+        path.join(t.packageRoot, 'native', 'csharp', 'HostTools', 'HostClipboard.cs'),
+      ];
+      for (const file of sources) {
+        t.check(
+          /text\.IndexOf\(\(char\)0\) >= 0/.test(fs.readFileSync(file, 'utf8')),
+          path.basename(file) + ' refuses a set whose text holds a NUL',
+        );
+      }
+    }
   },
 };

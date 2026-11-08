@@ -22,8 +22,8 @@ export const WINDOWS_RELEASES: readonly ReleaseDates[] = [
   { build: 22000, name: '21H2', homePro: '2023-10-10', enterprise: '2024-10-08' },
   { build: 22621, name: '22H2', homePro: '2024-10-08', enterprise: '2025-10-15' },
   { build: 22631, name: '23H2', homePro: '2025-11-11', enterprise: '2026-11-11' },
-  { build: 26100, name: '24H2', homePro: '2026-10-13', enterprise: '2027-10-12' },
-  { build: 26200, name: '25H2', homePro: '2027-10-12', enterprise: '2028-10-10' },
+  { build: 26100, name: '24H2', homePro: '2026-10-13', enterprise: '2027-10-13' },
+  { build: 26200, name: '25H2', homePro: '2027-10-12', enterprise: '2028-10-11' },
 ];
 
 /** A release that ends within this many days is warned about. */

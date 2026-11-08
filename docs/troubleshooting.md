@@ -19,7 +19,7 @@ fine says what it means and what to do. A check that takes more than 20 seconds 
 
 | Group          | Check                                                                                                                                                                                   | Fixed by repair                                                                                             |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| This PC        | Windows, edition, CPU virtualization, memory, Node.js, a Windows restart waiting                                                                                                        | no (it says what to turn on)                                                                                |
+| This PC        | Windows, its release and whether it still gets fixes, edition, CPU virtualization, memory, Node.js, a Windows restart waiting                                                                                                        | no (it says what to turn on)                                                                                |
 | Install        | managed or npm install, and its scope; `install.json` readable                                                                                                                          | no (run the installer again)                                                                                |
 |                | `active-version` and `active-node` name installed folders                                                                                                                               | yes: points them at the newest complete version (nothing is deleted)                                        |
 |                | the commands in `bin` exist and read the active version                                                                                                                                 | yes: rewrites them                                                                                          |
@@ -43,6 +43,7 @@ fine says what it means and what to do. A check that takes more than 20 seconds 
 |                | records of sync watchers that are gone; watchers running with no sandbox                                                                                                                | yes: removes the records and stops the orphans                                                              |
 |                | launch folders older than 7 days                                                                                                                                                        | yes: removes them                                                                                           |
 |                | `HostTools.exe` built; the conpty and Windows Terminal downloads whole                                                                                                                  | yes: builds it; removes a broken download                                                                   |
+|                | crash dumps of the sandbox's VM (`vmwp.exe`) are on or off; a warning after such a crash while off | yes: turns them on (Windows asks for administrator permission) |
 | Agents & tools | the default agent is set up; each agent's saved login is in use                                                                                                                         | no (`sandbox account use`)                                                                                  |
 | Network        | proxy variables make sense; github.com can be reached                                                                                                                                   | no                                                                                                          |
 
@@ -152,6 +153,24 @@ samples) is kept in `<storage>\logs\crashes`; `sandbox logs --crash` prints the 
   as a crash ("ended suddenly while it was working"; the guest cannot tell a closed window from a crash). The report
   says what it was doing in its last seconds, and also reads graphics driver resets (Display 4101, GPU live kernel
   events) and Hyper-V or `vmwp.exe` errors. Closing the window while it sits idle is still on purpose.
+- **"A program that runs the sandbox VM (vmwp.exe) crashed."** That program is part of Windows (Hyper-V), so the fault is
+  in Windows' own code or a driver it uses (with vGPU on, usually the graphics driver). To learn which, let Windows keep
+  a dump of it: after such a crash the next interactive launch asks once ("Keep a crash dump of the sandbox's VM?",
+  Windows asks for administrator permission), or run `sandbox vm-dumps on` (`off` turns it off, `status` says). It sets
+  Windows Error Reporting's LocalDumps for `vmwp.exe` (mini dump, the last 5 kept) in
+  `%ProgramData%AgentSandboxm-dumps`; nothing else on your PC changes. The doctor shows the setting under
+  Sandbox ("VM crash dumps"), and repair can turn it on.
+- **What the report's dump lines mean.** After a `vmwp.exe` crash the crash report reads the newest dump itself (no
+  debugger needed) and adds "What the dump shows: access violation (0xc0000005) in ntdll.dll+0x21afd; on its stack:
+  a.dll, b.dll", then one line on what that points at: the graphics (vGPU) path (update the graphics driver, or keep
+  `sandbox.vGpu` off for unattended runs), Hyper-V's own devices (update Windows), or Windows' VM worker (update
+  Windows). The report also names your Windows release and edition, and with vGPU on the graphics adapter and driver
+  version and date.
+- **Is your Windows release still serviced?** A crash inside Windows' VM code is only fixed by a Windows update, and a
+  release that is out of servicing gets none. Doctor (This PC > Windows release) and the crash report say so, with the
+  date, for example "Windows 11 22H2 gets no more fixes since 15 Oct 2025 (Enterprise)"; the launch repeats it at most
+  once a day. The release comes from the build and edition Windows reports, not from file versions (22H2 and 23H2 share
+  the same ones).
 - **Blue screens on your PC too?** Test its memory (Windows Memory Diagnostic, or turn off XMP/EXPO for a while).
 
 ## A program a build just made will not run: "The file or directory is corrupted and unreadable" (os error 1392)

@@ -70,6 +70,7 @@ import { personalizationSuite } from './personalization.test.js';
 import { projectsSuite } from './projects.test.js';
 import { repairSuite } from './repair.test.js';
 import { healthSuite } from './health.test.js';
+import { vmCrashSuite } from './vm-crash.test.js';
 import { repoGuardSuite } from './repo-guard.test.js';
 import { secretsSuite } from './secrets.test.js';
 import { setupSuite } from './setup.test.js';
@@ -132,6 +133,7 @@ export const SUITES: Suite[] = [
   linksSuite,
   channelSuite,
   heavyLoadSuite,
+  vmCrashSuite,
   gitAccessSuite,
   repoGuardSuite,
   secretsSuite,

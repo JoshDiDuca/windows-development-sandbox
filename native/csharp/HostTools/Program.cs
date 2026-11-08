@@ -9,6 +9,7 @@
 //   user-path --has D  exit 0 when D is on your stored PATH, 1 when not
 //   web-helper --pipe P --server-pid N   Windows sign-in for the web UI (WebHelper.cs), until stdin closes
 //   door-client --owner USER   another user's side of that sign-in: prints the answer
+//   minidump <file>            the exception, faulting module and stack modules of a crash dump, as JSON (MiniDump.cs)
 //   protect | unprotect        DPAPI for the current user (Protect.cs): base64 on stdin, base64 on stdout
 using System;
 using System.Collections.Generic;
@@ -126,6 +127,21 @@ static class Program
                     return Usage();
                 }
                 return AgentSandbox.WebHelper.Client(value);
+            case "minidump":
+                if (args.Length != 2)
+                {
+                    return Usage();
+                }
+                try
+                {
+                    Console.Out.Write(AgentSandbox.MiniDump.Json(args[1]));
+                    return 0;
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e.Message);
+                    return 1;
+                }
             case "protect":
                 return AgentSandbox.Protect.Run(true);
             case "unprotect":
@@ -137,7 +153,7 @@ static class Program
 
     static int Usage()
     {
-        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove|--has <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | protect | unprotect");
+        Console.Error.WriteLine("Usage: HostTools keep-awake --owner-pid N | stop-events --since <ISO time> | memory-status | hide-window --wait S | show-window [--handles a,b] | user-path --add|--remove|--has <folder> | web-helper --pipe P --server-pid N | door-client --owner USER | minidump <file> | protect | unprotect");
         return 2;
     }
 

@@ -43,6 +43,7 @@ export const COMMAND_PLACES: Readonly<Record<string, CommandPlace>> = {
   show: { place: 'Sandbox > Status' },
   hide: { place: 'Sandbox > Status' },
   stop: { place: 'Sandbox > Status' },
+  'vm-dumps': { place: 'Sandbox > Status (after a crash) and Maintenance > Health' },
   cleanup: { place: 'Sandbox > Status (when a dead sandbox left programs behind)' },
   restart: { place: 'Sessions (key r)' },
   shell: { place: 'Sessions (key s)' },

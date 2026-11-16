@@ -402,6 +402,12 @@
                 "type": "string"
               },
               "description": "npm packages installed globally into the default Node version, installed once and kept (e.g. [\"typescript\", \"npm-check-updates\"])."
+            },
+            "maxHeapMb": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 131072,
+              "description": "Node's memory ceiling in MB (NODE_OPTIONS=--max-old-space-size) for the agent and every terminal. 0 = Node's own default."
             }
           },
           "additionalProperties": false

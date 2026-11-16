@@ -50,26 +50,71 @@ export function agentShims(
   });
 }
 
+/** The agent's own update command (`claude update`): it would update a copy the sandbox does not run, so the shim
+ * sends it to `sbx-agent update` instead. */
+const SELF_UPDATE: Readonly<Record<string, string>> = { claude: 'update', opencode: 'upgrade' };
+
+/** Where an update downloaded while the agent ran waits until no copy of it runs (Windows locks a running .exe). */
+export function pendingPath(exe: string): string {
+  return exe + '.new';
+}
+
 /**
  * The text of `<command>.cmd`: runs the installed agent, or installs it first (`install` = node + installer script).
- * The agent's own arguments pass through %* untouched, after the shim's flags if it has any.
+ * The agent's own arguments pass through %* untouched, after the shim's flags if it has any. A waiting update takes
+ * the old program's place first when nothing runs it.
  */
 export function shimText(shim: AgentShim, install: { node: string; script: string }): string {
+  const sbxAgent = '"' + install.node + '" "' + install.script + '" ';
+  const updateWord = SELF_UPDATE[shim.command];
   return [
     '@echo off',
     'setlocal',
     'set "SBX_REAL=' + shim.target + '"',
+    ...(updateWord ? ['if /i "%~1"=="' + updateWord + '" goto update'] : []),
+    'if exist "' +
+      pendingPath('%SBX_REAL%') +
+      '" (del "%SBX_REAL%" >nul 2>&1 & if not exist "%SBX_REAL%" ren "' +
+      pendingPath('%SBX_REAL%') +
+      '" "' +
+      path.win32.basename(shim.target) +
+      '")',
     'if exist "%SBX_REAL%" goto run',
     'echo ' + shim.command + ' is not installed in this sandbox yet. Installing it now (one time)...',
-    '"' + install.node + '" "' + install.script + '" install ' + shim.name,
+    sbxAgent + 'install ' + shim.name,
     'if errorlevel 1 exit /b 1',
+    ...(updateWord ? ['goto run', ':update', sbxAgent + 'update ' + shim.name, 'exit /b %errorlevel%'] : []),
     ':run',
     'endlocal & "%SBX_REAL%" ' + (shim.arguments?.length ? shim.arguments.join(' ') + ' ' : '') + '%*',
     '',
   ].join('\r\n');
 }
 
-/** The `sbx-agent` command: `sbx-agent install <agent>` / `sbx-agent list`. */
+/** The x.y.z at the start of a version text (`2.1.325 (Claude Code)` -> `2.1.325`), or null. */
+export function versionOf(text: string): string | null {
+  return /(\d+)\.(\d+)\.(\d+)/.exec(text)?.[0] ?? null;
+}
+
+/** True when `latest` is a newer x.y.z than `installed` (an unknown installed version counts as older). */
+export function isNewer(latest: string, installed: string | null): boolean {
+  const a = versionOf(latest)?.split('.').map(Number);
+  if (!a) return false;
+  const b = installed ? versionOf(installed)?.split('.').map(Number) : undefined;
+  if (!b) return true;
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i]! > b[i]!;
+  return false;
+}
+
+/** An npm spec's package and tag (`@scope/pkg@latest` -> `@scope/pkg`, `latest`); the tag is null for a pinned
+ * version or range, which an update leaves alone. */
+export function npmSpec(spec: string): { name: string; tag: string | null } {
+  const at = spec.lastIndexOf('@');
+  if (at <= 0) return { name: spec, tag: 'latest' };
+  const version = spec.slice(at + 1);
+  return { name: spec.slice(0, at), tag: /^[A-Za-z][\w-]*$/.test(version) ? version : null };
+}
+
+/** The `sbx-agent` command: `sbx-agent install <agent>` / `sbx-agent update [agent]` / `sbx-agent list`. */
 export function sbxAgentText(install: { node: string; script: string }): string {
   return '@"' + install.node + '" "' + install.script + '" %*\r\n';
 }

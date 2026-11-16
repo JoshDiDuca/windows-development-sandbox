@@ -207,7 +207,9 @@ virtualization). Compose projects use the databases above.
 | Reasonix, CodeWhale (`deepseek`)                                                             | untested; community agents for DeepSeek, which has no official CLI |
 
 Every configured agent is a command in every terminal tab (`claude`, `codex` ...). Installed ones start; the others
-install on first use (`sbx-agent list` shows which). Add your own under `harnesses` in your settings
+install on first use (`sbx-agent list` shows which). They update to their latest release when the sandbox starts, and
+`claude update` / `sbx-agent update <agent>` updates one in a running sandbox
+([agent settings](configuration.md#agent-settings)). Add your own under `harnesses` in your settings
 ([agent settings](configuration.md#agent-settings)).
 
 ## Apps and tools

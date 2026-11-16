@@ -6,6 +6,21 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
 `~/.agent-sandbox` folder, the environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and
 `AGENT_SANDBOX_WORKSPACE`, the `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.31.1
+
+- **Updating an agent works.** `claude update` in the sandbox used to update a copy the sandbox never runs (in the
+  wiped user folder), so `claude` stayed on the old version. Now `claude update` (and `opencode upgrade`) runs the
+  sandbox's own update: Claude Code comes from Anthropic's releases, checked against the release's SHA-256, into
+  persistent storage, so it survives the sandbox. `sbx-agent update <agent>` updates any agent, `sbx-agent update`
+  every installed one. A Claude that is running keeps its version (Windows locks the program); the new one takes over
+  at the next `claude` started after they all close, or the next sandbox.
+- **Agents update when the sandbox starts** (`provisioning.updateAgents`, on by default): the agent is checked against
+  its latest release before the session starts, which takes a second when it is current. A failed check only warns.
+  A pinned `npmPackage` version is left alone.
+- **Node's memory ceiling is a setting:** `toolchains.node.maxHeapMb` (default 4096 MB, in the settings menu under
+  Node) sets `NODE_OPTIONS=--max-old-space-size` for the agent and every terminal. 0 leaves Node's own default; a
+  `NODE_OPTIONS` you set in `toolchains.environment` still wins.
+
 ## 1.31.0
 
 - **Copy and paste between the sandbox and your PC works.** It was blocked: Protected Client (on by default) filters

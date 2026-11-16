@@ -23,6 +23,14 @@ export const ToolchainsSchema = z.strictObject({
       'npm packages installed globally into the default Node version',
       '["typescript", "npm-check-updates"]',
     ),
+    maxHeapMb: z
+      .number()
+      .int()
+      .min(0)
+      .max(131072)
+      .describe(
+        "Node's memory ceiling in MB (NODE_OPTIONS=--max-old-space-size) for the agent and every terminal. 0 = Node's own default.",
+      ),
   }),
   python: z.strictObject({
     enabled: enabled(

@@ -12,7 +12,7 @@ import { tool, type ToolEnv } from './tool-env.js';
 import { plan } from './plan.js';
 import type { ToolchainOptions } from './step.js';
 import { scheduler, type RunOptions } from './scheduler.js';
-import { mergeParts, runSplit } from './split.js';
+import { mergeParts, nodeHeapVars, runSplit } from './split.js';
 
 /** The combined environment, plus what each step contributed (kept so later projects reuse the shared steps). */
 export interface ToolchainResult extends ToolEnv {
@@ -35,7 +35,10 @@ export function mergeToolchains(
 ): ToolchainResult {
   const map = parts instanceof Map ? parts : new Map(Object.entries(parts));
   return {
-    ...mergeParts(names, map, { environment: config.environment, bin: mkdirp(tool('bin')) }),
+    ...mergeParts(names, map, {
+      environment: { ...nodeHeapVars(config.node.maxHeapMb), ...config.environment },
+      bin: mkdirp(tool('bin')),
+    }),
     names: [...planNames],
   };
 }

@@ -57,6 +57,11 @@ export async function runSplit(
 }
 
 /** The parts of these steps merged in the order of `names`, so PATH order never depends on which finished first. */
+/** toolchains.node.maxHeapMb as NODE_OPTIONS (0 = Node's own default: nothing set). */
+export function nodeHeapVars(maxHeapMb: number): Record<string, string> {
+  return maxHeapMb > 0 ? { NODE_OPTIONS: '--max-old-space-size=' + maxHeapMb } : {};
+}
+
 export function mergeParts(
   names: readonly string[],
   parts: ReadonlyMap<string, ToolEnv>,

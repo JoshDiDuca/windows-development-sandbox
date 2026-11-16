@@ -126,6 +126,7 @@
     "copyFromHost": true,
     "fallbackToInstall": true,
     "refresh": false,
+    "updateAgents": true,
     "git": {
       "enabled": true,
       "access": "full"
@@ -146,7 +147,8 @@
       "extraVersions": [],
       "corepack": true,
       "volta": "auto",
-      "globalPackages": []
+      "globalPackages": [],
+      "maxHeapMb": 4096
     },
     "python": {
       "enabled": "auto",

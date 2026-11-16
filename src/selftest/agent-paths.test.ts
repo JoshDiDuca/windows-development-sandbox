@@ -11,8 +11,12 @@ import {
   bootResetPaths,
   isCopyableDatabaseFile,
   isDatabaseFile,
+  isNewer,
   localStateEntries,
+  npmSpec,
+  pendingPath,
   shimText,
+  versionOf,
 } from '../guest/agents/agent-files.js';
 import {
   appendMissing,
@@ -56,6 +60,34 @@ export const agentPathsSuite: Suite = {
       'the command installs on first use',
     );
     t.check(text.includes('if exist "%SBX_REAL%" goto run'), 'an installed agent starts at once');
+    t.excludes(text, 'goto update', 'codex has no update command of its own to take over');
+    const claudeShim = shimText(
+      shims.find((s) => s.name === 'claude')!,
+      { node: 'n.exe', script: 'agent.js' },
+    );
+    t.includes(claudeShim, 'if /i "%~1"=="update" goto update', '`claude update` goes to the sandbox updater');
+    t.includes(claudeShim, '"n.exe" "agent.js" update claude', 'which updates the copy the sandbox runs');
+    t.includes(
+      claudeShim,
+      'if not exist "%SBX_REAL%" ren "%SBX_REAL%.new" "claude.exe"',
+      'a waiting update takes over once no claude runs',
+    );
+    t.check(claudeShim.endsWith('%*\r\n'), 'claude itself still runs last');
+
+    t.section('agent updates');
+    t.equal(versionOf('2.1.325 (Claude Code)'), '2.1.325', 'the version in `claude --version`');
+    t.check(isNewer('2.1.325', '2.1.296'), 'a later patch is newer');
+    t.check(isNewer('2.10.0', '2.9.9'), 'versions compare as numbers, not text');
+    t.check(!isNewer('2.1.296', '2.1.296 (Claude Code)'), 'the same version is not newer');
+    t.check(!isNewer('1.0.0', '2.0.0'), 'an older release is not newer');
+    t.check(isNewer('2.1.325', null), 'an unknown installed version updates');
+    t.check(!isNewer('<html>', '2.1.0'), 'an answer without a version never updates');
+    t.equal(npmSpec('@anthropic-ai/claude-code@latest'), { name: '@anthropic-ai/claude-code', tag: 'latest' }, 'scope');
+    t.equal(npmSpec('@openai/codex'), { name: '@openai/codex', tag: 'latest' }, 'no tag means latest');
+    t.equal(npmSpec('aider-chat@1.2.3'), { name: 'aider-chat', tag: null }, 'a pinned version is left alone');
+    t.equal(npmSpec('pkg@next'), { name: 'pkg', tag: 'next' }, 'another tag follows that tag');
+    t.equal(pendingPath('C:\\a\\claude.exe'), 'C:\\a\\claude.exe.new', 'the update waits beside the program');
+    t.equal(DEFAULTS.provisioning.updateAgents, true, 'agents update when the sandbox starts by default');
     t.equal(
       agentShims(tools, { 'bad name': DEFAULTS.harnesses.codex }).length,
       0,

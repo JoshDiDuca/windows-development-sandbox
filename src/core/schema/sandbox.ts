@@ -223,6 +223,11 @@ export const ProvisioningSchema = z.strictObject({
   copyFromHost: z.boolean().describe('Copy Node, Git, nvm and the agent from this PC when they are installed here.'),
   fallbackToInstall: z.boolean().describe('Download anything that cannot be copied from this PC.'),
   refresh: z.boolean().describe('Re-copy / re-download everything on the next launch.'),
+  updateAgents: z
+    .boolean()
+    .describe(
+      'Update the agent to its latest release when the sandbox starts (Claude Code from Anthropic, npm agents from npm). Off = keep the installed version until you run `claude update` or `sbx-agent update`.',
+    ),
   git: GitSchema,
   terminal: toggle('Windows Terminal as the sandbox window (downloaded once).'),
   conpty: toggle(

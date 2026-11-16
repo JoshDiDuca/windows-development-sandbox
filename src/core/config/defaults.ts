@@ -75,13 +75,14 @@ export const DEFAULTS: Config = {
     copyFromHost: true,
     fallbackToInstall: true,
     refresh: false,
+    updateAgents: true,
     git: { enabled: true, access: 'full' },
     terminal: { enabled: true },
     conpty: { enabled: true },
   },
   downloads: { requireChecksum: false },
   toolchains: {
-    node: { version: 'host', extraVersions: [], corepack: true, volta: 'auto', globalPackages: [] },
+    node: { version: 'host', extraVersions: [], corepack: true, volta: 'auto', globalPackages: [], maxHeapMb: 4096 },
     python: { enabled: 'auto', version: '3', python2: true, pyenv: 'auto', tools: [] },
     rust: {
       enabled: 'auto',

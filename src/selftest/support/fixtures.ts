@@ -111,6 +111,8 @@ export function createFixtures(t: Harness) {
     c.sandbox.memoryMb = 8192;
     c.provisioning.copyFromHost = copyFromHost;
     c.provisioning.terminal.enabled = false;
+    // The live tests run cmd.exe as the agent: an update would ask it for a version and download the real one over it.
+    c.provisioning.updateAgents = false;
     c.harnesses.claude.hostDir = hostClaude;
     c.claudeProfile = { ...c.claudeProfile, hostDir: hostProfile, globalStateFile: hostGlobalState };
     c.personalization.enabled = false;

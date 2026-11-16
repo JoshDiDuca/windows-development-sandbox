@@ -29,6 +29,7 @@ Settings > General.
 | `toolchains.<lang>.enabled`                    | `true`, `false` or `"auto"` (only when the project uses it). Every tool works like this, Bun, uv and VS Code too. A project file can set it                             |
 | `toolchains.<lang>.version`                    | default versions; the project's version files still win                                                                                                                 |
 | `toolchains.environment`                       | extra environment variables, such as registry mirrors (not for secrets)                                                                                                 |
+| `toolchains.node.maxHeapMb`                    | Node's memory ceiling in MB for the agent and every terminal (`NODE_OPTIONS=--max-old-space-size`); default 4096, 0 = Node's own default                                |
 | `databases.<db>.enabled`, `.port`              | `true`, `false` or `"auto"`, and the port inside                                                                                                                        |
 | `apps.install`, `apps.custom`                  | apps from the catalogue, and programs of your own ([apps](toolchains.md#apps-and-tools))                                                                                |
 | `sandbox.memoryMb`, `.headless`, `.networking` | RAM (`"auto"`, see [CPU, RAM and GPU](#cpu-ram-and-gpu)), no window, internet on or off                                                                                 |
@@ -207,6 +208,12 @@ too. How it is kept and handed over: [security](security.md#github-cli).
 - Every configured agent is a command in every terminal tab (`claude`, `codex` ...). One that is not installed yet
   installs on first use (`sbx-agent list` shows them). These commands come first on PATH, so they win over a copy
   installed with `npm i -g` in Node's folder.
+- Agents update themselves when the sandbox starts (`provisioning.updateAgents`, default `true`): Claude Code from
+  Anthropic's releases (checked against the release's SHA-256), npm agents from npm (a pinned `npmPackage` version
+  stays). A failed check only warns; the agent starts with the version it has. To update in a running sandbox, type
+  `claude update` (or `sbx-agent update <agent>`, `sbx-agent update` for every installed agent). The update goes into
+  persistent storage, so it survives the sandbox. While a Claude session runs, Windows keeps its program locked: the
+  new version waits beside it and takes over at the next `claude` you start after they all close, or the next sandbox.
 
 ### Agent environment variables
 

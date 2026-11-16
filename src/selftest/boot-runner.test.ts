@@ -2,7 +2,7 @@
 // scheduler's download phase and background split. Fake tasks and deferred promises only: no machine state.
 import { BootRunner, checkGraph, duration, type BootTaskDef, type RunnerOptions } from '../guest/boot/runner.js';
 import { BOOT_TASKS, STAGES, stageTitle } from '../guest/boot/graph.js';
-import { backgroundNames, mergeParts, runSplit } from '../guest/toolchains/split.js';
+import { backgroundNames, mergeParts, nodeHeapVars, runSplit } from '../guest/toolchains/split.js';
 import { StepScheduler, type SchedulerSink } from '../guest/toolchains/step-scheduler.js';
 import type { ToolchainStep } from '../guest/toolchains/step.js';
 import { type ToolEnv } from '../guest/toolchains/tool-env.js';
@@ -617,6 +617,8 @@ export const bootRunnerSuite: Suite = {
         'the merged PATH order equals the plan order whichever step finishes first',
       );
       t.check(merged.vars.X === '1', "the config's own variables are merged in");
+      t.equal(nodeHeapVars(8192), { NODE_OPTIONS: '--max-old-space-size=8192' }, 'node.maxHeapMb sets NODE_OPTIONS');
+      t.equal(nodeHeapVars(0), {}, "node.maxHeapMb 0 leaves Node's own default");
     }
   },
 };

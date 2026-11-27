@@ -59,6 +59,23 @@ export const agentSettingsSuite: Suite = {
     );
     const text = shim ? shimText(shim, { node: 'node.exe', script: 'agent.js' }) : '';
     t.includes(text, '"%SBX_REAL%" --dangerously-bypass-approvals-and-sandbox %*', 'the codex.cmd shim adds the flags');
+    const codexShim = agentShims('C:\\AgentData\\tools', DEFAULTS.harnesses).find((s) => s.name === 'codex')!;
+    t.includes(
+      shimText(codexShim, { node: 'node.exe', script: 'agent.js' }),
+      'if /i "%~1"=="update" goto update',
+      '`codex update` uses the sandbox updater',
+    );
+    const opencodeShim = agentShims('C:\\AgentData\\tools', DEFAULTS.harnesses).find((s) => s.name === 'opencode')!;
+    t.includes(
+      shimText(opencodeShim, { node: 'node.exe', script: 'agent.js' }),
+      'if not defined XDG_DATA_HOME set "XDG_DATA_HOME=%LOCALAPPDATA%\\opencode-data"',
+      'opencode has a local-disk data path if no localState path is present',
+    );
+    t.includes(
+      shimText(opencodeShim, { node: 'node.exe', script: 'agent.js' }),
+      'endlocal & set "XDG_DATA_HOME=%XDG_DATA_HOME%" & "%SBX_REAL%" %*',
+      'opencode receives the local data path after its shim exits its local environment',
+    );
     t.excludes(
       shimText(
         agentShims('C:\\AgentData\\tools', DEFAULTS.harnesses).find((s) => s.name === 'codex')!,

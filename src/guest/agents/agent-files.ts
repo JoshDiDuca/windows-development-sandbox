@@ -50,9 +50,8 @@ export function agentShims(
   });
 }
 
-/** The agent's own update command (`claude update`): it would update a copy the sandbox does not run, so the shim
- * sends it to `sbx-agent update` instead. */
-const SELF_UPDATE: Readonly<Record<string, string>> = { claude: 'update', opencode: 'upgrade' };
+/** Agent self-updates would update a copy the sandbox does not run, so the shim uses its persistent updater instead. */
+const SELF_UPDATE: Readonly<Record<string, string>> = { claude: 'update', codex: 'update', opencode: 'upgrade' };
 
 /** Where an update downloaded while the agent ran waits until no copy of it runs (Windows locks a running .exe). */
 export function pendingPath(exe: string): string {
@@ -71,6 +70,9 @@ export function shimText(shim: AgentShim, install: { node: string; script: strin
     '@echo off',
     'setlocal',
     'set "SBX_REAL=' + shim.target + '"',
+    ...(shim.command === 'opencode'
+      ? ['if not defined XDG_DATA_HOME set "XDG_DATA_HOME=%LOCALAPPDATA%\\opencode-data"']
+      : []),
     ...(updateWord ? ['if /i "%~1"=="' + updateWord + '" goto update'] : []),
     'if exist "' +
       pendingPath('%SBX_REAL%') +
@@ -85,7 +87,9 @@ export function shimText(shim: AgentShim, install: { node: string; script: strin
     'if errorlevel 1 exit /b 1',
     ...(updateWord ? ['goto run', ':update', sbxAgent + 'update ' + shim.name, 'exit /b %errorlevel%'] : []),
     ':run',
-    'endlocal & "%SBX_REAL%" ' + (shim.arguments?.length ? shim.arguments.join(' ') + ' ' : '') + '%*',
+    shim.command === 'opencode'
+      ? 'endlocal & set "XDG_DATA_HOME=%XDG_DATA_HOME%" & "%SBX_REAL%" %*'
+      : 'endlocal & "%SBX_REAL%" ' + (shim.arguments?.length ? shim.arguments.join(' ') + ' ' : '') + '%*',
     '',
   ].join('\r\n');
 }

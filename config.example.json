@@ -486,10 +486,12 @@
       "npmBin": "opencode",
       "arguments": [],
       "environment": {},
+      "localState": {
+        "XDG_DATA_HOME": "sqlite"
+      },
       "home": {
         "env": {},
         "profileDirs": [
-          ".local/share/opencode",
           ".config/opencode"
         ],
         "loginFiles": [

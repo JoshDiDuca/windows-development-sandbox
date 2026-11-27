@@ -6,6 +6,13 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
 `~/.agent-sandbox` folder, the environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and
 `AGENT_SANDBOX_WORKSPACE`, the `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.31.2
+
+- **OpenCode works with SQLite in Windows Sandbox.** Its database now runs from a local working copy instead of the mapped
+  persistent profile, then is snapshotted back to persistent storage. Existing OpenCode databases and `auth.json` are
+  carried forward.
+- **`codex update` updates the sandbox's Codex install.** It now uses the same persistent updater as `sbx-agent update codex`.
+
 ## 1.31.1
 
 - **Updating an agent works.** `claude update` in the sandbox used to update a copy the sandbox never runs (in the

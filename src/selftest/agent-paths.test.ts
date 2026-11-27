@@ -60,7 +60,7 @@ export const agentPathsSuite: Suite = {
       'the command installs on first use',
     );
     t.check(text.includes('if exist "%SBX_REAL%" goto run'), 'an installed agent starts at once');
-    t.excludes(text, 'goto update', 'codex has no update command of its own to take over');
+    t.includes(text, 'if /i "%~1"=="update" goto update', '`codex update` goes to the sandbox updater');
     const claudeShim = shimText(
       shims.find((s) => s.name === 'claude')!,
       { node: 'n.exe', script: 'agent.js' },
@@ -96,6 +96,11 @@ export const agentPathsSuite: Suite = {
 
     t.section('agent SQLite folders');
     t.equal(DEFAULTS.harnesses.codex.localState, { CODEX_SQLITE_HOME: 'sqlite' }, 'codex runs its databases locally');
+    t.equal(
+      DEFAULTS.harnesses.opencode.localState,
+      { XDG_DATA_HOME: 'sqlite' },
+      'opencode runs its nested XDG database on the sandbox disk',
+    );
     const entries = localStateEntries(DEFAULTS.harnesses, 'C:\\AgentData\\state', 'C:\\nvm\\agent-state');
     t.equal(
       entries.map((e) => [e.agent, e.env, e.store, e.local, e.processes[0]]),
@@ -107,8 +112,15 @@ export const agentPathsSuite: Suite = {
           'C:\\nvm\\agent-state\\codex\\sqlite',
           'codex.exe',
         ],
+        [
+          'opencode',
+          'XDG_DATA_HOME',
+          'C:\\AgentData\\state\\opencode\\sqlite',
+          'C:\\nvm\\agent-state\\opencode\\sqlite',
+          'opencode.exe',
+        ],
       ],
-      'saved copy in the state folder, working copy on the sandbox disk',
+      'the two agents save their databases in state and work on the sandbox disk',
     );
     // A user's own harnesses.codex is merged over the built-in one: fields it leaves out (localState) stay.
     const { localState: _omitted, ...pinned } = DEFAULTS.harnesses.codex;

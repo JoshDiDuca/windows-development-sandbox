@@ -256,10 +256,13 @@ export const DEFAULTS: Config = {
       npmBin: 'opencode',
       arguments: [],
       environment: {},
+      localState: { XDG_DATA_HOME: 'sqlite' },
       // Docs: opencode.ai/docs/providers (~/.local/share/opencode/auth.json, ~/.config/opencode).
       home: {
         env: {},
-        profileDirs: ['.local/share/opencode', '.config/opencode'],
+        // Its SQLite database uses WAL, which does not work inside the mapped persistent profile folder. localState
+        // stages the database on the sandbox disk and snapshots it back between runs.
+        profileDirs: ['.config/opencode'],
         loginFiles: ['profile/.local/share/opencode/auth.json'],
         // On the PC opencode keeps it at the same XDG place (`opencode debug paths`: ~/.local/share/opencode).
         hostDir: '~',

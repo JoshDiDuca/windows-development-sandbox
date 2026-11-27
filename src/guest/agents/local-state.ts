@@ -35,10 +35,15 @@ export function localStateVars(): Record<string, string> {
   return Object.fromEntries(agentLocalStates().map((s) => [s.env, s.local]));
 }
 
-const databaseFiles = (dir: string, keep: (name: string) => boolean): string[] =>
-  exists(dir)
-    ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isFile() && keep(e.name) ? [e.name] : []))
-    : [];
+const databaseFiles = (dir: string, keep: (name: string) => boolean): string[] => {
+  if (!exists(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const relative = entry.name;
+    const file = path.join(dir, relative);
+    if (entry.isDirectory()) return databaseFiles(file, keep).map((child) => path.join(relative, child));
+    return entry.isFile() && keep(relative) ? [relative] : [];
+  });
+};
 
 /** A database file that starts like SQLite (an empty or cut-off file must never replace a saved copy). */
 const looksLikeSqlite = (file: string): boolean => {
@@ -54,7 +59,11 @@ const looksLikeSqlite = (file: string): boolean => {
 const copyFiles = (from: string, to: string, names: readonly string[]): void => {
   fs.rmSync(to, { recursive: true, force: true });
   mkdirp(to);
-  for (const name of names) fs.copyFileSync(path.join(from, name), path.join(to, name));
+  for (const name of names) {
+    const destination = path.join(to, name);
+    mkdirp(path.dirname(destination));
+    fs.copyFileSync(path.join(from, name), destination);
+  }
 };
 
 /** Replaces the folder `store` with the staged `incoming` folder; the old one is only removed once the new is in. */
@@ -146,9 +155,30 @@ export function restoreLocalState(): void {
   for (const s of agentLocalStates()) {
     try {
       adoptLegacy(s);
+      if (s.agent === 'opencode') {
+        // Before localState was configured, OpenCode wrote its WAL database into its linked profile directory.
+        // Copy it once into the dedicated SQLite store so it can be opened on the sandbox's own disk.
+        const oldData = path.join(stateDir, 'opencode', 'profile', '.local', 'share', 'opencode');
+        const oldFiles = databaseFiles(oldData, isCopyableDatabaseFile);
+        const newFiles = databaseFiles(s.store, isCopyableDatabaseFile);
+        if (oldFiles.length && !newFiles.length) copyFiles(oldData, path.join(s.store, 'opencode'), oldFiles);
+      }
       mkdirp(s.local);
       const names = databaseFiles(s.store, isCopyableDatabaseFile);
-      for (const n of names) fs.copyFileSync(path.join(s.store, n), path.join(s.local, n));
+      for (const n of names) {
+        const target = path.join(s.local, n);
+        mkdirp(path.dirname(target));
+        fs.copyFileSync(path.join(s.store, n), target);
+      }
+      if (s.agent === 'opencode') {
+        // OpenCode 1.x still imports logins from auth.json in the data directory.
+        const legacyAuth = path.join(stateDir, 'opencode', 'profile', '.local', 'share', 'opencode', 'auth.json');
+        const localAuth = path.join(s.local, 'opencode', 'auth.json');
+        if (exists(legacyAuth) && !exists(localAuth)) {
+          mkdirp(path.dirname(localAuth));
+          fs.copyFileSync(legacyAuth, localAuth);
+        }
+      }
       if (names.length) log(s.agent + ': databases restored to ' + s.local + '.');
     } catch (e) {
       warn(s.agent + ': could not restore its databases (' + errMsg(e) + '); it starts with empty ones.');
@@ -203,9 +233,11 @@ function snapshotWhileRunning(s: LocalState, print: string): void {
       fs.rmSync(incoming, { recursive: true, force: true });
       mkdirp(incoming);
       for (const name of databaseFiles(s.local, (n) => isCopyableDatabaseFile(n) && !/-wal$/i.test(n))) {
+        const destination = path.join(incoming, name);
+        mkdirp(path.dirname(destination));
         const db = new sqlite.DatabaseSync(path.join(s.local, name), { readOnly: true });
         try {
-          await sqlite.backup(db, path.join(incoming, name));
+          await sqlite.backup(db, destination);
         } finally {
           db.close();
         }

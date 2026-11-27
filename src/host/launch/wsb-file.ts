@@ -16,17 +16,18 @@ type SandboxSettings = Config['sandbox'];
 const MB = 1048576;
 const MIN_AUTO_MEMORY_MB = 4096;
 
-export type MemoryLimit = 'free' | 'share' | 'max' | 'commit' | 'resident';
+export type MemoryLimit = 'share' | 'max' | 'commit-limit' | 'resident';
 
 export interface MemoryDecision {
   readonly mb: number;
   /** What set the size. */
   readonly limitedBy: MemoryLimit;
-  /** What it would have been without looking at the commit (the old rule). */
+  /** Stable candidate before the total commit limit. */
   readonly withoutCommitMb: number;
-  /** The inputs of the refusal, when mb is below the minimum. */
+  /** Current available commit is used only as a minimum launch safety check. */
   readonly freeMb: number;
   readonly commitAvailableMb: number | null;
+  readonly commitLimitMb: number | null;
 }
 
 const roundDown = (mb: number): number => Math.floor(mb / 1024) * 1024;
@@ -68,53 +69,59 @@ export function residentNote(asked: number, given: number): string | null {
 }
 
 /**
- * "auto" (pure): free RAM minus the reserve, never more than maxMemoryMb or maxMemoryPercent of the PC's total RAM,
- * and, when the PC's available commit (RAM plus paging file, what the sandbox's memory is charged against) is known,
- * never more than that minus the reserve either.
+ * "auto" is stable across launches: total RAM, total commit limit, configured limits and the resident safety cap set
+ * the size. Transient free RAM/cache is deliberately ignored; current available commit only gates unsafe launches.
  */
 export function decideMemory(
   sandbox: SandboxSettings,
   freeMb: number,
   totalMb: number,
   commitAvailableMb: number | null,
+  commitLimitMb: number | null = null,
 ): MemoryDecision {
   const shareMb = Math.floor((totalMb * sandbox.maxMemoryPercent) / 100);
   const reserveMb = sandbox.reserveHostMb + (sandbox.vGpu ? VGPU_RESERVE_MB : 0);
-  const byFree = freeMb - reserveMb;
-  const byCommit = commitAvailableMb === null ? Infinity : commitAvailableMb - reserveMb;
+  const byCommit = commitLimitMb === null ? Infinity : commitLimitMb - reserveMb;
   const candidates: [MemoryLimit, number][] = [
     ['max', sandbox.maxMemoryMb],
     ['share', shareMb],
-    ['free', byFree],
-    ['commit', byCommit],
+    ['commit-limit', byCommit],
     ['resident', residentCapMb(sandbox, totalMb)],
   ];
   const lowest = candidates.reduce((a, b) => (b[1] < a[1] ? b : a));
-  const withoutCommit = roundDown(Math.min(sandbox.maxMemoryMb, shareMb, byFree, residentCapMb(sandbox, totalMb)));
-  return { mb: roundDown(lowest[1]), limitedBy: lowest[0], withoutCommitMb: withoutCommit, freeMb, commitAvailableMb };
+  const withoutCommit = roundDown(Math.min(sandbox.maxMemoryMb, shareMb, residentCapMb(sandbox, totalMb)));
+  return {
+    mb: roundDown(lowest[1]),
+    limitedBy: lowest[0],
+    withoutCommitMb: withoutCommit,
+    freeMb,
+    commitAvailableMb,
+    commitLimitMb,
+  };
 }
 
-/** A plain-words note when the commit made the sandbox's memory much smaller (2 GB or more) than free RAM allowed. */
+/** A plain-words note when the total commit limit makes the stable sandbox size much smaller. */
 export function memoryNote(decision: MemoryDecision): string | null {
-  if (decision.limitedBy !== 'commit' || decision.withoutCommitMb - decision.mb < 2048) return null;
+  if (decision.limitedBy !== 'commit-limit' || decision.withoutCommitMb - decision.mb < 2048) return null;
   return (
     'The sandbox gets ' +
     decision.mb / 1024 +
     ' GB of memory instead of ' +
     decision.withoutCommitMb / 1024 +
     ' GB: this PC has only ' +
-    Math.floor((decision.commitAvailableMb ?? 0) / 1024) +
-    ' GB of memory (RAM plus paging file) left to hand out, and if it runs out Windows closes the sandbox. ' +
-    'A bigger Windows paging file, or closing other programs, gives it more.'
+    Math.floor((decision.commitLimitMb ?? 0) / 1024) +
+    ' GB of total commit capacity (RAM plus paging file) is available; this sets the stable ceiling. ' +
+    'Increase the Windows paging file or adjust sandbox.reserveHostMb to raise it.'
   );
 }
 
-/** "auto": see decideMemory. commitAvailableMb: from HostTools memory-status (omitted = not checked). */
+/** "auto": see decideMemory. free memory is accepted for compatibility but never affects the stable result. */
 export function resolveMemoryMb(
   sandbox: SandboxSettings,
   freeMemoryBytes = os.freemem(),
   totalMemoryBytes = os.totalmem(),
   commitAvailableMb: number | null = null,
+  commitLimitMb: number | null = null,
 ): number {
   if (sandbox.memoryMb !== 'auto') return sandbox.memoryMb;
   const decision = decideMemory(
@@ -122,20 +129,18 @@ export function resolveMemoryMb(
     Math.floor(freeMemoryBytes / MB),
     Math.floor(totalMemoryBytes / MB),
     commitAvailableMb,
+    commitLimitMb,
   );
-  if (decision.mb < MIN_AUTO_MEMORY_MB)
+  const minimumAvailable = sandbox.reserveHostMb + (sandbox.vGpu ? VGPU_RESERVE_MB : 0) + MIN_AUTO_MEMORY_MB;
+  if (decision.mb < MIN_AUTO_MEMORY_MB || (commitAvailableMb !== null && commitAvailableMb < minimumAvailable))
     fail(
-      decision.limitedBy === 'commit'
+      commitAvailableMb !== null && commitAvailableMb < minimumAvailable
         ? 'Not enough memory left on this PC for the sandbox (' +
             decision.commitAvailableMb +
             ' MB of RAM plus paging file left, ' +
             sandbox.reserveHostMb +
             ' MB kept for this PC).'
-        : 'Not enough free RAM for the sandbox (' +
-            decision.freeMb +
-            ' MB free, ' +
-            sandbox.reserveHostMb +
-            ' MB kept for this PC).',
+        : 'The stable memory limit for the sandbox is below 4 GB (' + decision.mb + ' MB).',
       'Close some apps, enlarge the Windows paging file, lower sandbox.reserveHostMb, or set sandbox.memoryMb to a fixed value (>= 4096).',
     );
   return decision.mb;

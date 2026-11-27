@@ -177,10 +177,12 @@ export function appendHostMemory(file: string, memory: HostMemory, cpuPercent: n
 export interface LoadSettings {
   readonly profile: LoadProfile;
   readonly reserveHostMb: number;
+  readonly pressureResponse: boolean;
 }
 const LoadSettingsSchema = z.object({
   profile: z.enum(['normal', 'gentle']),
   reserveHostMb: z.number().int().nonnegative(),
+  pressureResponse: z.boolean().default(true),
 });
 
 function loadFile(storageRoot: string, dataPath: string): string {
@@ -199,6 +201,6 @@ export function readLoadSettings(storageRoot: string, dataPath: string): LoadSet
     return LoadSettingsSchema.parse(JSON.parse(fs.readFileSync(loadFile(storageRoot, dataPath), 'utf8')));
   } catch {
     // Not written (an older launch) or damaged: the defaults.
-    return { profile: 'normal', reserveHostMb: 8192 };
+    return { profile: 'normal', reserveHostMb: 8192, pressureResponse: true };
   }
 }

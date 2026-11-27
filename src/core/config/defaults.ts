@@ -10,10 +10,10 @@ export const DEFAULTS: Config = {
   sandbox: {
     engine: 'windows-sandbox',
     memoryMb: 'auto',
-    maxMemoryMb: 32768,
+    maxMemoryMb: 65536,
     maxMemoryPercent: 80,
     cpuLimit: 80,
-    pageFileMb: 16384,
+    pageFileMb: 'auto',
     reserveHostMb: 8192,
     agentMemoryHeadroomMb: 'auto',
     pressureResponse: true,

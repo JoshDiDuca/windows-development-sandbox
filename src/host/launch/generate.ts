@@ -101,7 +101,13 @@ export function generateSandbox(
   // Checked before anything is written, so a refusal leaves nothing behind.
   const commitAvailableMb = o.commitAvailableMb ?? null;
   const askedMb = Math.max(
-    resolveMemoryMb(config.sandbox, o.freeMemoryBytes, undefined, commitAvailableMb),
+    resolveMemoryMb(
+      config.sandbox,
+      o.freeMemoryBytes,
+      undefined,
+      commitAvailableMb,
+      o.commitLimitMb ?? null,
+    ),
     ...others.map((p) => (typeof p.config.sandbox.memoryMb === 'number' ? p.config.sandbox.memoryMb : 0)),
   );
   // Never more than this PC can keep in RAM for it, whatever was asked.
@@ -149,6 +155,7 @@ export function generateSandbox(
   writeLoadSettings(storageRoot, dataPath, {
     profile: loadProfileOf(config),
     reserveHostMb: config.sandbox.reserveHostMb,
+    pressureResponse: config.sandbox.pressureResponse,
   });
   saveClipboardSettings(storageRoot, dataPath, clipboard);
   // Live folders through HCS (opt-in alpha, Windows Sandbox only): a new key per launch, sealed on this side and handed
@@ -204,6 +211,7 @@ export function generateSandbox(
               Math.floor((o.freeMemoryBytes ?? os.freemem()) / 1048576),
               Math.floor(os.totalmem() / 1048576),
               commitAvailableMb,
+              o.commitLimitMb ?? null,
             ),
           )
         : null),

@@ -140,7 +140,9 @@ export interface GenerateOptions {
   harnessArgs: string[];
   probe: HostProbe;
   freeMemoryBytes?: number;
-  /** This PC's unused commit (RAM plus paging file) in MB from HostTools memory-status; omitted = not checked. */
+  /** This PC's total commit limit (RAM plus paging file), used as a stable auto-memory ceiling. */
+  commitLimitMb?: number | null;
+  /** This PC's current unused commit; used only for a hard launch floor, never to shrink auto RAM. */
   commitAvailableMb?: number | null;
   databases?: DatabasePlan[];
   pcLanguages?: AutoToolchain[];
@@ -283,8 +285,8 @@ export interface GuestSession {
    * sandbox.cpuLimit as a number (null = no cap); sandbox\scripts\set-cpu-cap.ps1 applies it before anything starts.
    */
   cpuLimitPercent?: number | null;
-  /** sandbox.pageFileMb (0 = Windows' own); sandbox\scripts\set-page-file.ps1 applies it at logon. */
-  pageFileMb?: number;
+  /** sandbox.pageFileMb ('auto' or fixed MB; 0 = Windows' own); set as a fixed pagefile at logon. */
+  pageFileMb?: 'auto' | number;
   /**
    * sandbox.agentMemoryHeadroomMb: how far below the sandbox's commit limit the last-resort backstop of the agents'
    * job sits ("auto", MB, or "none"). ptyhost reads the commit limit in the sandbox and sets it once, on the job it

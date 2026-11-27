@@ -158,7 +158,7 @@ const LABELS: Readonly<Record<string, string>> = {
   'sandbox.vGpu': 'Graphics acceleration',
   'sandbox.headless': 'Hide the sandbox window',
   'sandbox.memoryMb': 'Memory (MB)',
-  'sandbox.pageFileMb': 'Swap file (MB)',
+  'sandbox.pageFileMb': 'Paging file size (MB or auto)',
   'sandbox.agentMemoryHeadroomMb': 'Memory kept free from agents (MB)',
   'sandbox.pressureResponse': 'Slow builds down when memory runs low',
   'network.dns': 'DNS servers',

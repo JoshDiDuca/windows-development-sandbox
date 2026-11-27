@@ -274,12 +274,14 @@ class Launcher {
       unrealOn: toolchainsOn.has('unreal'),
       unityOn: toolchainsOn.has('unity'),
     });
-    // This PC's commit (RAM plus paging file) bounds the sandbox's memory as much as free RAM does.
+    // Total RAM and commit limit provide a stable auto-memory ceiling; current commit only blocks unsafe launches.
     const hostMemory = generateOnly ? null : readHostMemory(ctx.storageRoot);
     const generated: GeneratedSandbox = generateSandbox(
       {
         packageRoot: ctx.packageRoot,
-        ...(hostMemory ? { commitAvailableMb: hostMemory.commitAvailableMb } : {}),
+        ...(hostMemory
+          ? { commitAvailableMb: hostMemory.commitAvailableMb, commitLimitMb: hostMemory.commitLimitMb }
+          : {}),
         run,
         harnessArgs: this.options.passthrough,
         probe: probeHost(config, run.harnessName),
@@ -300,6 +302,8 @@ class Launcher {
     const notes = [...run.notes, ...bootWants.notes, ...generated.projects.notes, ...generated.mappingNotes];
     for (const note of notes) console.log(note);
     if (generated.memoryNote) console.log(c.yellow(generated.memoryNote));
+    if (!generated.bootConfig.sandbox.pressureResponse)
+      console.log(c.yellow('Sandbox pressure response is off; low host memory will not slow sandbox builds automatically.'));
     if (generated.bootConfig.sandbox.vGpu)
       console.log(c.yellow(vgpuWarning(vgpuSource(ctx.loaded.config.sandbox.vGpu))));
     const risk = hostMemory ? pageFileRisk(hostMemory, generated.memoryMb) : null;

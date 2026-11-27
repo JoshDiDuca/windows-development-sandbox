@@ -72,7 +72,7 @@ export const PC_CHECKS: Check[] = [
       const sandbox = env.ctx.loaded.config.sandbox;
       const planned =
         sandbox.memoryMb === 'auto'
-          ? decideMemory(sandbox, memory.availableMb, memory.totalMb, memory.commitAvailableMb).mb
+          ? decideMemory(sandbox, memory.availableMb, memory.totalMb, memory.commitAvailableMb, memory.commitLimitMb).mb
           : sandbox.memoryMb;
       const detail =
         Math.floor(memory.commitAvailableMb / 1024) +

@@ -15,6 +15,41 @@ public static class SandboxPageFile
     private const long KeepFreeMb = 8192;
     private const int MinimumMb = 1024;
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private class MemoryStatus
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
+        public MemoryStatus() { Length = (uint)Marshal.SizeOf(typeof(MemoryStatus)); }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx([In, Out] MemoryStatus buffer);
+
+    /// <summary>Returns the guest's assigned physical RAM, not the host's RAM.</summary>
+    public static long TotalMemoryMb()
+    {
+        MemoryStatus status = new MemoryStatus();
+        if (!GlobalMemoryStatusEx(status)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        return (long)(status.TotalPhys / (ulong)BytesPerMb);
+    }
+
+    /// <summary>Fixed paging file size capped by assigned RAM and available C: disk while keeping 8 GB free.</summary>
+    public static int AutoSizeMb(long guestRamMb, long availableFreeBytes)
+    {
+        long diskMb = availableFreeBytes / BytesPerMb - KeepFreeMb;
+        long sizeMb = Math.Min(guestRamMb, diskMb);
+        return sizeMb < MinimumMb ? 0 : (int)(sizeMb / 1024 * 1024);
+    }
+
     // UNICODE_STRING. The marshaller copies Buffer to native memory for the length of the call.
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NtString

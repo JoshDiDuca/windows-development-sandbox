@@ -42,7 +42,8 @@ const LAUNCH_DAYS = 7;
 const PAGE_FILE_MAX_SHARE = 0.4;
 
 /** A warning when the sandbox's paging file takes more than 40 % of the drive (pure); null when it is fine. */
-export function pageFileFinding(pageFileMb: number, driveBytes: number): Finding | null {
+export function pageFileFinding(pageFileMb: 'auto' | number, driveBytes: number): Finding | null {
+  if (pageFileMb === 'auto') return null;
   if (pageFileMb <= 0 || driveBytes <= 0 || pageFileMb * 1024 * 1024 <= PAGE_FILE_MAX_SHARE * driveBytes) return null;
   return {
     status: 'warn',
@@ -138,7 +139,7 @@ export const SANDBOX_CHECKS: Check[] = [
     run: (env: RepairEnv): Finding => {
       const mb = env.ctx.loaded.config.sandbox.pageFileMb;
       const drive = diskUsage(env.storageRoot).find((d) => d.drive.toUpperCase() === 'C:\\');
-      return pageFileFinding(mb, drive?.totalBytes ?? 0) ?? ok(mb > 0 ? mb + ' MB' : "Windows' own");
+      return pageFileFinding(mb, drive?.totalBytes ?? 0) ?? ok(mb === 'auto' ? 'auto (up to guest RAM, keeps 8 GB free)' : mb > 0 ? mb + ' MB' : "Windows' own");
     },
   },
   {

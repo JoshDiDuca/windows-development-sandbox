@@ -106,36 +106,29 @@ export const heavyLoadSuite: Suite = {
   name: 'heavy-load',
   title: 'heavy load: memory sizing, agent memory limit, governor, watchdog, crash report',
   run: async (t, f) => {
-    t.section('memory sizing looks at the commit as well as free RAM');
-    const base = decideMemory(MB_SANDBOX, 20 * GB, 32 * GB, null);
-    t.check(base.mb === 12 * GB, 'without a commit reading: free RAM minus the reserve', String(base.mb));
-    const tight = decideMemory(MB_SANDBOX, 20 * GB, 32 * GB, 14 * GB);
+    t.section('auto memory is stable across free-memory variation and respects total limits');
+    const base = decideMemory(MB_SANDBOX, 20 * GB, 32 * GB, null, 48 * GB);
+    t.check(base.mb === 24 * GB && base.limitedBy === 'resident', 'resident cap sets a stable bound', JSON.stringify(base));
+    const same = decideMemory(MB_SANDBOX, 3 * GB, 32 * GB, 30 * GB, 48 * GB);
+    t.check(same.mb === base.mb, 'momentary free RAM and available commit do not shrink the selected ceiling');
+    const commitCapped = decideMemory(MB_SANDBOX, 3 * GB, 32 * GB, 30 * GB, 18 * GB);
+    t.check(commitCapped.mb === 10 * GB && commitCapped.limitedBy === 'commit-limit', 'total commit limit caps the stable ceiling');
+    t.check(resolveMemoryMb(MB_SANDBOX, 3 * GB * 1048576, 32 * GB * 1048576, 30 * GB, 48 * GB) === base.mb, 'resolver ignores free-memory variation');
     t.check(
-      tight.mb === 6 * GB && tight.limitedBy === 'commit',
-      'a small commit lowers it (14 GB left - 8 GB reserve = 6 GB)',
-      JSON.stringify(tight),
-    );
-    const roomy = decideMemory(MB_SANDBOX, 20 * GB, 32 * GB, 60 * GB);
-    t.check(roomy.mb === base.mb && roomy.limitedBy === 'free', 'plenty of commit changes nothing');
-    t.check(
-      resolveMemoryMb(MB_SANDBOX, 20 * GB * 1048576, 32 * GB * 1048576, 14 * GB) === 6 * GB,
-      'resolveMemoryMb uses it',
+      memoryNote(commitCapped)?.includes('10 GB of memory instead of 24 GB') === true,
+      'the launch note explains the total commit ceiling',
     );
     t.check(
-      memoryNote(tight)?.includes('6 GB of memory instead of 12 GB') === true,
-      'the launch note says plainly what happened',
-    );
-    t.check(
-      memoryNote(base) === null && memoryNote(decideMemory(MB_SANDBOX, 20 * GB, 32 * GB, 19 * GB)) === null,
-      'no note when it hardly changed',
+      memoryNote(base) === null,
+      'no note when commit does not materially change the stable ceiling',
     );
     let refused = '';
     try {
-      resolveMemoryMb(MB_SANDBOX, 20 * GB * 1048576, 32 * GB * 1048576, 10 * GB);
+      resolveMemoryMb(MB_SANDBOX, 20 * GB * 1048576, 32 * GB * 1048576, 10 * GB, 48 * GB);
     } catch (e) {
       refused = String(e instanceof Error ? e.message : e);
     }
-    t.check(refused.includes('RAM plus paging file'), 'too little commit refuses with the real reason', refused);
+    t.check(refused.includes('RAM plus paging file'), 'critically low available commit refuses with the real reason', refused);
     t.check(
       resolveMemoryMb({ ...MB_SANDBOX, memoryMb: 5000 }, 1, 1, 1) === 5000,
       'a fixed memoryMb is taken as asked (the resident cap below is the only limit on it)',

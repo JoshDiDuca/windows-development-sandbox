@@ -43,9 +43,9 @@ export const SandboxSchema = z.strictObject({
   memoryMb: z
     .union([z.literal('auto'), z.number().int().min(2048)])
     .describe(
-      'Sandbox RAM in MB (>= 2048), or "auto": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 4 GB more with vGPU): a bigger value is lowered.',
+      'Sandbox RAM in MB (>= 2048), or "auto": based on this PC\'s total RAM and commit limit, not momentary free RAM. It leaves the larger of reserveHostMb and 25% of RAM free for this PC (plus 4 GB with vGPU), and respects maxMemoryMb and maxMemoryPercent.',
     ),
-  maxMemoryMb: z.number().int().positive().describe('Upper limit for memoryMb "auto".'),
+  maxMemoryMb: z.number().int().positive().describe('Upper limit for memoryMb "auto" (default 64 GB; resident and commit limits still apply).'),
   maxMemoryPercent: z
     .number()
     .int()
@@ -58,19 +58,16 @@ export const SandboxSchema = z.strictObject({
       'Most of this PC\'s CPU the sandbox may use, in percent (5-100), e.g. 50 keeps half free for you; "none" = no cap (Windows Sandbox would take every processor). Covers everything this tool starts in the sandbox (agents, installs, builds, its terminal).',
     ),
   pageFileMb: z
-    .number()
-    .int()
-    .min(0)
-    .max(262144)
+    .union([z.literal('auto'), z.number().int().min(0).max(262144)])
     .describe(
-      'Size of the sandbox\'s paging file in MB, created at full size when it starts so it never grows while builds run (8 GB of its disk always stays free). Windows Sandbox starts with about 1 GB: parallel builds then fail with "The paging file is too small", and Windows grows the file under load. 0 = leave Windows\' own.',
+      'Size of the sandbox\'s paging file in MB, created at full size when it starts so it never grows while builds run. "auto" (default) sets a fixed file up to the sandbox RAM size, limited by free C: disk while keeping 8 GB free. A number sets a fixed size; 0 leaves Windows\' own (about 1 GB).',
     ),
   reserveHostMb: z
     .number()
     .int()
     .nonnegative()
     .describe(
-      'Memory always left for this PC when memoryMb is "auto": the sandbox gets at most (free RAM, and RAM plus paging file still unused) minus this.',
+      'Memory left for this PC when memoryMb is "auto": this is a minimum reserve against total RAM and the total commit limit. It does not vary with reclaimable file cache.',
     ),
   agentMemoryHeadroomMb: z
     .union([z.literal('auto'), z.literal('none'), z.number().int().min(0)])

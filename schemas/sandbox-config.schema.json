@@ -105,7 +105,7 @@
               "maximum": 9007199254740991
             }
           ],
-          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": free RAM minus reserveHostMb, capped at maxMemoryMb. Never more than this PC can keep in RAM for it (its RAM minus the larger of reserveHostMb and 25 %, 4 GB more with vGPU): a bigger value is lowered."
+          "description": "Sandbox RAM in MB (>= 2048), or \"auto\": based on this PC's total RAM and commit limit, not momentary free RAM. It leaves the larger of reserveHostMb and 25% of RAM free for this PC (plus 4 GB with vGPU), and respects maxMemoryMb and maxMemoryPercent."
         },
         "vGpu": {
           "type": "boolean",

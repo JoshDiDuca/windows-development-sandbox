@@ -318,11 +318,15 @@ export class Watcher {
       }
       if (step.changed)
         this.note(
-          step.state.low
-            ? 'this PC is low (' + step.reason + '): asking the sandbox to slow its builds down'
-            : 'this PC has recovered: no longer asking the sandbox to slow down',
+          !settings.pressureResponse
+            ? step.state.low
+              ? 'this PC is low (' + step.reason + '): sandbox pressure response is off'
+              : 'this PC has recovered; sandbox pressure response is off'
+            : step.state.low
+              ? 'this PC is low (' + step.reason + '): asking the sandbox to slow its builds down'
+              : 'this PC has recovered: no longer asking the sandbox to slow down',
         );
-      if (step.send)
+      if (step.send && settings.pressureResponse)
         new SandboxChannel(this.dataPath).pressure(
           step.reason,
           REQUEST_SECONDS,

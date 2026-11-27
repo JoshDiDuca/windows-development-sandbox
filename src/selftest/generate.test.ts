@@ -106,9 +106,9 @@ export const generateSuite: Suite = {
         gitAccess: 'full',
         plainNodeVersion: true,
         cpuLimitPercent: 80,
-        pageFileMb: 16384,
+        pageFileMb: 'auto',
       },
-      'session.json carries the id, paths, agent arguments, host tools, versions, git access and the CPU (80 %) and paging file (16 GB) limits',
+      'session.json carries the id, paths, agent arguments, host tools, versions, git access, the CPU cap and auto pagefile policy',
     );
     t.check(
       !LocalOverridesSchema.safeParse({ sandbox: { cpuLimit: 'none' } }).success,
@@ -138,16 +138,16 @@ export const generateSuite: Suite = {
     t.equal(
       [
         resolveMemoryMb(auto, 40000 * MB, pcRam),
-        resolveMemoryMb({ ...auto, maxMemoryPercent: 80 }, 30000 * MB, 32 * 1024 * MB),
+        resolveMemoryMb(auto, 1000 * MB, pcRam),
         resolveMemoryMb({ ...auto, maxMemoryPercent: 50 }, 60000 * MB, pcRam),
       ],
-      [31744, 21504, 32768],
-      "memory 'auto' follows free RAM minus the reserve and never takes more than maxMemoryPercent of the PC's RAM",
+      [49152, 49152, 32768],
+      "memory 'auto' is stable across free-memory changes and respects maxMemoryPercent",
     );
     await t.throws(
-      () => resolveMemoryMb(auto, 9000 * MB, pcRam),
-      'Not enough free RAM',
-      "memory 'auto' refuses when too little RAM is free",
+      () => resolveMemoryMb(auto, 40000 * MB, pcRam, 10000, 60 * 1024),
+      'Not enough memory left on this PC',
+      "memory 'auto' refuses when current available commit cannot preserve the launch floor",
     );
 
     t.section('PC logs for developing the sandbox');

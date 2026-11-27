@@ -6,6 +6,17 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
 `~/.agent-sandbox` folder, the environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and
 `AGENT_SANDBOX_WORKSPACE`, the `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.31.3
+
+- **Auto memory is stable between launches.** It is sized from total host RAM, total commit capacity, configured limits
+  and the resident-memory safety cap. Current free commit is a launch safety gate rather than a sizing input. The default
+  auto ceiling is now 64 GB (still constrained by the host's actual capacity).
+- **Auto pagefile sizing follows the guest allocation.** Windows Sandbox now creates a fixed pagefile up to the guest's
+  assigned RAM, limited by available C: disk space while keeping 8 GB free. Set `sandbox.pageFileMb` to a number for a
+  fixed size or `0` to retain Windows' default. The doctor reports the selected auto policy.
+- **Pressure response status is accurate.** Launches say when automatic response is disabled, and the host watchdog no
+  longer reports or sends slow-build requests that the guest will ignore.
+
 ## 1.31.2
 
 - **OpenCode works with SQLite in Windows Sandbox.** Its database now runs from a local working copy instead of the mapped

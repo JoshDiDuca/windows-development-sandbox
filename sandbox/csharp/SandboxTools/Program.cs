@@ -74,11 +74,26 @@ static class Program
     {
         try
         {
-            int sizeMb = IntOption(options, "size-mb", 0);
-            if (sizeMb == 0)
+            string requested = Option(options, "size-mb", "");
+            if (requested.Length == 0)
             {
-                sizeMb = SessionNumber("pageFileMb");
+                requested = SessionString("pageFileMb");
             }
+            if (requested == "auto")
+            {
+                long totalMb = SandboxPageFile.TotalMemoryMb();
+                int autoMb = SandboxPageFile.AutoSizeMb(totalMb, new DriveInfo("C").AvailableFreeSpace);
+                if (autoMb < 1024)
+                {
+                    Log("Auto paging file left Windows' default: less than 1 GB available after keeping 8 GB free on C:.");
+                    return;
+                }
+                SandboxPageFile.Set(autoMb);
+                Log("Paging file set to " + autoMb + " MB, fixed (sandbox.pageFileMb auto; capped at guest RAM and disk space).");
+                return;
+            }
+            int sizeMb;
+            if (!int.TryParse(requested, NumberStyles.Integer, CultureInfo.InvariantCulture, out sizeMb)) return;
             if (sizeMb <= 0)
             {
                 return;
@@ -133,6 +148,13 @@ static class Program
         return m.Success && int.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out value)
             ? value
             : 0;
+    }
+
+    static string SessionString(string key)
+    {
+        string json = File.ReadAllText(SessionFile);
+        Match m = Regex.Match(json, "\\\"" + Regex.Escape(key) + "\\\"\\s*:\\s*(?:\\\"([^\\\"]*)\\\"|(-?\\d+))");
+        return m.Success ? (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value) : "";
     }
 
     static void Log(string line)

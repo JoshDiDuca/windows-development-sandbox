@@ -204,6 +204,7 @@ function projectItem(p: SandboxStatus['projects'][number]): Item {
     label: p.name,
     icon: 'project',
     hint: p.host + '  ->  ' + p.guest + '  (' + (MECHANISM_TEXT[p.mechanism] ?? 'wsb share') + ')',
+    webHint: p.host + ' → ' + p.guest + ' (' + (MECHANISM_TEXT[p.mechanism] ?? 'wsb share') + ')',
     marked: p.here,
     details: [
       'Setup: ' + p.setup.phase + (p.setup.phase === 'ready' ? '' : ' - ' + p.setup.message),
@@ -212,6 +213,17 @@ function projectItem(p: SandboxStatus['projects'][number]): Item {
         : []),
       ...p.sessions.map((s) => 'Session: ' + s.harness + ' ' + s.id + ', ' + s.viewers + ', started ' + ago(s.started)),
       ...p.repoGuard.map((f) => 'Guard: ' + f),
+    ],
+    webDetails: [
+      { label: 'Setup', value: p.setup.phase + (p.setup.phase === 'ready' ? '' : ' - ' + p.setup.message) },
+      ...(p.databases.length
+        ? [{ label: 'Databases', value: p.databases.map((d) => d.database + ' :' + d.port + ' ' + d.state).join(', ') }]
+        : []),
+      ...p.sessions.map((s) => ({
+        label: 'Session',
+        value: s.harness + ' ' + s.id + ', ' + s.viewers + ', started ' + ago(s.started),
+      })),
+      ...p.repoGuard.map((f) => ({ label: 'Guard', value: f })),
     ],
   };
 }
@@ -229,6 +241,7 @@ function facts(o: SandboxStatus): Fact[] {
     ...(o.shared?.startedBy ? [fact('owner', 'Started by', o.shared.startedBy)] : []),
     // One line for what it is doing: "Ready", "Installing Rust ...", or "not running".
     fact('state', 'State', s.running ? s.message || s.phase : 'not running', {
+      valueKind: 'sentence',
       tone: !s.running ? 'muted' : s.phase === 'ready' ? 'ok' : 'warn',
     }),
     ...(s.running
@@ -236,14 +249,16 @@ function facts(o: SandboxStatus): Fact[] {
           fact('window', 'Window', s.headless ? 'hidden' : 'shown'),
           fact('uptime', 'Uptime', uptime(s) ?? '-'),
           // The session count is its own fact: the helper only says whether it answers.
-          fact('helper', 'Helper', s.daemon === '-' ? '-' : s.daemon.startsWith('pong') ? 'Responding' : s.daemon),
+          fact('helper', 'Helper', s.daemon === '-' ? '-' : s.daemon.startsWith('pong') ? 'Responding' : s.daemon, {
+            valueKind: 'sentence',
+          }),
           fact('sessions', 'Sessions', String(sessions)),
         ]
       : []),
     ...(o.leftover ? [fact('leftover', 'Windows Sandbox', o.leftover.text, { tone: 'warn' })] : []),
     ...(o.lastEnd ? [fact('lastEnd', 'Last sandbox', o.lastEnd.text, { tone: 'warn' })] : []),
-    fact('account', 'Account', s.account ?? 'none selected'),
-    fact('sync', 'Background sync', s.syncWatcher ? 'on' : 'off'),
+    fact('account', 'Account', s.account ?? 'none selected', { valueKind: 'sentence' }),
+    fact('sync', 'Background sync', s.syncWatcher ? 'on' : 'off', { valueKind: 'sentence' }),
   ];
 }
 
@@ -253,6 +268,7 @@ function projectsSection(o: SandboxStatus): Section {
     label: 'root',
     icon: 'folder',
     hint: r.host + '  ->  ' + r.guest + '  (every project in it opens without a restart)',
+    webHint: r.host + ' → ' + r.guest + ' (every project in it opens without a restart)',
   }));
   const here = o.projects.some((p) => p.here);
   return {
@@ -262,7 +278,7 @@ function projectsSection(o: SandboxStatus): Section {
     ...(here ? {} : { actions: [link({ kind: 'view', view: 'agents' }, 'Start an agent here…', { verb: 'start' })] }),
     notes: [
       here
-        ? { text: '* = the project of this folder', tone: 'muted' }
+        ? { text: '* = the project of this folder', tone: 'muted', legend: true }
         : { text: o.here.folder + ' is not in this sandbox.', tone: 'muted' },
     ],
   };
@@ -329,6 +345,7 @@ export function sandboxPage(o: SandboxStatus): Page {
       id: 'session:' + s.id,
       label: 'session ' + s.id,
       hint: s.harness + '  ' + s.cwd,
+      webHint: s.harness + ' · ' + s.cwd,
     })),
   };
   return {

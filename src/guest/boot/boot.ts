@@ -9,7 +9,7 @@ import { tool } from '../toolchains/tool-env.js';
 import { installedAddon } from '../setup/agent-addons.js';
 import { agents } from '../agents/agent-installer.js';
 import { agentArguments, agentShims, codexArguments, sbxAgentText, shimText } from '../agents/agent-files.js';
-import { codexBootConfig, resetMachineBound, restoreLocalState } from '../agents/local-state.js';
+import { codexBootConfig, opencodeBootConfig, resetMachineBound, restoreLocalState } from '../agents/local-state.js';
 import { installShellPath } from '../setup/shell-path.js';
 import { linkProfileDirsAsync } from '../agents/profile-links.js';
 import { restoreClaudeMem } from '../setup/claude-mem.js';
@@ -380,6 +380,7 @@ export class Boot {
         // All three touch the agents' state folders: one task, in this order, each failing on its own.
         await soft('Agent files of the last sandbox', resetMachineBound);
         await soft('Codex settings', codexBootConfig);
+        await soft('OpenCode settings', opencodeBootConfig);
         await soft('Agent databases restore', restoreLocalState);
       },
       headroomSpawn: async () => {

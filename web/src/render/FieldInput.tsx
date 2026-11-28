@@ -75,10 +75,12 @@ export function BrowseButton({
   field,
   value,
   onPick,
+  disabled = false,
 }: {
   readonly field: Field;
   readonly value: string | undefined;
   readonly onPick: (path: string) => void;
+  readonly disabled?: boolean;
 }) {
   const kind = field.pathKind ?? field.element?.pathKind ?? 'dir';
   return (
@@ -87,6 +89,7 @@ export function BrowseButton({
         variant="default"
         size={32}
         aria-label="Browse"
+        disabled={disabled}
         onClick={() => void pickPath(kind, value, field.label).then((picked) => picked && onPick(picked))}
       >
         <IconFolderOpen size={18} stroke={1.6} />

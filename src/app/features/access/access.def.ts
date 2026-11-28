@@ -200,6 +200,12 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
       'Ends     ' + dateText(d.expiresAt),
       'Id       ' + d.id,
     ],
+    webDetails: [
+      { label: 'Allowed', value: dateText(d.createdAt) },
+      { label: 'Last seen', value: dateText(d.lastSeen) },
+      { label: 'Ends', value: dateText(d.expiresAt) },
+      { label: 'Id', value: d.id, code: true },
+    ],
     keys: 'x signs it out.',
     actions: [action(revokeAccess, { id: d.id }, { key: 'x', verb: 'sign out', label: 'Sign out ' + d.name })],
   }));
@@ -213,6 +219,11 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
       )?.role ?? 'not on the list',
     description: 'Signed in with Windows, signed out ' + untilText(w.expiresAt, now) + '.',
     details: ['Signed in  ' + dateText(w.createdAt), 'Ends      ' + dateText(w.expiresAt), 'Id        ' + w.id],
+    webDetails: [
+      { label: 'Signed in', value: dateText(w.createdAt) },
+      { label: 'Ends', value: dateText(w.expiresAt) },
+      { label: 'Id', value: w.id, code: true },
+    ],
     keys: 'x signs them out.',
     actions: [action(revokeAccess, { id: w.id }, { key: 'x', verb: 'sign out', label: 'Sign out ' + w.user })],
   }));
@@ -232,6 +243,7 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
             id: 'lan-mode',
             label: 'LAN mode',
             value: lan.running ? 'on' : lan.enabled ? 'on, not listening' : 'off',
+            valueKind: 'sentence',
             tone: lan.running ? 'ok' : lan.enabled ? 'warn' : 'muted',
             description: lan.problem ?? undefined,
           },
@@ -241,12 +253,15 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
                   id: 'lan-address',
                   label: 'On your network',
                   value: lan.address,
+                  valueKind: 'machine' as const,
                   description:
                     "Type this into the phone's browser. The first time it warns about the certificate: compare it with the one below. A warning after that means stop.",
                 },
               ]
             : []),
-          ...(lan.fingerprint ? [{ id: 'lan-cert', label: 'Certificate', value: lan.fingerprint }] : []),
+          ...(lan.fingerprint
+            ? [{ id: 'lan-cert', label: 'Certificate', value: lan.fingerprint, valueKind: 'machine' as const }]
+            : []),
           ...(o.pending
             ? [
                 {
@@ -284,6 +299,7 @@ export function accessPage(o: AccessStatus, now: number = Date.now()): Page {
             id: 'windows-sign-in',
             label: 'Windows sign-in',
             value: o.windowsSignIn ? 'on' : 'off',
+            valueKind: 'sentence',
             tone: o.windowsSignIn ? 'ok' : 'muted',
             description:
               'They sign in to the web UI with their own Windows account. Turn it on and list them in Settings (web.remote.windowsSignIn and web.remote.users).',

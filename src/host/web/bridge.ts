@@ -68,7 +68,7 @@ export class TerminalBridge {
     socket.write(helloFrame(this.endpoint.token, this.cols, this.rows));
     // The session drops a viewer it has not heard from in 15 s.
     this.pinger = setInterval(() => this.socket?.write(encodeFrame(FrameType.Ping)), PING_INTERVAL_MS);
-    this.tell({ t: 'ready' });
+    this.tell(this.readOnly ? { t: 'ready', readOnly: true } : { t: 'ready' });
   }
 
   private fromBrowser(data: RawData, isBinary: boolean): void {
@@ -83,7 +83,9 @@ export class TerminalBridge {
       this.finish(1008, 'bad message');
       return;
     }
-    this.socket.write(resizeFrame(message.cols, message.rows));
+    if (message.t === 'resize') this.socket.write(resizeFrame(message.cols, message.rows));
+    else if (message.paused) this.socket.pause();
+    else this.socket.resume();
   }
 
   private fromSession(chunk: Buffer): void {

@@ -6,6 +6,20 @@ The command is `sandbox`. Some older names stay on purpose so that existing inst
 `~/.agent-sandbox` folder, the environment variables `AGENT_SANDBOX_HOME`, `AGENT_SANDBOX_CONFIG`, `AGENT_SANDBOX=1` and
 `AGENT_SANDBOX_WORKSPACE`, the `agent-sandbox-quarantine` folder, and the Visual Studio instance ID that `vswhere` uses.
 
+## 1.31.5
+
+- **OpenCode no longer fills the sandbox disk with project undo snapshots by default.** Large Git LFS repositories
+  could exhaust disk space and make OpenCode's SQLite database and commands fail. An explicit OpenCode snapshot setting
+  is preserved.
+
+## 1.31.4
+
+- **Web UI calls, terminals and pages recover more cleanly.** Failed calls are not replayed, stalled calls can be
+  stopped, connection failures are shown, and reconnects back off. Terminal pastes are chunked, output is flow-controlled,
+  view-only and restart states are clear, and restored browser tabs reconnect. The web renderer now receives structured
+  display details, catches rendering errors, avoids rebuilding pages on every live update, and loads palette settings
+  only while the palette is open.
+
 ## 1.31.3
 
 - **Auto memory is stable between launches.** It is sized from total host RAM, total commit capacity, configured limits

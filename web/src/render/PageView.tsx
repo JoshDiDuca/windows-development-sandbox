@@ -25,6 +25,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import {
   pageHasContent,
   type Action,
+  type Detail,
   type Fact,
   type Item,
   type Note,
@@ -43,22 +44,16 @@ const SEARCH_FROM = 12;
 /** Details shown before "more". */
 const DETAILS_SHOWN = 3;
 
-/** "claude  api" (columns in a terminal) as "claude · api". */
-export function tidy(text: string): string {
-  return text.replace(/ +-> +/g, ' → ').replace(/\s{2,}/g, ' · ');
-}
-
 /**
  * Does the item's hint add anything? The menu shows states as a hint ("in the sandbox · default"); the web shows them
  * as badges, so a hint made only of the badges' words is left out.
  */
 export function hintShown(item: Item): boolean {
-  if (!item.hint) return false;
+  const hint = item.webHint ?? item.hint;
+  if (!hint) return false;
   const badges = new Set((item.badges ?? []).map((b) => b.text.toLowerCase()));
   if (!badges.size) return true;
-  return !tidy(item.hint)
-    .split(' · ')
-    .every((part) => badges.has(part.trim().toLowerCase()));
+  return !badges.has(hint.trim().toLowerCase());
 }
 
 /** The action a page leads with: starting an agent. */
@@ -129,18 +124,6 @@ export function NoticeBar({ note }: { readonly note: Note }) {
   );
 }
 
-/** A value that is a path, an address or a fingerprint: monospace, and it may break anywhere. */
-const MACHINE_VALUE = /^[A-Za-z]:\\|^\\\\|^https?:\/\/|^([0-9A-F]{2}:){4}/;
-
-/** Plain state words the text surfaces write in lower case ("on", "not checked"): a sentence-case value on a tile. */
-const STATE_WORDS = new Set(['yes', 'no', 'on', 'off', 'none', 'ready', 'shown', 'hidden', 'running', 'stopped']);
-
-/** A fact's value as a tile shows it: state words and short phrases start with a capital; names stay as they are. */
-export function factValue(value: string): string {
-  const plain = /^[a-z][a-z0-9 ,.'()-]*$/.test(value) && (STATE_WORDS.has(value) || value.includes(' '));
-  return plain ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-}
-
 function FactTile({ fact }: { readonly fact: Fact }) {
   const color = toneColor(fact.tone);
   return (
@@ -154,7 +137,9 @@ function FactTile({ fact }: { readonly fact: Fact }) {
             style={{ ['--dot' as string]: `var(--mantine-color-${color}-6)` }}
           />
         )}
-        <span className={MACHINE_VALUE.test(fact.value) ? 'machine' : undefined}>{factValue(fact.value)}</span>
+        <span className={fact.valueKind === 'machine' ? 'machine' : undefined}>
+          {fact.valueKind === 'sentence' ? fact.value.charAt(0).toUpperCase() + fact.value.slice(1) : fact.value}
+        </span>
       </div>
       {fact.meter && (
         <Progress
@@ -166,11 +151,19 @@ function FactTile({ fact }: { readonly fact: Fact }) {
           aria-label={fact.label}
         />
       )}
-      {fact.details?.map((d, i) => (
-        <Text key={i} size="xs" c="dimmed" mt={4}>
-          {d}
-        </Text>
-      ))}
+      {fact.webDetails ? (
+        <dl className="details">
+          {fact.webDetails.map((d, i) => (
+            <DetailLine key={i} line={d} />
+          ))}
+        </dl>
+      ) : (
+        fact.details?.map((d, i) => (
+          <Text key={i} size="xs" c="dimmed" mt={4}>
+            {d}
+          </Text>
+        ))
+      )}
     </div>
   );
 }
@@ -190,45 +183,36 @@ function same(a: string | undefined, b: string | undefined): boolean {
   return !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+type DetailLineData = string | Detail;
+
 /** An item's description and details as the web shows them: lines that repeat the hint are left out. */
-export function linesShown(item: Item): { readonly description?: string; readonly details: readonly string[] } {
+export function linesShown(item: Item): { readonly description?: string; readonly details: readonly DetailLineData[] } {
+  const hint = item.webHint ?? item.hint;
   return {
-    description: item.description && !same(item.description, item.hint) ? item.description : undefined,
-    details: (item.details ?? []).filter((d) => !same(d, item.hint) && !same(d, item.description)),
+    description: item.description && !same(item.description, hint) ? item.description : undefined,
+    details: item.webDetails ?? (item.details ?? []).filter((d) => !same(d, hint) && !same(d, item.description)),
   };
 }
 
-/** "Label: value" (or "Label   value", as the cards write it) with a short capitalised label. */
-const KEY_COLON = /^([A-Z][A-Za-z ]{1,24}):\s+(.+)$/;
-const KEY_GAP = /^([A-Z][A-Za-z]*(?: [A-Za-z]+){0,3}) {2,}(.+)$/;
-/** A value that is a path or a command is shown in monospace. */
-const CODE_VALUE = /[\\/]|^(sandbox|npm) /;
-
-export function splitDetail(line: string): { readonly label: string; readonly value: string } | undefined {
-  const m = KEY_COLON.exec(line) ?? KEY_GAP.exec(line);
-  if (!m) return undefined;
-  return { label: m[1].trim(), value: m[2].trim() };
-}
-
-/** One detail line: a row of a definition list (label column, value beside it), or the plain line across both. */
-function DetailLine({ line }: { readonly line: string }) {
-  const kv = splitDetail(line);
-  if (!kv) return <dd className="detail-plain">{line}</dd>;
+/** One detail line, labelled only when the feature supplied structured meaning. */
+function DetailLine({ line }: { readonly line: DetailLineData }) {
+  if (typeof line === 'string') return <dd className="detail-plain">{line}</dd>;
+  if (!line.label) return <dd className={line.code ? 'detail-plain machine' : 'detail-plain'}>{line.value}</dd>;
   return (
     <>
-      <dt>{kv.label}</dt>
-      <dd className={CODE_VALUE.test(kv.value) ? 'machine' : undefined}>{kv.value}</dd>
+      <dt>{line.label}</dt>
+      <dd className={line.code ? 'machine' : undefined}>{line.value}</dd>
     </>
   );
 }
 
 /** An item's extra lines: the first few, the rest behind "Show more". */
-export function Details({ lines }: { readonly lines: readonly string[] }) {
+export function Details({ lines }: { readonly lines: readonly DetailLineData[] }) {
   const [open, setOpen] = useState(false);
   if (!lines.length) return null;
   const head = lines.slice(0, DETAILS_SHOWN);
   const rest = lines.slice(DETAILS_SHOWN);
-  const line = (d: string, i: number): ReactNode => <DetailLine key={i} line={d} />;
+  const line = (d: DetailLineData, i: number): ReactNode => <DetailLine key={i} line={d} />;
   return (
     <Box mt={8}>
       <dl className="details">{head.map(line)}</dl>
@@ -364,14 +348,14 @@ function ItemRow({ item }: { readonly item: Item }) {
               c={item.tone === 'muted' ? 'dimmed' : undefined}
               style={{ overflowWrap: 'anywhere' }}
             >
-              {tidy(item.label)}
+              {item.label}
             </Text>
             {item.marked && <MarkedBadge />}
             <Badges item={item} />
           </Group>
           {hintShown(item) && (
             <Text size="sm" c="dimmed" mt={2} style={{ overflowWrap: 'anywhere' }}>
-              {tidy(item.hint ?? '')}
+              {item.webHint ?? item.hint ?? ''}
             </Text>
           )}
           {description && (
@@ -390,7 +374,7 @@ function ItemRow({ item }: { readonly item: Item }) {
       {(others.length > 0 || primary) && (
         <Group gap={6} wrap="nowrap" className="row-actions">
           <SecondaryActions actions={others} />
-          {primary && <PrimaryControl action={primary} hint={item.hint} light={clickable} />}
+          {primary && <PrimaryControl action={primary} hint={item.webHint ?? item.hint} light={clickable} />}
         </Group>
       )}
     </div>
@@ -431,11 +415,11 @@ function ItemCard({ item }: { readonly item: Item }) {
           {item.icon && <ItemIcon name={item.icon} />}
           <Box style={{ minWidth: 0, flex: 1 }}>
             <Text fw={650} size="sm" style={{ overflowWrap: 'anywhere' }}>
-              {tidy(item.label)}
+              {item.label}
             </Text>
             {hintShown(item) && (
               <Text size="xs" c="dimmed" truncate mt={2}>
-                {tidy(item.hint ?? '')}
+                {item.webHint ?? item.hint ?? ''}
               </Text>
             )}
             {(item.marked || !!item.badges?.length) && (
@@ -455,7 +439,7 @@ function ItemCard({ item }: { readonly item: Item }) {
         {(primary || item.actions?.length) && (
           <Group justify="flex-end" gap={6} mt="auto" className="card-actions">
             <SecondaryActions actions={othersThan(item.actions, primary)} />
-            {primary && <PrimaryControl action={primary} hint={item.hint} light />}
+            {primary && <PrimaryControl action={primary} hint={item.webHint ?? item.hint} light />}
           </Group>
         )}
       </Stack>
@@ -572,7 +556,7 @@ function SectionHeader({ section, more = [] }: { readonly section: Section; read
 
 function SectionNotes({ notes }: { readonly notes: readonly Note[] }) {
   // Marked items carry a "this folder" badge here, so the "* = …" legend of the text surfaces is left out.
-  const shown = notes.filter((n) => (n.only === undefined || n.only === 'web') && !n.text.startsWith('* ='));
+  const shown = notes.filter((n) => (n.only === undefined || n.only === 'web') && !n.legend);
   if (!shown.length) return null;
   // Warnings are read together in one box (the worst tone colours it); other notes stay quiet lines under the card.
   const warnings = shown.filter((n) => n.tone === 'warn' || n.tone === 'danger');
@@ -610,14 +594,24 @@ function SectionNotes({ notes }: { readonly notes: readonly Note[] }) {
 /** Preformatted lines (a log): a monospace box of its own height that keeps its end in view as the lines grow. */
 function TextBlock({ lines }: { readonly lines: readonly string[] }) {
   const viewport = useRef<HTMLDivElement>(null);
-  const joined = lines.join('\n');
+  const followTail = useRef(true);
+  const joined = lines.slice(-2000).join('\n');
   useEffect(() => {
     const el = viewport.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const trackPosition = (): void => {
+      followTail.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    };
+    el.addEventListener('scroll', trackPosition, { passive: true });
+    return () => el.removeEventListener('scroll', trackPosition);
+  }, []);
+  useEffect(() => {
+    const el = viewport.current;
+    if (el && followTail.current) el.scrollTop = el.scrollHeight;
   }, [joined]);
   return (
     <div className="text-block">
-      <ScrollArea h={420} viewportRef={viewport} type="auto">
+      <ScrollArea h="min(420px, 55vh)" viewportRef={viewport} type="auto">
         <pre>{joined}</pre>
       </ScrollArea>
     </div>

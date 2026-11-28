@@ -22,7 +22,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Item, Page, Section } from '../../../src/app/kernel/index';
 import { ActionButton, offered } from './actions';
 import { InlineField } from './InlineField';
-import { EmbeddedContext, filtered, ItemList, PageHeader, SecondaryActions, tidy } from './PageView';
+import { EmbeddedContext, filtered, ItemList, PageHeader, SecondaryActions } from './PageView';
 import { EmptyState } from './states';
 
 /** A category that is another view, drawn in place of the list (Settings > VPN). */
@@ -123,10 +123,10 @@ function CategoryRow({ item, flash }: { readonly item: Item; readonly flash: boo
             <InlineField action={inline} summary={item.hint} />
           ) : (
             <Group justify="flex-end" gap="sm" wrap="nowrap">
-              {item.hint && (
-                <Tooltip label={tidy(item.hint)} openDelay={400} maw={480} multiline>
+              {(item.webHint ?? item.hint) && (
+                <Tooltip label={item.webHint ?? item.hint} openDelay={400} maw={480} multiline>
                   <Text size="sm" c="dimmed" ff="monospace" truncate style={{ minWidth: 0 }}>
-                    {tidy(item.hint)}
+                    {item.webHint ?? item.hint}
                   </Text>
                 </Tooltip>
               )}
@@ -149,8 +149,7 @@ function CategoryRow({ item, flash }: { readonly item: Item; readonly flash: boo
 }
 
 /** "Editing C:\...\config.json": the file's name in a quiet line, the whole path when pointed at. */
-function FileNotice({ text }: { readonly text: string }) {
-  const file = /[A-Za-z]:\\[^\s]+|\/[^\s]+/.exec(text)?.[0];
+function FileNotice({ text, file }: { readonly text: string; readonly file?: string }) {
   const name = file ? file.split(/[\\/]/).pop() : undefined;
   return (
     <Tooltip label={text} openDelay={300} maw={560} multiline>
@@ -169,7 +168,12 @@ function fromHash(
   sections: readonly Section[],
   extras: readonly CategoryExtra[] = [],
 ): { section?: string; item?: string } {
-  const hash = decodeURIComponent(location.hash.slice(1));
+  let hash = location.hash.slice(1);
+  try {
+    hash = decodeURIComponent(hash);
+  } catch {
+    // A malformed bookmark should leave the default category selected.
+  }
   // A link to one setting: /v/settings?focus=<key> opens its category and flashes its row.
   const focus = new URLSearchParams(location.search).get('focus');
   if (focus) {
@@ -229,7 +233,7 @@ export function CategoryPage({ page, summary, eyebrow, toolbar, extras = [] }: C
   return (
     <Stack gap="lg">
       <PageHeader title={page.title} summary={summary} eyebrow={eyebrow} toolbar={toolbar} actions={page.actions} />
-      {page.notice && <FileNotice text={page.notice.text} />}
+      {page.notice && <FileNotice text={page.notice.text} file={page.notice.file} />}
       <div className="category-layout">
         <Stack gap="sm" className="category-nav">
           <TextInput

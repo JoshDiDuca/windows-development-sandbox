@@ -285,6 +285,11 @@ function appItem(row: AppRow, scope: AppsScope): Item {
     code: row.id,
     keywords: row.id,
     details: details(row),
+    webDetails: appDetails(row).map((d) => ({
+      label: d.label,
+      value: d.text,
+      ...(d.text.includes('C:\\') ? { code: true } : {}),
+    })),
     ...(row.on ? { tone: 'ok' as const } : {}),
     primary,
   };
@@ -326,6 +331,7 @@ export function appsPage(o: AppsList): Page {
         (o.exists ? '' : ' (created when you save)') +
         (o.scope === 'project' ? ': only apps from the list; needs your approval at the next launch' : ''),
       tone: o.scope === 'project' ? 'accent' : 'muted',
+      file: o.file,
     },
     sections,
     actions: own

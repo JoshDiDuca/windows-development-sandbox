@@ -191,10 +191,20 @@ export function storagePage(o: StorageShow, c: ContainedStatus): Page {
     title: 'Data folder',
     description: 'Where your tools, logins, history and logs are kept between sandboxes.',
     facts: [
-      { id: 'folder', label: 'Folder', value: o.root },
+      { id: 'folder', label: 'Folder', value: o.root, valueKind: 'machine' },
       { id: 'size', label: 'Size', value: o.size },
-      { id: 'default', label: 'Default folder', value: o.defaultRoot + (o.defaultInUse ? ' (in use)' : '') },
-      ...o.otherFoldersWithData.map((f, i): Fact => ({ id: 'other:' + i, label: 'Other folder with data', value: f })),
+      {
+        id: 'default',
+        label: 'Default folder',
+        value: o.defaultRoot + (o.defaultInUse ? ' (in use)' : ''),
+        valueKind: 'machine',
+      },
+      ...o.otherFoldersWithData.map((f, i): Fact => ({
+        id: 'other:' + i,
+        label: 'Other folder with data',
+        value: f,
+        valueKind: 'machine',
+      })),
     ],
     actions: [action(moveStorage, {}), action(useStorage, {})],
   };
@@ -223,7 +233,7 @@ export function storagePage(o: StorageShow, c: ContainedStatus): Page {
         value: c.imageExists ? bytesText(c.imageBytes ?? 0) + ' on disk' : 'not made yet',
         description: c.image,
       },
-      { id: 'mount', label: 'Mount folder', value: c.mountFolder },
+      { id: 'mount', label: 'Mount folder', value: c.mountFolder, valueKind: 'machine' },
       {
         id: 'mounted',
         label: 'Mounted now',

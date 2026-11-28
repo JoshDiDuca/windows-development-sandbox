@@ -4,14 +4,14 @@
 import { Center, Loader } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { setAccess } from './access';
-import { api } from './api';
+import { api, ApiError } from './api';
 import { SignIn } from './pages/SignIn';
 import { TerminalPage } from './pages/TerminalPage';
 import { ViewPage } from './pages/ViewPage';
 import { useRoute } from './router';
 import { Shell } from './shell/Shell';
 
-type Auth = 'checking' | 'in' | 'out';
+type Auth = 'checking' | 'in' | 'out' | { readonly error: string };
 
 /** The token from #k=<token>, or null. */
 export function tokenFromFragment(hash: string): string | null {
@@ -31,18 +31,20 @@ async function signIn(): Promise<Auth> {
   if (token || once) {
     // The fragment never goes to the server, and must not stay in the address bar or the history.
     history.replaceState(null, '', location.pathname + location.search);
+    // Try the cookie even if a one-time token failed: bookmarked links can be stale while the session is still valid.
     try {
       if (token) await api.login(token);
       else if (once) await api.loginOnce(once);
     } catch {
-      return 'out';
+      /* checked below */
     }
   }
   try {
     setAccess((await api.me()).access);
     return 'in';
-  } catch {
-    return 'out';
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return 'out';
+    return { error: 'Cannot reach the sandbox web server. Check that it is running, then retry.' };
   }
 }
 
@@ -59,7 +61,13 @@ export function App() {
         <Loader />
       </Center>
     );
-  if (auth === 'out') return <SignIn onSignedIn={() => void signIn().then(setAuth)} />;
+  if (auth === 'out' || typeof auth === 'object')
+    return (
+      <SignIn
+        error={typeof auth === 'object' ? auth.error : undefined}
+        onSignedIn={() => void signIn().then(setAuth)}
+      />
+    );
   if (route.page === 'terminal')
     return (
       <Shell active="sessions" bare>

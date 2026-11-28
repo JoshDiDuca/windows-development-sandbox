@@ -95,14 +95,43 @@ export function useRunAction(): (
       const def = operationById(action.op);
       const id = 'op-' + Date.now();
       const said: string[] = [];
+      const controller = new AbortController();
       let shown = false;
       try {
+        notifications.show({
+          id,
+          title: action.label,
+          message: (
+            <Stack gap={6} align="flex-start">
+              <Text size="sm">Waiting for the sandbox…</Text>
+              <Button size="compact-sm" variant="default" onClick={() => controller.abort()}>
+                Stop waiting
+              </Button>
+            </Stack>
+          ),
+          loading: true,
+          autoClose: false,
+        });
+        shown = true;
         const output = await client.call(
           action.op,
           { ...action.input, ...values },
           {
             progress: (text) => {
-              const note = { id, title: action.label, message: text, loading: true, autoClose: false } as const;
+              const note = {
+                id,
+                title: action.label,
+                message: (
+                  <Stack gap={6} align="flex-start">
+                    <Text size="sm">{text}</Text>
+                    <Button size="compact-sm" variant="default" onClick={() => controller.abort()}>
+                      Stop waiting
+                    </Button>
+                  </Stack>
+                ),
+                loading: true,
+                autoClose: false,
+              };
               if (shown) notifications.update(note);
               else notifications.show(note);
               shown = true;
@@ -110,6 +139,8 @@ export function useRunAction(): (
             log: (text) => said.push(text),
             ask: (question) => askInModal(question, said.splice(0)),
           },
+          5 * 60_000,
+          controller.signal,
         );
         const text = def?.text?.(output) ?? 'Done.';
         const result = {
@@ -125,7 +156,11 @@ export function useRunAction(): (
         return { ok: true, text, output };
       } catch (e) {
         if (shown) notifications.hide(id);
-        if (e instanceof Cancelled) return { ok: false, cancelled: true, message: 'Cancelled.' };
+        if (
+          e instanceof Cancelled ||
+          (e instanceof Error && e.message === 'Stopped waiting for this request. It may still be running on the PC.')
+        )
+          return { ok: false, cancelled: true, message: e.message };
         const message = e instanceof Error ? e.message : 'It did not work.';
         const fix = (e as { fix?: string }).fix ?? (said.length ? said.join(' ') : undefined);
         const step = (e as { action?: ErrorAction }).action;

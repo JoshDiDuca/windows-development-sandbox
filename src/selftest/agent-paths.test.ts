@@ -9,6 +9,7 @@ import {
   agentCommand,
   agentShims,
   bootResetPaths,
+  defaultOpenCodeSnapshotsOff,
   isCopyableDatabaseFile,
   isDatabaseFile,
   isNewer,
@@ -95,6 +96,22 @@ export const agentPathsSuite: Suite = {
     );
 
     t.section('agent SQLite folders');
+    const defaultOpenCodeConfig = defaultOpenCodeSnapshotsOff('{\n  "providers": {}\n}');
+    t.includes(
+      defaultOpenCodeConfig,
+      '"snapshots": false',
+      'OpenCode does not fill the sandbox with project snapshots',
+    );
+    t.equal(
+      defaultOpenCodeSnapshotsOff(defaultOpenCodeConfig),
+      defaultOpenCodeConfig,
+      'the OpenCode snapshot default is idempotent',
+    );
+    t.equal(
+      defaultOpenCodeSnapshotsOff('{ "snapshots": true }'),
+      '{ "snapshots": true }',
+      'an explicit OpenCode snapshot choice is preserved',
+    );
     t.equal(DEFAULTS.harnesses.codex.localState, { CODEX_SQLITE_HOME: 'sqlite' }, 'codex runs its databases locally');
     t.equal(
       DEFAULTS.harnesses.opencode.localState,

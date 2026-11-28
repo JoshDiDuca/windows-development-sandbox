@@ -4,8 +4,10 @@
 // group, never as dead links.
 import {
   ActionIcon,
+  Alert,
   AppShell,
   Box,
+  Button,
   Burger,
   Group,
   ScrollArea,
@@ -17,14 +19,15 @@ import {
   useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { spotlight } from '@mantine/spotlight';
+import { palette } from './spotlight';
 import { IconBox, IconMoon, IconSearch, IconSun } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NAV, queryById, type NavSection, type SessionsList } from '../../../src/app/features/defs';
 import { navigate, viewPath } from '../router';
 import { accessLabel, isOwner } from '../access';
 import { AREA_ICONS } from '../render/icons';
-import { useQueryData } from '../rpc/hooks';
+import { useQueryData, useRpc } from '../rpc/hooks';
+import type { RpcConnectionState } from '../rpc/client';
 import { CommandPalette } from './CommandPalette';
 import { SandboxStatusCard } from './StatusPill';
 
@@ -71,7 +74,7 @@ function ColorSchemeToggle() {
 
 function SearchButton() {
   return (
-    <UnstyledButton onClick={() => spotlight.open()} className="search-button" aria-label="Search pages and settings">
+    <UnstyledButton onClick={() => palette.open()} className="search-button" aria-label="Search pages and settings">
       <IconSearch size={15} stroke={1.8} />
       <span className="search-button-text">Search</span>
       <span className="kbd-hint">Ctrl K</span>
@@ -167,6 +170,9 @@ function Navigation({ active, onPick }: { readonly active?: string; readonly onP
 
 export function Shell({ active, bare = false, children }: ShellProps) {
   const [opened, { toggle, close }] = useDisclosure(false);
+  const rpc = useRpc();
+  const [connection, setConnection] = useState<RpcConnectionState>('connected');
+  useEffect(() => rpc.onConnection(setConnection), [rpc]);
   return (
     <AppShell
       header={{ height: { base: 56, sm: 0 } }}
@@ -179,7 +185,7 @@ export function Shell({ active, bare = false, children }: ShellProps) {
             <Burger opened={opened} onClick={toggle} size="sm" aria-label="Open navigation" />
             <Brand />
           </Group>
-          <ActionIcon size="lg" aria-label="Search" onClick={() => spotlight.open()}>
+          <ActionIcon size="lg" aria-label="Search" onClick={() => palette.open()}>
             <IconSearch size={18} />
           </ActionIcon>
         </Group>
@@ -215,7 +221,42 @@ export function Shell({ active, bare = false, children }: ShellProps) {
         className="app-main"
         style={bare ? { display: 'flex', height: '100dvh', paddingBottom: 0 } : undefined}
       >
-        {bare ? children : <div className="app-content">{children}</div>}
+        {bare ? (
+          children
+        ) : (
+          <div className="app-content">
+            {connection !== 'connected' && (
+              <Alert
+                color={connection === 'reconnecting' ? 'orange' : 'red'}
+                mb="md"
+                role="status"
+                title={
+                  connection === 'reconnecting'
+                    ? 'Connection lost'
+                    : connection === 'offline'
+                      ? 'Reconnect paused'
+                      : connection === 'signed-out'
+                        ? 'Signed out'
+                        : 'Page replaced'
+                }
+              >
+                {connection === 'reconnecting'
+                  ? 'Trying to reconnect to the sandbox web server.'
+                  : connection === 'offline'
+                    ? 'Reconnect paused after five minutes. Reload to try again.'
+                    : connection === 'signed-out'
+                      ? 'Your access changed or expired. Reload to sign in again.'
+                      : 'A newer page took over this connection. Reload this page to use it again.'}
+                {connection !== 'reconnecting' && (
+                  <Button size="compact-sm" variant="default" mt="xs" onClick={() => window.location.reload()}>
+                    Reload page
+                  </Button>
+                )}
+              </Alert>
+            )}
+            {children}
+          </div>
+        )}
       </AppShell.Main>
       <CommandPalette />
     </AppShell>

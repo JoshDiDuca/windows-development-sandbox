@@ -164,12 +164,19 @@ function leftoverItem(s: LeftoverRow): Item {
     id: 'leftover:' + s.id,
     label: s.id,
     hint: s.state + (s.since ? '  started ' + ago(s.since) : ''),
+    webHint: s.state + (s.since ? ' · started ' + ago(s.since) : ''),
     tone: 'warn',
     details: [
       'System   ' + s.id,
       'Kind     ' + s.kind,
       'State    ' + s.state,
       ...(s.since ? ['Created  ' + s.since] : []),
+    ],
+    webDetails: [
+      { label: 'System', value: s.id, code: true },
+      { label: 'Kind', value: s.kind },
+      { label: 'State', value: s.state },
+      ...(s.since ? [{ label: 'Created', value: s.since }] : []),
     ],
   };
 }

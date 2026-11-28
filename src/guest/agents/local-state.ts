@@ -13,6 +13,7 @@ import { errMsg } from '../../core/util/errors.js';
 import {
   bootResetPaths,
   codexConfigOwned,
+  defaultOpenCodeSnapshotsOff,
   MAX_CODEX_CONFIG_BYTES,
   isCopyableDatabaseFile,
   isDatabaseFile,
@@ -146,6 +147,27 @@ export function codexBootConfig(): void {
     log('codex: config.toml updated (Windows sandbox "' + session.codex.windowsSandbox + '").');
   } catch (e) {
     warn('codex: could not update config.toml (' + errMsg(e) + ').');
+  }
+}
+
+/** OpenCode otherwise snapshots every tracked project file into its data directory; asset-heavy Git LFS projects can
+ * fill the sandbox disk and make both SQLite and command execution fail. Respect an explicit user setting. */
+export function opencodeBootConfig(): void {
+  if (dryRun || !session.agents?.opencode) return;
+  const file = path.join(stateDir, 'opencode', 'profile', '.config', 'opencode', 'opencode.jsonc');
+  try {
+    const before = exists(file) ? fs.readFileSync(file, 'utf8') : '{}';
+    if (Buffer.byteLength(before, 'utf8') > MAX_CODEX_CONFIG_BYTES) {
+      warn('opencode: config is over 1 MB; snapshots were not changed.');
+      return;
+    }
+    const after = defaultOpenCodeSnapshotsOff(before);
+    if (after === before) return;
+    mkdirp(path.dirname(file));
+    fs.writeFileSync(file, after.endsWith('\n') ? after : after + '\n', 'utf8');
+    log('opencode: filesystem snapshots disabled by default to protect sandbox disk space.');
+  } catch (e) {
+    warn('opencode: could not set the safe filesystem snapshot default (' + errMsg(e) + ').');
   }
 }
 

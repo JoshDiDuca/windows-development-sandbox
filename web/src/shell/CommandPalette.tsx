@@ -2,9 +2,9 @@
 // terminals, and every setting by name or key (it opens the setting in Settings). Built from the same queries the pages
 // read, so it never lists what a page would not offer.
 import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
-import { Spotlight, type SpotlightActionData, type SpotlightActionGroupData } from '@mantine/spotlight';
+import { Spotlight, useSpotlight, type SpotlightActionData, type SpotlightActionGroupData } from '@mantine/spotlight';
 import { IconAdjustments, IconMoon, IconPlus, IconSearch, IconTerminal2 } from '@tabler/icons-react';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   NAV,
   navGroupOf,
@@ -17,13 +17,16 @@ import { AREA_ICONS, ItemIcon } from '../render/icons';
 import { itemAnchor } from '../render/CategoryPage';
 import { navigate, viewPath } from '../router';
 import { useQueryData } from '../rpc/hooks';
+import { paletteStore } from './spotlight';
 
 const SESSIONS = queryById('sessions.list');
 const SETTINGS = queryById('settings.list');
 
 export function CommandPalette() {
+  const opened = useSpotlight(paletteStore).opened;
   const sessions = useQueryData(SESSIONS!, {}).data as SessionsList | undefined;
-  const settings = useQueryData(SETTINGS!, { scope: 'user' }).data as SettingsList | undefined;
+  const [settings, setSettings] = useState<SettingsList | undefined>();
+  const receiveSettings = useCallback((value: SettingsList | undefined) => setSettings(value), []);
   const { setColorScheme } = useMantineColorScheme();
   const dark = useComputedColorScheme('light') === 'dark';
 
@@ -87,15 +90,25 @@ export function CommandPalette() {
   }, [sessions, settings, dark, setColorScheme]);
 
   return (
-    <Spotlight
-      actions={actions}
-      shortcut={['mod + K', '/']}
-      limit={12}
-      highlightQuery
-      scrollable
-      maxHeight={480}
-      nothingFound="No pages, sessions or settings match"
-      searchProps={{ leftSection: <IconSearch size={18} />, placeholder: 'Search pages, sessions and settings…' }}
-    />
+    <>
+      {opened && <SettingsQuery onData={receiveSettings} />}
+      <Spotlight
+        store={paletteStore}
+        actions={actions}
+        shortcut={['mod + K', '/']}
+        limit={12}
+        highlightQuery
+        scrollable
+        maxHeight={480}
+        nothingFound="No pages, sessions or settings match"
+        searchProps={{ leftSection: <IconSearch size={18} />, placeholder: 'Search pages, sessions and settings…' }}
+      />
+    </>
   );
+}
+
+function SettingsQuery({ onData }: { readonly onData: (settings: SettingsList | undefined) => void }) {
+  const settings = useQueryData(SETTINGS!, { scope: 'user' }).data as SettingsList | undefined;
+  useEffect(() => onData(settings), [settings, onData]);
+  return null;
 }

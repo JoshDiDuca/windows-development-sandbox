@@ -201,6 +201,19 @@ function details(row: SettingRow, scope: Scope): string[] {
   ];
 }
 
+function webDetails(row: SettingRow, scope: Scope) {
+  const text = (v: unknown): string => valueText(v, row.field, 40).text;
+  return [
+    { label: 'Setting', value: row.id, code: true },
+    { label: 'All projects', value: text(row.yours) + (row.yoursSet ? ' (your file)' : ' (built-in default)') },
+    { label: 'This project', value: row.inProject === undefined ? 'not set' : text(row.inProject) },
+    ...(scope === 'user' ? [{ label: 'Default', value: text(row.default) }] : []),
+    ...(scope === 'project' && row.locked
+      ? [{ label: '', value: 'A project can only make this stricter than your own setting.' }]
+      : []),
+  ];
+}
+
 function settingItem(row: SettingRow, scope: Scope): Item {
   const shown =
     scope === 'project' && !row.set
@@ -215,6 +228,7 @@ function settingItem(row: SettingRow, scope: Scope): Item {
     description: row.field.help,
     group: row.section,
     details: details(row, scope),
+    webDetails: webDetails(row, scope),
     keywords: row.id,
     code: row.id,
     cells: { setting: row.id, value: shown },
@@ -280,6 +294,7 @@ export function settingsPage(o: SettingsList): Page {
         (o.exists ? '' : ' (created when you save)') +
         (o.scope === 'project' ? ': only what a project may set; needs your approval at the next launch' : ''),
       tone: o.scope === 'project' ? 'accent' : 'muted',
+      file: o.file,
     },
     sections,
     // Export and import are for your own settings only (never on the project tab).

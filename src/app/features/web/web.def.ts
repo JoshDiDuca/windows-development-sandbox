@@ -91,17 +91,23 @@ export function webPage(o: WebStatus): Page {
             id: 'running',
             label: 'Running',
             value: o.running ? 'yes' : 'no',
+            valueKind: 'sentence',
             tone: o.running ? 'ok' : 'muted',
           },
-          ...(o.address ? [{ id: 'address', label: 'Address', value: o.address + '  (this PC only)' }] : []),
+          ...(o.address
+            ? [{ id: 'address', label: 'Address', value: o.address + ' (this PC only)', valueKind: 'machine' as const }]
+            : []),
           ...(o.lanAddress
             ? [
                 {
                   id: 'lan',
                   label: 'On your network',
                   value: o.lanAddress,
+                  valueKind: 'machine' as const,
                   description: 'Type this into the phone, then enter the code from Remote access > Allow a new device.',
-                  details: o.lanFingerprint ? ['Certificate ' + o.lanFingerprint] : undefined,
+                  webDetails: o.lanFingerprint
+                    ? [{ label: 'Certificate', value: o.lanFingerprint, code: true }]
+                    : undefined,
                 },
               ]
             : []),

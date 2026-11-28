@@ -1,6 +1,7 @@
 // Pure parts of the agents' files: where an agent is installed, the command that starts it in a terminal tab, and the
 // SQLite folders it runs from the sandbox's own disk. No side effects: the self-test imports this file.
 import path from 'node:path';
+import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser';
 import type { Config, Harness } from '../../core/types.js';
 
 /** Where an agent lives in persistent storage: its folder, and the program (an .exe, or an npm .cmd) in it. */
@@ -293,3 +294,18 @@ export const isDatabaseFile = (name: string): boolean => /\.(sqlite3?|db)(-wal|-
 
 /** Files that make a consistent copy: the databases and their -wal (the -shm is rebuilt by SQLite). */
 export const isCopyableDatabaseFile = (name: string): boolean => isDatabaseFile(name) && !/-shm$/i.test(name);
+
+/** OpenCode's filesystem snapshots copy tracked project files into its data directory, which can exhaust the sandbox
+ * disk on large asset repositories. Make its upstream default (enabled) opt-in in this disposable environment. */
+export function defaultOpenCodeSnapshotsOff(text: string): string {
+  const errors: ParseError[] = [];
+  const value = parse(text, errors, { allowTrailingComma: true, disallowComments: false });
+  if (errors.length || !value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('OpenCode config is not a valid JSONC object.');
+  }
+  if (Object.hasOwn(value, 'snapshots')) return text;
+  return applyEdits(
+    text,
+    modify(text, ['snapshots'], false, { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' } }),
+  );
+}

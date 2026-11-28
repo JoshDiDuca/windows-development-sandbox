@@ -344,6 +344,13 @@ function loginItem(a: AgentAccounts, r: AgentAccounts['accounts'][number]): Item
       'Email  ' + (r.email ?? '-'),
       'Saved  ' + r.savedAt.slice(0, 16).replace('T', ' '),
     ],
+    webDetails: [
+      { label: 'Agent', value: a.name },
+      ...(kind ? [{ label: 'Kind', value: kind }] : []),
+      ...(r.providers ? [{ label: 'Providers', value: providersText(r) }] : []),
+      { label: 'Email', value: r.email ?? '-' },
+      { label: 'Saved', value: r.savedAt.slice(0, 16).replace('T', ' ') },
+    ],
     // The login in use already offers nothing to switch to.
     ...(r.isActive ? {} : { primary: action(useAccount, { agent: a.name, name: r.name }, { verb: 'use' }) }),
     actions: [

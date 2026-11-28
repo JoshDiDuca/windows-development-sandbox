@@ -169,6 +169,7 @@ function sessionItem(s: SessionRow, wide: boolean): Item {
     id: s.id,
     label: (s.kind === 'shell' ? s.harness + ' (shell)' : s.harness) + '  ' + (s.projectName ?? '-'),
     hint: state + '  ' + ago(s.startedAt),
+    webHint: state + ' · ' + ago(s.startedAt),
     badges: [{ text: s.phase, tone: running ? 'ok' : s.phase === 'failed' ? 'danger' : 'muted' }],
     group: s.here ? "This folder's project" : 'Other sessions',
     marked: s.here,
@@ -177,6 +178,11 @@ function sessionItem(s: SessionRow, wide: boolean): Item {
       ? "Opens this session's terminal (in a terminal, Ctrl+] detaches; the session keeps running). x closes it."
       : undefined,
     details: ['Session   ' + s.id, 'Folder    ' + s.cwd, 'Attached  ' + viewerText(s.viewers)],
+    webDetails: [
+      { label: 'Session', value: s.id, code: true },
+      { label: 'Folder', value: s.cwd, code: true },
+      { label: 'Attached', value: viewerText(s.viewers) },
+    ],
     cells: {
       here: s.here ? '*' : '',
       id: s.id,
@@ -225,7 +231,9 @@ export function sessionsPage(o: SessionsList): Page {
         ],
         items: sessions.map((s) => sessionItem(s, o.wide)),
         notes: [
-          ...(sessions.some((s) => s.here) ? [{ text: '* = the project of this folder', tone: 'muted' as const }] : []),
+          ...(sessions.some((s) => s.here)
+            ? [{ text: '* = the project of this folder', tone: 'muted' as const, legend: true }]
+            : []),
           ...(o.wide
             ? []
             : [{ text: 'Folders: sandbox sessions --wide', tone: 'muted' as const, only: 'cli' as const }]),

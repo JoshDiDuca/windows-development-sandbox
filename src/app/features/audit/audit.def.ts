@@ -215,6 +215,7 @@ function eventItem(e: AuditRow, index: number): Item {
     id: 'event:' + index,
     label: clip(what),
     hint: eventTime(e.time) + '  ' + whoText(e),
+    webHint: eventTime(e.time) + ' · ' + whoText(e),
     tone: e.kind === 'guard' ? 'warn' : undefined,
     details,
     keywords: [e.session, e.project, e.agent, e.kind, e.author].filter(Boolean).join(' '),
@@ -248,6 +249,11 @@ function sessionItem(o: AuditList, s: AuditSession): Item {
       ...(s.ended ? [{ text: 'ended', tone: 'muted' as const }] : []),
     ],
     details: ['Did       ' + countsText(s), ...(s.last ? ['Last      ' + clip(s.last, 120)] : []), 'Session   ' + s.id],
+    webDetails: [
+      { label: 'Did', value: countsText(s) },
+      ...(s.last ? [{ label: 'Last', value: clip(s.last, 120) }] : []),
+      { label: 'Session', value: s.id, code: true },
+    ],
     keywords: s.id,
     cells: {
       session: shortId(s.id),
@@ -274,6 +280,7 @@ function unlinkedItem(o: AuditList): Item {
     description:
       'What the sandbox ran itself (setup, services), and changes made while no session or several ran in that project.',
     details: ['Did       ' + countsText(u)],
+    webDetails: [{ label: 'Did', value: countsText(u) }],
     cells: {
       session: NO_SESSION,
       agent: '-',

@@ -41,6 +41,7 @@ const STATE_TEXT: Record<ConnectionState, { text: string; color: MantineColor }>
   connecting: { text: 'Connecting', color: 'gray' },
   connected: { text: 'Connected', color: 'green' },
   reconnecting: { text: 'Reconnecting', color: 'orange' },
+  restarting: { text: 'Restarting', color: 'orange' },
   ended: { text: 'Ended', color: 'gray' },
   failed: { text: 'Connection failed', color: 'red' },
 };

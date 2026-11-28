@@ -37,11 +37,13 @@ export interface WebInfo {
 }
 
 /** Browser -> server on the terminal socket: binary messages are keystrokes; text messages are these (JSON). */
-export type ClientMessage = { readonly t: 'resize'; readonly cols: number; readonly rows: number };
+export type ClientMessage =
+  | { readonly t: 'resize'; readonly cols: number; readonly rows: number }
+  | { readonly t: 'flow'; readonly paused: boolean };
 
 /** Server -> browser: binary messages are terminal output; text messages are these (JSON). */
 export type ServerMessage =
-  | { readonly t: 'ready' }
+  | { readonly t: 'ready'; readonly readOnly?: boolean }
   | { readonly t: 'restarting' }
   | { readonly t: 'exit'; readonly code: number }
   | { readonly t: 'error'; readonly message: string };
@@ -63,6 +65,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
   }
   if (typeof value !== 'object' || value === null) return null;
   const m = value as Record<string, unknown>;
+  if (m.t === 'flow' && typeof m.paused === 'boolean') return { t: 'flow', paused: m.paused };
   if (m.t !== 'resize') return null;
   const { cols, rows } = m;
   if (!Number.isInteger(cols) || !Number.isInteger(rows)) return null;

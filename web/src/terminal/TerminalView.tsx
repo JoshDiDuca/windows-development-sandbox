@@ -5,6 +5,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useComputedColorScheme } from '@mantine/core';
@@ -82,6 +83,7 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
   const search = useRef<SearchAddon | null>(null);
   const fit = useRef<FitAddon | null>(null);
   const send = useRef<(text: string) => void>(() => undefined);
+  const canType = useRef(false);
   // Dark or light follows the app (which follows the operating system or the toggle).
   const dark = useComputedColorScheme('dark') === 'dark';
   const startDark = useRef(dark);
@@ -125,6 +127,14 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = '11';
     term.open(element);
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => webgl.dispose());
+    try {
+      term.loadAddon(webgl);
+    } catch {
+      // WebGL can be unavailable in remote or software-rendered browsers; xterm keeps its DOM renderer.
+      webgl.dispose();
+    }
     // Ctrl+C with text selected copies it, as everywhere else. Without one, CtrlCDecider decides: after a selection made
     // inside the program it is "copy" and not sent; otherwise a lone Ctrl+C is held and a second one soon after sent.
     const decider = new CtrlCDecider(true);
@@ -151,24 +161,49 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
     fit.current = fitter;
     fitter.fit();
 
+    let pendingOutputBytes = 0;
+    let outputPaused = false;
     const connection = new TerminalConnection(sessionId, {
-      state: onState,
+      state: (state, detail) => {
+        if (state !== 'connected') {
+          canType.current = false;
+          term.options.disableStdin = true;
+        } else term.options.disableStdin = !canType.current;
+        onState(state, detail);
+      },
+      readOnly: (value) => {
+        canType.current = !value;
+        term.options.disableStdin = value;
+      },
       output: (bytes) => {
         if (hasClipboardWrite(latin1.decode(bytes))) decider.selection();
-        term.write(bytes);
+        pendingOutputBytes += bytes.byteLength;
+        if (!outputPaused && pendingOutputBytes > 2 * 1024 * 1024) {
+          outputPaused = true;
+          connection.pauseOutput(true);
+        }
+        term.write(bytes, () => {
+          pendingOutputBytes = Math.max(0, pendingOutputBytes - bytes.byteLength);
+          if (outputPaused && pendingOutputBytes < 512 * 1024) {
+            outputPaused = false;
+            connection.pauseOutput(false);
+          }
+        });
       },
       reset: () => term.reset(),
     });
     const encoder = new TextEncoder();
     const latin1 = new TextDecoder('latin1');
-    send.current = (text) => connection.send(encoder.encode(text));
+    send.current = (text) => {
+      if (canType.current) connection.send(encoder.encode(text));
+    };
     term.onData((text) => {
       watchInput(text);
-      connection.send(encoder.encode(text));
+      if (canType.current) connection.send(encoder.encode(text));
     });
     term.onBinary((text) => {
       watchInput(text);
-      connection.send(Uint8Array.from(text, (ch) => ch.charCodeAt(0)));
+      if (canType.current) connection.send(Uint8Array.from(text, (ch) => ch.charCodeAt(0)));
     });
     term.onResize(({ cols, rows }) => connection.resize(cols, rows));
     // Layout settles in bursts (fonts loading, a toolbar wrapping, the find bar): fit once it has settled, and only
@@ -196,9 +231,16 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
       if (document.hidden) hiddenTimer = window.setTimeout(() => connection.suspend(), HIDDEN_RELEASE_MS);
       else connection.resume();
     };
-    const onPageHide = (): void => connection.close();
+    const onPageHide = (event: PageTransitionEvent): void => {
+      if (event.persisted) connection.suspend();
+      else connection.close();
+    };
+    const onPageShow = (event: PageTransitionEvent): void => {
+      if (event.persisted) connection.resume();
+    };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
 
     onReady(() => connection.close());
     connection.open(term.cols, term.rows);
@@ -209,6 +251,7 @@ export const TerminalView = forwardRef<TerminalHandle, TerminalViewProps>(functi
       term.textarea?.removeEventListener('focus', claim);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
       observer.disconnect();
       connection.close();
       term.dispose();

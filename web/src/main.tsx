@@ -7,12 +7,34 @@ import { MantineProvider } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Component, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { RpcClient } from './rpc/client';
 import { RpcProvider } from './rpc/hooks';
 import { theme } from './theme';
 import './app.css';
+
+class AppErrorBoundary extends Component<PropsWithChildren, { error?: Error }> {
+  state: { error?: Error } = {};
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <main role="alert" style={{ padding: 32 }}>
+          <h1>Something went wrong</h1>
+          <p>{this.state.error.message}</p>
+          <button onClick={() => location.reload()}>Reload</button>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const queries = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 const rpc = new RpcClient();
@@ -32,7 +54,9 @@ if (root)
         <RpcProvider client={rpc}>
           <ModalsProvider>
             <Notifications position="bottom-right" limit={4} />
-            <App />
+            <AppErrorBoundary>
+              <App />
+            </AppErrorBoundary>
           </ModalsProvider>
         </RpcProvider>
       </QueryClientProvider>

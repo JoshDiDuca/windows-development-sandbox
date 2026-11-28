@@ -143,7 +143,7 @@ function OnYourNetwork({ onSignedIn }: { readonly onSignedIn: () => void }) {
   );
 }
 
-export function SignIn({ onSignedIn }: { readonly onSignedIn: () => void }) {
+export function SignIn({ onSignedIn, error }: { readonly onSignedIn: () => void; readonly error?: string }) {
   // #device shows the device form on this PC too (the preview's screenshots); signing in still needs the LAN listener.
   const lan = location.protocol === 'https:' || location.hash === '#device';
   return (
@@ -156,6 +156,16 @@ export function SignIn({ onSignedIn }: { readonly onSignedIn: () => void }) {
           <Text fw={650}>Sandbox</Text>
         </Group>
         <Card w="100%" p="xl">
+          {error && (
+            <Stack mb="md" gap="xs">
+              <Alert color="red" variant="light">
+                {error}
+              </Alert>
+              <Button variant="default" onClick={onSignedIn}>
+                Retry
+              </Button>
+            </Stack>
+          )}
           {lan ? <OnYourNetwork onSignedIn={onSignedIn} /> : <OnThisPc />}
         </Card>
       </Stack>

@@ -144,6 +144,10 @@ function projectItem(p: ProjectRow): Item {
     hint: p.running ?? (p.root ? 'in a root' : p.excluded ? 'excluded' : p.mappedAtStart ? 'mapped' : '-'),
     description: p.here ? 'This is the folder you started the menu in.' : undefined,
     details: ['At start: ' + atStart(p), 'In the sandbox: ' + (p.running ?? 'not open')],
+    webDetails: [
+      { label: 'At start', value: atStart(p) },
+      { label: 'In the sandbox', value: p.running ?? 'not open' },
+    ],
     cells: { here: p.here ? '*' : '', folder: p.folder, atStart: atStart(p), running: p.running ?? '-' },
     actions: [
       action(removeProject, { projectFolder: p.folder }, { key: 'f', verb: 'forget project', importance: 1 }),
@@ -181,11 +185,13 @@ export function projectsPage(o: ProjectsList): Page {
         id: 'all',
         label: 'All projects',
         value: o.all ? 'on (every project below is mapped at every start, except excluded ones)' : 'off',
+        valueKind: 'sentence',
       },
       {
         id: 'roots',
         label: 'Roots',
         value: o.roots.length ? o.roots.join(', ') : 'none',
+        valueKind: o.roots.length ? 'machine' : 'plain',
       },
     ],
     actions: [

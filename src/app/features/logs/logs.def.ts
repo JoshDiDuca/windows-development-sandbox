@@ -95,6 +95,7 @@ export function logsPage(files: LogFiles, tail?: LogTail): Page {
     id: 'log:' + f.name,
     label: f.name,
     hint: bytesText(f.bytes) + '  ' + ago(f.modified),
+    webHint: bytesText(f.bytes) + ' · ' + ago(f.modified),
     keys: 'Enter shows the end of this log in the terminal.',
     primary: link({ kind: 'view', view: 'logs', params: { name: f.name } }, 'Show', { verb: 'show' }),
     ...(shown?.name === f.name ? { badges: [SHOWING] } : {}),

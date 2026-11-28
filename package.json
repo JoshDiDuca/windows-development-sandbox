@@ -1,6 +1,6 @@
 {
   "name": "windows-development-sandbox",
-  "version": "1.31.3",
+  "version": "1.31.5",
   "description": "A disposable Windows Sandbox for development, with or without an AI agent (Claude Code, Codex, Gemini, opencode, ...): the folder you run it from is the workspace, toolchains and databases for your project install themselves, and nothing else on your PC is reachable.",
   "type": "module",
   "license": "MIT",
@@ -103,6 +103,7 @@
     "@xterm/addon-search": "0.16.0",
     "@xterm/addon-unicode11": "0.9.0",
     "@xterm/addon-web-links": "0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",

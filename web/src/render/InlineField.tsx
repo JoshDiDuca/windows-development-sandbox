@@ -14,7 +14,7 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { fieldProblem, type Field, type OperationAction } from '../../../src/app/kernel/index';
 import { useRunAction } from '../rpc/hooks';
 import { askFields } from './ActionForm';
@@ -40,22 +40,30 @@ export function InlineField({ action, summary }: InlineFieldProps) {
   const saved = action.initial?.[field?.name ?? ''];
   const [draft, setDraft] = useState<unknown>(saved);
   const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
   const [problem, setProblem] = useState<string | null>(null);
   const savedKey = JSON.stringify(saved ?? null);
   useEffect(() => setDraft(JSON.parse(savedKey) as unknown), [savedKey]);
   if (!field) return null;
 
   const save = async (value: unknown): Promise<void> => {
+    if (saving.current) return;
     if (JSON.stringify(value ?? null) === savedKey) return;
     const wrong = fieldProblem(field, value);
     if (wrong) {
       setProblem(wrong);
       return;
     }
+    saving.current = true;
     setBusy(true);
     setProblem(null);
-    const outcome = await run(action, { [field.name]: value }, { inline: true });
-    setBusy(false);
+    let outcome: Awaited<ReturnType<typeof run>>;
+    try {
+      outcome = await run(action, { [field.name]: value }, { inline: true });
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
     if (!outcome.ok && !('cancelled' in outcome)) {
       setProblem(outcome.message + (outcome.fix ? ' ' + outcome.fix : ''));
       setDraft(JSON.parse(savedKey) as unknown);
@@ -134,7 +142,7 @@ export function InlineField({ action, summary }: InlineFieldProps) {
             }}
           />
           {custom && field.open && (
-            <OpenValue field={field.open} value={draft} error={error} onChange={setDraft} onSave={save} />
+            <OpenValue field={field.open} value={draft} error={error} busy={busy} onChange={setDraft} onSave={save} />
           )}
         </Stack>
       );
@@ -153,6 +161,7 @@ export function InlineField({ action, summary }: InlineFieldProps) {
             placeholder={field.literals?.length ? field.literals.join(' or ') + ', or a path' : 'C:\\…'}
             rightSection={spinner}
             error={error}
+            disabled={busy}
             onChange={(e) => setDraft(e.currentTarget.value)}
             onBlur={() => void save(draft)}
             onKeyDown={onEnter}
@@ -160,6 +169,7 @@ export function InlineField({ action, summary }: InlineFieldProps) {
           <BrowseButton
             field={field}
             value={typeof draft === 'string' ? draft : undefined}
+            disabled={busy}
             onPick={(picked) => {
               setDraft(picked);
               void save(picked);
@@ -178,6 +188,7 @@ export function InlineField({ action, summary }: InlineFieldProps) {
             value={items}
             error={error}
             rightSection={spinner}
+            disabled={busy}
             onChange={(picked) => {
               const value = picked.map((p) => element.choices?.find((c) => String(c.value) === p)?.value ?? p);
               setDraft(value);
@@ -198,6 +209,7 @@ export function InlineField({ action, summary }: InlineFieldProps) {
             placeholder={items.length ? undefined : 'Type and press Enter'}
             error={error}
             rightSection={spinner}
+            disabled={busy}
             onChange={change}
             clearable
           />
@@ -205,6 +217,7 @@ export function InlineField({ action, summary }: InlineFieldProps) {
             <BrowseButton
               field={field}
               value={undefined}
+              disabled={busy}
               onPick={(picked) => change(items.includes(picked) ? items : [...items, picked])}
             />
           )}
@@ -218,6 +231,7 @@ export function InlineField({ action, summary }: InlineFieldProps) {
           value={typeof draft === 'string' ? draft : ''}
           rightSection={spinner}
           error={error}
+          disabled={busy}
           onChange={(e) => setDraft(e.currentTarget.value)}
           onBlur={() => void save(draft)}
           onKeyDown={onEnter}
@@ -252,6 +266,7 @@ function OpenValue({ field, value, error, busy, onChange, onSave }: OpenValuePro
         placeholder={field.range}
         rightSection={busy ? <Loader size={14} /> : undefined}
         error={error}
+        disabled={busy}
         onChange={(n) => onChange(typeof n === 'number' ? n : undefined)}
         onBlur={() => void onSave(value)}
         onKeyDown={keys}
@@ -262,6 +277,7 @@ function OpenValue({ field, value, error, busy, onChange, onSave }: OpenValuePro
       aria-label={field.label}
       value={typeof value === 'string' ? value : ''}
       error={error}
+      disabled={busy}
       onChange={(e) => onChange(e.currentTarget.value)}
       onBlur={() => void onSave(value)}
       onKeyDown={keys}

@@ -4,13 +4,13 @@
 // Views a navigation entry embeds (Settings: VPN, GitHub) are more categories of that entry's page; their own address
 // opens that page at their category.
 import { SegmentedControl, Select } from '@mantine/core';
-import { useEffect, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { embeddingOf, NAV, navGroupOf, navSections, viewById } from '../../../src/app/features/defs';
 import { viewInputs, type AnyView, type ErrorAction } from '../../../src/app/kernel/index';
 import { useAct } from '../render/actions';
 import { PageView } from '../render/PageView';
 import { ErrorState, PageSkeleton } from '../render/states';
-import { useQueryData } from '../rpc/hooks';
+import { useQueryData, type QueryData } from '../rpc/hooks';
 import { navigate, viewPath } from '../router';
 
 interface ViewPageProps {
@@ -67,13 +67,50 @@ interface LoadedViewProps {
   readonly extras?: readonly { readonly id: string; readonly label: string; readonly node: ReactNode }[];
 }
 
+function QuerySlot({
+  name,
+  def,
+  input,
+  onResult,
+}: {
+  readonly name: string;
+  readonly def: AnyView['queries'][string];
+  readonly input: unknown;
+  readonly onResult: (name: string, result: QueryData) => void;
+}) {
+  const result = useQueryData(def, input);
+  useEffect(() => onResult(name, result), [name, result.data, result.error, result.pending, onResult]);
+  return null;
+}
+
 function LoadedView({ view, params, extras }: LoadedViewProps) {
-  const inputs = viewInputs(view, params as never) as Record<string, unknown>;
+  const paramKey = JSON.stringify(params);
+  const stableParams = useMemo(() => params, [paramKey]);
+  const inputs = viewInputs(view, stableParams as never) as Record<string, unknown>;
   const names = Object.keys(view.queries);
-  // The same queries on every render of one view (the page is keyed by the view and its parameters).
-  const results = names.map((name) => [name, useQueryData(view.queries[name], inputs[name])] as const);
+  const [resultsByName, setResultsByName] = useState<Record<string, QueryData>>({});
+  const onResult = useCallback((name: string, result: QueryData): void => {
+    setResultsByName((current) => {
+      const previous = current[name];
+      if (previous?.data === result.data && previous?.error === result.error && previous?.pending === result.pending)
+        return current;
+      return { ...current, [name]: result };
+    });
+  }, []);
+  const results = names.map(
+    (name) => [name, resultsByName[name] ?? { data: undefined, error: null, pending: true }] as const,
+  );
   const act = useAct();
   const failed = results.find(([, r]) => r.error);
+  const pending = results.some(([, r]) => r.pending);
+  const pageData = Object.fromEntries(results.map(([name, r]) => [name, r.data]));
+  const page = useMemo(
+    () => (pending || failed ? undefined : view.build(pageData as never, stableParams as never)),
+    [view, stableParams, pending, failed?.[1].error, ...results.map(([, r]) => r.data)],
+  );
+  const querySlots = names.map((name) => (
+    <QuerySlot key={name} name={name} def={view.queries[name]} input={inputs[name]} onResult={onResult} />
+  ));
   if (failed) {
     const error = failed[1].error as Error & { fix?: string; action?: ErrorAction };
     const fixAction = error.action && {
@@ -88,8 +125,13 @@ function LoadedView({ view, params, extras }: LoadedViewProps) {
     };
     return <ErrorState message={error.message} fix={error.fix} fixAction={fixAction} retry={() => location.reload()} />;
   }
-  if (results.some(([, r]) => r.pending)) return <PageSkeleton />;
-  const page = view.build(Object.fromEntries(results.map(([name, r]) => [name, r.data])) as never, params as never);
+  if (pending || !page)
+    return (
+      <>
+        {querySlots}
+        <PageSkeleton />
+      </>
+    );
   const tabs = view.tabs;
   const filters = view.filters?.length ? <FilterChoices view={view} params={params} /> : null;
   const toolbar =
@@ -107,7 +149,12 @@ function LoadedView({ view, params, extras }: LoadedViewProps) {
       </>
     ) : undefined;
   const eyebrow = navGroupOf(NAV, view.id)?.label;
-  return <PageView page={page} summary={view.summary} eyebrow={eyebrow} toolbar={toolbar} extras={extras} />;
+  return (
+    <>
+      {querySlots}
+      <PageView page={page} summary={view.summary} eyebrow={eyebrow} toolbar={toolbar} extras={extras} />
+    </>
+  );
 }
 
 /** A view drawn as a category of another page: its own Page, without tabs of its own. */

@@ -67,9 +67,13 @@ export interface Fact {
   readonly id: string;
   readonly label: string;
   readonly value: string;
+  /** How a browser should present the value; CLI wording remains in `value`. */
+  readonly valueKind?: 'machine' | 'sentence' | 'plain';
   readonly tone?: Tone;
   readonly description?: string;
   readonly details?: readonly string[];
+  /** Structured browser details; CLI-only alignment stays in `details`. */
+  readonly webDetails?: readonly Detail[];
   /** How full something is (memory used of total): a bar on the web, the value text elsewhere. */
   readonly meter?: { readonly value: number; readonly max: number };
 }
@@ -86,6 +90,8 @@ export interface Item {
   readonly label: string;
   /** The right-hand text (a state, a value). */
   readonly hint?: string;
+  /** Browser wording when the CLI hint uses spacing or symbols only for column alignment. */
+  readonly webHint?: string;
   /** Its name in files and commands (a setting's key), shown small in monospace on the web. */
   readonly code?: string;
   readonly tone?: Tone;
@@ -95,6 +101,8 @@ export interface Item {
   readonly keys?: string;
   /** Extra lines (the menu's details pane, the CLI's indented lines, the web's card body). */
   readonly details?: readonly string[];
+  /** Structured browser details; CLI-only alignment stays in `details`. */
+  readonly webDetails?: readonly Detail[];
   /** A heading inside the section ("This folder's project"). */
   readonly group?: string;
   /** Marked as "the one this is about" (the project of this folder): `*` in the CLI. */
@@ -117,6 +125,17 @@ export interface Note {
   readonly text: string;
   readonly tone?: Tone;
   readonly only?: 'cli' | 'menu' | 'web';
+  /** A renderer-only explanation of symbols used elsewhere on the page. */
+  readonly legend?: boolean;
+  /** Optional file path associated with a notice, such as a saved config file. */
+  readonly file?: string;
+}
+
+/** A detail row with meaning supplied by the view builder instead of guessed from aligned text. */
+export interface Detail {
+  readonly label?: string;
+  readonly value: string;
+  readonly code?: boolean;
 }
 
 export interface Section {

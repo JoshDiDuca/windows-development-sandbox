@@ -2,21 +2,25 @@
 // server are terminal output, text messages are JSON status; keystrokes go the other way as binary.
 import { parseServerMessage } from './messages';
 
-export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
+export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'restarting' | 'ended' | 'failed';
 
 export interface ConnectionEvents {
   state(state: ConnectionState, detail?: string): void;
   output(bytes: Uint8Array): void;
   /** A fresh connection: the terminal clears itself, the session draws the screen again. */
   reset(): void;
+  readOnly(value: boolean): void;
 }
 
-const WAITS_MS = [500, 1000, 2000, 4000, 8000];
+const BASE_WAIT_MS = 500;
+const MAX_WAIT_MS = 30_000;
+const GIVE_UP_MS = 5 * 60_000;
 
 export class TerminalConnection {
   private socket: WebSocket | null = null;
   private timer: number | undefined;
   private attempt = 0;
+  private reconnectSince = 0;
   private closed = false;
   private finished = false;
   private suspended = false;
@@ -57,11 +61,15 @@ export class TerminalConnection {
       if (!message) return;
       if (message.t === 'ready') {
         this.attempt = 0;
+        this.reconnectSince = 0;
         this.events.reset();
+        this.events.readOnly(message.readOnly === true);
         this.events.state('connected');
+      } else if (message.t === 'restarting') {
+        this.events.state('restarting', 'The session is restarting.');
       } else if (message.t === 'exit') {
         this.finished = true;
-        this.events.state('ended', 'The agent exited (code ' + message.code + ').');
+        this.events.state('ended', 'The session ended (code ' + message.code + ').');
       } else if (message.t === 'error') {
         this.finished = true;
         this.events.state('failed', message.message);
@@ -71,20 +79,36 @@ export class TerminalConnection {
       if (this.socket !== socket) return;
       this.socket = null;
       if (this.closed || this.finished || this.suspended) return;
-      const wait = WAITS_MS[Math.min(this.attempt, WAITS_MS.length - 1)];
-      this.attempt++;
+      if (!this.reconnectSince) this.reconnectSince = Date.now();
+      if (Date.now() - this.reconnectSince >= GIVE_UP_MS) {
+        this.events.state('failed', 'Could not reconnect to the session. Close and reopen the terminal to try again.');
+        this.finished = true;
+        return;
+      }
+      const ceiling = Math.min(MAX_WAIT_MS, BASE_WAIT_MS * 2 ** Math.min(this.attempt++, 6));
+      const wait = Math.round(ceiling * (0.75 + Math.random() * 0.5));
       this.events.state('reconnecting');
       this.timer = window.setTimeout(() => this.connect(), wait);
     };
   }
 
   send(bytes: Uint8Array): void {
-    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(bytes);
+    const socket = this.socket;
+    if (socket?.readyState !== WebSocket.OPEN) return;
+    // Stay below the server's 256 KiB message limit so a large paste cannot close the socket.
+    const maxChunk = 32 * 1024;
+    for (let offset = 0; offset < bytes.length; offset += maxChunk) {
+      socket.send(bytes.subarray(offset, Math.min(offset + maxChunk, bytes.length)));
+    }
   }
 
   resize(cols: number, rows: number): void {
     this.size = { cols, rows };
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ t: 'resize', cols, rows }));
+  }
+
+  pauseOutput(paused: boolean): void {
+    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ t: 'flow', paused }));
   }
 
   /** This terminal takes over the session's size (sent even when it has not changed: ptyhost gives the size to the last
@@ -107,6 +131,7 @@ export class TerminalConnection {
     if (!this.suspended || this.closed || this.finished) return;
     this.suspended = false;
     this.attempt = 0;
+    this.reconnectSince = 0;
     this.connect();
   }
 

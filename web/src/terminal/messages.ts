@@ -6,6 +6,7 @@ export function parseServerMessage(text: string): ServerMessage | null {
     const value = JSON.parse(text) as Record<string, unknown>;
     switch (value.t) {
       case 'ready':
+        return { t: 'ready', ...(value.readOnly === true ? { readOnly: true } : {}) };
       case 'restarting':
         return { t: value.t };
       case 'exit':

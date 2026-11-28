@@ -38,19 +38,26 @@ interface Subscription {
   readonly error: (error: Error) => void;
 }
 
-const WAITS_MS = [500, 1000, 2000, 4000, 8000];
+const BASE_WAIT_MS = 500;
+const MAX_WAIT_MS = 30_000;
+const GIVE_UP_MS = 5 * 60_000;
+export type RpcConnectionState = 'connected' | 'reconnecting' | 'offline' | 'signed-out' | 'replaced';
 
 export class RpcClient {
   private socket: WebSocket | null = null;
   private attempt = 0;
   private next = 1;
-  private readonly queue: string[] = [];
+  /** Only idempotent subscription messages may wait for a connecting socket. Calls must never replay. */
+  private readonly queue: { readonly text: string; readonly id?: string }[] = [];
   private readonly calls = new Map<string, PendingCall>();
   private readonly subscriptions = new Map<string, Subscription>();
   /** The subscription each query and input has, with the components that follow it. */
   private readonly shared = new Map<string, SharedSubscription>();
-  private readonly listeners = new Set<(connected: boolean) => void>();
+  private readonly listeners = new Set<(state: RpcConnectionState) => void>();
   private hidden = false;
+  private terminated: RpcConnectionState | null = null;
+  private reconnectSince = 0;
+  private reconnectTimer: number | null = null;
 
   /**
    * The tab was hidden or shown. Hidden: live queries stop (nothing is read for a page nobody sees); the idle socket
@@ -77,30 +84,40 @@ export class RpcClient {
 
   /** Closes the socket without reconnecting (the page is going away). */
   release(): void {
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     const socket = this.socket;
     this.socket = null;
     socket?.close(1000);
-    this.listeners.forEach((l) => l(false));
+    this.listeners.forEach((l) => l('reconnecting'));
   }
 
   /** Called when the socket connects or drops (the shell shows it). */
-  onConnection(listener: (connected: boolean) => void): () => void {
+  onConnection(listener: (state: RpcConnectionState) => void): () => void {
     this.listeners.add(listener);
+    listener(this.socket?.readyState === WebSocket.OPEN ? 'connected' : (this.terminated ?? 'reconnecting'));
     return () => this.listeners.delete(listener);
   }
 
   private connect(): WebSocket {
+    if (this.terminated)
+      throw new Error(
+        this.terminated === 'signed-out' ? 'You have been signed out.' : 'This page was replaced by a newer one.',
+      );
     if (this.socket) return this.socket;
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(scheme + '//' + location.host + '/api/rpc');
     this.socket = socket;
     socket.onopen = () => {
       this.attempt = 0;
-      this.listeners.forEach((l) => l(true));
+      this.reconnectSince = 0;
+      this.listeners.forEach((l) => l('connected'));
       // Live queries carry on where they were (not while the tab is hidden).
       if (!this.hidden)
         for (const [id, s] of this.subscriptions) this.send({ t: 'subscribe', id, query: s.query, input: s.input });
-      for (const text of this.queue.splice(0)) socket.send(text);
+      for (const item of this.queue.splice(0)) socket.send(item.text);
     };
     socket.onmessage = (event: MessageEvent<unknown>) => {
       if (typeof event.data !== 'string') return;
@@ -116,25 +133,51 @@ export class RpcClient {
     socket.onclose = (event: CloseEvent) => {
       if (this.socket !== socket) return;
       this.socket = null;
-      this.listeners.forEach((l) => l(false));
+      this.listeners.forEach((l) => l('reconnecting'));
       // A call cannot survive the socket (its questions were answered no on the server).
       for (const call of this.calls.values())
         call.reject(new Error('The connection to the sandbox web server dropped.'));
       this.calls.clear();
-      // 4000 (a newer page took this one's place) and 4001 (signed out, access changed) are meant: no way back.
-      if (event.code === 4000 || event.code === 4001) return;
-      // Back again while the page is open, hidden or not (after sleep, or a server restarted by sandbox web open).
-      const wait = WAITS_MS[Math.min(this.attempt++, WAITS_MS.length - 1)];
-      window.setTimeout(() => this.connect(), wait);
+      // Never replay a call or answer after the caller has been told it failed.
+      this.queue.length = 0;
+      if (event.code === 4000 || event.code === 4001) {
+        this.terminated = event.code === 4001 ? 'signed-out' : 'replaced';
+        this.listeners.forEach((l) => l(this.terminated!));
+        return;
+      }
+      // Retry with jitter, but stop polling after five minutes so abandoned pages go quiet.
+      if (!this.reconnectSince) this.reconnectSince = Date.now();
+      if (Date.now() - this.reconnectSince >= GIVE_UP_MS) {
+        this.listeners.forEach((l) => l('offline'));
+        return;
+      }
+      const ceiling = Math.min(MAX_WAIT_MS, BASE_WAIT_MS * 2 ** Math.min(this.attempt++, 6));
+      const wait = Math.round(ceiling * (0.75 + Math.random() * 0.5));
+      this.reconnectTimer = window.setTimeout(() => {
+        this.reconnectTimer = null;
+        try {
+          this.connect();
+        } catch {
+          /* terminated is surfaced to the shell */
+        }
+      }, wait);
     };
     return socket;
   }
 
   private send(message: object): void {
     const text = JSON.stringify(message);
+    if (this.terminated)
+      throw new Error(
+        this.terminated === 'signed-out' ? 'You have been signed out.' : 'This page was replaced by a newer one.',
+      );
     const socket = this.connect();
     if (socket.readyState === WebSocket.OPEN) socket.send(text);
-    else this.queue.push(text);
+    else {
+      const queued = message as { t?: string; id?: string };
+      if (queued.t === 'unsubscribe' || queued.t === 'call' || queued.t === 'answer')
+        this.queue.push({ text, ...(queued.id ? { id: queued.id } : {}) });
+    }
   }
 
   private async receive(m: ServerMessage): Promise<void> {
@@ -155,7 +198,7 @@ export class RpcClient {
         return;
       case 'ask': {
         const value = await call.handlers.ask(m.question);
-        this.send({ t: 'answer', id: m.id, value });
+        if (this.calls.has(m.id)) this.send({ t: 'answer', id: m.id, value });
         return;
       }
       case 'result':
@@ -170,12 +213,62 @@ export class RpcClient {
   }
 
   /** Runs an operation (or reads a query once); rejects with the operation's UserError or Cancelled. */
-  call(id: string, input: unknown, handlers: CallHandlers): Promise<unknown> {
+  call(
+    id: string,
+    input: unknown,
+    handlers: CallHandlers,
+    timeoutMs = 5 * 60_000,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     const callId = 'c' + this.next++;
     return new Promise((resolve, reject) => {
-      this.calls.set(callId, { handlers, resolve, reject });
-      this.send({ t: 'call', id: callId, op: id, input });
+      const abort = (): void => {
+        const pending = this.calls.get(callId);
+        if (!pending) return;
+        this.calls.delete(callId);
+        this.dropQueued(callId);
+        pending.reject(new Error('Stopped waiting for this request. It may still be running on the PC.'));
+      };
+      const timeout = window.setTimeout(() => {
+        const pending = this.calls.get(callId);
+        if (!pending) return;
+        this.calls.delete(callId);
+        this.dropQueued(callId);
+        pending.reject(new Error('This request timed out. Check whether it finished before trying again.'));
+      }, timeoutMs);
+      const settle = (): void => {
+        window.clearTimeout(timeout);
+        signal?.removeEventListener('abort', abort);
+      };
+      this.calls.set(callId, {
+        handlers,
+        resolve: (output) => {
+          settle();
+          resolve(output);
+        },
+        reject: (error) => {
+          settle();
+          reject(error);
+        },
+      });
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
+      signal?.addEventListener('abort', abort, { once: true });
+      try {
+        this.send({ t: 'call', id: callId, op: id, input });
+      } catch (error) {
+        this.calls.delete(callId);
+        this.dropQueued(callId);
+        window.clearTimeout(timeout);
+        reject(error instanceof Error ? error : new Error('Could not connect to the sandbox web server.'));
+      }
     });
+  }
+
+  private dropQueued(id: string): void {
+    for (let i = this.queue.length - 1; i >= 0; i--) if (this.queue[i].id === id) this.queue.splice(i, 1);
   }
 
   /**
